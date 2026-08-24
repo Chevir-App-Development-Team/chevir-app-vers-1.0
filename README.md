@@ -21,20 +21,24 @@ Chevir operates on two distinct but complementary pipelines:
 
 ```mermaid
 flowchart TD
+    %% Styling Classes
+    classDef input fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
+    classDef process fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef model fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000
+    classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+
     subgraph ModuleA ["Module A: Sign-to-Text (S2T)"]
-        direction LR
-        A1(["📸 Webcam / Video"]) -->|RGB Frames| A2["⚙️ MediaPipe Holistic"]
-        A2 -->|Raw Keypoints| A3["📐 Normalization & Padding"]
-        A3 -->|Tensor 1662| A4("🧠 PyTorch LSTM")
-        A4 -->|Prediction| A5(["📝 Text Output"])
+        A1(["📸 Webcam / Video"]):::input -->|RGB Frames| A2["⚙️ MediaPipe Holistic"]:::process
+        A2 -->|Raw Keypoints| A3["📐 Normalization & Padding"]:::process
+        A3 -->|Tensor 1662| A4("🧠 PyTorch LSTM"):::model
+        A4 -->|Prediction| A5(["📝 Text Output"]):::output
     end
 
     subgraph ModuleB ["Module B: Text-to-Sign (T2S)"]
-        direction LR
-        B1(["⌨️ Text Input"]) -->|Turkish/AzSL| B2["🧹 NLP Pipeline"]
-        B2 -->|Cleaned Text| B3["🔤 Gloss Extraction"]
-        B3 -->|Gloss Array| B4("🤖 Pose Generator")
-        B4 -->|Keypoint Sequence| B5(["🧍 3D Avatar Rendering"])
+        B1(["⌨️ Text Input"]):::input -->|Turkish/AzSL| B2["🧹 NLP Pipeline"]:::process
+        B2 -->|Cleaned Text| B3["🔤 Gloss Extraction"]:::process
+        B3 -->|Gloss Array| B4("🤖 Pose Generator"):::model
+        B4 -->|Keypoint Sequence| B5(["🧍 3D Avatar Rendering"]):::output
     end
 ```
 
