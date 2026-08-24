@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 def evaluate_model(model, test_loader, device='cpu', class_names=None):
     """
@@ -21,21 +24,19 @@ def evaluate_model(model, test_loader, device='cpu', class_names=None):
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(y_batch.cpu().numpy())
             
-    print("--- Evaluation Results ---")
-    print("\nClassification Report:")
-    print(classification_report(all_labels, all_preds, target_names=class_names))
+    logger.info("--- Evaluation Results ---")
+    logger.info("\nClassification Report:\n" + classification_report(all_labels, all_preds, target_names=class_names, zero_division=0))
     
-    print("\nConfusion Matrix:")
-    print(confusion_matrix(all_labels, all_preds))
+    logger.info("\nConfusion Matrix:\n" + str(confusion_matrix(all_labels, all_preds)))
     
     return all_preds, all_labels
 
 if __name__ == "__main__":
     from torch.utils.data import DataLoader, TensorDataset
-    from src.module_a_s2t.model import SignLanguageLSTM
+    from src.module_a_s2t import SignLanguageLSTM
     from src.config import SEQUENCE_LENGTH, INPUT_SIZE, NUM_CLASSES
     
-    print("Running a mock evaluation loop...")
+    logger.info("Running a mock evaluation loop...")
     
     # Mock data
     X_test = torch.randn(30, SEQUENCE_LENGTH, INPUT_SIZE)

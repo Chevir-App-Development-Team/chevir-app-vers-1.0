@@ -7,11 +7,9 @@ import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from src.module_a_s2t.extractor import HolisticExtractor
-from src.module_a_s2t.model import SignLanguageLSTM
-from src.module_b_t2s.nlp_gloss import NLPGlossPipeline
-from src.module_b_t2s.pose_generator import PoseGenerator
-from src.utils.logger import get_logger
+from src.module_a_s2t import HolisticExtractor, SignLanguageLSTM
+from src.module_b_t2s import NLPGlossPipeline, PoseGenerator
+from src.utils import get_logger
 from src.config import INPUT_SIZE, NUM_CLASSES, SEQUENCE_LENGTH
 
 logger = get_logger(__name__)

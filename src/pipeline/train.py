@@ -88,7 +88,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     from torch.utils.data import DataLoader, TensorDataset
-    from src.module_a_s2t.model import SignLanguageLSTM
+    from src.module_a_s2t import SignLanguageLSTM
     from src.config import SEQUENCE_LENGTH, INPUT_SIZE, NUM_CLASSES
     
     logger.info("Running training pipeline with mock data...")
