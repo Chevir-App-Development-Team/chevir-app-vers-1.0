@@ -1,6 +1,9 @@
 import cv2
 import mediapipe as mp
 import numpy as np
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class HolisticExtractor:
     def __init__(self, static_image_mode=False, model_complexity=1, min_detection_confidence=0.5, min_tracking_confidence=0.5):
@@ -12,6 +15,7 @@ class HolisticExtractor:
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence
         )
+        logger.info("HolisticExtractor initialized.")
 
     def process_image(self, image):
         """Processes the image and returns raw results."""
@@ -20,7 +24,27 @@ class HolisticExtractor:
         results = self.holistic.process(image_rgb)
         return results
 
-    def extract_keypoints(self, results):
+    def normalize_keypoints(self, keypoints, center_point_idx=0):
+        """
+        Normalizes keypoints to make them translation-invariant.
+        Currently simple mean-centering.
+        """
+        # Reshape to (N, features) to allow vector ops
+        if np.all(keypoints == 0):
+            return keypoints
+        
+        # Simple normalization: center by mean of non-zero coordinates
+        non_zero = keypoints[keypoints != 0]
+        if len(non_zero) > 0:
+            mean_val = np.mean(non_zero)
+            std_val = np.std(non_zero) + 1e-6
+            # Only normalize the non-zero elements
+            normalized = np.copy(keypoints)
+            normalized[keypoints != 0] = (keypoints[keypoints != 0] - mean_val) / std_val
+            return normalized
+        return keypoints
+
+    def extract_keypoints(self, results, normalize=True):
         """
         Extracts pose, face, left_hand, right_hand keypoints from MediaPipe results.
         Returns a flattened numpy array of 1662 features (33*4 + 468*3 + 21*3 + 21*3).
@@ -31,7 +55,11 @@ class HolisticExtractor:
         lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() if results.left_hand_landmarks else np.zeros(21 * 3)
         rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21 * 3)
         
-        return np.concatenate([pose, face, lh, rh])
+        concat_kps = np.concatenate([pose, face, lh, rh])
+        if normalize:
+            concat_kps = self.normalize_keypoints(concat_kps)
+            
+        return concat_kps
 
     def draw_landmarks(self, image, results):
         """

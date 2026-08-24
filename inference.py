@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import sys
 import os
+import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -10,16 +11,24 @@ from src.module_a_s2t.extractor import HolisticExtractor
 from src.module_a_s2t.model import SignLanguageLSTM
 from src.module_b_t2s.nlp_gloss import NLPGlossPipeline
 from src.module_b_t2s.pose_generator import PoseGenerator
+from src.utils.logger import get_logger
+from src.config import INPUT_SIZE, NUM_CLASSES, SEQUENCE_LENGTH
 
-def run_sign_to_text():
-    print("\n--- Running Sign-to-Text (Webcam) ---")
-    print("Press 'q' to quit.")
+logger = get_logger(__name__)
+
+def run_sign_to_text(camera_id=0):
+    logger.info(f"--- Running Sign-to-Text (Webcam {camera_id}) ---")
+    logger.info("Press 'q' to quit.")
     
     extractor = HolisticExtractor()
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(camera_id)
     
+    if not cap.isOpened():
+        logger.error(f"Failed to open camera {camera_id}")
+        return
+
     # Using a dummy model since we don't have a trained one
-    model = SignLanguageLSTM(num_classes=3)
+    model = SignLanguageLSTM(input_size=INPUT_SIZE, num_classes=NUM_CLASSES)
     model.eval()
     
     sequence = []
@@ -28,17 +37,17 @@ def run_sign_to_text():
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-            print("Ignoring empty camera frame.")
+            logger.warning("Ignoring empty camera frame.")
             continue
             
         results = extractor.process_image(frame)
-        keypoints = extractor.extract_keypoints(results)
+        keypoints = extractor.extract_keypoints(results, normalize=True)
         extractor.draw_landmarks(frame, results)
         
         sequence.append(keypoints)
-        sequence = sequence[-30:] # Keep last 30 frames
+        sequence = sequence[-SEQUENCE_LENGTH:] # Keep last frames
         
-        if len(sequence) == 30:
+        if len(sequence) == SEQUENCE_LENGTH:
             input_tensor = torch.tensor(np.array(sequence), dtype=torch.float32).unsqueeze(0)
             with torch.no_grad():
                 prediction = model(input_tensor)
@@ -55,42 +64,69 @@ def run_sign_to_text():
             
     cap.release()
     cv2.destroyAllWindows()
+    logger.info("Camera released, exiting Sign-to-Text.")
 
-def run_text_to_sign():
-    print("\n--- Running Text-to-Sign Pipeline ---")
+def run_text_to_sign(text_input=None):
+    logger.info("--- Running Text-to-Sign Pipeline ---")
     nlp_pipeline = NLPGlossPipeline()
     pose_gen = PoseGenerator()
     
-    while True:
-        text_input = input("\nEnter Turkish/Azerbaijani text (or 'q' to quit): ")
-        if text_input.lower() == 'q':
-            break
-            
-        gloss_array = nlp_pipeline.process(text_input)
-        print(f"1. Extracted Gloss Array: {gloss_array}")
-        
-        generated_pose = pose_gen.generate_pose(gloss_array)
-        print(f"2. Generated Pose Tensor Shape: {generated_pose.shape}")
-        print("   (This tensor would be sent to a 3D Avatar Engine/Unity)")
+    if text_input:
+        process_text_to_sign(text_input, nlp_pipeline, pose_gen)
+    else:
+        while True:
+            text_input = input("\nEnter Turkish/Azerbaijani text (or 'q' to quit): ")
+            if text_input.lower() == 'q':
+                break
+            process_text_to_sign(text_input, nlp_pipeline, pose_gen)
+
+def process_text_to_sign(text, nlp_pipeline, pose_gen):
+    gloss_array = nlp_pipeline.process(text)
+    logger.info(f"Extracted Gloss Array: {gloss_array}")
+    
+    generated_pose = pose_gen.generate_pose(gloss_array)
+    logger.info(f"Generated Pose Tensor Shape: {generated_pose.shape}")
+    logger.info("This tensor would be sent to a 3D Avatar Engine (e.g. Unity).")
 
 def main():
-    while True:
-        print("\n=== Chevir AI Accessibility Layer ===")
-        print("1. Test Webcam Sign-to-Text Extraction")
-        print("2. Test Text-to-Gloss Pipeline")
-        print("3. Quit")
-        
-        choice = input("Select an option (1-3): ")
-        
-        if choice == '1':
-            run_sign_to_text()
-        elif choice == '2':
-            run_text_to_sign()
-        elif choice == '3':
-            print("Exiting.")
-            break
-        else:
-            print("Invalid choice, please try again.")
+    parser = argparse.ArgumentParser(description="Chevir AI Accessibility Layer CLI")
+    subparsers = parser.add_subparsers(dest="mode", help="Pipeline mode to run")
+    
+    # Sign-to-Text mode
+    s2t_parser = subparsers.add_parser("s2t", help="Run Sign-to-Text via Webcam")
+    s2t_parser.add_argument("--camera", type=int, default=0, help="Camera device index")
+    
+    # Text-to-Sign mode
+    t2s_parser = subparsers.add_parser("t2s", help="Run Text-to-Sign")
+    t2s_parser.add_argument("--text", type=str, help="Text to translate into sign language (optional)")
+    
+    args = parser.parse_args()
+    
+    if args.mode == "s2t":
+        run_sign_to_text(camera_id=args.camera)
+    elif args.mode == "t2s":
+        run_text_to_sign(text_input=args.text)
+    else:
+        # Fallback to interactive mode if no arguments passed
+        logger.info("No mode selected. Run with --help for CLI options.")
+        logger.info("Starting interactive mode...")
+        while True:
+            print("\n=== Chevir AI Accessibility Layer ===")
+            print("1. Test Webcam Sign-to-Text Extraction")
+            print("2. Test Text-to-Gloss Pipeline")
+            print("3. Quit")
+            
+            choice = input("Select an option (1-3): ")
+            
+            if choice == '1':
+                run_sign_to_text()
+            elif choice == '2':
+                run_text_to_sign()
+            elif choice == '3':
+                print("Exiting.")
+                break
+            else:
+                print("Invalid choice, please try again.")
 
 if __name__ == "__main__":
     main()

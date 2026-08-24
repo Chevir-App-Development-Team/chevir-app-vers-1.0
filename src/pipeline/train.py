@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import argparse
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class EarlyStopper:
     def __init__(self, patience=5, min_delta=0):
@@ -20,15 +24,17 @@ class EarlyStopper:
                 return True
         return False
 
-def train_model(model, train_loader, val_loader, epochs=50, learning_rate=0.001, device='cpu'):
+def train_model(model, train_loader, val_loader, epochs=50, learning_rate=0.001, patience=5, device='cpu'):
     """
     Standard PyTorch training loop with Adam, CrossEntropyLoss, and early stopping.
     """
     model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    early_stopper = EarlyStopper(patience=5, min_delta=0.01)
+    early_stopper = EarlyStopper(patience=patience, min_delta=0.01)
 
+    logger.info(f"Starting training on {device} for {epochs} epochs...")
+    
     for epoch in range(epochs):
         # Training phase
         model.train()
@@ -65,37 +71,48 @@ def train_model(model, train_loader, val_loader, epochs=50, learning_rate=0.001,
         val_loss /= len(val_loader)
         val_accuracy = 100 * correct / total if total > 0 else 0
         
-        print(f"Epoch [{epoch+1}/{epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.2f}%")
+        logger.info(f"Epoch [{epoch+1}/{epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.2f}%")
         
         if early_stopper.early_stop(val_loss):
-            print("Early stopping triggered. Halting training.")
+            logger.warning("Early stopping triggered. Halting training.")
             break
             
     return model
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train the SignLanguageLSTM model.")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
+    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
+    parser.add_argument("--batch-size", type=int, default=16, help="Batch size")
+    parser.add_argument("--device", type=str, default="cpu", help="Device to train on (cpu/cuda)")
+    args = parser.parse_args()
+
     from torch.utils.data import DataLoader, TensorDataset
     from src.module_a_s2t.model import SignLanguageLSTM
+    from src.config import SEQUENCE_LENGTH, INPUT_SIZE, NUM_CLASSES
     
-    print("Running a mock training loop...")
+    logger.info("Running training pipeline with mock data...")
     
-    num_samples = 100
-    seq_length = 30
-    input_size = 1662
-    num_classes = 3
+    # Mock data
+    X_train = torch.randn(100, SEQUENCE_LENGTH, INPUT_SIZE)
+    y_train = torch.randint(0, NUM_CLASSES, (100,))
     
-    X_train = torch.randn(num_samples, seq_length, input_size)
-    y_train = torch.randint(0, num_classes, (num_samples,))
-    
-    X_val = torch.randn(20, seq_length, input_size)
-    y_val = torch.randint(0, num_classes, (20,))
+    X_val = torch.randn(20, SEQUENCE_LENGTH, INPUT_SIZE)
+    y_val = torch.randint(0, NUM_CLASSES, (20,))
     
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
     
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     
-    model = SignLanguageLSTM(input_size=input_size, num_classes=num_classes)
+    model = SignLanguageLSTM(input_size=INPUT_SIZE, num_classes=NUM_CLASSES)
     
-    train_model(model, train_loader, val_loader, epochs=10, device='cpu')
+    train_model(
+        model=model, 
+        train_loader=train_loader, 
+        val_loader=val_loader, 
+        epochs=args.epochs, 
+        learning_rate=args.lr,
+        device=args.device
+    )
