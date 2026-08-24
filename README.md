@@ -21,26 +21,20 @@ Chevir operates on two distinct but complementary pipelines:
 
 ```mermaid
 flowchart TD
-    %% Styling Classes
-    classDef input fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
-    classDef process fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
-    classDef model fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000
-    classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
-
     subgraph ModuleA ["Module A: Sign-to-Text (S2T)"]
         direction LR
-        A1(["📸 Webcam / Video"]):::input -->|RGB Frames| A2["⚙️ MediaPipe Holistic"]:::process
-        A2 -->|Raw Keypoints| A3["📐 Normalization & Padding"]:::process
-        A3 -->|Tensor 1662| A4("🧠 PyTorch LSTM"):::model
-        A4 -->|Prediction| A5(["📝 Text Output"]):::output
+        A1(["📸 Webcam / Video"]) -->|RGB Frames| A2["⚙️ MediaPipe Holistic"]
+        A2 -->|Raw Keypoints| A3["📐 Normalization & Padding"]
+        A3 -->|Tensor 1662| A4("🧠 PyTorch LSTM")
+        A4 -->|Prediction| A5(["📝 Text Output"])
     end
 
     subgraph ModuleB ["Module B: Text-to-Sign (T2S)"]
         direction LR
-        B1(["⌨️ Text Input"]):::input -->|Turkish/AzSL| B2["🧹 NLP Pipeline"]:::process
-        B2 -->|Cleaned Text| B3["🔤 Gloss Extraction"]:::process
-        B3 -->|Gloss Array| B4("🤖 Pose Generator"):::model
-        B4 -->|Keypoint Sequence| B5(["🧍 3D Avatar Rendering"]):::output
+        B1(["⌨️ Text Input"]) -->|Turkish/AzSL| B2["🧹 NLP Pipeline"]
+        B2 -->|Cleaned Text| B3["🔤 Gloss Extraction"]
+        B3 -->|Gloss Array| B4("🤖 Pose Generator")
+        B4 -->|Keypoint Sequence| B5(["🧍 3D Avatar Rendering"])
     end
 ```
 
@@ -107,7 +101,7 @@ python src/pipeline/train.py --epochs 20 --lr 0.005 --batch-size 32 --device cpu
 The theoretical foundation, datasets, and structural motivation for Chevir are based on the following resources:
 
 1. **World Health Organization (WHO)** - *Deafness and hearing loss* (2026). [Link](https://www.who.int/news-room/fact-sheets/detail/deafness-and-hearing-loss)
-2. **T.C. Sağlık Bakanlığı** - *Uluslararası İşitme Engelliler Haftası*. [Link](https://hsgm.saglik.gov.tr/tr/haberler/uluslararasi-i-sitme-engelliler-haftasi.html)
+2. **T.C. Sağlık Bakanlığı** - *Uluslararası İşitme Engelliler Haftası*. [Link](https://www.saglik.gov.tr/)
 3. Traxler, C. B. (2000). *The Stanford Achievement Test, 9th Edition: National Norming and Performance Standards for Deaf and Hard-of-Hearing Students*. Journal of Deaf Studies and Deaf Education. [DOI: 10.1093/deafed/5.4.337](https://doi.org/10.1093/deafed/5.4.337)
 4. Qi, S. & Mitchell, R. E. (2012). *Large-Scale Academic Achievement Testing of Deaf and Hard-of-Hearing Students*. [DOI: 10.1093/deafed/enr028](https://doi.org/10.1093/deafed/enr028)
 5. Mayer, C., Trezek, B. J. & Hancock, G. R. (2021). *Reading Achievement of Deaf Students*. [DOI: 10.1093/deafed/enab013](https://doi.org/10.1093/deafed/enab013)
