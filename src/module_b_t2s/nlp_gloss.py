@@ -1,41 +1,36 @@
-import re
+import string
 
-class TextToGlossConverter:
-    """Yazılı Türkçeyi/Azerbaycancayı İşaret Dili gramerine (Gloss) çevirir."""
-    
+class NLPGlossPipeline:
     def __init__(self):
-        # Basit NLP kuralları (Örn: Soru eklerini sona at, zaman kiplerini ayır)
-        self.stop_words = ["bir", "şu", "bu", "ve", "ile"]
+        # Basic stop word list
+        self.stop_words = {"bir", "ve", "ile", "de", "da", "ki", "mi", "mı", "mu", "mü"}
         
-    def preprocess_text(self, text):
-        text = text.lower()
-        text = re.sub(r'[^\w\s]', '', text)
-        words = text.split()
-        return [w for w in words if w not in self.stop_words]
-        
-    def translate_to_gloss(self, text):
-        """
-        Gelecekte LLM eklenecek olan kural tabanlı prototip katmanı.
-        Örn: 'Ben okula gidiyorum' -> 'BEN OKUL GİTMEK'
-        """
-        words = self.preprocess_text(text)
-        # TODO: NLP Modeli (Stemming & Lemmatization) eklenecek
-        gloss_sequence = [word.upper() for word in words]
-        return gloss_sequence
+        # Mock stemmer/lemmatizer map to convert to root words
+        self.lemma_map = {
+            "gidiyorum": "GİTMEK",
+            "geliyorum": "GELMEK",
+            "okula": "OKUL",
+            "ben": "BEN",
+            "sen": "SEN",
+            "seviyorum": "SEVMEK",
+            "seni": "SEN"
+        }
 
-class PoseGenerator:
-    """Gloss dizilimini 3B Avatar sürmek için anahtar noktalara (keypoints) dönüştürür."""
-    def __init__(self, dictionary_path):
-        self.dictionary_path = dictionary_path
-        # Önceden kaydedilmiş gloss-poz eşleşmeleri
-        self.pose_dict = {} 
+    def process(self, text):
+        """
+        Converts Turkish/Azerbaijani text into a capitalized Gloss array.
+        """
+        text = text.lower()
+        text = text.translate(str.maketrans('', '', string.punctuation))
         
-    def generate_animation(self, gloss_sequence):
-        animation_frames = []
-        for gloss in gloss_sequence:
-            if gloss in self.pose_dict:
-                animation_frames.append(self.pose_dict[gloss])
-            else:
-                # Bilinmeyen kelimeler için parmak alfabesi (fingerspelling) tetikle
-                pass 
-        return animation_frames
+        words = text.split()
+        gloss_array = []
+        
+        for word in words:
+            if word in self.stop_words:
+                continue
+            
+            mapped_word = self.lemma_map.get(word, word.upper())
+            gloss_array.append(mapped_word)
+            
+        return gloss_array

@@ -1,0 +1,27 @@
+chevir-nsosyal/
+├── .gitignore
+├── README.md                   # Proje dokümantasyonu ve kurulum
+├── requirements.txt            # Bağımlılıklar (PyTorch, MediaPipe, OpenCV)
+├── data/                       # Veri setleri (Git'e dahil edilmez)
+│   ├── raw_videos/
+│   └── extracted_keypoints/    
+├── src/                        # Ana Kaynak Kod
+│   ├── __init__.py
+│   ├── config.py               # Hiperparametreler ve yollar
+│   ├── module_a_s2t/           # Modül A: İşaret Dilinden Metne
+│   │   ├── __init__.py
+│   │   ├── extractor.py        # MediaPipe Holistic ile poz/iskelet çıkarımı
+│   │   └── model.py            # I3D / LSTM / Transformer sinir ağı mimarisi
+│   ├── module_b_t2s/           # Modül B: Metinden İşaret Diline
+│   │   ├── __init__.py
+│   │   ├── nlp_gloss.py        # Türkçeden Gloss'a (Ara dil) çeviri
+│   │   └── pose_generator.py   # Gloss'tan anahtar noktalara (3B Avatar) geçiş
+│   ├── pipeline/               # Eğitim ve Test Süreçleri
+│   │   ├── __init__.py
+│   │   ├── train.py            # Model eğitim (Training) döngüsü
+│   │   └── evaluate.py         # Test ve performans (F1, Accuracy) metrikleri
+│   └── utils/
+│       ├── __init__.py
+│       ├── streamer.py         # Kamera ve video akış (Streamer) yöneticisi
+│       └── visualizer.py       # Arayüz için iskelet çizim aracı
+└── inference.py                # Uçtan uca canlı çeviri ve test betiği
