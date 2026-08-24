@@ -1,10 +1,49 @@
 # Chevir: AI-Powered Sign Language Accessibility Layer
 
-Chevir is a bidirectional AI-powered sign language translation and generation layer, initially designed as a prototype for the NSosyal social media platform. 
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c)
+![MediaPipe](https://img.shields.io/badge/MediaPipe-0.10%2B-00a89d)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.8%2B-green)
 
-It handles two main pipelines:
+Chevir is a bidirectional AI-powered sign language translation and generation layer, initially designed as a prototype for the NSosyal social media platform. It bridges the communication gap between Deaf/Hard-of-Hearing users and hearing users by seamlessly translating sign language to text, and text to sign language.
+
+## Table of Contents
+- [Architecture Overview](#architecture-overview)
+- [Key Features](#key-features)
+- [Folder Structure](#folder-structure)
+- [Setup & Installation](#setup--installation)
+- [Usage (CLI)](#usage-cli)
+- [References](#references)
+
+## Architecture Overview
+
+Chevir operates on two distinct but complementary pipelines:
+
+```mermaid
+graph TD
+    subgraph Module A: Sign-to-Text
+        A[Webcam / Video] -->|Frames| B(MediaPipe Holistic Extractor)
+        B -->|Raw Keypoints| C(Normalization & Padding)
+        C -->|Tensor 1662 features| D(SignLanguageLSTM)
+        D -->|Prediction| E[Text Output]
+    end
+
+    subgraph Module B: Text-to-Sign
+        F[Text Input] -->|Raw String| G(NLP Pipeline)
+        G -->|Stopwords Removed| H(Gloss Extraction)
+        H -->|Gloss Array| I(Pose Generator)
+        I -->|Keypoint Sequence| J[3D Avatar Rendering]
+    end
+```
+
 1. **Module A (Sign-to-Text)**: Extracts 3D landmarks via MediaPipe Holistic (with translation-invariant normalization) and translates sequences of keypoints into Turkish/Azerbaijani text using a lightweight PyTorch network (LSTM).
 2. **Module B (Text-to-Sign)**: Parses text using an NLP pipeline to extract a normalized "Gloss", which then maps to standard keypoint arrays to animate a 3D Avatar.
+
+## Key Features
+- **Real-Time Landmark Extraction**: Leverages MediaPipe for rapid extraction of face, pose, and hand landmarks.
+- **Translation-Invariant Processing**: Keypoints are normalized based on body position, ensuring model robustness regardless of camera distance.
+- **Linguistic Integrity (Glossing)**: Translates natural text into "Gloss" (the root sequence used in sign languages) rather than direct literal word-for-word translation.
+- **Modular Design**: AI pipelines, visualization utilities, and dataset managers are cleanly separated for scalability.
 
 ## Folder Structure
 - `data/`: Contains raw videos and extracted numpy keypoints.
@@ -16,12 +55,29 @@ It handles two main pipelines:
   - `utils/`: Video streaming, logging, data management, and visualization helpers.
 - `inference.py`: Main CLI tool for testing the full pipeline.
 
-## Setup
-1. Create a virtual environment: `python -m venv venv`
-2. Activate the virtual environment.
-3. Install dependencies: `pip install -r requirements.txt`
+## Setup & Installation
+
+1. Clone the repository and navigate into it:
+   ```bash
+   git clone https://github.com/Chevir-App-Development-Team/chevir-app-vers-1.0.git
+   cd chevir-app-vers-1.0
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   # On Windows:
+   venv\Scripts\activate
+   # On Mac/Linux:
+   source venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ## Usage (CLI)
+
+The `inference.py` script serves as the main entry point for testing the pipeline.
 
 **Run Sign-to-Text Inference (Webcam):**
 ```bash
@@ -33,7 +89,7 @@ python inference.py s2t --camera 0
 python inference.py t2s --text "Ben okula gidiyorum"
 ```
 
-**Train the Model:**
+**Train the Model (with custom hyperparameters):**
 ```bash
 python src/pipeline/train.py --epochs 20 --lr 0.005 --batch-size 32 --device cpu
 ```
