@@ -31,7 +31,7 @@ flowchart TD
         direction LR
         A1(["📸 Webcam / Video"]):::input -->|RGB Frames| A2["⚙️ MediaPipe Holistic"]:::process
         A2 -->|Raw Keypoints| A3["📐 Normalization & Padding"]:::process
-        A3 -->|Tensor [1662]| A4("🧠 PyTorch LSTM"):::model
+        A3 -->|Tensor 1662| A4("🧠 PyTorch LSTM"):::model
         A4 -->|Prediction| A5(["📝 Text Output"]):::output
     end
 
