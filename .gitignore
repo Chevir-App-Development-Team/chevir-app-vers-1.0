@@ -20,8 +20,7 @@ venv/
 # AzSLD dataseti (Zenodo 14222948) — böyükdür, yerli saxlanılır
 data/
 
-# Avatar — lisenziyası yenidən paylaşmağa icazə vermir (README → Avatar faylı)
-*.vrm
+
 
 # Sistem və redaktor
 .DS_Store

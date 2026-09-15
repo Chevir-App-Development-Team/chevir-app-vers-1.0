@@ -43,13 +43,7 @@ npm run preview    # build-i lokal yoxlamaq üçün
 Vercel-də Vite layihəsi kimi avtomatik tanınır (build: `npm run build`, çıxış: `dist`).
 Kamera yalnız HTTPS və ya `localhost` üzərində işləyir (brauzer qaydası).
 
-### Avatar faylı
 
-Avatar (`AvatarSample_Z.vrm`, pixiv VRoid Project) lisenziyası yenidən paylaşmağa icazə
-vermir, ona görə repo-da **yoxdur**. Lokal işləmək üçün VRoid Hub-dan endirib
-`public/tercume/assets/avatar.vrm` adı ilə qoyun. Fayl olmasa, "Mətn → Jest" cyber
-skeleton ilə işləyir. Yayımlanan saytda avatarın görünməsi üçün yenidən paylaşmağa
-icazə verən lisenziyalı VRM lazımdır (məsələn, VRoid Studio-da komandanın özünün yaratdığı model).
 
 ### Nə gözləmək
 
