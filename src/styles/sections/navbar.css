@@ -1,0 +1,106 @@
+/* ---------- Navbar ---------- */
+
+:root {
+  /* Sabit (1.1rem padding, ölçüsü dəyişməyən logo/mətn) - ölçülüb: ~77px,
+     bufer üçün bir qədər artıq. scroll-margin-top üçün digər bölmə
+     fayllarında istifadə olunur ki, anchor/fokus scroll-u başlıqları
+     navbar arxasında qoymasın. */
+  --navbar-h: 5.5rem;
+}
+
+.navbar {
+  /* Bütün bölmələr tünddür - naviqasiya həmişə açıq mətnli,
+     heç bir tünd/açıq keçid yoxdur. Yalnız scroll edildikdə tünd-şəffaf
+     blur qatı görünür. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem clamp(1.25rem, 5vw, 4rem);
+  background: transparent;
+  transition: background-color 0.4s ease, box-shadow 0.4s ease,
+    backdrop-filter 0.4s ease;
+}
+
+.navbar.is-scrolled {
+  background: rgba(22, 19, 15, 0.82);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgba(241, 237, 233, 0.1);
+}
+
+.navbar__brand {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: #f1ede9;
+  /* Splash klonu naviqasiya loqosuna enənə qədər naviqasiya görünməz və
+     toxunulmazdır (visibility, hit-testi və tab sırasını da söndürür) -
+     preloader.js uçuş bitəndə .is-revealed sinfini verir. */
+  visibility: hidden;
+}
+
+/* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
+.navbar__brand::before {
+  content: '';
+  position: absolute;
+  inset: -9px -6px;
+}
+
+.navbar.is-revealed .navbar__brand {
+  visibility: visible;
+}
+
+.navbar__logo-svg {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  color: #f1ede9;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.navbar__name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  transition-delay: 0.12s;
+}
+
+/* Loqo əvvəl, wordmark bir az sonra - birlikdə yox. */
+.navbar.is-revealed .navbar__logo-svg,
+.navbar.is-revealed .navbar__name {
+  opacity: 1;
+}
+
+.navbar__cta {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 0.6rem 1.4rem;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0a0a0a;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
+.navbar__cta::before {
+  content: '';
+  position: absolute;
+  inset: -3px -4px;
+}
+
+.navbar__cta:hover {
+  transform: translateY(-2px);
+}

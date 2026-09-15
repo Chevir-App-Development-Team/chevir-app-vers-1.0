@@ -1,0 +1,45 @@
+/* ---------- Splash ---------- */
+
+#splash {
+  /* Hero kimi splash da həmişə açıq fonda qalır, sistemin tünd rejimindən asılı olmadan.
+     --ink də lazımdır: #splash indi birbaşa body-nin övladıdır (.hero-nun daxilində
+     deyil), ona görə hero-nun lokal --ink təyinatını miras almır - klonlanan loqonun
+     "currentColor" nöqtəsi bunsuz sistem tünd rejimində səhv rəngə düşərdi. */
+  --paper: #f1f0ee;
+  --muted: #6e6965;
+  --ink: #1a1817;
+
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--paper);
+  clip-path: circle(150% at 50% 50%);
+}
+
+#splash[hidden] {
+  display: none;
+}
+
+.splash__logo {
+  /* Dekorativdir - klik/toxunma tutmamalıdır. */
+  pointer-events: none;
+}
+
+/* Wordmark uçuş bitəndən 0.25s sonra görünsün (loqodan sonra, birlikdə yox).
+   Bu seçici (.navbar.is-revealed .navbar__name) navbar.css-dəki sadə
+   .navbar__name qaydasından daha spesifikdir, ona görə həmin faylı
+   dəyişmədən bu gecikməni ötürür. */
+.navbar.is-revealed .navbar__name {
+  transition-delay: 0.25s;
+}
+
+.splash__counter {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, calc(clamp(70px, 10vw, 110px) + 1.5rem));
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}

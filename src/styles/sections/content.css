@@ -1,0 +1,825 @@
+/* ---------- Shared reveal (the only motion allowed in the quiet sections) ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ---------- Shared quiet-section rhythm ---------- */
+
+.problem,
+.difference,
+.usecases,
+.results,
+.roadmap,
+.team,
+.trust {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.problem,
+.results {
+  padding: clamp(3rem, 7vw, 5.5rem) clamp(1.25rem, 5vw, 4rem);
+}
+
+/* Sıx qrid bölmələri - Fərqimiz, Harada işləyir, Komanda: eyni grid
+   strukturunu saxlayır, yalnız boşluq sıxılıb. */
+.difference,
+.usecases,
+.team {
+  padding: clamp(2.25rem, 5.5vw, 4rem) clamp(1.25rem, 5vw, 4rem);
+}
+
+.roadmap {
+  padding: clamp(2.75rem, 6vw, 4.5rem) clamp(1.25rem, 5vw, 4rem);
+}
+
+/* Sakit bölmə - Arxamızda nə dayanır: az padding, dar sütun. */
+.trust {
+  padding: clamp(2rem, 4.5vw, 3.25rem) clamp(1.25rem, 5vw, 4rem);
+}
+
+.problem__heading,
+.difference__heading,
+.usecases__heading,
+.results__heading,
+.roadmap__heading,
+.team__heading {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  max-width: 34rem;
+  scroll-margin-top: var(--navbar-h);
+}
+
+.trust__heading {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  max-width: 34rem;
+  scroll-margin-top: var(--navbar-h);
+}
+
+/* ---------- Fon dekorları (loqo qövsləri / nöqtə buludu) ---------- */
+/* Yalnız problem, usecases, results, roadmap, team bölmələrində. Scroll-scrub
+   ilə content.js-dəki setupSectionBackgrounds() idarə edir, avtomatik hərəkət yoxdur. */
+
+.problem,
+.usecases,
+.results,
+.roadmap,
+.team {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Bu bölmələr özləri max-width:72rem ilə mərkəzləşib (yuxarıda) - .section-bg
+   "inset:0" ilə bağlansaydı yalnız o dar sütunun kənarına yapışardı, ekranın
+   həqiqi kənarına yox. Full-bleed lazımdır. "100vw" İSTİFADƏ OLUNMUR: 100vw
+   brauzerin şaquli scroll zolağının enini DAXİL edir (CSS spesifikasiyası),
+   document.documentElement.clientWidth isə YOX - nəticədə klassik (overlay
+   olmayan) scroll zolaqlı sistemlərdə (adi Windows Chrome/Edge) .section-bg
+   clientWidth-dən bir neçə piksel ENLİ olur və səhifənin üfüqi scroll
+   panelinə səbəb olur (Playwright-in headless mühitində scroll zolağı
+   overlay olduğu üçün bu fərq özünü göstərmirdi, ona görə əvvəlki yoxlama
+   bunu tapmadı). Əvəzinə left/width content.js-də JS ilə ÖLÇÜLMÜŞ piksel
+   dəyərləri kimi tətbiq olunur (setupFullBleedBackgrounds) - clientWidth-ə
+   əsaslanır, scroll zolağı nə tipdə olursa olsun dəqiqdir. */
+.section-bg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.section-bg__svg {
+  position: absolute;
+  width: min(60%, 640px);
+  height: auto;
+  opacity: 0.06;
+}
+
+/* Loqo dekoru sabit boz (mövcud fon açıq ya tünd ola bilər, boz hər ikisində
+   oxunur). Nöqtə buludu əvvəlki kimi --ink-ə uyğunlaşır. Boz rəngin ağ/qara
+   ilə fərqi ağ fonla daha az olduğu üçün (kontrast delta ~yarısı) opasitiya
+   bir qədər yuxarı qaldırılıb ki, "sönük" qalsın, amma görünsün. */
+.section-bg--logo .section-bg__svg {
+  color: #8b857e;
+  opacity: 0.14;
+}
+
+.section-bg--dots .section-bg__svg {
+  color: var(--ink);
+  width: min(48%, 460px);
+}
+
+/* Ekran kənarına yapışır, aralarında boşluq qalmadan hissəsi kadrdan çıxır
+   (bölmənin overflow:hidden-i ilə kəsilir). Bölmələr arası sol/sağ növbələşir
+   (bax content.js SECTION_BG_CONFIG və hər çağırışın 'left'/'right' arqumenti). */
+.section-bg--left .section-bg__svg {
+  left: -14%;
+  top: 12%;
+}
+
+.section-bg--right .section-bg__svg {
+  right: -14%;
+  top: 12%;
+}
+
+.section-bg--dots.section-bg--left .section-bg__svg {
+  top: auto;
+  bottom: 6%;
+}
+
+.section-bg--dots.section-bg--right .section-bg__svg {
+  top: auto;
+  bottom: 6%;
+}
+
+.section-bg__logo-arc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+}
+
+.section-bg__logo-head {
+  fill: currentColor;
+}
+
+.section-bg__logo-dot {
+  fill: currentColor;
+}
+
+.section-bg__logo-group {
+  /* Fırlanma mərkəzi content.js-də GSAP-ın svgOrigin:'50 50' ilə verilir
+     (bax preloader.js-in eyni texnikası) - transform-box:view-box burda
+     etibarsız çıxdı: qrup gözlənilməz şəkildə SVG-nin öz overflow:hidden
+     sərhədinin çölünə fırlanıb tamamilə görünməz olurdu. */
+}
+
+.section-bg__cloud {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 0.6;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (max-width: 700px) {
+  /* Dekorlar kənara yapışanda mobil enində məzmunla vizual toqquşmasın deyə
+     daha kiçik və daha sönük. */
+  .section-bg__svg {
+    width: min(38%, 220px);
+    opacity: 0.045;
+  }
+
+  .section-bg--dots .section-bg__svg {
+    width: min(32%, 170px);
+  }
+
+  .section-bg--left .section-bg__svg {
+    left: -22%;
+  }
+
+  .section-bg--right .section-bg__svg {
+    right: -22%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-bg__logo-group,
+  .section-bg__cloud {
+    transform: none !important;
+  }
+}
+
+/* ---------- 1. Problem ---------- */
+
+.problem {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+}
+
+@media (min-width: 900px) {
+  .problem {
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    gap: 4rem;
+  }
+}
+
+.problem__number {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.problem__stat-desc {
+  margin-top: 0.75rem;
+  max-width: 22rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+
+.problem__heading {
+  max-width: 36rem;
+}
+
+.problem__body {
+  margin: 1.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-width: 34rem;
+}
+
+.problem__paragraph {
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+/* ---------- 2. Fərqimiz nədir ---------- */
+
+.difference__grid {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 700px) {
+  .difference__grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
+}
+
+.difference__item-title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.difference__item-desc {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+/* ---------- 3. Dəyərlər ---------- */
+
+.values {
+  background: #16130f;
+  color: #f1ede9;
+  padding: clamp(4.5rem, 12vw, 9rem) clamp(1.25rem, 5vw, 4rem);
+  text-align: center;
+}
+
+.values__statement {
+  font-size: clamp(2.6rem, 2rem + 3.6vw, 5rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  max-width: 50rem;
+  margin: 0 auto;
+}
+
+.values__slogan {
+  font-size: var(--fs-small);
+  opacity: 0.75;
+  max-width: 30rem;
+  margin: 1rem auto 0;
+}
+
+.values__principle {
+  margin: 1.75rem auto 0;
+  max-width: 34rem;
+  color: #c9c3bc;
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+/* ---------- 4. Harada işləyir ---------- */
+
+.usecases__grid {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 700px) {
+  .usecases__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+.usecases__item {
+  padding: 1.25rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(26, 24, 23, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .usecases__item {
+    border-color: rgba(241, 237, 233, 0.14);
+  }
+}
+
+.usecases__item-title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.usecases__item-desc {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+/* ---------- 5. Hazırkı nəticələr ---------- */
+
+.results__intro {
+  max-width: 40rem;
+}
+
+.results__lead {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+.results__accuracy {
+  margin-top: 2rem;
+  max-width: 40rem;
+}
+
+.results__accuracy-number {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.results__accuracy-desc {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+.results__accuracy-caveat {
+  margin-top: 0.9rem;
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.results__grid {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 6vw, 4rem);
+}
+
+.results__card {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .results__card {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 3rem;
+  }
+
+  .results__card:nth-child(even) {
+    flex-direction: row-reverse;
+  }
+
+  .results__card figcaption {
+    flex: 1 1 0;
+  }
+}
+
+.results__video-frame {
+  width: 100%;
+  max-width: 560px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: #16130f;
+  border-radius: 1.25rem;
+  overflow: hidden;
+}
+
+.results__video {
+  /* max-width/max-height doğma piksel ölçüsünə content.js-də runtime-da
+     kip olunur (loadedmetadata) - çərçivə böyüyə bilər, video bulanmaz. */
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.results__card-title {
+  margin-top: 1rem;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  scroll-margin-top: var(--navbar-h);
+}
+
+.results__card-desc {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+
+/* ---------- 6. Təsir ---------- */
+/* Görünüş paylaşılan .statement/.impact + .line-carousel stilindən gəlir
+   (bax statement.css). */
+
+/* ---------- 7. Mərhələlər ---------- */
+
+.roadmap__list {
+  position: relative;
+  margin: 2.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2.25rem;
+}
+
+@media (min-width: 700px) {
+  .roadmap__list {
+    flex-direction: row;
+    gap: 2.5rem;
+  }
+
+  /* Üfüqi zaman xətti: nöqtələrin mərkəzindən keçir. left/right dəyərləri
+     dairənin radiusu (1.25rem) və list-in gap-i (2.5rem) əsasında hesablanıb
+     ki, xətt birinci və üçüncü nöqtənin mərkəzində başlayıb bitsin (3 bərabər
+     sütun fərz olunur). */
+  .roadmap__list::before {
+    content: '';
+    position: absolute;
+    top: 1.25rem;
+    left: 1.25rem;
+    right: calc(33.333% - 2.9167rem);
+    height: 1px;
+    background: var(--muted);
+    opacity: 0.35;
+    z-index: 0;
+  }
+
+  .roadmap__item {
+    flex: 1 1 0;
+  }
+}
+
+.roadmap__number {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.roadmap__item-title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.roadmap__item-desc {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+/* ---------- 7b. Etibar - alçaq üfüqi lent ---------- */
+
+.trust__heading {
+  line-height: 1.15;
+}
+
+.trust {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 900px) {
+  .trust {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 3rem;
+  }
+}
+
+.trust__intro {
+  max-width: 26rem;
+}
+
+@media (min-width: 900px) {
+  .trust__intro {
+    flex: 0 0 16rem;
+  }
+}
+
+.trust__lead {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.trust__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .trust__grid {
+    flex: 1 1 0%;
+    min-width: 0;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+  }
+}
+
+/* Mobil: üfüqi ayırıcı (üstdə). ≥900px: şaquli ayırıcı (soldan), kart/qutu
+   görünüşü yoxdur - yalnız nazik xətt. */
+.trust__item {
+  padding-top: 1.1rem;
+  border-top: 1px solid rgba(26, 24, 23, 0.12);
+}
+
+.trust__item:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+@media (min-width: 900px) {
+  .trust__item {
+    flex: 1 1 0;
+    padding-top: 0;
+    padding-left: 1.75rem;
+    border-top: none;
+    border-left: 1px solid rgba(26, 24, 23, 0.12);
+  }
+
+  .trust__item:first-child {
+    padding-left: 0;
+    border-left: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .trust__item {
+    border-top-color: rgba(241, 237, 233, 0.16);
+    border-left-color: rgba(241, 237, 233, 0.16);
+  }
+}
+
+.trust__item-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.trust__item-desc {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.trust__item-meta {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  opacity: 0.8;
+}
+
+/* ---------- 8. Komanda ---------- */
+
+.team__grid {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 700px) {
+  .team__grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
+}
+
+.team__card {
+  border-top: 1px solid rgba(26, 24, 23, 0.12);
+  padding-top: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .team__card {
+    border-top-color: rgba(241, 237, 233, 0.16);
+  }
+}
+
+.team__name {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.team__role {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.team__bio {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+/* ---------- 9. Əlaqə + footer (hero ilə eyni ailə: gradient işıq ləkələri +
+   grain, 3D əl yoxdur - WebGL açmadan, hero.css-dəki .hero__bg reseptinin
+   CSS-only təkrarı). Bir bölmə: CTA + kolofon. ---------- */
+
+.contact {
+  position: relative;
+  overflow: hidden;
+  background: #16130f;
+  color: #f1ede9;
+  padding: clamp(4.5rem, 11vw, 8rem) clamp(1.25rem, 5vw, 4rem) clamp(1.5rem, 4vw, 2.5rem);
+  text-align: center;
+  scroll-margin-top: var(--navbar-h);
+}
+
+.contact__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(45% 35% at 12% 18%, rgba(255, 255, 255, 0.09), transparent 70%),
+    radial-gradient(40% 30% at 88% 28%, rgba(255, 255, 255, 0.07), transparent 70%),
+    radial-gradient(50% 40% at 22% 90%, rgba(255, 255, 255, 0.06), transparent 70%),
+    #16130f;
+}
+
+.contact__grain {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.14;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-repeat: repeat;
+  background-size: 180px 180px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Hero-nun .hero__wordmark-ı ilə EYNİ ölçü/mövqe parametrləri (bax
+   hero.css) - tam eni tutan, iri, HEÇ vaxt kəsilmir (hero-dakı kimi).
+   Mətnin üstünə düşməməsi indi .contact__content-in aşağı boşluğu ilə
+   həll olunur (bax aşağı), fon/pill ilə deyil. */
+.contact__wordmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(0.5rem, 2vw, 1.25rem);
+  z-index: 2;
+  width: 100%;
+  aspect-ratio: 81 / 24;
+  height: auto;
+  color: #f1ede9;
+  opacity: 0.5;
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+/* Aşağı boşluq wordmark-ın öz hündürlüyünə (aspect-ratio 81/24 → eni ilə
+   xətti mütənasib) uyğunlaşdırılıb ki, məzmun (xüsusilə son sətir -
+   contact__meta) həmişə wordmark-ın yuxarı kənarından yuxarıda qalsın,
+   üst-üstə düşmə olmasın. */
+.contact__content {
+  position: relative;
+  z-index: 3;
+  padding-bottom: calc(24 / 81 * 100vw + 3rem);
+}
+
+.contact__heading {
+  font-size: var(--fs-h1);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  max-width: 30rem;
+  margin: 0 auto;
+}
+
+.contact__asks {
+  margin: 1.75rem auto 0;
+  padding: 0;
+  list-style: none;
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  color: #c9c3bc;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+.contact__cta {
+  display: inline-block;
+  margin-top: 2rem;
+  padding: 0.85rem 1.75rem;
+  border-radius: 999px;
+  background: #f1ede9;
+  color: #1a1817;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.contact__cta:hover {
+  transform: translateY(-2px);
+}
+
+.contact__meta {
+  width: fit-content;
+  margin-inline: auto;
+  margin-top: clamp(3.5rem, 9vw, 6rem);
+  color: #8b857e;
+}
+
+.contact__meta-copyright,
+.contact__meta-slogan {
+  font-size: var(--fs-small);
+}
+
+.contact__meta-slogan {
+  margin-top: 0.35rem;
+}

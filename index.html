@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Chevir - Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında real vaxtda ikitərəfli tərcümə. Pilot tərəfdaş axtarırıq."
+    />
+    <title>Chevir - eşitmə məhdudiyyətli və eşidən arasında real vaxtda tərcümə</title>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="az_AZ" />
+    <meta property="og:url" content="https://chevirapp.com/" />
+    <meta property="og:title" content="Chevir - eşitmə məhdudiyyətli və eşidən arasında real vaxtda tərcümə" />
+    <meta
+      property="og:description"
+      content="Chevir - Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında real vaxtda ikitərəfli tərcümə. Pilot tərəfdaş axtarırıq."
+    />
+    <meta property="og:image" content="https://chevirapp.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Splash hər açılışda göstərilir (sessiyada yaddaşa alınmır).
+      // Reduced-motion olmayan istifadəçilərdə splash "yanıb" görünməsin deyə
+      // sayt yüklənənə qədər scroll kilidlənir.
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('preloading');
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

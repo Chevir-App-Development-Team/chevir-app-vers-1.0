@@ -1,0 +1,70 @@
+/* ---------- Bəyanat + Təsir: paylaşılan "tünd an" bölmələri ---------- */
+/* .statement: hero-dan sonra, "Necə işləyir"-dən əvvəl.
+   .impact: "Hazırkı nəticələr"dən sonra, "Mərhələlər"dən əvvəl (content.js). */
+
+.statement,
+.impact {
+  background: #16130f;
+  color: #f1ede9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(3rem, 10vw, 6rem) clamp(20px, 5.5vw, 5.5rem);
+}
+
+@media (min-width: 980px) {
+  .statement,
+  .impact {
+    min-height: 100svh;
+  }
+}
+
+/* Təsir bölməsi müvəqqəti gizlədilib (kod silinmir) - geri qaytarmaq üçün
+   bu qaydanı və content.js-dəki initLineCarousel('.impact') şərhini sil. */
+.impact {
+  display: none;
+}
+
+/* ---------- Sətir-karuseli (paylaşılan, lib/lineCarousel.js idarə edir) ---------- */
+/* Bütün sətirlər eyni grid xanasında üst-üstə - konteynerin hündürlüyü
+   avtomatik ən hündür sətrə görə olur, JS-lə ölçmək lazım deyil. Sabit
+   max-width YOXDUR - konteyner demək olar tam eni tutur, yan boşluq yalnız
+   valideynin (.statement/.impact) padding-i ilə verilir. */
+.line-carousel {
+  display: grid;
+  width: 100%;
+}
+
+.line-carousel__line {
+  grid-area: 1 / 1;
+  align-self: center;
+  justify-self: center;
+  font-size: clamp(1.5rem, 1.1rem + 1.8vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  text-align: center;
+  color: #f1ede9;
+  /* JS (lib/lineCarousel.js) işə düşənə qədər ilkin vəziyyət: yalnız birinci
+     sətir görünür - GSAP-ın gsap.set()-i ilə tam eyni ilkin hala uyğundur,
+     yükləmə anında bütün sətirlərin üst-üstə görünməsinin (FOUC) qarşısını alır. */
+  opacity: 0;
+}
+
+.line-carousel__line:first-child {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Karusel/pin tamamilə keçilir - adi, sıralı, tam görünən mətn bloku. */
+  .line-carousel {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.25rem, 4vw, 2rem);
+  }
+
+  .line-carousel__line,
+  .line-carousel__line:first-child {
+    opacity: 1;
+  }
+}

@@ -16,3 +16,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Node / Vite (sayt)
+node_modules/
+dist/

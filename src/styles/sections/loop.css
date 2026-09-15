@@ -1,0 +1,213 @@
+/* ---------- Loop diagram ---------- */
+
+.loop {
+  background: #16130f;
+  color: #f1ede9;
+  padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 4rem);
+  overflow: hidden;
+}
+
+.loop__intro {
+  max-width: 40rem;
+  margin: 0 auto clamp(3rem, 7vw, 5rem);
+  text-align: center;
+}
+
+.loop__heading {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.loop__lead {
+  margin-top: 0.9rem;
+  color: #c9c3bc;
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.loop__stage {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 2rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+@media (min-width: 980px) {
+  .loop__intro {
+    margin: 0 auto clamp(1.5rem, 3vw, 2rem);
+  }
+
+  .loop__stage {
+    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, 220px);
+    align-items: center;
+    gap: 1.5rem;
+    min-height: 42vh;
+  }
+
+  /* "Eşitmə məhdudiyyətli şəxs" 3 sətrə, "Sosial xidmət agenti" 2 sətrə
+     bölünür - min-height hər iki qutunu bərabər hündürlükdə saxlayır. */
+  .loop__side {
+    min-height: 258px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+.loop__side {
+  border: 1px solid rgba(241, 237, 233, 0.16);
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  text-align: center;
+  background: rgba(241, 237, 233, 0.03);
+  width: 100%;
+  max-width: 260px;
+}
+
+.loop__side--signed {
+  border-color: rgba(241, 237, 233, 0.4);
+}
+
+.loop__side--spoken {
+  border-color: rgba(241, 237, 233, 0.14);
+}
+
+.loop__side-title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.loop__side--signed .loop__side-title {
+  color: #f1ede9;
+}
+
+.loop__side--spoken .loop__side-title {
+  color: #c9c3bc;
+}
+
+.loop__side-desc {
+  color: #c9c3bc;
+  font-size: var(--fs-small);
+  line-height: 1.45;
+}
+
+.loop__svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.loop__svg--mobile {
+  display: block;
+  max-width: 220px;
+}
+
+.loop__svg--desktop {
+  display: none;
+}
+
+@media (min-width: 980px) {
+  .loop__svg--mobile {
+    display: none;
+  }
+
+  .loop__svg--desktop {
+    display: block;
+  }
+}
+
+.loop__path {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+
+/* İki yol rənglə deyil, qalınlıq və parıltı gücü ilə ayrılır: siqnal (a) qalın
+   və parlaq, danışıq (b) nazik və sönük. */
+
+.loop__path--signed {
+  stroke: #f1ede9;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 6px rgba(241, 237, 233, 0.75));
+}
+
+/* NAZIK XƏTT PARILTISI - dəqiq ölçülmüş səbəb (üçüncü cəhd):
+   filter:drop-shadow SƏHV DEYİL - computed style-da düzgün tətbiq olunur,
+   heç bir valideyn filter/opacity/mask onu üstələmir (yoxlanılıb), CSS filter
+   SVG stroke-a tətbiq OLUNUR (native <filter>+feDropShadow ilə də eyni
+   nəticə). Playwright-la 400% böyüdülüb piksel-piksel müqayisə edəndə
+   parıltı FAKTİKİ VARDI, amma 1.5px stroke-da 3px/alfa-0.4 elə zəif nəticə
+   verir ki, normal miqyasda (və qalın xəttin güclü parıltısının yanında)
+   praktiki olaraq görünmür - bulanıqlaşdırılan "kütlə" (stroke sahəsi) neçə
+   dəfə az olduğu üçün eyni parametrlər qalın xəttdəki kimi işləmir. Dəyərləri
+   nə qədər artırsam da (hətta 12px/alfa-1) tək filter effektini normal
+   miqyasda inandırıcı dərəcədə görünən etmədi.
+   Həll: filter yox, MANUAL halo - pathB-nin arxasında eyni "d" ilə iki əlavə
+   xətt (bax loop.js .loop__path-halo--outer/--mid, dashoffset-i JS-də pathB
+   ilə sinxronlaşdırılır) daha enli və sönük tonla "işıq yayılması" effekti
+   yaradır. Bu, filter-dən asılı olmadığı üçün miqyasdan asılı olmayaraq
+   etibarlı görünür. */
+
+.loop__path--spoken {
+  stroke: rgba(241, 237, 233, 0.75);
+  stroke-width: 1.5;
+}
+
+.loop__path-halo {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  pointer-events: none;
+}
+
+.loop__path-halo--outer {
+  stroke: rgba(241, 237, 233, 0.12);
+  stroke-width: 9;
+}
+
+.loop__path-halo--mid {
+  stroke: rgba(241, 237, 233, 0.22);
+  stroke-width: 5;
+}
+
+.loop__marker {
+  opacity: 0;
+}
+
+.loop__marker--signed {
+  fill: #f1ede9;
+  filter: drop-shadow(0 0 3px rgba(241, 237, 233, 0.95))
+    drop-shadow(0 0 9px rgba(241, 237, 233, 0.75));
+}
+
+.loop__marker--spoken {
+  /* Eyni səbəbdən (bax .loop__path--spoken) opacity yox, fill-in öz alfası. */
+  fill: rgba(241, 237, 233, 0.65);
+  filter: drop-shadow(0 0 3px rgba(241, 237, 233, 0.5));
+}
+
+.loop__stage-label {
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  fill: #8b857e;
+  transition: fill 0.4s ease, font-weight 0.4s ease;
+}
+
+.loop__stage-label[data-path='a'].is-active {
+  fill: #f1ede9;
+  font-weight: 600;
+}
+
+.loop__stage-label[data-path='b'].is-active {
+  fill: #c9c3bc;
+}

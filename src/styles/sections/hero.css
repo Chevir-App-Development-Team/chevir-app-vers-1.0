@@ -1,0 +1,139 @@
+/* ---------- Hero ---------- */
+
+.hero {
+  /* Hero həmişə tünd qalır - sistemin işıq/tünd rejimindən asılı olmayaraq.
+     --signed/--spoken burda hand3d.js-nin oxuduğu rənglərdir (nöqtə/sümük),
+     hər ikisi ağa çəkilib. */
+  --signed: #ffffff;
+  --spoken: #ffffff;
+  --hero-pad-x: clamp(1.25rem, 6vw, 4.5rem);
+  /* Statik loqo fallback-ın (reduced-motion/WebGL-siz) yuxarı/aşağı sərhədləri
+     - tagline və wordmark-a yer saxlamaq üçün. Canvas özü artıq bunlardan
+     asılı deyil (tam ekranı örtür, bax .hero__scene). */
+  --hero-top-zone: clamp(5.5rem, 14.5vh, 8rem);
+  --hero-bottom-clear: clamp(5.5rem, 14.5vh, 8rem);
+
+  position: relative;
+  overflow: hidden;
+  min-height: 100svh;
+  background: #16130f;
+  color: #ffffff;
+  color-scheme: dark;
+}
+
+/* Statik CSS fallback - reduced-motion, WebGL-siz, və <980px-də dalğa shader-i
+   heç yaradılmır, bu qat əsl fon kimi qalır (hərəkətsiz, "sabit gradient").
+   Masaüstündə WebGL yükləndikdə üstündən hero__scene keçir. Rəng #16130F -
+   base.css-dəki --paper tündrejim dəyəri (loop.css-də də eyni sabit) ki,
+   hero ilə pipeline arasında (tünd rejimdə) tikiş görünməsin. */
+.hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(45% 35% at 12% 18%, rgba(255, 255, 255, 0.09), transparent 70%),
+    radial-gradient(40% 30% at 88% 28%, rgba(255, 255, 255, 0.07), transparent 70%),
+    radial-gradient(50% 40% at 22% 90%, rgba(255, 255, 255, 0.06), transparent 70%),
+    #16130f;
+}
+
+/* Tək Three.js canvas - fon (noise dalğa + grain shader-li müstəvi, yalnız
+   >=980px-də) və 3D əl eyni renderer/scene-də (bax: lib/hand3d.js). Tam
+   ekranı örtür ki, dalğa wordmark-ın altından da keçsin. Qaraltma və əlin
+   sahəsini qoruyan radial maska shader-in özündədir. */
+.hero__scene {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.hero__scene.is-active {
+  opacity: 1;
+  /* Əlin ağ halosu artıq WebGL daxilində (additiv "glow" nöqtələri,
+     lib/hand3d.js) - CSS drop-shadow burda işləmir, çünki fon müstəvisi
+     bütün kadrı doldurduğu üçün canvas-ın alfa kanalı hər yerdə opaqdır. */
+}
+
+/* ---------- Qat 2: arxa fon wordmark-ı ---------- */
+/* Canvas-ın ÜSTÜNDƏ - dalğa onun arxasından keçir, yarımşəffaf hərflər
+   backdrop-un parlaqlığına görə "qismən işıqlanır, qismən qara qalır"
+   (adi alpha-compositing, əlavə blend-mode lazım deyil). Orijinal nisbət
+   (preserveAspectRatio artıq "none" deyil, hero.js) + aspect-ratio ilə
+   dartılma olmur, hərflərin heç bir hissəsi kəsilmir. */
+.hero__wordmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(0.5rem, 2vw, 1.25rem);
+  z-index: 2;
+  width: 100%;
+  aspect-ratio: 81 / 24;
+  height: auto;
+  display: block;
+  color: #ffffff;
+  opacity: 0.62;
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+/* Tagline və statik loqo yeri sərbəst mövqelənir (flex spacer artıq lazım
+   deyil - CTA naviqasiyaya köçüb). */
+.hero__content {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ---------- Qısa izah - əlin yuxarı hissəsinin üstündə ---------- */
+
+.hero__tagline {
+  position: absolute;
+  /* --hero-top-zone artıq canvas-ın öz sərhədi deyil (canvas tam ekranı örtür) -
+     əl indi böyüdüyü üçün tagline naviqasiyaya yaxın, əlin üstündən aralı saxlanılır.
+     Sol tərəfdə dayanır (mərkəzdə əlin üstünə düşməsin). */
+  top: clamp(5rem, 11vh, 6.5rem);
+  left: var(--hero-pad-x);
+  z-index: 5;
+  margin: 0;
+  max-width: min(70vw, 18rem);
+  text-align: left;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---------- Qat 3: 3D əl (statik loqo yalnız fallback) ---------- */
+
+.hero__logo-slot {
+  position: absolute;
+  inset: var(--hero-top-zone) 0 var(--hero-bottom-clear) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Seçici .hero__logo-slot-a scope edilib (bare .brand-logo yox) - bu class
+   splash.js-nin klonladığı elementdə də qalır (splashLogo), splash klonu
+   #splash-in daxilindədir, .hero__logo-slot-un xaricində, ona görə bu
+   qayda ona TƏSİR ETMİR (əks halda splash animasiyası da gizli qalardı). */
+.hero__logo-slot .brand-logo {
+  width: min(46vh, 80vw, 420px);
+  height: min(46vh, 80vw, 420px);
+  overflow: visible;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+/* 3D əl yüklənmədikdə (WebGL yoxdur, reduced-motion, ya da dinamik import
+   uğursuz oldu) statik loqo görünür - əks halda daim gizli qalır (hero-nun
+   mərkəzində "yanıb-sönən" loqo effekti yaranmasın deyə). */
+.hero__logo-slot.is-fallback .brand-logo {
+  opacity: 1;
+}

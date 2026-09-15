@@ -1,0 +1,203 @@
+/* ---------- Pipeline ("Necə işləyir") ---------- */
+
+.pipeline {
+  padding: clamp(3rem, 8vw, 7rem) clamp(1.25rem, 5vw, 4rem);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.pipeline__intro {
+  max-width: 40rem;
+  margin: 0 auto clamp(2.5rem, 6vw, 4rem);
+}
+
+@media (min-width: 980px) {
+  /* Media panel "center center"-də pin olunur (bax pipeline.js). Bura qədər
+     intro ilə grid arasındakı məsafə qəsdən dar saxlanılır ki, pin başlayanda
+     başlıq hələ ekranda qalsın - geniş boşluq pin nöqtəsini aşağı itələyib
+     başlığı daha da yuxarı atardı. */
+  .pipeline__intro {
+    margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
+  }
+
+  .pipeline {
+    padding-top: clamp(2rem, 4vw, 3rem);
+  }
+}
+
+.pipeline__heading {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  scroll-margin-top: var(--navbar-h);
+}
+
+.pipeline__lead {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  max-width: 36rem;
+}
+
+.pipeline__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+@media (min-width: 980px) {
+  .pipeline__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 4rem;
+    align-items: start;
+  }
+}
+
+.pipeline__media {
+  display: none;
+}
+
+@media (min-width: 980px) {
+  .pipeline__media {
+    display: block;
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 4 / 5;
+    margin: 0 auto;
+    background: #16130f;
+    border-radius: 1.5rem;
+    overflow: hidden;
+  }
+
+  .pipeline__media .pipeline__video,
+  .pipeline__media .pipeline__placeholder {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .pipeline__media .pipeline__video.is-active,
+  .pipeline__media .pipeline__placeholder.is-active {
+    opacity: 1;
+  }
+}
+
+.pipeline__video {
+  object-fit: contain;
+  background: #16130f;
+}
+
+/* Dürüst "hazırlanır" bildirişi - tünd panel fonu ilə birləşir (yuxarıdakı
+   video letterbox-u ilə eyni rəng), mesaj özü isə kiçik, aydın kənarlı
+   pill-də mərkəzləşir ki, "yüklənməyən şəkil" kimi deyil, qəsdən dizayn
+   edilmiş vəziyyət bildirişi kimi oxunsun. */
+.pipeline__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a39c95;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.pipeline__placeholder span {
+  padding: 0.6rem 1.25rem;
+  max-width: 70%;
+  border-radius: 999px;
+  border: 1px solid rgba(241, 237, 233, 0.2);
+  background: rgba(241, 237, 233, 0.06);
+}
+
+.pipeline__placeholder--inline {
+  width: 100%;
+  height: 100%;
+  border-radius: 1.25rem;
+  background: #16130f;
+}
+
+.pipeline__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 6vw, 4.5rem);
+}
+
+@media (min-width: 980px) {
+  .pipeline__steps {
+    gap: 45vh;
+    padding-top: 15vh;
+    padding-bottom: 30vh;
+  }
+}
+
+.pipeline__number {
+  display: inline-block;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+  transition: color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Kanal rəngi (magenta/mavi) ağ fonda kiçik mətn üçün AA kontrastını keçmir -
+   aktiv vəziyyət rəng əvəzinə tam kontrastlı ink + ölçü ilə fərqləndirilir. */
+.pipeline__step.is-active .pipeline__number {
+  color: var(--ink);
+  transform: scale(1.08);
+}
+
+.pipeline__step-title {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  scroll-margin-top: var(--navbar-h);
+}
+
+.pipeline__step-desc {
+  margin-top: 0.6rem;
+  max-width: 32rem;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+.pipeline__step-media {
+  margin-top: 1.25rem;
+  max-width: 420px;
+  aspect-ratio: 4 / 5;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.pipeline__step-media .pipeline__video {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (min-width: 980px) {
+  .pipeline--desktop .pipeline__step-media {
+    max-width: none;
+    aspect-ratio: auto;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .pipeline__placeholder--inline {
+    display: none;
+  }
+}
