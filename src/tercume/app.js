@@ -225,7 +225,9 @@ async function bootT2SViews() {
   state.avatar = new VrmAvatar($('#t2s-avatar'));
   setStatus('Avatar yüklənir…');
   try {
-    await state.avatar.load(`${ASSET_BASE}avatar.vrm`);
+    const vrmFile = $('#avatar-select')?.value || 'avatar.vrm';
+    await state.avatar.load(`${ASSET_BASE}${vrmFile}`);
+    state.avatar.setHand($('#hand')?.value || 'right');
     setStatus('Avatar hazır', 'ready');
   } catch (err) {
     console.error(err);
@@ -288,6 +290,19 @@ function initT2S() {
   $('#hand').addEventListener('change', (e) => {
     state.avatar?.setHand(e.target.value);
   });
+  const avatarSelect = $('#avatar-select');
+  if (avatarSelect) {
+    avatarSelect.addEventListener('change', async (e) => {
+      setStatus('Avatar yüklənir…');
+      try {
+        await state.avatar?.load(`${ASSET_BASE}${e.target.value}`);
+        state.avatar?.setHand($('#hand').value);
+        setStatus('Avatar hazır', 'ready');
+      } catch (err) {
+        setStatus('Avatar yüklənmədi: ' + err.message, 'error');
+      }
+    });
+  }
 
   // Əlifba vərəqi
   const letters = Object.keys(state.poses.letters);

@@ -79,6 +79,11 @@ export class VrmAvatar {
   }
 
   async load(url) {
+    if (this.vrm) {
+      this.scene.remove(this.vrm.scene);
+      VRMUtils.deepDispose(this.vrm.scene);
+      this.vrm = null;
+    }
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(url);
