@@ -1,0 +1,5 @@
+# Yalnız tools/ skriptləri üçün — sayt özü heç bir paket tələb etmir
+numpy>=2.0
+h5py>=3.10
+opencv-python-headless>=4.9
+mediapipe>=0.10.14

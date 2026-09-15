@@ -1,0 +1,73 @@
+{
+  "input": {
+    "frames": 20,
+    "features": 63,
+    "flat": 1260
+  },
+  "layers": [
+    {
+      "name": "dense_12",
+      "in": 1260,
+      "out": 300
+    },
+    {
+      "name": "dense_13",
+      "in": 300,
+      "out": 256
+    },
+    {
+      "name": "dense_14",
+      "in": 256,
+      "out": 128
+    },
+    {
+      "name": "dense_15",
+      "in": 128,
+      "out": 35
+    }
+  ],
+  "activations": [
+    "relu",
+    "relu",
+    "relu",
+    "softmax"
+  ],
+  "labels": [
+    "a",
+    "b",
+    "backspace",
+    "c",
+    "ç",
+    "d",
+    "e",
+    "ə",
+    "enter",
+    "f",
+    "g",
+    "ğ",
+    "h",
+    "ı",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "ö",
+    "p",
+    "q",
+    "r",
+    "s",
+    "ş",
+    " ",
+    "t",
+    "u",
+    "ü",
+    "v",
+    "x",
+    "y",
+    "z"
+  ],
+  "params": 492767
+}

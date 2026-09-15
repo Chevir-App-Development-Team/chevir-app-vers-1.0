@@ -1,0 +1,283 @@
+{
+ "source": "AzSLD Fingerspelling (Zenodo 14222948, CC BY 4.0)",
+ "landmarker": "MediaPipe hand_landmarker.task",
+ "images": 3040,
+ "detected": 2856,
+ "detectRate": 0.9395,
+ "static": {
+  "n": 24,
+  "mean": 77.7,
+  "median": 91.9,
+  "ge90": 15,
+  "ge80": 16
+ },
+ "dynamic": {
+  "n": 8,
+  "mean": 1.94,
+  "median": 0.0,
+  "ge90": 0,
+  "ge80": 0
+ },
+ "perLetter": [
+  {
+   "letter": "u",
+   "type": "static",
+   "images": 40,
+   "detected": 37,
+   "acc": 100.0,
+   "conf": 0.999
+  },
+  {
+   "letter": "ı",
+   "type": "static",
+   "images": 40,
+   "detected": 39,
+   "acc": 100.0,
+   "conf": 1.0
+  },
+  {
+   "letter": "i",
+   "type": "static",
+   "images": 40,
+   "detected": 40,
+   "acc": 97.5,
+   "conf": 1.0
+  },
+  {
+   "letter": "n",
+   "type": "static",
+   "images": 40,
+   "detected": 40,
+   "acc": 97.5,
+   "conf": 0.994
+  },
+  {
+   "letter": "o",
+   "type": "static",
+   "images": 40,
+   "detected": 40,
+   "acc": 97.5,
+   "conf": 0.998
+  },
+  {
+   "letter": "v",
+   "type": "static",
+   "images": 40,
+   "detected": 37,
+   "acc": 97.3,
+   "conf": 0.99
+  },
+  {
+   "letter": "ş",
+   "type": "static",
+   "images": 40,
+   "detected": 37,
+   "acc": 97.3,
+   "conf": 0.989
+  },
+  {
+   "letter": "e",
+   "type": "static",
+   "images": 40,
+   "detected": 38,
+   "acc": 94.7,
+   "conf": 0.982
+  },
+  {
+   "letter": "x",
+   "type": "static",
+   "images": 40,
+   "detected": 33,
+   "acc": 93.9,
+   "conf": 0.986
+  },
+  {
+   "letter": "h",
+   "type": "static",
+   "images": 40,
+   "detected": 38,
+   "acc": 92.1,
+   "conf": 0.999
+  },
+  {
+   "letter": "a",
+   "type": "static",
+   "images": 40,
+   "detected": 37,
+   "acc": 91.9,
+   "conf": 0.998
+  },
+  {
+   "letter": "q",
+   "type": "static",
+   "images": 40,
+   "detected": 37,
+   "acc": 91.9,
+   "conf": 0.349
+  },
+  {
+   "letter": "s",
+   "type": "static",
+   "images": 40,
+   "detected": 37,
+   "acc": 91.9,
+   "conf": 0.962
+  },
+  {
+   "letter": "ə",
+   "type": "static",
+   "images": 40,
+   "detected": 37,
+   "acc": 91.9,
+   "conf": 1.0
+  },
+  {
+   "letter": "b",
+   "type": "static",
+   "images": 40,
+   "detected": 36,
+   "acc": 91.7,
+   "conf": 0.974
+  },
+  {
+   "letter": "r",
+   "type": "static",
+   "images": 40,
+   "detected": 39,
+   "acc": 89.7,
+   "conf": 0.996
+  },
+  {
+   "letter": "c",
+   "type": "static",
+   "images": 40,
+   "detected": 38,
+   "acc": 76.3,
+   "conf": 0.99
+  },
+  {
+   "letter": "ğ",
+   "type": "static",
+   "images": 40,
+   "detected": 34,
+   "acc": 58.8,
+   "conf": 0.072
+  },
+  {
+   "letter": "l",
+   "type": "static",
+   "images": 40,
+   "detected": 38,
+   "acc": 52.6,
+   "conf": 1.0
+  },
+  {
+   "letter": "m",
+   "type": "static",
+   "images": 40,
+   "detected": 34,
+   "acc": 47.1,
+   "conf": 0.562
+  },
+  {
+   "letter": "t",
+   "type": "static",
+   "images": 40,
+   "detected": 39,
+   "acc": 41.0,
+   "conf": 0.999
+  },
+  {
+   "letter": "f",
+   "type": "static",
+   "images": 40,
+   "detected": 36,
+   "acc": 38.9,
+   "conf": 0.0
+  },
+  {
+   "letter": "p",
+   "type": "static",
+   "images": 40,
+   "detected": 35,
+   "acc": 22.9,
+   "conf": 0.005
+  },
+  {
+   "letter": "j",
+   "type": "static",
+   "images": 40,
+   "detected": 39,
+   "acc": 10.3,
+   "conf": 0.001
+  },
+  {
+   "letter": "z",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 216,
+   "acc": 8.3,
+   "conf": 0.03
+  },
+  {
+   "letter": "k",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 230,
+   "acc": 4.8,
+   "conf": 0.0
+  },
+  {
+   "letter": "y",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 250,
+   "acc": 2.4,
+   "conf": 0.002
+  },
+  {
+   "letter": "d",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 253,
+   "acc": 0.0,
+   "conf": 0.015
+  },
+  {
+   "letter": "g",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 237,
+   "acc": 0.0,
+   "conf": 0.0
+  },
+  {
+   "letter": "ç",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 257,
+   "acc": 0.0,
+   "conf": 0.959
+  },
+  {
+   "letter": "ö",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 259,
+   "acc": 0.0,
+   "conf": 0.803
+  },
+  {
+   "letter": "ü",
+   "type": "dynamic",
+   "images": 260,
+   "detected": 259,
+   "acc": 0.0,
+   "conf": 0.028
+  }
+ ],
+ "caveats": [
+  "dinamik hərflər tək kadrla ölçülə bilmir — hərəkət təmsil olunmur",
+  "şəkillər modelin təlim datası ola bilər, yəni nəticələr optimistdir"
+ ]
+}
