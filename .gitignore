@@ -1,4 +1,17 @@
-# Python
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+.vercel/
+*.local
+.env
+.env.*
+!.env.example
+npm-debug.log*
+logs/
+*.log
+
+# Python (tools/)
 __pycache__/
 *.py[cod]
 .venv/
@@ -16,7 +29,3 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
-
-# Node / Vite (sayt)
-node_modules/
-dist/

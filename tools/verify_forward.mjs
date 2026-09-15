@@ -1,8 +1,8 @@
 // JS irəli keçidini numpy referansı ilə tutuşdurur.
 import { readFileSync } from 'node:fs';
-import { FingerspellModel } from '../public/js/model.js';
+import { FingerspellModel } from '../src/tercume/model.js';
 
-const A = new URL('../public/assets/', import.meta.url);
+const A = new URL('../public/tercume/assets/', import.meta.url);
 const F = new URL('./fixture/', import.meta.url);
 
 const meta = JSON.parse(readFileSync(new URL('model.json', A), 'utf8'));

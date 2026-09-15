@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "model" / "lexicon.txt"
-OUT_DIR = ROOT / "public" / "assets"
+OUT_DIR = ROOT / "public" / "tercume" / "assets"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 ALPHABET = ['a', 'b', 'c', 'ç', 'd', 'e', 'ə', 'f', 'g', 'ğ', 'h', 'x', 'ı', 'i',

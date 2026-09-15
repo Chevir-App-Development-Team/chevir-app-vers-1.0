@@ -17,7 +17,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "model" / "fingerspelling_33.h5"
-OUT_DIR = ROOT / "public" / "assets"
+OUT_DIR = ROOT / "public" / "tercume" / "assets"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Müəllimin notebook-undaki sıra (Beam Search + Lexicon Verification.ipynb, cell 2)

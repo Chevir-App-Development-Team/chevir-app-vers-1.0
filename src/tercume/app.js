@@ -1,10 +1,11 @@
 /**
- * Chevir veb demo — bağlayıcı qat.
+ * Chevir tərcümə sistemi — bağlayıcı qat.
  *
  * Hər şey brauzerdə işləyir: server yoxdur, video cihazdan çıxmır.
  * Bu, əlçatanlıq məhsulu üçün həm məxfilik, həm də xərc baxımından vacibdir
  * (statik fayl kimi hər yerdə host oluna bilər).
  */
+import { ASSET_BASE } from './paths.js';
 import { FingerspellModel } from './model.js';
 import { LexiconDecoder } from './decoder.js';
 import { CyberHand } from './skeleton.js';
@@ -32,10 +33,10 @@ async function boot() {
   try {
     setStatus('Model yüklənir…');
     const [model, decoder, poses, evalData] = await Promise.all([
-      FingerspellModel.load('./assets/model.json', './assets/model.bin'),
-      LexiconDecoder.load('./assets/lm.json', './assets/vocab.json', './assets/prefixes.json'),
-      loadPoses('./assets/poses.json'),
-      fetch('./assets/eval.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      FingerspellModel.load(`${ASSET_BASE}model.json`, `${ASSET_BASE}model.bin`),
+      LexiconDecoder.load(`${ASSET_BASE}lm.json`, `${ASSET_BASE}vocab.json`, `${ASSET_BASE}prefixes.json`),
+      loadPoses(`${ASSET_BASE}poses.json`),
+      fetch(`${ASSET_BASE}eval.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     Object.assign(state, { model, decoder, poses, eval: evalData });
     setStatus(`${model.labels.length} sinif · ${decoder.words.length.toLocaleString('az')} söz`, 'ready');
@@ -149,8 +150,8 @@ function drawOverlay(ctx, canvas, video, landmarks) {
   if (!landmarks) return;
 
   ctx.lineWidth = Math.max(2, w / 420);
-  ctx.strokeStyle = 'rgba(56,232,255,.85)';
-  ctx.shadowColor = 'rgba(56,232,255,.8)';
+  ctx.strokeStyle = 'rgba(63,193,232,.9)';
+  ctx.shadowColor = 'rgba(63,193,232,.8)';
   ctx.shadowBlur = 10;
   ctx.beginPath();
   for (const [a, b] of HAND_CONNECTIONS) {
@@ -162,7 +163,7 @@ function drawOverlay(ctx, canvas, video, landmarks) {
   const tips = new Set([4, 8, 12, 16, 20]);
   landmarks.forEach((p, i) => {
     ctx.beginPath();
-    ctx.fillStyle = i === 0 ? '#ffc857' : tips.has(i) ? '#ff3ea5' : '#eaf6ff';
+    ctx.fillStyle = i === 0 ? '#f5b94f' : tips.has(i) ? '#ff4f97' : '#f1ede9';
     ctx.arc(p.x * w, p.y * h, Math.max(3, w / 260), 0, Math.PI * 2);
     ctx.fill();
   });
@@ -214,7 +215,7 @@ async function bootT2SViews() {
   state.avatar = new VrmAvatar($('#t2s-avatar'));
   setStatus('Avatar yüklənir…');
   try {
-    await state.avatar.load('./assets/avatar.vrm');
+    await state.avatar.load(`${ASSET_BASE}avatar.vrm`);
     setStatus('Avatar hazır', 'ready');
   } catch (err) {
     console.error(err);
@@ -308,7 +309,7 @@ function renderAbout() {
 
   $('#doc').innerHTML = `
     <h2>Model və ölçmələr</h2>
-    <p>Bu demo müəllimin <code>model.h5</code> modelini olduğu kimi işlədir. Keras çəkiləri
+    <p>Sistem barmaq əlifbası modelini (<code>fingerspelling_33.h5</code>) olduğu kimi işlədir. Keras çəkiləri
     xam <code>float32</code> kimi çıxarılıb, irəli keçid JS-də 4 matmul ilə hesablanır —
     TensorFlow.js lazım deyil. Port numpy referansı ilə yoxlanılıb, maksimal fərq
     <code>4.8e-7</code> (float32 həddi).</p>
@@ -350,9 +351,9 @@ function renderAbout() {
     ` : ''}
 
     <h3>Niyə hər şey brauzerdə</h3>
-    <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və demo statik fayl kimi
+    <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və sistem statik fayl kimi
     hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil —
-    işarə dili videosu istifadəçinin üzünü və kimliyini daşıyır.</p>`;
+    jest dili videosu istifadəçinin üzünü və kimliyini daşıyır.</p>`;
 }
 
 function escapeHtml(s) {

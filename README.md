@@ -1,76 +1,91 @@
-# Chevir — işarə dili əlçatanlıq qatı
+# Chevir
 
-NSosyal platforması üçün prototip: Azərbaycan işarə dilinin **barmaq əlifbası** üzrə
-iki istiqamətli, **tamamilə brauzerdə işləyən** veb tətbiq.
+Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında tərcümə: layihənin saytı və
+**tamamilə brauzerdə işləyən** tərcümə sistemi bir repo-da.
+
+| Səhifə | Nə var |
+|---|---|
+| `/` | layihənin saytı — Vite, GSAP (ScrollTrigger), Lenis, three.js 3D əl |
+| `/tercume/` | tərcümə sistemi: **Jest → Mətn** (kamera) və **Mətn → Jest** (VRM avatar + cyber skeleton) |
 
 | Modul | Nə edir |
 |---|---|
-| **İşarə → Mətn** | Veb-kamera → MediaPipe Hands → 20×63 → model → beam search + leksikon → Azərbaycan sözü |
-| **Mətn → İşarə** | Mətn → hərflər → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
+| **Jest → Mətn** | Veb-kamera → MediaPipe Hands → 20×63 → model → beam search + leksikon → Azərbaycan sözü |
+| **Mətn → Jest** | Mətn → hərflər → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
 
-Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır, sayt statik fayl kimi hər yerdə
-host oluna bilər (işarə dili videosu istifadəçinin üzünü daşıyır — məxfilik təsadüfi seçim deyil).
+Tərcümə üçün server yoxdur: video cihazdan çıxmır, gecikmə minimaldır, sayt statik fayl
+kimi hər yerdə host oluna bilər (jest dili videosu istifadəçinin üzünü daşıyır — məxfilik
+təsadüfi seçim deyil).
 
-> **Hazırkı həcm:** yalnız barmaq əlifbası — 32 hərf və boşluq / enter / backspace.
-> Söz və cümlə səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
+> **Hazırkı həcm:** sistem yalnız barmaq əlifbasını tanıyır və göstərir — 32 hərf və
+> boşluq / enter / backspace. Söz və cümlə səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
 
 ## İşə salmaq
 
-> ⚠️ **`index.html`-ə iki dəfə klikləmək İŞLƏMİR.** Səhifə ES modul və `fetch`
-> işlətdiyi üçün `file://` altında brauzer onu bloklayır. Kiçik lokal server lazımdır —
-> aşağıdakı skript onu qaldırıb brauzeri özü açır.
+**Node.js 20+** lazımdır:
 
-**Linux / macOS:**
 ```bash
-./BAŞLAT.sh
+npm install
+npm run dev
 ```
 
-**Windows:** `BASLAT.bat` faylına iki dəfə klikləyin.
+Sayt `http://localhost:5173/`, tərcümə sistemi `http://localhost:5173/tercume/` ünvanındadır.
+Qısa yol: `./BAŞLAT.sh` (Linux / macOS) və ya `BASLAT.bat` (Windows) — paketləri ilk
+dəfə özü qurur və brauzeri açır.
 
-**Və ya birbaşa:**
+**Production:**
+
 ```bash
-python3 tools/serve.py 8790
+npm run build      # → dist/ (statik fayllar)
+npm run preview    # build-i lokal yoxlamaq üçün
 ```
 
-Yeganə tələb **Python 3**-dür — əlavə paket lazım deyil, modelin çəkiləri, pozalar və
-kitabxanaların hamısı `public/`-dədir, internet də lazım deyil.
-
-Kamera üçün `localhost` və ya HTTPS tələb olunur (brauzer qaydası) — yuxarıdakı
-üsul `127.0.0.1` işlətdiyi üçün kamera işləyir.
+Vercel-də Vite layihəsi kimi avtomatik tanınır (build: `npm run build`, çıxış: `dist`).
+Kamera yalnız HTTPS və ya `localhost` üzərində işləyir (brauzer qaydası).
 
 ### Avatar faylı
 
 Avatar (`AvatarSample_Z.vrm`, pixiv VRoid Project) lisenziyası yenidən paylaşmağa icazə
-vermir, ona görə repo-da **yoxdur**. VRoid Hub-dan endirib `public/assets/avatar.vrm`
-adı ilə qoyun. Fayl olmasa, "Mətn → İşarə" cyber skeleton ilə işləməyə davam edir.
+vermir, ona görə repo-da **yoxdur**. Lokal işləmək üçün VRoid Hub-dan endirib
+`public/tercume/assets/avatar.vrm` adı ilə qoyun. Fayl olmasa, "Mətn → Jest" cyber
+skeleton ilə işləyir. Yayımlanan saytda avatarın görünməsi üçün yenidən paylaşmağa
+icazə verən lisenziyalı VRM lazımdır (məsələn, VRoid Studio-da komandanın özünün yaratdığı model).
 
 ### Nə gözləmək
 
-- **İşarə → Mətn** — kamerasız da sınana bilər: klaviaturadan hərf yazın (`s a l a m`),
+- **Jest → Mətn** — kamerasız da sınana bilər: klaviaturadan hərf yazın (`s a l a m`),
   sağda beam və leksikon canlı işləyir. `Enter` sözü tamamlayır.
-- **Mətn → İşarə** — mətn yazıb "İşarə dilində göstər" düyməsinə basın, ya da əlifbadan hərfə toxunun.
+- **Mətn → Jest** — mətn yazıb "Jest dilində göstər" düyməsinə basın, ya da əlifbadan hərfə toxunun.
 - **Model** — memarlıq və real AzSLD üzərində ölçmələr.
 
 ## Qovluq quruluşu
 
 ```
-public/                  veb tətbiq (statik)
-  js/model.js            Keras MLP-nin JS irəli keçidi (TensorFlow.js YOX — 4 matmul)
-  js/decoder.js          beam search + hərf-bigram DM + leksikon yoxlaması
-  js/hands.js            MediaPipe sarğısı (30 kadr → son 20)
-  js/s2t.js              işarə → mətn idarəsi
-  js/t2s.js              mətn → işarə oynatması
-  js/skeleton.js         Three.js cyber skeleton (UnrealBloom)
-  js/retarget.js         landmark → avatar: əl oriyentasiyası, qol IK, oynaq həddləri
-  js/vrm.js              VRM 1.0 avatar: yaylı animasiya, nəfəs, göz qırpma, istirahət
-  assets/                model.bin, lm.json, vocab.json, poses.json, hand_landmarker.task
-  vendor/                MediaPipe tasks-vision + three + three-vrm (lokal, offline işləyir)
+index.html               sayt (/)
+tercume/index.html       tərcümə sistemi (/tercume/)
+src/
+  main.js                sayt girişi
+  sections/              sayt bölmələri; navbar.js hər iki səhifədə işlədilir
+  lib/, styles/          sayt köməkçiləri və stilləri
+  tercume/
+    main.js              sistem girişi: saytın naviqasiyası + sistem
+    model.js             Keras MLP-nin JS irəli keçidi (TensorFlow.js YOX — 4 matmul)
+    decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
+    hands.js             MediaPipe sarğısı (30 kadr → son 20)
+    s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
+    skeleton.js          Three.js cyber skeleton (UnrealBloom)
+    retarget.js          landmark → avatar: əl oriyentasiyası, qol IK, oynaq həddləri
+    vrm.js               VRM 1.0 avatar: yaylı animasiya, nəfəs, göz qırpma, istirahət
+    paths.js             statik faylların yolları
+public/
+  media/, *.svg, og-image.png   sayt faylları
+  tercume/assets/        model.bin, lm.json, vocab.json, poses.json, hand_landmarker.task
+  tercume/wasm/          MediaPipe wasm — @mediapipe/tasks-vision 0.10.14 ilə eyni olmalıdır
 tools/
   export_model.py        model/fingerspelling_33.h5 → model.bin + model.json
   build_lexicon.py       model/lexicon.txt → bigram DM + lüğət + prefikslər
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
   verify_*.mjs/py        reqressiya yoxlamaları
-  serve.py               keşsiz lokal server
 model/
   fingerspelling_33.h5   barmaq əlifbası modeli (mənbə)
   lexicon.txt            dekoder üçün söz korpusu
@@ -78,14 +93,17 @@ docs/
   NSosyal_2026.docx      texniki hesabat
 ```
 
+`@mediapipe/tasks-vision` versiyası dəqiq bağlanıb (`0.10.14`): paketi yeniləsəniz,
+`node_modules/@mediapipe/tasks-vision/wasm/` fayllarını `public/tercume/wasm/`-a köçürün.
+
 ## Assetləri yenidən qurmaq
 
-Saytı işə salmaq üçün lazım deyil — hazır fayllar `public/assets/`-dədir. Yalnız model,
-leksikon və ya pozalar dəyişəndə:
+Saytı işə salmaq üçün lazım deyil — hazır fayllar `public/tercume/assets/`-dədir.
+Yalnız model, leksikon və ya pozalar dəyişəndə (Python 3):
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
-.venv/bin/python tools/export_model.py     # model → public/assets/model.bin + model.json
+.venv/bin/python tools/export_model.py     # model → model.bin + model.json
 .venv/bin/python tools/build_lexicon.py    # leksikon → lm.json, vocab.json, prefixes.json
 .venv/bin/python tools/build_poses.py      # AzSLD şəkilləri → poses.json
 ```
@@ -138,7 +156,7 @@ beləcə landmark konvensiyası uyğun qalır.
 Hər kadr üçün normallaşdırılmış landmark-lardan başqa `world` (MediaPipe-in metrik
 3D koordinatları), `size` (mənbə şəklin ölçüsü), `handedness` və `files` (mənbə şəkil) saxlanılır.
 
-Çıxarma zamanı model real data üzərində yoxlanılır (bax `assets/eval.json`):
+Çıxarma zamanı model real data üzərində yoxlanılır (bax `public/tercume/assets/eval.json`):
 
 | Qrup | Hərf | Orta top-1 | Median | ≥90% |
 |---|---|---|---|---|
@@ -153,7 +171,7 @@ təlim datası ola bilər — rəqəmlər **optimistdir**, kənarlaşdırılmı�
 ## Avatar
 
 VRM 1.0 (VRoid Studio), 30 barmaq sümüyü. Poza bütün qola ötürülür — çiyin, dirsək,
-bilək, barmaqlar (`js/retarget.js` riyazi hissə, `js/vrm.js` animasiya):
+bilək, barmaqlar (`src/tercume/retarget.js` riyazi hissə, `src/tercume/vrm.js` animasiya):
 
 1. **Əlin oriyentasiyası** şəkil koordinatlarından (en/hündürlük nisbəti düzəldilir),
    **barmaq forması** metrik 3D koordinatlardan (`world`).
@@ -203,5 +221,6 @@ yana və ya arxaya bükülmə anatomik mümkün deyilsə, avatar onu təkrarlam�
 13. SyncWords & Signapse (2025). *SyncWords and Signapse Launch Live Automatic Sign Language for Streaming*. [Link](https://www.prnewswire.com/news-releases/syncwords-and-signapse-launch-live-automatic-sign-language-for-streaming-302605280.html)
 14. Alishzade, N. & Hasanov, J. (2025). *AzSLD: Azerbaijani Sign Language Dataset for Fingerspelling, Word, and Sentence Translation with Baseline Software*. Data in Brief. [DOI: 10.1016/j.dib.2024.111230](https://doi.org/10.1016/j.dib.2024.111230)
 
-**Üçüncü tərəf komponentlər:** three.js (MIT), @pixiv/three-vrm (MIT),
+**Üçüncü tərəf komponentlər:** three.js (MIT), @pixiv/three-vrm (MIT), GSAP, Lenis (MIT),
 MediaPipe Tasks Vision və `hand_landmarker.task` (Apache-2.0), AzSLD Fingerspelling (CC BY 4.0).
+Saytın ilkin versiyası [Gulshan-hu/chevir-site](https://github.com/Gulshan-hu/chevir-site) repo-sundan köçürülüb.

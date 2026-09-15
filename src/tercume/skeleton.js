@@ -16,9 +16,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { HAND_CONNECTIONS } from './hands.js';
 
-const CYAN = 0x38e8ff;
-const MAGENTA = 0xff3ea5;
-const AMBER = 0xffc857;
+// Saytın kanal rəngləri: danışıq (mavi), jest (çəhrayı)
+const CYAN = 0x3fc1e8;
+const MAGENTA = 0xff4f97;
+const AMBER = 0xf5b94f;
+const BG = 0x0e0c0a;
 const TRAIL_COUNT = 6;
 
 export class CyberHand {
@@ -28,13 +30,17 @@ export class CyberHand {
     this.current = Array.from({ length: 21 }, () => new THREE.Vector3());
     this.hasPose = false;
     this.trails = [];
-    this.clock = new THREE.Clock();
+    this.startTime = performance.now();
+    this.lastTime = this.startTime;
 
     const w = container.clientWidth || 480;
     const h = container.clientHeight || 480;
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x05070d, 0.09);
+    // Fon scene.background ilə verilir: composer-in render hədəfində clear color
+    // rəng məkanı çevrilməsindən keçmir və fon avatar pəncərəsindən açıq görünürdü
+    this.scene.background = new THREE.Color(BG);
+    this.scene.fog = new THREE.FogExp2(BG, 0.09);
 
     this.camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
     this.camera.position.set(0, 0.15, 5.0);
@@ -43,7 +49,7 @@ export class CyberHand {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(w, h);
-    this.renderer.setClearColor(0x05070d, 1);
+    this.renderer.setClearColor(BG, 1);
     container.appendChild(this.renderer.domElement);
 
     this.composer = new EffectComposer(this.renderer);
@@ -63,7 +69,7 @@ export class CyberHand {
     this.#buildBones();
     this.#buildTrails();
 
-    this.scene.add(new THREE.AmbientLight(0x223355, 1.2));
+    this.scene.add(new THREE.AmbientLight(0x3a342d, 1.2));
     const key = new THREE.PointLight(CYAN, 12, 12);
     key.position.set(1.5, 1.5, 2.5);
     this.scene.add(key);
@@ -74,7 +80,7 @@ export class CyberHand {
   }
 
   #buildGrid() {
-    const grid = new THREE.GridHelper(14, 28, CYAN, 0x11203a);
+    const grid = new THREE.GridHelper(14, 28, CYAN, 0x2a241e);
     grid.material.transparent = true;
     grid.material.opacity = 0.18;
     grid.position.y = -1.9;
@@ -83,7 +89,7 @@ export class CyberHand {
     // Üfüq xətti — dərinlik hissi üçün
     const geo = new THREE.PlaneGeometry(14, 6);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x0a1930, transparent: true, opacity: 0.35,
+      color: 0x1a1612, transparent: true, opacity: 0.35,
       side: THREE.DoubleSide, depthWrite: false,
     });
     const plane = new THREE.Mesh(geo, mat);
@@ -190,8 +196,10 @@ export class CyberHand {
 
   #loop = () => {
     this._raf = requestAnimationFrame(this.#loop);
-    const dt = Math.min(this.clock.getDelta(), 0.05);
-    const t = this.clock.elapsedTime;
+    const now = performance.now();
+    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+    const t = (now - this.startTime) / 1000;
+    this.lastTime = now;
 
     // Hədəfə yumşaq yaxınlaşma (kritik sönümlü yaxınlaşma kimi)
     const k = 1 - Math.exp(-14 * dt);

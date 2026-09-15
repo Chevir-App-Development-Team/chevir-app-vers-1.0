@@ -9,7 +9,7 @@ Nə edir:
   3. Statik hərf üçün medoid poza seçilir (digərlərinə məsafəsi minimal olan,
      yəni ən tipik nümunə), dinamik hərf üçün ən yaxşı ardıcıllıq seçilir.
 
-Çıxış: public/assets/poses.json + konsolda yoxlama cədvəli.
+Çıxış: public/tercume/assets/poses.json + konsolda yoxlama cədvəli.
 """
 import argparse, json, re
 from pathlib import Path
@@ -23,9 +23,9 @@ import mediapipe as mp
 
 ROOT = Path(__file__).resolve().parent.parent
 FS_DIR = ROOT / "data" / "AzSLD_Fingerspelling"   # Zenodo 14222948; --fs-dir ilə dəyişdirilir
-TASK = ROOT / "public" / "assets" / "hand_landmarker.task"
+TASK = ROOT / "public" / "tercume" / "assets" / "hand_landmarker.task"
 MODEL_H5 = ROOT / "model" / "fingerspelling_33.h5"
-OUT = ROOT / "public" / "assets" / "poses.json"
+OUT = ROOT / "public" / "tercume" / "assets" / "poses.json"
 
 FOLDER_TO_LETTER = {
     'A': 'a', 'B': 'b', 'C': 'c', 'Ç': 'ç', 'D': 'd', 'E': 'e', 'Ə': 'ə',

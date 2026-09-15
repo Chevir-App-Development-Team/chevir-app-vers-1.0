@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Chevir tərcümə sistemi - Azərbaycan jest dilinin barmaq əlifbasını kameradan mətnə, mətndən avatara çevirir. Hər şey brauzerdə işləyir."
+    />
+    <title>Chevir - tərcümə sistemi</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="tercume">
+    <div id="site-nav"></div>
+
+    <header class="topbar">
+      <div class="page-title">
+        <h1>Tərcümə sistemi</h1>
+        <p>Azərbaycan jest dilinin barmaq əlifbası · hər şey brauzerdə işləyir</p>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button class="tab is-active" data-tab="s2t" role="tab">Jest → Mətn</button>
+        <button class="tab" data-tab="t2s" role="tab">Mətn → Jest</button>
+        <button class="tab" data-tab="about" role="tab">Model</button>
+      </nav>
+      <div class="status" id="status"><span class="dot"></span><span id="status-text">Yüklənir…</span></div>
+    </header>
+
+    <!-- ══════════════ JEST → MƏTN ══════════════ -->
+    <main class="panel is-active" id="tab-s2t">
+      <section class="stage">
+        <div class="viewport">
+          <video id="cam" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="viewport-label">Kamera <span class="muted">· aşkarlama xam kadr üzərində</span></div>
+          <div class="capture-ring"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" id="ring" cx="20" cy="20" r="17"/></svg><span id="ring-label">0/30</span></div>
+        </div>
+        <div class="viewport" id="s2t-skeleton">
+          <div class="viewport-label">Cyber skeleton <span class="muted">· modelin gördüyü 21 nöqtə</span></div>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="card">
+          <div class="card-head"><h2>İdarə</h2></div>
+          <div class="row">
+            <button class="btn btn-primary" id="btn-start">Kameranı başlat</button>
+            <button class="btn" id="btn-stop" disabled>Dayandır</button>
+          </div>
+          <div class="row">
+            <button class="btn btn-ghost" id="btn-finish">Sözü tamamla (enter)</button>
+            <button class="btn btn-ghost" id="btn-clear">Təmizlə</button>
+          </div>
+          <label class="field">
+            <span>Leksikon rejimi</span>
+            <select id="mode">
+              <option value="soft" selected>soft — kənara çıxmağa cərimə</option>
+              <option value="strict">strict — yalnız real söz prefiksi</option>
+              <option value="off">off — leksikon yoxdur</option>
+            </select>
+          </label>
+          <p class="hint">Kamera yoxdursa, klaviaturadan hərf yazıb dekoderi sına: <kbd>a…z</kbd>, <kbd>Enter</kbd>, <kbd>Backspace</kbd>.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Cari proqnoz</h2><span class="badge" id="pred-quality">—</span></div>
+          <div class="pred-grid" id="pred-grid">
+            <div class="pred-empty">Hələ proqnoz yoxdur</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Yığılan hərflər</h2></div>
+          <div class="letters" id="letters"><span class="muted">boş</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Beam + leksikon</h2></div>
+          <div class="decoded" id="decoded"><span class="muted">—</span></div>
+          <ul class="cand-list" id="candidates"></ul>
+          <div class="suggest" id="suggest"></div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ══════════════ MƏTN → JEST ══════════════ -->
+    <main class="panel" id="tab-t2s">
+      <section class="stage">
+        <div class="viewport" id="t2s-avatar">
+          <div class="viewport-label">VRM avatar <span class="muted">· poza bütün qola ötürülür</span></div>
+        </div>
+        <div class="viewport" id="t2s-skeleton">
+          <div class="viewport-label">Cyber skeleton <span class="muted">· eyni poza, xam landmark</span></div>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="card">
+          <div class="card-head"><h2>Mətn</h2></div>
+          <textarea id="t2s-input" rows="3" placeholder="Məsələn: salam dünya">salam</textarea>
+          <div class="row">
+            <button class="btn btn-primary" id="btn-play">Jest dilində göstər</button>
+            <button class="btn" id="btn-stop-play">Dayandır</button>
+          </div>
+          <div class="row compact">
+            <label class="field inline"><span>Hərf müddəti</span><input type="range" id="hold" min="220" max="1400" step="20" value="620"><b id="hold-val">620ms</b></label>
+          </div>
+          <div class="row compact">
+            <label class="field inline"><span>Əl</span>
+              <select id="hand"><option value="right" selected>sağ</option><option value="left">sol</option></select>
+            </label>
+          </div>
+          <div id="t2s-warn" class="warn" hidden></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Oynatma</h2><span class="badge" id="play-progress">—</span></div>
+          <div class="spelled" id="spelled"><span class="muted">—</span></div>
+          <div class="current-letter" id="current-letter">·</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Əlifba</h2><span class="badge" id="abc-count">—</span></div>
+          <div class="abc" id="abc"></div>
+          <p class="hint">Hərfə toxun — pozası hər iki görüntüdə göstərilir. <b>D</b> işarəsi dinamik hərfdir (hərəkətli).</p>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ══════════════ MODEL ══════════════ -->
+    <main class="panel" id="tab-about">
+      <div class="doc" id="doc"></div>
+    </main>
+
+    <script type="module" src="/src/tercume/main.js"></script>
+  </body>
+</html>

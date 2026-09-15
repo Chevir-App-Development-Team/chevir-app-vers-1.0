@@ -1,8 +1,8 @@
 // Beam search + leksikon yoxlamasını süni proqnozlarla sınayır.
 import { readFileSync } from 'node:fs';
-import { LexiconDecoder } from '../public/js/decoder.js';
+import { LexiconDecoder } from '../src/tercume/decoder.js';
 
-const A = new URL('../public/assets/', import.meta.url);
+const A = new URL('../public/tercume/assets/', import.meta.url);
 const rd = (f) => JSON.parse(readFileSync(new URL(f, A), 'utf8'));
 const dec = new LexiconDecoder(rd('lm.json'), rd('vocab.json'), rd('prefixes.json'));
 console.log(`lüğət: ${dec.words.length} söz | prefiks: ${dec.prefixes.size}\n`);

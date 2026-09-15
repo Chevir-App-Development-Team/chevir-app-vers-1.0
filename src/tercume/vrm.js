@@ -49,11 +49,11 @@ export class VrmAvatar {
     this.blink = { next: 1.5 + Math.random() * 2, t: -1 };
     this.lastPose = null;
     this.last = null;              // son həll (sazlama və ölçmə üçün)
-    this.clock = new THREE.Clock();
+    this.lastTime = performance.now();
 
     const w = container.clientWidth || 480, h = container.clientHeight || 480;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x090c14);
+    this.scene.background = new THREE.Color(0x0e0c0a);
 
     this.camera = new THREE.PerspectiveCamera(34, w / h, 0.1, 40);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -66,10 +66,10 @@ export class VrmAvatar {
     const key = new THREE.DirectionalLight(0xffffff, 2.0);
     key.position.set(1.2, 2.2, 2.4);
     this.scene.add(key);
-    const rim = new THREE.DirectionalLight(0x38e8ff, 1.4);
+    const rim = new THREE.DirectionalLight(0x3fc1e8, 1.4);
     rim.position.set(-1.8, 1.2, -1.6);
     this.scene.add(rim);
-    const fill = new THREE.DirectionalLight(0xff3ea5, 0.6);
+    const fill = new THREE.DirectionalLight(0xff4f97, 0.6);
     fill.position.set(2.0, 0.2, -1.2);
     this.scene.add(fill);
 
@@ -84,7 +84,7 @@ export class VrmAvatar {
     const gltf = await loader.loadAsync(url);
     const vrm = gltf.userData.vrm;
     VRMUtils.removeUnnecessaryVertices(gltf.scene);
-    VRMUtils.removeUnnecessaryJoints(gltf.scene);
+    VRMUtils.combineSkeletons(gltf.scene);
     vrm.scene.traverse((o) => { o.frustumCulled = false; });
     this.vrm = vrm;
     this.scene.add(vrm.scene);
@@ -283,7 +283,9 @@ export class VrmAvatar {
 
   #loop = () => {
     this._raf = requestAnimationFrame(this.#loop);
-    const dt = Math.min(this.clock.getDelta(), 0.05);
+    const now = performance.now();
+    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+    this.lastTime = now;
     if (this.paused) return;        // sınaqda zaman addımı xaricdən verilir
     this.update(dt);
     this.renderer.render(this.scene, this.camera);

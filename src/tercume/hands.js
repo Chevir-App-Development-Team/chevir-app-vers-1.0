@@ -12,6 +12,8 @@
  * ona görə koordinatlar təlimlə uyğun qalır.
  */
 
+import { ASSET_BASE, WASM_BASE } from './paths.js';
+
 const HAND_LM = 21;
 export const FEAT_PER_FRAME = HAND_LM * 3;   // 63
 
@@ -34,21 +36,18 @@ export const FINGERS = {
 };
 
 /**
- * Yollar bu faylın öz ünvanına görə açılır. `import()` nisbi yolu modulun
- * yerinə (/js/), `fetch` isə səhifənin yerinə görə açır — ikisini qarışdırmamaq
- * üçün hamısı mütləq URL-ə çevrilir. Sayt alt qovluqda yerləşsə də işləyir.
+ * MediaPipe kitabxanası kamera açılanda dinamik yüklənir (ilk açılış yüngül qalsın).
+ * Paket versiyası 0.10.14-ə bağlıdır: public/tercume/wasm faylları həmin versiyanın
+ * wasm-ı ilə eyni olmalıdır.
  */
-const fromHere = (p) => new URL(p, import.meta.url).href;
-
 export async function createHandLandmarker({
-  visionPath = fromHere('../vendor/vision_bundle.mjs'),
-  wasmPath = fromHere('../vendor/wasm'),
-  modelPath = fromHere('../assets/hand_landmarker.task'),
+  wasmPath = WASM_BASE,
+  modelPath = `${ASSET_BASE}hand_landmarker.task`,
   numHands = 2,
   minDetection = 0.5,
   minTracking = 0.5,
 } = {}) {
-  const vision = await import(visionPath);
+  const vision = await import('@mediapipe/tasks-vision');
   const fileset = await vision.FilesetResolver.forVisionTasks(wasmPath);
   const options = (delegate) => ({
     baseOptions: { modelAssetPath: modelPath, delegate },

@@ -1,6 +1,8 @@
 import gsap from 'gsap'
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
 import { HERO_TAGLINE } from '../lib/i18n.js'
+import { BRAND_LOGO_MARKUP } from '../lib/brandLogo.js'
+import { navbarMarkup as buildNavbarMarkup } from './navbar.js'
 
 // public/wordmark.svg-nin dəyişməz kopyası (currentColor - hero-da ağ olur).
 const WORDMARK_MARKUP = `
@@ -12,31 +14,7 @@ const WORDMARK_MARKUP = `
   <path d="M3.84 14.7838C3.84 17.7598 5.6 19.5198 8.256 19.5198C10.208 19.5198 11.648 18.5918 12.32 16.9598H16.32C15.456 20.6718 12.48 23.0398 8.288 23.0398C3.328 23.0398 0 19.7118 0 14.7518C0 9.82383 3.328 6.52783 8.288 6.52783C12.448 6.52783 15.456 8.86383 16.288 12.5118H12.288C11.616 10.9438 10.176 10.0478 8.256 10.0478C5.6 10.0478 3.84 11.8078 3.84 14.7838Z" fill="currentColor"/>
 `
 
-// public/logo.svg-nin dəyişməz kopyası - 3D əl yüklənməyəndə (reduced-motion/
-// WebGL yoxdursa) statik fallback kimi qalır.
-// fill="none" hər qövsdə birbaşa yazılıb: bu svg üçün ayrıca <svg> elementinin
-// özündə fill="none" yoxdur, ona görə miras gözləmək əvəzinə açıq təyin olunur.
-const BRAND_LOGO_MARKUP = `
-  <path id="arc-signed" fill="none" d="M50.5 88.5C45.3784 88.5 40.307 87.4912 35.5753 85.5313C30.8436 83.5714 26.5443 80.6986 22.9228 77.0772C19.3013 73.4557 16.4286 69.1563 14.4687 64.4247C12.5088 59.693 11.5 54.6215 11.5 49.5" stroke="#D6006C" stroke-width="7"/>
-  <path id="arc-spoken" fill="none" d="M49.5 10.5C54.6216 10.5 59.693 11.5088 64.4247 13.4687C69.1564 15.4286 73.4557 18.3014 77.0772 21.9228C80.6986 25.5443 83.5714 29.8436 85.5313 34.5753C87.4912 39.307 88.5 44.3784 88.5 49.5" stroke="#0088B0" stroke-width="7"/>
-  <path id="head-signed" d="M11.5 34L21.4593 49.75H1.54071L11.5 34Z" fill="#D6006C"/>
-  <path id="head-spoken" d="M88.5 65L78.5407 49.25L98.4593 49.25L88.5 65Z" fill="#0088B0"/>
-  <circle id="dot" cx="50" cy="50" r="4" fill="currentColor"/>
-`
-
-// Naviqasiya paneli üçün loqonun sadə, animasiyasız kopyası - id toqquşmasının
-// qarşısını almaq üçün id-siz.
-const NAVBAR_LOGO_MARKUP = BRAND_LOGO_MARKUP.replace(/\sid="[^"]*"/g, '')
-
-export const navbarMarkup = `
-<header class="navbar" data-navbar>
-  <a class="navbar__brand" href="#top">
-    <svg class="navbar__logo-svg" viewBox="0 0 100 100" aria-hidden="true">${NAVBAR_LOGO_MARKUP}</svg>
-    <span class="navbar__name">Chevir</span>
-  </a>
-  <a class="navbar__cta" href="#pilot">Pilot tərəfdaş olun</a>
-</header>
-`
+export const navbarMarkup = buildNavbarMarkup({ home: true })
 
 export const heroMarkup = `
 <section class="hero" id="top" aria-label="Chevir">
@@ -126,7 +104,7 @@ export function setupHero() {
 
   const logo = document.getElementById('brand-logo')
   const tagline = document.querySelector('.hero__tagline')
-  const cta = document.querySelector('.navbar__cta')
+  const cta = document.querySelector('.navbar__actions')
 
   // tagline/cta burda yalnız gizlədilir (instant set) - görünən reveal
   // tween-i preloader.js-in öz splash timeline-ındadır (`.hero__desc` seçicisi

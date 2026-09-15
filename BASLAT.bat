@@ -1,5 +1,6 @@
 @echo off
-REM Chevir demosunu ise salir (Windows).
+REM Saytı lokal işə salır (Windows). Node.js 20+ lazımdır.
 cd /d "%~dp0"
-python tools\serve.py 8790
+if not exist node_modules call npm install
+call npm run dev -- --open
 pause

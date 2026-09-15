@@ -1,0 +1,5 @@
+{
+  "redirects": [
+    { "source": "/tercume", "destination": "/tercume/", "permanent": true }
+  ]
+}

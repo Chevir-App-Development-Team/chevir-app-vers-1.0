@@ -80,6 +80,35 @@
   opacity: 1;
 }
 
+.navbar__actions {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.9rem, 2.5vw, 1.75rem);
+}
+
+.navbar__link {
+  position: relative;
+  color: #f1ede9;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+  opacity: 0.82;
+  transition: opacity 0.3s ease;
+}
+
+/* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
+.navbar__link::before {
+  content: '';
+  position: absolute;
+  inset: -12px -8px;
+}
+
+.navbar__link:hover {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .navbar__cta {
   position: relative;
   display: inline-block;
@@ -103,4 +132,15 @@
 
 .navbar__cta:hover {
   transform: translateY(-2px);
+}
+
+/* Dar ekranda loqo + iki keçid bir sətrə sığsın. */
+@media (max-width: 480px) {
+  .navbar__name {
+    display: none;
+  }
+
+  .navbar__cta {
+    padding: 0.55rem 1rem;
+  }
 }

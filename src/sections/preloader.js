@@ -41,7 +41,7 @@ function runSplashAnimation(logo, lenis, onDone) {
   const splashEl = document.getElementById('splash')
   const countEl = splashEl.querySelector('[data-splash-count]')
   const desc = document.querySelector('.hero__desc')
-  const cta = document.querySelector('.navbar__cta')
+  const cta = document.querySelector('.navbar__actions')
   const scrollBtn = document.querySelector('.hero__scroll')
   const navbarLogo = document.querySelector('.navbar__logo-svg')
 

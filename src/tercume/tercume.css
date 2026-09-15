@@ -1,0 +1,857 @@
+/*
+ * /tercume/ — tərcümə sistemi.
+ * Saytın şrifti (base.css) və naviqasiyası üzərində qurulub. Sistem həmişə
+ * tünddür (kamera və 3D görüntülər üçün), istifadəçinin rəng sxemindən asılı deyil;
+ * kanal rəngləri saytla eynidir: danışıq — mavi, jest — çəhrayı.
+ */
+:root {
+  color-scheme: dark;
+  --ink: #f1ede9;
+  --paper: #16130f;
+  --ink-2: #cfc7bf;
+  --ink-3: #a39c95;
+  --bg-2: #1b1713;
+  --panel: #1f1b16;
+  --panel-2: #29231d;
+  --field: #120f0c;
+  --chip: #1a1612;
+  --viewport: #0e0c0a;
+  --line: rgba(241, 237, 233, 0.1);
+  --line-2: rgba(241, 237, 233, 0.18);
+  --spk: #3fc1e8;
+  --sig: #ff4f97;
+  --on-light: #0a0a0a;
+  --amber: #f5b94f;
+  --green: #5fd08a;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --gutter: clamp(1.25rem, 5vw, 4rem);
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body.tercume {
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--navbar-h);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tercume h1,
+.tercume h2,
+.tercume h3 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.muted {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+/* ── səhifə başlığı: ad, rejimlər, vəziyyət ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 10px var(--gutter) 14px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.page-title h1 {
+  font-size: 1.35rem;
+}
+
+.page-title p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  background: var(--field);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+.tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab:hover {
+  color: var(--ink);
+  background: var(--panel-2);
+}
+
+.tab.is-active {
+  background: #ffffff;
+  color: var(--on-light);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-family: var(--mono);
+}
+
+.status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 10px currentColor;
+}
+
+.status[data-state='ready'] .dot,
+.status[data-state='running'] .dot {
+  background: var(--green);
+}
+
+.status[data-state='error'] .dot {
+  background: var(--sig);
+}
+
+/* ── səhifə quruluşu ── */
+.panel {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: 1fr 372px;
+  gap: 16px;
+  padding: 16px var(--gutter) 24px;
+}
+
+.panel.is-active {
+  display: grid;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+  min-height: 0;
+}
+
+/* ── görüntü çərçivəsi ── */
+.viewport {
+  position: relative;
+  background: var(--viewport);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-height: 280px;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6);
+}
+
+/* Canvas mütləq yerləşir: pəncərənin hündürlüyünü CSS təyin edir, canvas-ın öz
+   piksel ölçüsü yox (yoxsa ekran dönəndə ölçü özünü saxlayır). */
+.viewport > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.viewport video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  display: block;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: scaleX(-1);
+}
+
+.viewport-label {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 3;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--ink-2);
+  background: rgba(14, 12, 10, 0.78);
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  backdrop-filter: blur(6px);
+}
+
+.capture-ring {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 3;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+}
+
+.capture-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.capture-ring .track {
+  fill: none;
+  stroke: rgba(241, 237, 233, 0.12);
+  stroke-width: 3;
+}
+
+.capture-ring .fill {
+  fill: none;
+  stroke: var(--spk);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 106.8;
+  stroke-dashoffset: 106.8;
+  transition: stroke-dashoffset 0.08s linear;
+}
+
+#ring-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-2);
+}
+
+/* ── kartlar ── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+}
+
+.card-head h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-2);
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--spk);
+  background: rgba(63, 193, 232, 0.08);
+  border: 1px solid rgba(63, 193, 232, 0.28);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.row.compact {
+  margin-bottom: 5px;
+}
+
+.row:last-child {
+  margin-bottom: 0;
+}
+
+.btn {
+  flex: 1;
+  appearance: none;
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  padding: 9px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.08s;
+}
+
+.btn:hover:not(:disabled) {
+  background: #332c25;
+  border-color: rgba(241, 237, 233, 0.28);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: var(--on-light);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #e9e4df;
+  border-color: #e9e4df;
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  margin-top: 9px;
+}
+
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.field.inline span {
+  min-width: 88px;
+}
+
+.field.inline b {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--spk);
+  min-width: 52px;
+  text-align: right;
+}
+
+.tercume select,
+.tercume textarea,
+.tercume input[type='text'] {
+  width: 100%;
+  background: var(--field);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.tercume textarea {
+  resize: vertical;
+  font-size: 15px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+
+.tercume select:focus,
+.tercume textarea:focus {
+  outline: 2px solid rgba(63, 193, 232, 0.45);
+  outline-offset: 1px;
+}
+
+.tercume input[type='range'] {
+  flex: 1;
+  accent-color: var(--spk);
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  background: var(--chip);
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--ink-2);
+}
+
+.warn {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: var(--amber);
+  background: rgba(245, 185, 79, 0.08);
+  border: 1px solid rgba(245, 185, 79, 0.25);
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+/* ── proqnoz ── */
+.pred-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pred-empty {
+  font-size: 12px;
+  color: var(--ink-3);
+  padding: 6px 0;
+}
+
+.pred {
+  display: grid;
+  grid-template-columns: 34px 1fr 48px;
+  align-items: center;
+  gap: 9px;
+}
+
+.pred-ch {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--spk);
+}
+
+.pred:not(:first-child) .pred-ch {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.pred-bar {
+  height: 7px;
+  background: var(--chip);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.pred-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 20px;
+  background: linear-gradient(90deg, var(--spk), #8fdcf3);
+  transition: width 0.18s;
+}
+
+.pred:not(:first-child) .pred-bar i {
+  background: rgba(241, 237, 233, 0.22);
+}
+
+.pred-p {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+/* ── hərflər / dekod ── */
+.letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 34px;
+  align-items: center;
+}
+
+.letters span.l {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--chip);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  min-width: 26px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+}
+
+.decoded {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.decoded .ok {
+  color: var(--green);
+}
+
+.decoded .no {
+  color: var(--amber);
+}
+
+.decoded .tick {
+  font-size: 14px;
+  font-family: var(--mono);
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(95, 208, 138, 0.12);
+  border: 1px solid rgba(95, 208, 138, 0.3);
+  color: var(--green);
+}
+
+.cand-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cand-list li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 9px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--chip);
+}
+
+.cand-list li.top {
+  background: rgba(63, 193, 232, 0.07);
+  border: 1px solid rgba(63, 193, 232, 0.3);
+}
+
+.cand-list .w {
+  color: var(--ink);
+}
+
+.cand-list .v {
+  color: var(--green);
+  font-size: 10px;
+}
+
+.cand-list .c {
+  color: var(--ink-3);
+}
+
+.suggest {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+.suggest b {
+  color: var(--spk);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+/* ── mətn → jest ── */
+.spelled {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 32px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.spelled i {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-style: normal;
+  color: var(--ink-3);
+  min-width: 22px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--chip);
+}
+
+.spelled i.done {
+  color: var(--ink-2);
+}
+
+.spelled i.now {
+  color: var(--on-light);
+  background: var(--sig);
+  font-weight: 700;
+  transform: scale(1.12);
+}
+
+.current-letter {
+  font-size: 60px;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1;
+  color: var(--sig);
+  text-shadow: 0 0 34px rgba(255, 79, 151, 0.45);
+  font-family: var(--mono);
+  padding: 6px 0;
+}
+
+.abc {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+}
+
+.abc button {
+  appearance: none;
+  position: relative;
+  border: 1px solid var(--line-2);
+  background: var(--chip);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  aspect-ratio: 1;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.08s;
+}
+
+.abc button:hover {
+  background: var(--panel-2);
+  transform: translateY(-1px);
+}
+
+.abc button.is-on {
+  background: var(--sig);
+  color: var(--on-light);
+}
+
+.abc button.dyn::after {
+  content: 'D';
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 8px;
+  color: var(--spk);
+  font-weight: 700;
+}
+
+.abc button.is-on.dyn::after {
+  color: #3a0a22;
+}
+
+/* ── model sənədi ── */
+.doc {
+  grid-column: 1 / -1;
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 8px 0 40px;
+  overflow-y: auto;
+}
+
+.doc h2 {
+  font-size: 20px;
+  margin: 26px 0 12px;
+}
+
+.doc h3 {
+  font-size: 14px;
+  margin: 20px 0 8px;
+  color: var(--spk);
+}
+
+.doc p {
+  color: var(--ink-2);
+  margin: 0 0 11px;
+}
+
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 18px;
+  font-size: 12.5px;
+}
+
+.doc th,
+.doc td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.doc th {
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+}
+
+.doc td.n {
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.doc code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--chip);
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  color: var(--spk);
+}
+
+.doc .note {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin: 14px 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.doc .bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.doc .bars div {
+  display: grid;
+  grid-template-columns: 26px 1fr 44px;
+  gap: 9px;
+  align-items: center;
+  font-size: 11.5px;
+}
+
+.doc .bars span:first-child {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.doc .bars u {
+  display: block;
+  height: 9px;
+  border-radius: 20px;
+  background: var(--chip);
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.doc .bars u i {
+  display: block;
+  height: 100%;
+  border-radius: 20px;
+  background: linear-gradient(90deg, var(--spk), #8fdcf3);
+}
+
+.doc .bars em {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+/* Dar ekranda tam ekran "tətbiq" düzülüşü yox, adi sürüşən səhifə: hündürlük
+   ekrana bağlı qalsa grid sətirləri sıxılır və pəncərələr kartların üstünə düşür. */
+@media (max-width: 1160px) {
+  html,
+  body {
+    height: auto;
+  }
+
+  .panel,
+  .stage {
+    min-height: auto;
+  }
+
+  .panel.is-active {
+    grid-template-columns: 1fr;
+  }
+
+  .stage .viewport {
+    min-height: 340px;
+  }
+
+  .sidebar {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 760px) {
+  .stage {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    gap: 12px;
+  }
+
+  .tabs {
+    margin-left: 0;
+    width: 100%;
+    order: 3;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 8px 10px;
+  }
+
+  .abc {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
