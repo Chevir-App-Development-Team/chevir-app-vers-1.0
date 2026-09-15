@@ -71,7 +71,7 @@ src/
     main.js              sistem girişi: saytın naviqasiyası + sistem
     model.js             Keras MLP-nin JS irəli keçidi (TensorFlow.js YOX — 4 matmul)
     decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
-    hands.js             MediaPipe sarğısı (30 kadr → son 20)
+    hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
     s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
     skeleton.js          Three.js cyber skeleton (UnrealBloom)
     retarget.js          landmark → avatar: əl oriyentasiyası, qol IK, oynaq həddləri
@@ -140,6 +140,30 @@ Laplace hamarlaşdırma əlavə olunub.
 ```bash
 node tools/verify_decoder.mjs
 # "insan"-da 3-cü hərf p=0.25 verilsə belə leksikon onu düzəldir
+```
+
+## Kameradan hərf nə vaxt yazılır
+
+Model 20 kadrlıq pəncərə ilə işləyir. Əvvəl pəncərə hər 30 kadrdan bir **şərtsiz**
+hərf yazırdı — ona görə əlin kadra girdiyi və bir pozadan digərinə keçdiyi anlar da
+hərfə çevrilirdi (ölçülüb: 5 boş kadr + 15 kadr "s" → model **"ö" 0.89** ilə deyir,
+yəni sadəcə əminlik həddi bunu tutmur). İndi pəncərə sürüşür və hərf yalnız bu
+şərtlər ödənəndə yazılır:
+
+| Şərt | Dəyər | Niyə |
+|---|---|---|
+| Pəncərənin bütün kadrlarında əl görünür | 20/20 | əl kadra girəndə boş kadrlar dinamik hərf kimi oxunur |
+| Hərəkət ölçüsü kiçikdir | < 0.05 | sabit poza 0.00–0.04, pozalar arası keçid 0.06–0.11 |
+| Model əmindir | ≥ 0.45 | modelin özü bəzi hərflərdə alçaq qalır (sabit "m" → 0.56) |
+| Eyni hərf ardıcıl təsdiqlənir | 3 proqnoz | anlıq titrəmə hərf yazmasın |
+| Yazılan hərf kilidlənir | əl tərpənənə qədər | eyni hərf təkrar-təkrar yazılmasın |
+
+Praktikada: hər hərfi ~1 saniyə sabit saxlamaq, sonra əli tərpədib növbətiyə keçmək.
+Kameranın altındakı halqa vəziyyəti göstərir (əl yoxdur / hərəkət / saxla / yazıldı).
+
+```bash
+node tools/verify_s2t.mjs
+# süni kamera ardıcıllığı: "salam" hərf-hərf yazılır, keçidlər və boş kadrlar heç nə yazmır
 ```
 
 ## Hərf pozaları

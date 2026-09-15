@@ -16,6 +16,16 @@ import { HAND_CONNECTIONS } from './hands.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
+// Kamera halqasının altındakı vəziyyət yazısı (bax s2t.js — hərf yazma şərtləri)
+const GATE_LABEL = {
+  idle: '—',
+  'wait-hand': 'əl yoxdur',
+  moving: 'hərəkət',
+  unsure: 'qeyri-müəyyən',
+  hold: 'saxla',
+  typed: 'yazıldı',
+};
+
 const state = {
   model: null, decoder: null, poses: null, eval: null,
   s2t: null, t2s: null,
@@ -90,12 +100,12 @@ function initS2T() {
   const s2t = new SignToText({
     model: state.model, decoder: state.decoder, video,
     onStatus: ({ message, stage }) => setStatus(message, stage),
-    onFrame: ({ landmarks, progress }) => {
+    onFrame: ({ landmarks, progress, state: gate }) => {
       drawOverlay(ctx, canvas, video, landmarks);
       state.skelS2T?.setPose(landmarks ?? null);
       const ring = $('#ring');
       if (ring) ring.style.strokeDashoffset = String(106.8 * (1 - progress));
-      $('#ring-label').textContent = `${Math.round(progress * 30)}/30`;
+      $('#ring-label').textContent = GATE_LABEL[gate] ?? '';
     },
     onPrediction: ({ top, quality }) => {
       $('#pred-quality').textContent = `əl ${Math.round(quality * 100)}%`;
@@ -328,6 +338,13 @@ function renderAbout() {
     çəkilir (leksikondan: ${state.decoder.words.length.toLocaleString('az')} unikal söz,
     ${state.decoder.prefixes.size.toLocaleString('az')} prefiks). Sonda lüğət yoxlaması:
     tam uyğunluq bonus alır, uyğunluq yoxdursa redaktə məsafəsi ilə ən yaxın real sözlər təklif olunur.</p>
+
+    <h3>Hərf nə vaxt yazılır</h3>
+    <p>Kameradan hərf yalnız əl sabit olanda yazılır: pəncərənin hər 20 kadrında əl görünməli,
+    hərəkət ölçüsü kiçik olmalı (sabit poza 0.00–0.04, keçid 0.06–0.11), model ən azı
+    <b>45%</b> əmin olmalı və eyni hərf ardıcıl 3 proqnozda təsdiqlənməlidir. Bu şərtlər olmadan
+    əlin kadra girdiyi an boş kadrlarla birlikdə dinamik hərf kimi oxunurdu — məsələn
+    5 boş kadr + 15 kadr “s” model üçün <code>ö</code> (0.89) deməkdir.</p>
 
     ${e ? `
     <h3>Real AzSLD datasında ölçmə</h3>

@@ -80,34 +80,60 @@ export function extractKeypoints(result) {
 }
 
 /**
- * Kadr buferi: `fill` kadr yığır, sonuncu `take`-ni düz vektor kimi verir.
- * Müəllimin qurğusu: fill=30, take=20.
+ * Sürüşən kadr pəncərəsi: son `take` kadrı saxlayır və modelə verir.
+ *
+ * Əvvəlki qurğu 30 kadr yığıb ŞƏRTSİZ proqnoz verirdi, ona görə əlin kadra
+ * girdiyi və ya bir pozadan digərinə keçdiyi anlar da hərf kimi yazılırdı
+ * (ölçülüb: 5 boş kadr + 15 kadr "s" → model "ö" deyir, özü də 0.89 ilə).
+ * İndi pəncərə sürüşür, `presence` və `motion` isə hərfin nə vaxt yazıla
+ * biləcəyini müəyyən edir (bax s2t.js).
  */
-export class FrameBuffer {
-  constructor({ fill = 30, take = 20 } = {}) {
-    this.fill = fill;
+export class FrameWindow {
+  constructor({ take = 20 } = {}) {
     this.take = take;
     this.frames = [];
-    this.handFrames = 0;
+    this.hands = [];
   }
 
-  get progress() { return Math.min(this.frames.length / this.fill, 1); }
-  /** Bufer nə qədər "canlıdır" — əl görünən kadrların payı */
-  get quality() { return this.frames.length ? this.handFrames / this.frames.length : 0; }
+  get full() { return this.frames.length >= this.take; }
+  get fill() { return Math.min(this.frames.length / this.take, 1); }
+  /** Pəncərədə əl görünən kadrların payı (1 = bütün kadrlarda əl var). */
+  get presence() {
+    if (!this.hands.length) return 0;
+    return this.hands.reduce((n, h) => n + (h ? 1 : 0), 0) / this.hands.length;
+  }
 
-  /** @returns {Float32Array|null} bufer dolubsa 20×63 düz vektor */
+  /**
+   * Hərəkət ölçüsü: ardıcıl kadrlar arası orta yerdəyişmə, əl ölçüsünə bölünüb.
+   * Ölçülüb: sabit poza 0.00–0.04, pozadan pozaya keçid 0.06–0.11.
+   */
+  get motion() {
+    if (this.frames.length < 2) return 0;
+    let sum = 0;
+    for (let i = 1; i < this.frames.length; i++) {
+      const a = this.frames[i - 1], b = this.frames[i];
+      const size = Math.hypot(b[27] - b[0], b[28] - b[1]) || 1;   // bilək → orta barmaq dibi
+      let d = 0;
+      for (let j = 0; j < HAND_LM; j++) {
+        d += Math.hypot(b[j * 3] - a[j * 3], b[j * 3 + 1] - a[j * 3 + 1], b[j * 3 + 2] - a[j * 3 + 2]);
+      }
+      sum += d / HAND_LM / size;
+    }
+    return sum / (this.frames.length - 1);
+  }
+
   push(keypoints) {
     this.frames.push(keypoints ?? new Float32Array(FEAT_PER_FRAME));
-    if (keypoints) this.handFrames++;
-    if (this.frames.length > this.fill) this.frames.shift();
-    if (this.frames.length < this.fill) return null;
-
-    const window = this.frames.slice(-this.take);
-    const flat = new Float32Array(this.take * FEAT_PER_FRAME);
-    window.forEach((f, i) => flat.set(f, i * FEAT_PER_FRAME));
-    this.reset();
-    return flat;
+    this.hands.push(!!keypoints);
+    if (this.frames.length > this.take) { this.frames.shift(); this.hands.shift(); }
   }
 
-  reset() { this.frames = []; this.handFrames = 0; }
+  /** Modelə veriləcək düz vektor (take × 63). */
+  flat() {
+    const out = new Float32Array(this.take * FEAT_PER_FRAME);
+    this.frames.forEach((f, i) => out.set(f, i * FEAT_PER_FRAME));
+    return out;
+  }
+
+  reset() { this.frames = []; this.hands = []; }
 }
