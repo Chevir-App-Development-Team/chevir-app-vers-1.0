@@ -48,6 +48,10 @@ function logoBackgroundMarkup(side) {
 
 // 21-nöqtəli əl skeletini (lib/handPoses.js) mərkəzdən aralı salıb sönük
 // nöqtə/xətt buludu kimi fon dekoruna çevirir. z oxu 2D fon üçün nəzərə alınmır.
+// HAND_CONNECTIONS iki əli ehtiva edir (0-20 və 21-41), amma dekor yalnız
+// tək əl (HAND_POSE_OPEN, 21 nöqtə) işlədir - yalnız birinci əlin bağlantıları.
+const SINGLE_HAND_CONNECTIONS = HAND_CONNECTIONS.filter(([a, b]) => a < 21 && b < 21)
+
 function dotsBackgroundMarkup(side) {
   const disperse = 2.4
   const scale = 60
@@ -57,7 +61,7 @@ function dotsBackgroundMarkup(side) {
     x * disperse * scale + offsetX,
     y * disperse * scale + offsetY,
   ])
-  const lines = HAND_CONNECTIONS.map(([a, b]) => {
+  const lines = SINGLE_HAND_CONNECTIONS.map(([a, b]) => {
     const [x1, y1] = points[a]
     const [x2, y2] = points[b]
     return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" />`

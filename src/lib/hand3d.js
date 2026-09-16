@@ -53,7 +53,10 @@ const enablePointerOrbit = isDesktop && !isCoarsePointer
 // (istənilən MARGIN_FILL<1 üçün). Canvas indi tam ekranı örtdüyündən
 // (hero.css), mobildə əl wordmark-a qədər böyüyüb onunla kəsişməsin deyə
 // <980px-də daha kiçik dəyər işlədilir.
-const MARGIN_FILL = isDesktop ? 0.85 : 0.5
+// 2 əl (42 nöqtə) üçün sərhəd qutusu daha genişdir, buna görə standart
+// MARGIN_FILL dumanlı/kiçik görünməsinə səbəb olur. Kameranı yaxınlaşdırmaq
+// üçün dəyərlər artırılıb.
+const MARGIN_FILL = isDesktop ? 1.6 : 1.0
 
 function fitDistanceForRadius(camera, radius) {
   const vHalf = (camera.fov * Math.PI) / 360
@@ -201,8 +204,11 @@ function getGlowTexture() {
 // Müstəvi 980px-dən aşağı ekranlarda ümumiyyətlə yaradılmır (statik CSS
 // gradient qalır), yalnız əl render olunur.
 export function initHand3D(canvas) {
-  const jointColor = readCssColor(canvas, '--signed', '#d6006c')
-  const boneColor = readCssColor(canvas, '--spoken', '#0088b0')
+  // hero.css overrides --signed and --spoken to white.
+  // We bypass that by reading from the root document, or using our fallback colors
+  // so the two hands have distinct, readable colors.
+  const jointColor = readCssColor(document.documentElement, '--signed', '#d6006c')
+  const boneColor = readCssColor(document.documentElement, '--spoken', '#0088b0')
 
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isDesktop ? 2 : 1.5))
@@ -221,15 +227,33 @@ export function initHand3D(canvas) {
 
   const jointCount = HAND_POSES[0].length
   const jointGeometry = new THREE.SphereGeometry(JOINT_RADIUS, 10, 8)
-  const jointMaterial = new THREE.MeshBasicMaterial({ color: jointColor })
+  const jointMaterial = new THREE.MeshBasicMaterial()
   const joints = new THREE.InstancedMesh(jointGeometry, jointMaterial, jointCount)
+  const color1 = new THREE.Color(jointColor)
+  const color2 = new THREE.Color(boneColor)
+  for (let i = 0; i < jointCount; i++) {
+    joints.setColorAt(i, i < 21 ? color1 : color2)
+  }
+  joints.instanceColor.needsUpdate = true
   model.add(joints)
 
   const boneGeometry = new THREE.BufferGeometry()
   const bonePositions = new Float32Array(HAND_CONNECTIONS.length * 2 * 3)
+  const boneColors = new Float32Array(HAND_CONNECTIONS.length * 2 * 3)
+  HAND_CONNECTIONS.forEach(([a, b], i) => {
+    const isLeft = a < 21
+    const col = isLeft ? color1 : color2
+    boneColors[i * 6] = col.r
+    boneColors[i * 6 + 1] = col.g
+    boneColors[i * 6 + 2] = col.b
+    boneColors[i * 6 + 3] = col.r
+    boneColors[i * 6 + 4] = col.g
+    boneColors[i * 6 + 5] = col.b
+  })
   boneGeometry.setAttribute('position', new THREE.BufferAttribute(bonePositions, 3))
+  boneGeometry.setAttribute('color', new THREE.BufferAttribute(boneColors, 3))
   const boneMaterial = new THREE.LineBasicMaterial({
-    color: boneColor,
+    vertexColors: true,
     transparent: true,
     opacity: 0.85,
   })
@@ -237,17 +261,22 @@ export function initHand3D(canvas) {
   model.add(bones)
 
   const current = new Float32Array(jointCount * 3)
+  const glowColors = new Float32Array(jointCount * 3)
+  for (let i = 0; i < jointCount; i++) {
+    const col = i < 21 ? color1 : color2
+    glowColors[i * 3] = col.r
+    glowColors[i * 3 + 1] = col.g
+    glowColors[i * 3 + 2] = col.b
+  }
   const dummy = new THREE.Object3D()
 
-  // Ağ halo - additiv "glow" nöqtələri, əsl joint-lərin arxasında/üstündə,
-  // eyni koordinatları paylaşır (current). CSS drop-shadow burda işləmir
-  // (fon müstəvisi bütün canvas-ı opaq edir), ona görə parıltı birbaşa
-  // WebGL-də, yüngül (bir əlavə Points obyekti, post-process yoxdur).
+  // Ağ halo - additiv "glow" nöqtələri
   const glowGeometry = new THREE.BufferGeometry()
   glowGeometry.setAttribute('position', new THREE.BufferAttribute(current, 3))
+  glowGeometry.setAttribute('color', new THREE.BufferAttribute(glowColors, 3))
   const glowMaterial = new THREE.PointsMaterial({
     map: getGlowTexture(),
-    color: jointColor,
+    vertexColors: true,
     size: 0.2,
     sizeAttenuation: true,
     transparent: true,
@@ -294,11 +323,13 @@ export function initHand3D(canvas) {
     const from = HAND_POSES[poseIndex]
     const nextIndex = (poseIndex + 1) % HAND_POSES.length
     const to = HAND_POSES[nextIndex]
+    // Keçid müddəti: videonun effektiv kadr sürəti 20fps → 0.05s per kadr.
+    const isLoopRestart = nextIndex === 0
     poseT.value = 0
     gsap.to(poseT, {
       value: 1,
-      duration: 1.8,
-      ease: 'power2.inOut',
+      duration: 0.085,
+      ease: 'none',
       onUpdate: () => {
         const t = poseT.value
         for (let i = 0; i < jointCount; i++) {
@@ -310,11 +341,12 @@ export function initHand3D(canvas) {
       },
       onComplete: () => {
         poseIndex = nextIndex
-        poseTimer = gsap.delayedCall(2, morphToNextPose)
+        // Dövrənin yenidən başlamasında qısa pauza - təbii nəfəs hissi.
+        poseTimer = gsap.delayedCall(isLoopRestart ? 1.5 : 0, morphToNextPose)
       },
     })
   }
-  poseTimer = gsap.delayedCall(2, morphToNextPose)
+  poseTimer = gsap.delayedCall(1, morphToNextPose)
 
   // ---- fırlanma: yavaş avtomatik dövr + kursor/toxunma ilə orbit ----
   let autoRotation = 0
@@ -426,8 +458,7 @@ export function initHand3D(canvas) {
   function tick() {
     rafId = requestAnimationFrame(tick)
     if (!isVisible) return
-    autoRotation += 0.0025
-    pivot.rotation.y = autoRotation + userOffset.y
+    pivot.rotation.y = userOffset.y
     pivot.rotation.x = userOffset.x
 
     renderer.render(scene, camera)
