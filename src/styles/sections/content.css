@@ -43,10 +43,16 @@
    valideynin content-box enindən (scroll zolağı artıq çıxılmış) hesablanır,
    bu tələni yaratmır. */
 
+/* padding-top ayrıca max() ilə --navbar-h-dən (navbar.css) az olmayacaq
+   şəkildə override olunur - ölçülüb: bölmə yuxarıdan görünəndə başlıq bir
+   müddət naviqasiyanın arxasında qalırdı (bax statement.css-də eyni şərh,
+   səbəb hər yerdə eynidir). Yalnız YUXARI - alt padding olduğu kimi qalır. */
+
 .problem,
 .results {
   padding: clamp(3rem, 7vw, 5.5rem)
     calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
+  padding-top: max(clamp(3rem, 7vw, 5.5rem), var(--navbar-h));
 }
 
 /* Sıx qrid bölmələri - Fərqimiz, Harada işləyir, Komanda: eyni grid
@@ -56,17 +62,20 @@
 .team {
   padding: clamp(2.25rem, 5.5vw, 4rem)
     calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
+  padding-top: max(clamp(2.25rem, 5.5vw, 4rem), var(--navbar-h));
 }
 
 .roadmap {
   padding: clamp(2.75rem, 6vw, 4.5rem)
     calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
+  padding-top: max(clamp(2.75rem, 6vw, 4.5rem), var(--navbar-h));
 }
 
 /* Sakit bölmə - Arxamızda nə dayanır: az padding, dar sütun. */
 .trust {
   padding: clamp(2rem, 4.5vw, 3.25rem)
     calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
+  padding-top: max(clamp(2rem, 4.5vw, 3.25rem), var(--navbar-h));
 }
 
 .problem__heading,
@@ -327,6 +336,7 @@
   background: #16130f;
   color: #f1ede9;
   padding: clamp(4.5rem, 12vw, 9rem) clamp(1.25rem, 5vw, 4rem);
+  padding-top: max(clamp(4.5rem, 12vw, 9rem), var(--navbar-h));
   text-align: center;
 }
 
@@ -758,6 +768,7 @@
   background: #16130f;
   color: #f1ede9;
   padding: clamp(4.5rem, 11vw, 8rem) clamp(1.25rem, 5vw, 4rem) clamp(1.5rem, 4vw, 2.5rem);
+  padding-top: max(clamp(4.5rem, 11vw, 8rem), var(--navbar-h));
   text-align: center;
   scroll-margin-top: var(--navbar-h);
 }

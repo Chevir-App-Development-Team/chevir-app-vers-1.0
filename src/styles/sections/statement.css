@@ -9,7 +9,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(3rem, 10vw, 6rem) clamp(20px, 5.5vw, 5.5rem);
+  /* Üfüqi: olduğu kimi. Şaquli: max() ilə naviqasiya hündürlüyündən (--navbar-h,
+     navbar.css) az olmur - ölçülüb, əks halda bölmə yuxarıdan görünəndə məzmun
+     bir müddət naviqasiyanın arxasında qalır (bax content.css/pipeline.css/
+     loop.css-də eyni düzəliş, hamısında eyni səbəb). */
+  padding: max(clamp(3rem, 10vw, 6rem), var(--navbar-h)) clamp(20px, 5.5vw, 5.5rem);
   /* Əvvəllər yalnız >=980px-də idi - .statement PIN olunur (lib/lineCarousel.js,
      start:'center center'), pin AKTİV olarkən bölmə position:fixed olur və öz
      ölçüsünü YALNIZ məzmununa görə alır (mətn qısa olduğu üçün ekranın kiçik
@@ -25,7 +29,28 @@
   display: none;
 }
 
-/* ---------- Sətir-karuseli (paylaşılan, lib/lineCarousel.js idarə edir) ---------- */
+/* ---------- Missiya bəyanatı: sadə mətn (pin/karusel YOXDUR) ---------- */
+/* Əvvəllər lib/lineCarousel.js ilə pin+scrub idi (mobildə "geri atma" hissinin
+   əsas mənbəyi, ölçülüb) - indi 3 cümlə adi qaydada alt-alta, content.js-dəki
+   ".reveal" sistemi ilə (digər bölmələr kimi) yalnız bir dəfə fade-up olur.
+   .statement__line-in tipoqrafiyası köhnə .line-carousel__line ilə EYNİDİR -
+   yalnız grid-stack/opacity-animasiya hissəsi çıxarılıb. */
+.statement__content {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 3vw, 1.75rem);
+}
+
+.statement__line {
+  font-size: clamp(1.5rem, 1.1rem + 1.8vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  text-align: center;
+  color: #f1ede9;
+}
+
+/* ---------- Sətir-karuseli (yalnız Təsir üçün qalır, lib/lineCarousel.js idarə edir) ---------- */
 /* Bütün sətirlər eyni grid xanasında üst-üstə - konteynerin hündürlüyü
    avtomatik ən hündür sətrə görə olur, JS-lə ölçmək lazım deyil. Sabit
    max-width YOXDUR - konteyner demək olar tam eni tutur, yan boşluq yalnız

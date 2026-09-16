@@ -4,6 +4,8 @@
   background: #16130f;
   color: #f1ede9;
   padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 4rem);
+  /* max() ilə --navbar-h-dən az olmur (bax statement.css-də eyni şərh). */
+  padding-top: max(clamp(4rem, 10vw, 8rem), var(--navbar-h));
   overflow: hidden;
 }
 

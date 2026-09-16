@@ -12,7 +12,7 @@ import './lib/gsapSetup.js'
 import { createLenis } from './lib/lenis.js'
 import { splashMarkup, initPreloader } from './sections/preloader.js'
 import { navbarMarkup, heroMarkup, setupHero, initNavbar } from './sections/hero.js'
-import { statementMarkup, initStatement } from './sections/statement.js'
+import { statementMarkup } from './sections/statement.js'
 import { pipelineMarkup, initPipeline } from './sections/pipeline.js'
 import { loopMarkup, initLoop } from './sections/loop.js'
 import { contentMarkup, initContent } from './sections/content.js'
@@ -31,7 +31,6 @@ const lenis = createLenis()
 const { logo } = setupHero()
 initPreloader(lenis, logo, () => {})
 initNavbar()
-initStatement()
 initPipeline()
 initLoop()
 initContent()

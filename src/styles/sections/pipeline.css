@@ -3,6 +3,9 @@
 
 .pipeline {
   padding: clamp(3rem, 8vw, 7rem) clamp(1.25rem, 5vw, 4rem);
+  /* max() ilə --navbar-h-dən az olmur - ölçülüb (390px VƏ 1440px, hər ikisində
+     başlıq naviqasiyanın arxasında qalırdı, bax statement.css-də eyni şərh). */
+  padding-top: max(clamp(3rem, 8vw, 7rem), var(--navbar-h));
   background: #16130f;
   color: #f1ede9;
 }
@@ -22,7 +25,7 @@
   }
 
   .pipeline {
-    padding-top: clamp(2rem, 4vw, 3rem);
+    padding-top: max(clamp(2rem, 4vw, 3rem), var(--navbar-h));
   }
 }
 
