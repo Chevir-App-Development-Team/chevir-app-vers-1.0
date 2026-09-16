@@ -220,7 +220,8 @@ export const contentMarkup = `
             muted
             loop
             playsinline
-            preload="none"
+            preload="metadata"
+            poster="${BASE_URL}media/predict.jpg"
             aria-labelledby="results-title-0"
             aria-describedby="results-desc-0"
           >
@@ -243,7 +244,8 @@ export const contentMarkup = `
             muted
             loop
             playsinline
-            preload="none"
+            preload="metadata"
+            poster="${BASE_URL}media/recognise.jpg"
             aria-labelledby="results-title-1"
             aria-describedby="results-desc-1"
           >
@@ -453,7 +455,7 @@ function setupResultsVideos() {
         }
       })
     },
-    { threshold: 0.35 }
+    { threshold: 0.1, rootMargin: '200px' }
   )
   videos.forEach((video) => observer.observe(video))
 }

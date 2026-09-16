@@ -507,6 +507,7 @@
   object-fit: contain;
   display: block;
   margin: 0 auto;
+  border-radius: 1.25rem;
 }
 
 .results__card-title {

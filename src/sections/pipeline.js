@@ -16,11 +16,7 @@ export const pipelineMarkup = `
     </p>
   </div>
   <div class="pipeline__grid">
-    <div class="pipeline__media" aria-hidden="true">
-      <div class="pipeline__placeholder" data-step-placeholder="3">
-        <span>Hazırlanır</span>
-      </div>
-    </div>
+    <div class="pipeline__media" aria-hidden="true"></div>
     <ol class="pipeline__steps">
       <li class="pipeline__step" data-step="0" data-channel="signed">
         <span class="pipeline__number">01</span>
@@ -38,7 +34,8 @@ export const pipelineMarkup = `
             muted
             loop
             playsinline
-            preload="none"
+            preload="metadata"
+            poster="${BASE_URL}media/track.jpg"
             aria-labelledby="pipeline-step-title-0"
             aria-describedby="pipeline-step-video-desc-0"
           >
@@ -64,7 +61,8 @@ export const pipelineMarkup = `
             muted
             loop
             playsinline
-            preload="none"
+            preload="metadata"
+            poster="${BASE_URL}media/gradcam.jpg"
             aria-labelledby="pipeline-step-title-1"
             aria-describedby="pipeline-step-video-desc-1"
           >
@@ -93,13 +91,27 @@ export const pipelineMarkup = `
           Cavab jest dilində
         </h3>
         <p class="pipeline__step-desc">
-          Eşidən tərəfin cavabı AZİD-ə çevrilib jest dilində göstəriləcək. Bu
-          funksiya hazırlanır.
+          Eşidən tərəfin cavabı AZİD-ə çevrilir və avatar vasitəsilə jest
+          dilində göstərilir. Funksiya prototip mərhələsindədir.
         </p>
         <div class="pipeline__step-media">
-          <div class="pipeline__placeholder pipeline__placeholder--inline">
-            <span>Hazırlanır</span>
-          </div>
+          <video
+            class="pipeline__video"
+            data-step-video="3"
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            poster="${BASE_URL}media/demo.jpg"
+            aria-labelledby="pipeline-step-title-3"
+            aria-describedby="pipeline-step-video-desc-3"
+          >
+            <source src="${BASE_URL}media/demo.webm" type="video/webm" />
+            <source src="${BASE_URL}media/demo.mp4" type="video/mp4" />
+          </video>
+          <p class="visually-hidden" id="pipeline-step-video-desc-3">
+            Video: avatar mətni işarə dilinə çevirib jest dilində göstərir.
+          </p>
         </div>
       </li>
     </ol>
@@ -115,14 +127,12 @@ export function initPipeline() {
   const gridEl = section.querySelector('.pipeline__grid')
   const steps = Array.from(section.querySelectorAll('.pipeline__step'))
   const videos = Array.from(section.querySelectorAll('.pipeline__video'))
-  const sharedPlaceholders = Array.from(mediaPanel.querySelectorAll('[data-step-placeholder]'))
   // "Tərcümə və səs" (03) addımının öz medyası yoxdur - sticky paneldə
   // əvvəlki addımın (02, gradcam) videosu dəyişmədən qalır.
   const NO_MEDIA_STEP_INDEX = 2
 
-  // Videolar preload="none" ilə gəlir (lazımsız erkən yüklənmənin qarşısını
-  // almaq üçün) - desktop qolunda ilkin setActiveStep(0) səhifə açılan kimi,
-  // scroll-dan əvvəl çağırıldığı üçün .play()-i bölmə görünənə qədər gecikdirmək
+  // Desktop qolunda ilkin setActiveStep(0) səhifə açılan kimi, scroll-dan
+  // əvvəl çağırıldığı üçün .play()-i bölmə görünənə qədər gecikdirmək
   // lazımdır. mediaReady yalnız aşağıdakı IntersectionObserver kəsişəndə true olur.
   let mediaReady = false
   let activeIndex = 0
@@ -141,9 +151,6 @@ export function initPipeline() {
       } else {
         video.pause()
       }
-    })
-    sharedPlaceholders.forEach((el) => {
-      el.classList.toggle('is-active', Number(el.dataset.stepPlaceholder) === index)
     })
   }
 
@@ -182,7 +189,7 @@ export function initPipeline() {
           else entry.target.pause()
         })
       },
-      { threshold: 0.35 }
+      { threshold: 0.1, rootMargin: '200px' }
     )
     videos.forEach((video) => visibilityObserver.observe(video))
     return () => visibilityObserver.disconnect()
