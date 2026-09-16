@@ -55,8 +55,8 @@ const enablePointerOrbit = isDesktop && !isCoarsePointer
 // <980px-də daha kiçik dəyər işlədilir.
 // 2 əl (42 nöqtə) üçün sərhəd qutusu daha genişdir, buna görə standart
 // MARGIN_FILL dumanlı/kiçik görünməsinə səbəb olur. Kameranı yaxınlaşdırmaq
-// üçün dəyərlər artırılıb.
-const MARGIN_FILL = isDesktop ? 1.6 : 1.0
+// üçün dəyərlər artırılıb. (Desktopda əllərin daha böyük görünməsi üçün 1.75)
+const MARGIN_FILL = isDesktop ? 1.75 : 1.0
 
 function fitDistanceForRadius(camera, radius) {
   const vHalf = (camera.fov * Math.PI) / 360
@@ -221,7 +221,9 @@ export function initHand3D(canvas) {
   // olsun deyə (HAND_FRAME.center), koordinatların özü toxunulmaz qalır.
   const pivot = new THREE.Group()
   const model = new THREE.Group()
-  model.position.set(-HAND_FRAME.center[0], -HAND_FRAME.center[1], -HAND_FRAME.center[2])
+  // Desktopda əllər böyüyəndə yuxarıdan kəsilməsin deyə modeli aşağı çəkirik
+  const yShift = isDesktop ? -0.4 : -0.2
+  model.position.set(-HAND_FRAME.center[0], -HAND_FRAME.center[1] + yShift, -HAND_FRAME.center[2])
   pivot.add(model)
   scene.add(pivot)
 
@@ -254,8 +256,8 @@ export function initHand3D(canvas) {
   boneGeometry.setAttribute('color', new THREE.BufferAttribute(boneColors, 3))
   const boneMaterial = new THREE.LineBasicMaterial({
     vertexColors: true,
-    transparent: true,
-    opacity: 0.85,
+    transparent: false,
+    opacity: 1.0,
   })
   const bones = new THREE.LineSegments(boneGeometry, boneMaterial)
   model.add(bones)
@@ -277,10 +279,10 @@ export function initHand3D(canvas) {
   const glowMaterial = new THREE.PointsMaterial({
     map: getGlowTexture(),
     vertexColors: true,
-    size: 0.2,
+    size: 0.28,
     sizeAttenuation: true,
     transparent: true,
-    opacity: 0.65,
+    opacity: 0.95,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   })
