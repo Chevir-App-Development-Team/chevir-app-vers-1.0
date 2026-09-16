@@ -74,181 +74,191 @@ function dotsBackgroundMarkup(side) {
 }
 
 export const contentMarkup = `
-<section class="problem reveal" aria-labelledby="problem-heading">
+<section class="problem" aria-labelledby="problem-heading">
   ${logoBackgroundMarkup('left')}
-  <div class="problem__stat">
-    <p class="problem__number">13&nbsp;000</p>
-    <p class="problem__stat-desc">
-      Azərbaycanda eşitmə məhdudiyyətli insanların təxmini sayı.
+  <div class="reveal">
+    <div class="problem__stat">
+      <p class="problem__number">13&nbsp;000</p>
+      <p class="problem__stat-desc">
+        Azərbaycanda eşitmə məhdudiyyətli insanların təxmini sayı.
+      </p>
+    </div>
+    <div class="problem__content">
+      <h2 id="problem-heading" class="problem__heading">
+        Yazı həll deyil, maneədir.
+      </h2>
+      <div class="problem__body">
+        <p class="problem__paragraph">
+          Eşitmə məhdudiyyəti ilə doğulan insan Azərbaycan dilini heç vaxt eşitmir.
+          Onu ikinci dil kimi öyrənir. Poliklinikada anket doldurmaq, bank
+          müqaviləsi oxumaq - bunlar onun üçün yad dildə sənəd doldurmaqdır.
+        </p>
+        <p class="problem__paragraph">
+          Mövcud əlçatanlıq alətləri isə yalnız bir istiqamətdə işləyir: eşidəndən
+          eşitmə məhdudiyyətli şəxsə. Altyazı var. Əks istiqamət - jest dilində
+          deyilənin eşidənə çatması - tamamilə boşdur.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="difference" aria-labelledby="difference-heading">
+  <div class="reveal">
+    <h2 id="difference-heading" class="difference__heading">Fərqimiz nədir</h2>
+    <div class="difference__grid">
+      <div class="difference__item">
+        <h3 class="difference__item-title">Bir skelet, iki istiqamət</h3>
+        <p class="difference__item-desc">
+          Tanıma və istehsal ayrı sistemlər deyil. Hər ikisi eyni skelet
+          təsvirindən qidalanır - kameradan çıxarılan nöqtələr həm jesti
+          oxumaq, həm də avatarı hərəkətə gətirmək üçün işlədilir. Bu, iki
+          istiqamətin uyğunluğunu arxitektura səviyyəsində təmin edir.
+        </p>
+      </div>
+      <div class="difference__item">
+        <h3 class="difference__item-title">Mimika sonradan əlavə deyil</h3>
+        <p class="difference__item-desc">
+          Jest dilində inkar, sual və şərt üz və baş hərəkətləri ilə ötürülür.
+          Sahənin aparıcı kommersiya oyunçusu bu elementlərin səlis
+          istehsalını həll olunmamış problem kimi elan edir. Bizdə bu,
+          sonradan gələcək yaxşılaşdırma deyil - arxitekturanın başlanğıc
+          tələbidir.
+        </p>
+      </div>
+      <div class="difference__item">
+        <h3 class="difference__item-title">İcma ilə yoxlama</h3>
+        <p class="difference__item-desc">
+          Model çıxışları laboratoriya metrikası ilə deyil, ana dili jest
+          dili olan insanların anlama səviyyəsi ilə yoxlanılır. Nəzəri
+          olaraq uğurlu görünən, praktikada isə anlaşılmayan nəticələrin
+          qarşısı belə alınır.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="values" aria-labelledby="values-heading">
+  <div class="reveal">
+    <p id="values-heading" class="values__statement">
+      Biz olmadan bizim haqqımızda heç nə.
+    </p>
+    <p class="values__slogan">Eşitmə məhdudiyyətli icmanın şüarı.</p>
+    <p class="values__principle">
+      Eşitmə məhdudiyyətli istifadəçi öz ana dilində məzmun oxumaq və yaratmaq
+      üçün heç vaxt ödəniş etməyəcək. Əlçatanlıq ödəniş divarının arxasında
+      ola bilməz.
     </p>
   </div>
-  <div class="problem__content">
-    <h2 id="problem-heading" class="problem__heading">
-      Yazı həll deyil, maneədir.
-    </h2>
-    <div class="problem__body">
-      <p class="problem__paragraph">
-        Eşitmə məhdudiyyəti ilə doğulan insan Azərbaycan dilini heç vaxt eşitmir.
-        Onu ikinci dil kimi öyrənir. Poliklinikada anket doldurmaq, bank
-        müqaviləsi oxumaq - bunlar onun üçün yad dildə sənəd doldurmaqdır.
-      </p>
-      <p class="problem__paragraph">
-        Mövcud əlçatanlıq alətləri isə yalnız bir istiqamətdə işləyir: eşidəndən
-        eşitmə məhdudiyyətli şəxsə. Altyazı var. Əks istiqamət - jest dilində
-        deyilənin eşidənə çatması - tamamilə boşdur.
-      </p>
-    </div>
-  </div>
 </section>
 
-<section class="difference reveal" aria-labelledby="difference-heading">
-  <h2 id="difference-heading" class="difference__heading">Fərqimiz nədir</h2>
-  <div class="difference__grid">
-    <div class="difference__item">
-      <h3 class="difference__item-title">Bir skelet, iki istiqamət</h3>
-      <p class="difference__item-desc">
-        Tanıma və istehsal ayrı sistemlər deyil. Hər ikisi eyni skelet
-        təsvirindən qidalanır - kameradan çıxarılan nöqtələr həm jesti
-        oxumaq, həm də avatarı hərəkətə gətirmək üçün işlədilir. Bu, iki
-        istiqamətin uyğunluğunu arxitektura səviyyəsində təmin edir.
-      </p>
-    </div>
-    <div class="difference__item">
-      <h3 class="difference__item-title">Mimika sonradan əlavə deyil</h3>
-      <p class="difference__item-desc">
-        Jest dilində inkar, sual və şərt üz və baş hərəkətləri ilə ötürülür.
-        Sahənin aparıcı kommersiya oyunçusu bu elementlərin səlis
-        istehsalını həll olunmamış problem kimi elan edir. Bizdə bu,
-        sonradan gələcək yaxşılaşdırma deyil - arxitekturanın başlanğıc
-        tələbidir.
-      </p>
-    </div>
-    <div class="difference__item">
-      <h3 class="difference__item-title">İcma ilə yoxlama</h3>
-      <p class="difference__item-desc">
-        Model çıxışları laboratoriya metrikası ilə deyil, ana dili jest
-        dili olan insanların anlama səviyyəsi ilə yoxlanılır. Nəzəri
-        olaraq uğurlu görünən, praktikada isə anlaşılmayan nəticələrin
-        qarşısı belə alınır.
-      </p>
-    </div>
-  </div>
-</section>
-
-<section class="values reveal" aria-labelledby="values-heading">
-  <p id="values-heading" class="values__statement">
-    Biz olmadan bizim haqqımızda heç nə.
-  </p>
-  <p class="values__slogan">Eşitmə məhdudiyyətli icmanın şüarı.</p>
-  <p class="values__principle">
-    Eşitmə məhdudiyyətli istifadəçi öz ana dilində məzmun oxumaq və yaratmaq
-    üçün heç vaxt ödəniş etməyəcək. Əlçatanlıq ödəniş divarının arxasında
-    ola bilməz.
-  </p>
-</section>
-
-<section class="usecases reveal" aria-labelledby="usecases-heading">
+<section class="usecases" aria-labelledby="usecases-heading">
   ${dotsBackgroundMarkup('right')}
-  <h2 id="usecases-heading" class="usecases__heading">Harada işləyir</h2>
-  <div class="usecases__grid">
-    <div class="usecases__item">
-      <h3 class="usecases__item-title">Dövlət xidmətləri və banklar</h3>
-      <p class="usecases__item-desc">
-        Ərizə qəbulu, pəncərə xidməti və çağrı mərkəzlərində birbaşa
-        tərcümə.
-      </p>
-    </div>
-    <div class="usecases__item">
-      <h3 class="usecases__item-title">Səhiyyə</h3>
-      <p class="usecases__item-desc">
-        Həkim və xəstə arasında təcili və planlı görüşlərdə ünsiyyət.
-      </p>
-    </div>
-    <div class="usecases__item">
-      <h3 class="usecases__item-title">Təhsil</h3>
-      <p class="usecases__item-desc">
-        Dərs otağında və valideyn-müəllim görüşlərində real vaxtda
-        tərcümə.
-      </p>
-    </div>
-    <div class="usecases__item">
-      <h3 class="usecases__item-title">Rəqəmsal platformalar</h3>
-      <p class="usecases__item-desc">
-        Tətbiq və veb-saytlara API ilə inteqrasiya olunan tərcümə qatı.
-      </p>
+  <div class="reveal">
+    <h2 id="usecases-heading" class="usecases__heading">Harada işləyir</h2>
+    <div class="usecases__grid">
+      <div class="usecases__item">
+        <h3 class="usecases__item-title">Dövlət xidmətləri və banklar</h3>
+        <p class="usecases__item-desc">
+          Ərizə qəbulu, pəncərə xidməti və çağrı mərkəzlərində birbaşa
+          tərcümə.
+        </p>
+      </div>
+      <div class="usecases__item">
+        <h3 class="usecases__item-title">Səhiyyə</h3>
+        <p class="usecases__item-desc">
+          Həkim və xəstə arasında təcili və planlı görüşlərdə ünsiyyət.
+        </p>
+      </div>
+      <div class="usecases__item">
+        <h3 class="usecases__item-title">Təhsil</h3>
+        <p class="usecases__item-desc">
+          Dərs otağında və valideyn-müəllim görüşlərində real vaxtda
+          tərcümə.
+        </p>
+      </div>
+      <div class="usecases__item">
+        <h3 class="usecases__item-title">Rəqəmsal platformalar</h3>
+        <p class="usecases__item-desc">
+          Tətbiq və veb-saytlara API ilə inteqrasiya olunan tərcümə qatı.
+        </p>
+      </div>
     </div>
   </div>
 </section>
 
-<section class="results reveal" aria-labelledby="results-heading">
+<section class="results" aria-labelledby="results-heading">
   ${logoBackgroundMarkup('left')}
-  <div class="results__intro">
-    <h2 id="results-heading" class="results__heading">Hazırkı nəticələr</h2>
-    <p class="results__lead">
-      Aşağıdakılar AzSLD (Azərbaycan Jest Dili Datasetı) üzərində öyrədilmiş
-      modellərin real çıxışlarıdır.
-    </p>
-  </div>
-  <div class="results__accuracy">
-    <p class="results__accuracy-number">84,85%</p>
-    <p class="results__accuracy-desc">
-      AzSLD - 30 000 annotasiyalı video üzərində öyrədilmiş tanıma
-      modelimizin dəqiqliyi.
-    </p>
-    <p class="results__accuracy-caveat">
-      Bu sahədə adətən 95%-dən yuxarı rəqəmlər elan olunur. Amma həmin rəqəm
-      eyni insanların videoları həm öyrətmədə, həm testdə olanda alınır.
-      Model heç görmədiyi yeni bir insanı tanımalı olanda dəqiqlik 62%-ə
-      düşür. Biz birinci rəqəmi ümumiyyətlə göstərmirik.
-    </p>
-  </div>
-  <div class="results__grid">
-    <figure class="results__card">
-      <div class="results__video-frame">
-        <video
-          class="results__video"
-          data-autoplay-in-view
-          muted
-          loop
-          playsinline
-          preload="none"
-          aria-labelledby="results-title-0"
-          aria-describedby="results-desc-0"
-        >
-          <source src="${BASE_URL}media/predict.webm" type="video/webm" />
-          <source src="${BASE_URL}media/predict.mp4" type="video/mp4" />
-        </video>
-      </div>
-      <figcaption>
-        <h3 class="results__card-title" id="results-title-0">Proqnoz</h3>
-        <p class="results__card-desc" id="results-desc-0">
-          Orijinal görüntü və modelin proqnozu yan-yana müqayisə olunur.
-        </p>
-      </figcaption>
-    </figure>
-    <figure class="results__card">
-      <div class="results__video-frame">
-        <video
-          class="results__video"
-          data-autoplay-in-view
-          muted
-          loop
-          playsinline
-          preload="none"
-          aria-labelledby="results-title-1"
-          aria-describedby="results-desc-1"
-        >
-          <source src="${BASE_URL}media/recognise.webm" type="video/webm" />
-          <source src="${BASE_URL}media/recognise.mp4" type="video/mp4" />
-        </video>
-      </div>
-      <figcaption>
-        <h3 class="results__card-title" id="results-title-1">Tanınma çıxışı</h3>
-        <p class="results__card-desc" id="results-desc-1">
-          Tanınan işarənin mətn və səs çıxışına çevrilməsi.
-        </p>
-      </figcaption>
-    </figure>
+  <div class="reveal">
+    <div class="results__intro">
+      <h2 id="results-heading" class="results__heading">Hazırkı nəticələr</h2>
+      <p class="results__lead">
+        Aşağıdakılar AzSLD (Azərbaycan Jest Dili Datasetı) üzərində öyrədilmiş
+        modellərin real çıxışlarıdır.
+      </p>
+    </div>
+    <div class="results__accuracy">
+      <p class="results__accuracy-number">84,85%</p>
+      <p class="results__accuracy-desc">
+        AzSLD - 30 000 annotasiyalı video üzərində öyrədilmiş tanıma
+        modelimizin dəqiqliyi.
+      </p>
+      <p class="results__accuracy-caveat">
+        Bu sahədə adətən 95%-dən yuxarı rəqəmlər elan olunur. Amma həmin rəqəm
+        eyni insanların videoları həm öyrətmədə, həm testdə olanda alınır.
+        Model heç görmədiyi yeni bir insanı tanımalı olanda dəqiqlik 62%-ə
+        düşür. Biz birinci rəqəmi ümumiyyətlə göstərmirik.
+      </p>
+    </div>
+    <div class="results__grid">
+      <figure class="results__card">
+        <div class="results__video-frame">
+          <video
+            class="results__video"
+            data-autoplay-in-view
+            muted
+            loop
+            playsinline
+            preload="none"
+            aria-labelledby="results-title-0"
+            aria-describedby="results-desc-0"
+          >
+            <source src="${BASE_URL}media/predict.webm" type="video/webm" />
+            <source src="${BASE_URL}media/predict.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <figcaption>
+          <h3 class="results__card-title" id="results-title-0">Proqnoz</h3>
+          <p class="results__card-desc" id="results-desc-0">
+            Orijinal görüntü və modelin proqnozu yan-yana müqayisə olunur.
+          </p>
+        </figcaption>
+      </figure>
+      <figure class="results__card">
+        <div class="results__video-frame">
+          <video
+            class="results__video"
+            data-autoplay-in-view
+            muted
+            loop
+            playsinline
+            preload="none"
+            aria-labelledby="results-title-1"
+            aria-describedby="results-desc-1"
+          >
+            <source src="${BASE_URL}media/recognise.webm" type="video/webm" />
+            <source src="${BASE_URL}media/recognise.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <figcaption>
+          <h3 class="results__card-title" id="results-title-1">Tanınma çıxışı</h3>
+          <p class="results__card-desc" id="results-desc-1">
+            Tanınan işarənin mətn və səs çıxışına çevrilməsi.
+          </p>
+        </figcaption>
+      </figure>
+    </div>
   </div>
 </section>
 
@@ -265,121 +275,129 @@ export const contentMarkup = `
   </div>
 </section>
 
-<section class="roadmap reveal" aria-labelledby="roadmap-heading">
+<section class="roadmap" aria-labelledby="roadmap-heading">
   ${logoBackgroundMarkup('right')}
-  <h2 id="roadmap-heading" class="roadmap__heading">Mərhələlər</h2>
-  <ol class="roadmap__list">
-    <li class="roadmap__item">
-      <span class="roadmap__number">01</span>
-      <h3 class="roadmap__item-title">Veb platformalar üçün tərcümə API-si</h3>
-      <p class="roadmap__item-desc">
-        Bank, dövlət və səhiyyə sistemlərinin birbaşa inteqrasiya edə
-        biləcəyi tərcümə xidməti.
-      </p>
-    </li>
-    <li class="roadmap__item">
-      <span class="roadmap__number">02</span>
-      <h3 class="roadmap__item-title">Müstəqil mobil tətbiq</h3>
-      <p class="roadmap__item-desc">
-        Eşitmə məhdudiyyətli və eşidən istifadəçilərin birbaşa öz telefonundan istifadə edə
-        biləcəyi tətbiq.
-      </p>
-    </li>
-    <li class="roadmap__item">
-      <span class="roadmap__number">03</span>
-      <h3 class="roadmap__item-title">Platforma və dataset genişlənməsi</h3>
-      <p class="roadmap__item-desc">
-        Daha geniş işarə ehtiyatı və yeni istifadə sahələri üçün dataset
-        böyüməsi.
-      </p>
-    </li>
-  </ol>
-</section>
-
-<section class="trust reveal" aria-labelledby="trust-heading">
-  <div class="trust__intro">
-    <h2 id="trust-heading" class="trust__heading">Arxamızda nə dayanır</h2>
-    <p class="trust__lead">
-      Chevir sıfırdan başlamır - arxasında dərc olunmuş tədqiqat, açıq dataset
-      və icma ilə real əməkdaşlıq var.
-    </p>
-  </div>
-  <div class="trust__grid">
-    <div class="trust__item">
-      <h3 class="trust__item-title">AzSLD dataseti</h3>
-      <p class="trust__item-desc">Azərbaycan jest dili üçün ilk açıq dataset.</p>
-      <p class="trust__item-meta">
-        Alishzade, N. &amp; Hasanov, J. (2025), Data in Brief, DOI:
-        10.1016/j.dib.2024.111230
-      </p>
-    </div>
-    <div class="trust__item">
-      <h3 class="trust__item-title">Akademik baza</h3>
-      <p class="trust__item-desc">
-        Qarabağ Universiteti, Bakı Dövlət Universiteti, AMEA Molekulyar
-        Biologiya İnstitutu, MRC LMB Cambridge.
-      </p>
-    </div>
-    <div class="trust__item">
-      <h3 class="trust__item-title">İcma əməkdaşlığı</h3>
-      <p class="trust__item-desc">"Karlara Dəstək" İctimai Birliyi.</p>
-    </div>
+  <div class="reveal">
+    <h2 id="roadmap-heading" class="roadmap__heading">Mərhələlər</h2>
+    <ol class="roadmap__list">
+      <li class="roadmap__item">
+        <span class="roadmap__number">01</span>
+        <h3 class="roadmap__item-title">Veb platformalar üçün tərcümə API-si</h3>
+        <p class="roadmap__item-desc">
+          Bank, dövlət və səhiyyə sistemlərinin birbaşa inteqrasiya edə
+          biləcəyi tərcümə xidməti.
+        </p>
+      </li>
+      <li class="roadmap__item">
+        <span class="roadmap__number">02</span>
+        <h3 class="roadmap__item-title">Müstəqil mobil tətbiq</h3>
+        <p class="roadmap__item-desc">
+          Eşitmə məhdudiyyətli və eşidən istifadəçilərin birbaşa öz telefonundan istifadə edə
+          biləcəyi tətbiq.
+        </p>
+      </li>
+      <li class="roadmap__item">
+        <span class="roadmap__number">03</span>
+        <h3 class="roadmap__item-title">Platforma və dataset genişlənməsi</h3>
+        <p class="roadmap__item-desc">
+          Daha geniş işarə ehtiyatı və yeni istifadə sahələri üçün dataset
+          böyüməsi.
+        </p>
+      </li>
+    </ol>
   </div>
 </section>
 
-<section class="team reveal" aria-labelledby="team-heading">
+<section class="trust" aria-labelledby="trust-heading">
+  <div class="reveal">
+    <div class="trust__intro">
+      <h2 id="trust-heading" class="trust__heading">Arxamızda nə dayanır</h2>
+      <p class="trust__lead">
+        Chevir sıfırdan başlamır - arxasında dərc olunmuş tədqiqat, açıq dataset
+        və icma ilə real əməkdaşlıq var.
+      </p>
+    </div>
+    <div class="trust__grid">
+      <div class="trust__item">
+        <h3 class="trust__item-title">AzSLD dataseti</h3>
+        <p class="trust__item-desc">Azərbaycan jest dili üçün ilk açıq dataset.</p>
+        <p class="trust__item-meta">
+          Alishzade, N. &amp; Hasanov, J. (2025), Data in Brief, DOI:
+          10.1016/j.dib.2024.111230
+        </p>
+      </div>
+      <div class="trust__item">
+        <h3 class="trust__item-title">Akademik baza</h3>
+        <p class="trust__item-desc">
+          Qarabağ Universiteti, Bakı Dövlət Universiteti, AMEA Molekulyar
+          Biologiya İnstitutu, MRC LMB Cambridge.
+        </p>
+      </div>
+      <div class="trust__item">
+        <h3 class="trust__item-title">İcma əməkdaşlığı</h3>
+        <p class="trust__item-desc">"Karlara Dəstək" İctimai Birliyi.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="team" aria-labelledby="team-heading">
   ${dotsBackgroundMarkup('left')}
-  <h2 id="team-heading" class="team__heading">Komanda</h2>
-  <div class="team__grid">
-    <div class="team__card">
-      <h3 class="team__name">Sitara Aghayeva</h3>
-      <p class="team__role">Baş İcraçı Direktor</p>
-      <p class="team__bio">
-        Data Science və maşın öyrənməsi üzrə yeddi, risk idarəçiliyi üzrə
-        dörd il təcrübə. IU Beynəlxalq Tətbiqi Elmlər Universitetində
-        magistr, beynəlxalq Risk və Süni İntellekt sertifikatı sahibi.
-        Chevir-in icrasına və pilot tərəfdaşlıqlarına rəhbərlik edir.
-      </p>
-    </div>
-    <div class="team__card">
-      <h3 class="team__name">Lala Ibadullayeva</h3>
-      <p class="team__role">Baş Tədqiqat Direktoru</p>
-      <p class="team__bio">
-        AMEA Molekulyar Biologiya İnstitutunda hesablamalı struktur
-        biologiyası üzrə PhD namizədi, Bakı Dövlət Universitetində süni
-        intellekt həlləri qurur. Cambridge MRC LMB-də tədqiqat təcrübəsi.
-        Chevir-in hərəkət tanıma və jest tərcüməsi modellərinin dərin
-        öyrənmə tədqiqatına rəhbərlik edir.
-      </p>
-    </div>
-    <div class="team__card">
-      <h3 class="team__name">Nigar Alishzade</h3>
-      <p class="team__role">Baş Texnologiya Direktoru</p>
-      <p class="team__bio">
-        PhD namizədi, Qarabağ Universitetində kompüter elmləri müəllimi və
-        "Karlara Dəstək" İctimai Birliyinin icraçı üzvü. AzSLD datasetinin
-        və bir sıra jest dili tanıma məqalələrinin müəllifidir. Chevir-in
-        texnologiya inkişafına və icma ilə əlaqələrinə rəhbərlik edir.
-      </p>
+  <div class="reveal">
+    <h2 id="team-heading" class="team__heading">Komanda</h2>
+    <div class="team__grid">
+      <div class="team__card">
+        <h3 class="team__name">Sitara Aghayeva</h3>
+        <p class="team__role">Baş İcraçı Direktor</p>
+        <p class="team__bio">
+          Data Science və maşın öyrənməsi üzrə yeddi, risk idarəçiliyi üzrə
+          dörd il təcrübə. IU Beynəlxalq Tətbiqi Elmlər Universitetində
+          magistr, beynəlxalq Risk və Süni İntellekt sertifikatı sahibi.
+          Chevir-in icrasına və pilot tərəfdaşlıqlarına rəhbərlik edir.
+        </p>
+      </div>
+      <div class="team__card">
+        <h3 class="team__name">Lala Ibadullayeva</h3>
+        <p class="team__role">Baş Tədqiqat Direktoru</p>
+        <p class="team__bio">
+          AMEA Molekulyar Biologiya İnstitutunda hesablamalı struktur
+          biologiyası üzrə PhD namizədi, Bakı Dövlət Universitetində süni
+          intellekt həlləri qurur. Cambridge MRC LMB-də tədqiqat təcrübəsi.
+          Chevir-in hərəkət tanıma və jest tərcüməsi modellərinin dərin
+          öyrənmə tədqiqatına rəhbərlik edir.
+        </p>
+      </div>
+      <div class="team__card">
+        <h3 class="team__name">Nigar Alishzade</h3>
+        <p class="team__role">Baş Texnologiya Direktoru</p>
+        <p class="team__bio">
+          PhD namizədi, Qarabağ Universitetində kompüter elmləri müəllimi və
+          "Karlara Dəstək" İctimai Birliyinin icraçı üzvü. AzSLD datasetinin
+          və bir sıra jest dili tanıma məqalələrinin müəllifidir. Chevir-in
+          texnologiya inkişafına və icma ilə əlaqələrinə rəhbərlik edir.
+        </p>
+      </div>
     </div>
   </div>
 </section>
 
-<footer class="contact reveal" id="pilot" aria-labelledby="contact-heading">
+<footer class="contact" id="pilot" aria-labelledby="contact-heading">
   <div class="contact__bg" aria-hidden="true"></div>
   <div class="contact__grain" aria-hidden="true"></div>
-  <span class="visually-hidden">Chevir</span>
   <svg class="contact__wordmark" viewBox="0 0 81 24" aria-hidden="true">${CONTACT_WORDMARK_MARKUP}</svg>
-  <div class="contact__content">
-    <h2 id="contact-heading" class="contact__heading">Bizə nə lazımdır</h2>
-    <ul class="contact__asks">
-      <li>Pilot tərəfdaşlar - dövlət qurumu, bank və ya xəstəxana.</li>
-      <li>Eşitmə məhdudiyyətli icma ilə davamlı əməkdaşlıq.</li>
-    </ul>
-    <a class="contact__cta" href="mailto:devteam@chevirapp.com">devteam@chevirapp.com</a>
-    <div class="contact__meta">
-      <p class="contact__meta-copyright">© 2026 Chevir · chevirapp.com</p>
-      <p class="contact__meta-slogan">Biz olmadan bizim haqqımızda heç nə.</p>
+  <div class="reveal">
+    <span class="visually-hidden">Chevir</span>
+    <div class="contact__content">
+      <h2 id="contact-heading" class="contact__heading">Bizə nə lazımdır</h2>
+      <ul class="contact__asks">
+        <li>Pilot tərəfdaşlar - dövlət qurumu, bank və ya xəstəxana.</li>
+        <li>Eşitmə məhdudiyyətli icma ilə davamlı əməkdaşlıq.</li>
+      </ul>
+      <a class="contact__cta" href="mailto:devteam@chevirapp.com">devteam@chevirapp.com</a>
+      <div class="contact__meta">
+        <p class="contact__meta-copyright">© 2026 Chevir · chevirapp.com</p>
+        <p class="contact__meta-slogan">Biz olmadan bizim haqqımızda heç nə.</p>
+      </div>
     </div>
   </div>
 </footer>

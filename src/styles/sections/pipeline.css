@@ -1,9 +1,10 @@
 /* ---------- Pipeline ("Necə işləyir") ---------- */
+/* Sərt tünd (bax content.css "1. Problem" şərhi - eyni prinsip). */
 
 .pipeline {
   padding: clamp(3rem, 8vw, 7rem) clamp(1.25rem, 5vw, 4rem);
-  background: var(--paper);
-  color: var(--ink);
+  background: #16130f;
+  color: #f1ede9;
 }
 
 .pipeline__intro {
@@ -34,7 +35,7 @@
 
 .pipeline__lead {
   margin-top: 0.75rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-body);
   line-height: 1.55;
   max-width: 36rem;
@@ -146,16 +147,16 @@
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 0.03em;
-  color: var(--muted);
+  color: #c9c3bc;
   margin-bottom: 0.5rem;
   transition: color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
     transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Kanal rəngi (magenta/mavi) ağ fonda kiçik mətn üçün AA kontrastını keçmir -
-   aktiv vəziyyət rəng əvəzinə tam kontrastlı ink + ölçü ilə fərqləndirilir. */
+/* Kanal rəngi (magenta/mavi) mətndə işlədilmir (bax CLAUDE.md) - aktiv
+   vəziyyət rəng əvəzinə tam kontrastlı ton + ölçü ilə fərqləndirilir. */
 .pipeline__step.is-active .pipeline__number {
-  color: var(--ink);
+  color: #f1ede9;
   transform: scale(1.08);
 }
 
@@ -169,7 +170,7 @@
 .pipeline__step-desc {
   margin-top: 0.6rem;
   max-width: 32rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-body);
   line-height: 1.55;
 }

@@ -10,13 +10,13 @@
   align-items: center;
   justify-content: center;
   padding: clamp(3rem, 10vw, 6rem) clamp(20px, 5.5vw, 5.5rem);
-}
-
-@media (min-width: 980px) {
-  .statement,
-  .impact {
-    min-height: 100svh;
-  }
+  /* Əvvəllər yalnız >=980px-də idi - .statement PIN olunur (lib/lineCarousel.js,
+     start:'center center'), pin AKTİV olarkən bölmə position:fixed olur və öz
+     ölçüsünü YALNIZ məzmununa görə alır (mətn qısa olduğu üçün ekranın kiçik
+     hissəsini tutur). 980px-dən dar ekranda (bütün telefonlar!) bu min-height
+     yox idi - nəticədə "asılı" kiçik qutu, ətrafında body fonu (açıq) görünürdü
+     (Baku ID sərgisi - ziyarətçilər telefonda açacaq, bu HƏR ZAMAN qırıq olardı). */
+  min-height: 100svh;
 }
 
 /* Təsir bölməsi müvəqqəti gizlədilib (kod silinmir) - geri qaytarmaq üçün

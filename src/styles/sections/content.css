@@ -1,4 +1,13 @@
 /* ---------- Shared reveal (the only motion allowed in the quiet sections) ---------- */
+/* .reveal HƏMİŞƏ bölmənin fon rənginə malik <section>-in özündə YOX, daxili
+   məzmun sarğısında (content.js-də hər bölmənin BİR div.reveal-i) olmalıdır.
+   Səbəb: transform elementin BÜTÖV render olunmuş qutusunu (fon daxil)
+   sənəd axınındakı mövqeyindən ASILI OLMAYARAQ sürüşdürür - fon <section>-in
+   özündə olsaydı, is-visible-dən ƏVVƏL (və ya reveal-lər arasında zamanlama
+   fərqi yarananda) qonşu bölmə ilə arasında əvvəlki bölmənin fonu ilə
+   doldurulmayan 8px boşluq açılırdı, body fonu (açıq) o boşluqdan görünürdü
+   ("ağ xətt" bugı - tapıldı: pin olunmayan .loop → .reveal olan .problem
+   keçidində, hər YERDƏ təkrarlana bilərdi). */
 
 .reveal {
   opacity: 0;
@@ -21,21 +30,23 @@
 }
 
 /* ---------- Shared quiet-section rhythm ---------- */
-
-.problem,
-.difference,
-.usecases,
-.results,
-.roadmap,
-.team,
-.trust {
-  max-width: 72rem;
-  margin: 0 auto;
-}
+/* Bölmə elementinin ÖZÜNDƏ max-width YOXDUR (əvvəllər var idi - fon bu
+   72rem-lə məhdudlaşırdı, kənarlarda başqa rəngli zolaq qalırdı). Full-bleed
+   fon: bölmə tam eni tutur, məzmun isə üfüqi padding-lə mərkəzləşir.
+   `calc(sabit-padding + max(0px, (100% - 72rem) / 2))` - əvvəlki nəticəni
+   DƏQİQ təkrarlayır: 72rem-dən enli ekranda əlavə mərkəzləşdirmə boşluğu
+   sabit padding-in ÜSTÜNƏ gəlir (məzmun effektiv eni dəyişmir), dar ekranda
+   əlavə hissə mənfi olacağı üçün max(0px,...) onu sıfırlayır, yalnız sabit
+   padding qalır - əvvəlki responsiv davranış eynilə saxlanılır. 100vw YOX:
+   100vw şaquli scroll zolağının enini daxil edir və üfüqi scroll yaradır
+   (bax content.js setupFullBleedBackgrounds şərhi - eyni tələ). `%` isə
+   valideynin content-box enindən (scroll zolağı artıq çıxılmış) hesablanır,
+   bu tələni yaratmır. */
 
 .problem,
 .results {
-  padding: clamp(3rem, 7vw, 5.5rem) clamp(1.25rem, 5vw, 4rem);
+  padding: clamp(3rem, 7vw, 5.5rem)
+    calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
 }
 
 /* Sıx qrid bölmələri - Fərqimiz, Harada işləyir, Komanda: eyni grid
@@ -43,16 +54,19 @@
 .difference,
 .usecases,
 .team {
-  padding: clamp(2.25rem, 5.5vw, 4rem) clamp(1.25rem, 5vw, 4rem);
+  padding: clamp(2.25rem, 5.5vw, 4rem)
+    calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
 }
 
 .roadmap {
-  padding: clamp(2.75rem, 6vw, 4.5rem) clamp(1.25rem, 5vw, 4rem);
+  padding: clamp(2.75rem, 6vw, 4.5rem)
+    calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
 }
 
 /* Sakit bölmə - Arxamızda nə dayanır: az padding, dar sütun. */
 .trust {
-  padding: clamp(2rem, 4.5vw, 3.25rem) clamp(1.25rem, 5vw, 4rem);
+  padding: clamp(2rem, 4.5vw, 3.25rem)
+    calc(clamp(1.25rem, 5vw, 4rem) + max(0px, (100% - 72rem) / 2));
 }
 
 .problem__heading,
@@ -89,9 +103,9 @@
   isolation: isolate;
 }
 
-/* Bu bölmələr özləri max-width:72rem ilə mərkəzləşib (yuxarıda) - .section-bg
-   "inset:0" ilə bağlansaydı yalnız o dar sütunun kənarına yapışardı, ekranın
-   həqiqi kənarına yox. Full-bleed lazımdır. "100vw" İSTİFADƏ OLUNMUR: 100vw
+/* Bölmələrin özü artıq tam-enlidir (yuxarıda, "Shared quiet-section rhythm"),
+   amma .section-bg-nin öz full-bleed məntiqi (aşağıdakı JS-ölçülü üsul)
+   qəsdən saxlanılıb - "100vw" İSTİFADƏ OLUNMUR: 100vw
    brauzerin şaquli scroll zolağının enini DAXİL edir (CSS spesifikasiyası),
    document.documentElement.clientWidth isə YOX - nəticədə klassik (overlay
    olmayan) scroll zolaqlı sistemlərdə (adi Windows Chrome/Edge) .section-bg
@@ -214,15 +228,25 @@
 }
 
 /* ---------- 1. Problem ---------- */
+/* Sərt tünd - OS rejimindən asılı deyil (bax content.css yuxarı şərhi/
+   base.css: color-scheme yalnız "light", bölmə ritmi hər ziyarətçidə eynidir). */
 
 .problem {
+  background: #16130f;
+  color: #f1ede9;
+}
+
+/* Grid .reveal (məzmun sarğısı) üzərindədir, .problem-in özündə deyil - bax
+   ".reveal" qaydasının yuxarısındakı şərh: section öz arxa fonunu heç vaxt
+   translateY ilə tərpətməməlidir, yalnız daxili məzmun sürüşməlidir. */
+.problem > .reveal {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2.5rem;
 }
 
 @media (min-width: 900px) {
-  .problem {
+  .problem > .reveal {
     grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
     gap: 4rem;
   }
@@ -231,7 +255,7 @@
 .problem__number {
   font-size: var(--fs-h1);
   font-weight: 700;
-  color: var(--ink);
+  color: #f1ede9;
   letter-spacing: -0.02em;
   line-height: 1;
 }
@@ -239,7 +263,7 @@
 .problem__stat-desc {
   margin-top: 0.75rem;
   max-width: 22rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-small);
   line-height: 1.5;
 }
@@ -257,12 +281,18 @@
 }
 
 .problem__paragraph {
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-body);
   line-height: 1.55;
 }
 
 /* ---------- 2. Fərqimiz nədir ---------- */
+/* Sərt açıq (bax "1. Problem" şərhi) - pipeline.css-in eyni prinsipi. */
+
+.difference {
+  background: var(--paper);
+  color: var(--ink);
+}
 
 .difference__grid {
   margin-top: 1.5rem;
@@ -340,16 +370,15 @@
   }
 }
 
+.usecases {
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .usecases__item {
   padding: 1.25rem;
   border-radius: 1.25rem;
   border: 1px solid rgba(26, 24, 23, 0.1);
-}
-
-@media (prefers-color-scheme: dark) {
-  .usecases__item {
-    border-color: rgba(241, 237, 233, 0.14);
-  }
 }
 
 .usecases__item-title {
@@ -366,6 +395,13 @@
 }
 
 /* ---------- 5. Hazırkı nəticələr ---------- */
+/* Sərt tünd (bax "1. Problem" şərhi) - video çərçivələri (.results__video-frame)
+   onsuz da sabit tünddür, bütün bölmə tünd olanda onlarla təbii birləşir. */
+
+.results {
+  background: #16130f;
+  color: #f1ede9;
+}
 
 .results__intro {
   max-width: 40rem;
@@ -373,7 +409,7 @@
 
 .results__lead {
   margin-top: 0.75rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-body);
   line-height: 1.55;
 }
@@ -386,14 +422,14 @@
 .results__accuracy-number {
   font-size: var(--fs-h1);
   font-weight: 700;
-  color: var(--ink);
+  color: #f1ede9;
   letter-spacing: -0.02em;
   line-height: 1;
 }
 
 .results__accuracy-desc {
   margin-top: 0.6rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-body);
   line-height: 1.5;
 }
@@ -401,7 +437,7 @@
 .results__accuracy-caveat {
   margin-top: 0.9rem;
   max-width: 34rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-small);
   line-height: 1.55;
 }
@@ -472,7 +508,7 @@
 
 .results__card-desc {
   margin-top: 0.4rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-small);
   line-height: 1.5;
 }
@@ -482,6 +518,13 @@
    (bax statement.css). */
 
 /* ---------- 7. Mərhələlər ---------- */
+/* Sərt tünd (bax "1. Problem" şərhi) - 5 açıq bölmə saytı həddindən artıq
+   açıqlaşdırırdı, roadmap tünd qalıb, yalnız difference/usecases/team açıq. */
+
+.roadmap {
+  background: #16130f;
+  color: #f1ede9;
+}
 
 .roadmap__list {
   position: relative;
@@ -510,7 +553,7 @@
     left: 1.25rem;
     right: calc(33.333% - 2.9167rem);
     height: 1px;
-    background: var(--muted);
+    background: #c9c3bc;
     opacity: 0.35;
     z-index: 0;
   }
@@ -529,8 +572,8 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
-  background: var(--ink);
-  color: var(--paper);
+  background: #f1ede9;
+  color: #16130f;
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -545,7 +588,7 @@
 
 .roadmap__item-desc {
   margin-top: 0.5rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-body);
   line-height: 1.55;
 }
@@ -556,14 +599,22 @@
   line-height: 1.15;
 }
 
+/* Sərt tünd (bax "1. Problem" şərhi). */
 .trust {
+  background: #16130f;
+  color: #f1ede9;
+}
+
+/* Flex .reveal (məzmun sarğısı) üzərindədir - bax .problem > .reveal
+   şərhi, eyni səbəb. */
+.trust > .reveal {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
 @media (min-width: 900px) {
-  .trust {
+  .trust > .reveal {
     flex-direction: row;
     align-items: flex-start;
     gap: 3rem;
@@ -582,7 +633,7 @@
 
 .trust__lead {
   margin-top: 0.6rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-small);
   line-height: 1.55;
 }
@@ -607,7 +658,7 @@
    görünüşü yoxdur - yalnız nazik xətt. */
 .trust__item {
   padding-top: 1.1rem;
-  border-top: 1px solid rgba(26, 24, 23, 0.12);
+  border-top: 1px solid rgba(241, 237, 233, 0.16);
 }
 
 .trust__item:first-child {
@@ -621,19 +672,12 @@
     padding-top: 0;
     padding-left: 1.75rem;
     border-top: none;
-    border-left: 1px solid rgba(26, 24, 23, 0.12);
+    border-left: 1px solid rgba(241, 237, 233, 0.16);
   }
 
   .trust__item:first-child {
     padding-left: 0;
     border-left: none;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .trust__item {
-    border-top-color: rgba(241, 237, 233, 0.16);
-    border-left-color: rgba(241, 237, 233, 0.16);
   }
 }
 
@@ -645,19 +689,25 @@
 
 .trust__item-desc {
   margin-top: 0.4rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-small);
   line-height: 1.55;
 }
 
 .trust__item-meta {
   margin-top: 0.35rem;
-  color: var(--muted);
+  color: #c9c3bc;
   font-size: var(--fs-small);
   opacity: 0.8;
 }
 
 /* ---------- 8. Komanda ---------- */
+/* Sərt açıq (bax "1. Problem" şərhi). */
+
+.team {
+  background: var(--paper);
+  color: var(--ink);
+}
 
 .team__grid {
   margin-top: 1.5rem;
@@ -676,12 +726,6 @@
 .team__card {
   border-top: 1px solid rgba(26, 24, 23, 0.12);
   padding-top: 1rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  .team__card {
-    border-top-color: rgba(241, 237, 233, 0.16);
-  }
 }
 
 .team__name {

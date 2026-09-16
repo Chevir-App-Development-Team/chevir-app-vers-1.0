@@ -4,6 +4,11 @@ import { HERO_TAGLINE } from '../lib/i18n.js'
 import { BRAND_LOGO_MARKUP } from '../lib/brandLogo.js'
 import { navbarMarkup as buildNavbarMarkup } from './navbar.js'
 
+// Naviqasiyanın tünd/açıq rejimini idarə edən sərt-kodlanmış bölmə siyahısı
+// (bax content.css "Sərt açıq" şərhləri) - burada saxlanılır ki, hansı
+// bölmələrin "açıq" olduğu TƏK yerdə (burda) qərarlaşdırılsın.
+const LIGHT_SECTION_SELECTOR = '.difference, .usecases, .team'
+
 // public/wordmark.svg-nin dəyişməz kopyası (currentColor - hero-da ağ olur).
 const WORDMARK_MARKUP = `
   <path d="M72.418 13.7919C72.418 8.92787 75.49 6.46387 80.354 6.46387V9.98387C77.794 9.98387 76.258 11.2319 76.258 13.7919V22.7519H72.418V13.7919Z" fill="currentColor"/>
@@ -120,14 +125,53 @@ export function setupHero() {
   return { logo }
 }
 
+// Naviqasiyanın probe nöqtəsi (öz hündürlüyünün ortası) hər hansı açıq
+// bölmənin canlı sərhədləri içindədirsə .is-light əlavə olunur. offsetTop
+// YOX, hər dəfə TƏZƏDƏN oxunan getBoundingClientRect() işlədilir - pin
+// olunan bölmələr (pipeline__media) səhifəyə pin-spacer hündürlüyü əlavə
+// edir, statik/keşlənmiş dəyər həmin əlavədən sonra köhnəlmiş qalardı.
+function updateNavbarMode(navbarEl, lightSections) {
+  const probeY = navbarEl.getBoundingClientRect().height / 2
+  const isLight = lightSections.some((section) => {
+    const rect = section.getBoundingClientRect()
+    return rect.top <= probeY && rect.bottom >= probeY
+  })
+  navbarEl.classList.toggle('is-light', isLight)
+}
+
 export function initNavbar() {
   const navbarEl = document.querySelector('[data-navbar]')
   if (!navbarEl) return
 
-  // Bütün bölmələr tünddür, ona görə naviqasiya həmişə
-  // tünd rejimdədir - açıq/tünd keçid məntiqi lazım deyil. Yalnız scroll
-  // edildikdə tünd yarımşəffaf blur qatı görünür.
+  // Yalnız scroll edildikdə tünd/açıq-şəffaf blur qatı görünür (rəng rejimi
+  // aşağıda, ayrıca idarə olunur).
   const toggleScrolledBg = () => navbarEl.classList.toggle('is-scrolled', window.scrollY > 40)
   window.addEventListener('scroll', toggleScrolledBg, { passive: true })
   toggleScrolledBg()
+
+  // Tünd/açıq rejim: sərt-kodlanmış bölmə ritmi (bax content.css) OS
+  // temasından asılı olmadığı üçün naviqasiya da yalnız scroll mövqeyinə
+  // görə qərar verir. GSAP ScrollTrigger-in ÖZ trigger/onUpdate mexanizmi
+  // QƏSDƏN İŞLƏDİLMİR (əvvəlcə sınanıb, iki ayrı problem tapılıb):
+  // (1) `trigger: document.documentElement` ilə bütöv-sənəd trigger-i
+  //     initPipeline()/initLoop()-dan ƏVVƏL yaradılır (main.js-dəki sıra),
+  //     ona görə `end:'bottom bottom'` pin-spacer-lər hələ əlavə OLUNMAMIŞ
+  //     hündürlüyə görə hesablanır - scroll bu köhnəlmiş sərhədi keçəndən
+  //     sonra progress 1-də "donur", bir daha yenilənmir (is-light "results"-
+  //     dan sonra əbədi yapışıb qalırdı).
+  // (2) Buna əvəz ediləni sınadıqda: `ScrollTrigger.addEventListener('update', ...)`
+  //     - bu VERSIYADA (node_modules/gsap/ScrollTrigger.js yoxlanılıb) "update"
+  //     adlı statik hadisə ÜMUMİYYƏTLƏ MÖVCUD DEYİL (yalnız refresh/scrollStart/
+  //     scrollEnd/matchMedia/revert/kill) - callback heç vaxt çağırılmır.
+  // Həll: `toggleScrolledBg`-in yuxarıda artıq işlətdiyi, sübut olunmuş adi
+  // native "scroll" hadisəsi - `getBoundingClientRect()` canlı oxunduğu üçün
+  // pin-spacer hündürlüyü nə vaxt əlavə olunursa olsun avtomatik düzgündür,
+  // heç bir trigger sərhədi ilə bağlı olmur.
+  const lightSections = Array.from(document.querySelectorAll(LIGHT_SECTION_SELECTOR))
+  if (lightSections.length) {
+    const update = () => updateNavbarMode(navbarEl, lightSections)
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('load', update)
+    update()
+  }
 }

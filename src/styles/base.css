@@ -16,26 +16,23 @@
   --signed-glow: rgba(214, 0, 108, 0.5);
   --spoken-glow: rgba(0, 136, 176, 0.5);
 
-  color-scheme: light dark;
+  /* Bölmələrin tünd/açıq ritmi qəsdli dizayn qərarıdır (Baku ID sərgisi:
+     ziyarətçilər müxtəlif OS temalı telefonlarla QR kodla açır, hamısında
+     eyni görünməlidir) - ona görə color-scheme "dark" DEYİL, yalnız "light":
+     OS tünd rejimi native form/scrollbar rənglərini belə dəyişməməlidir. */
+  color-scheme: light;
   font: 400 1rem/1.5 var(--sans);
   color: var(--ink);
-  background: var(--paper);
+  /* var(--paper) YOX - sayt əsasən tünddür, --paper yalnız bir neçə sərt-
+     kodlanmış açıq bölmənin (difference/usecases/team, öz background-ı ilə)
+     dəyişənidir. html/body-nin default fonu tünd olmalıdır ki, hər hansı
+     naməlum səbəbdən açılan bölmə-arası boşluq (məs. pin zamanı) açıq yox,
+     tünd görünsün - sayt ritminə uyğun defolt təhlükəsizlik qatı. */
+  background: #16130f;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #f1ede9;
-    --paper: #16130f;
-    --signed: #ff4f97;
-    --spoken: #3fc1e8;
-    --muted: #a39c95;
-    --signed-glow: rgba(255, 79, 151, 0.6);
-    --spoken-glow: rgba(63, 193, 232, 0.6);
-  }
 }
 
 *,
@@ -57,8 +54,8 @@ html.preloading body {
 }
 
 body {
-  background: var(--paper);
-  color: var(--ink);
+  background: #16130f;
+  color: #f1ede9;
   min-height: 100svh;
   font-size: var(--fs-body);
 }

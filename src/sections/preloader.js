@@ -16,7 +16,8 @@ function revealNavbar() {
 // öz "opacity 0.35s" keçidi var, amma klon-dan ötürməni KƏSİKSİZ etmək üçün elə
 // həmin anda dəqiq üst-üstə düşməlidir, tədricən sönən/yanan iki fərqli müddət
 // yox. transition:none + məcburi reflow + transition-u geri qaytarmaq həmin
-// "ani dəyişmə" texnikasıdır (gələcək color keçidlərinə (is-on-dark) toxunmur).
+// "ani dəyişmə" texnikasıdır (naviqasiyanın .is-light rejim keçidinə (hero.js)
+// toxunmur - o, ayrıca öz "color" keçidi ilə idarə olunur).
 function revealNavbarLogoInstantly(navbarLogoEl) {
   // getComputedStyle (yox offsetHeight) ilə məcburi stil-yenidənhesablama -
   // sınaqda offsetHeight/layout-reflow bu konkret ardıcıllıqda "transition:none"
@@ -81,7 +82,9 @@ function runSplashAnimation(logo, lenis, onDone) {
   gsap.set([headSigned, headSpoken], { opacity: 0, scale: 0, transformOrigin: '50% 50%' })
   // Splash fonu açıqdır (paper) - nöqtə burda TÜND başlayır (currentColor
   // ağ olardı, işıqlı fonda itərdi). Navbar-a uçuşla eyni anda ağa keçir
-  // (bax aşağıda), çünki hədəf (navbar, is-on-dark) ağ mətnlidir.
+  // (bax aşağıda), çünki hədəf (navbar) bu anda HƏMİŞƏ default (tünd) rejimdədir:
+  // uçuş səhifə hələ scroll olunmamış ikən bitir, navbar isə yalnız hero-dan
+  // aşağı, açıq bölmə üzərində .is-light olur (hero.js) - hero həmişə tünddür.
   gsap.set(dot, { opacity: 0, scale: 0, svgOrigin: '50 50', fill: '#1a1817' })
   gsap.set(splashLogo, {
     position: 'fixed',
@@ -152,8 +155,9 @@ function runSplashAnimation(logo, lenis, onDone) {
       },
       FLIGHT_START
     )
-    // Nöqtə tünddən ağa keçir (navbar.is-on-dark --ink: #f1ede9) - uçuşla
-    // eyni anda bitir ki, hədəfə çatanda artıq rəng fərqi görünməsin.
+    // Nöqtə tünddən ağa keçir (navbar-ın default/tünd rejimindəki rəngi:
+    // #f1ede9) - uçuşla eyni anda bitir ki, hədəfə çatanda artıq rəng fərqi
+    // görünməsin. Bax yuxarıdakı şərh: bu an navbar həmişə tünd rejimdədir.
     .to(dot, { fill: '#f1ede9', duration: FLIGHT_DURATION, ease: 'power3.inOut' }, FLIGHT_START)
     // Uçuş bitdiyi an: klon HƏDƏFDƏ SABİT dayanır (sönmür), navbar loqosu
     // EYNİ anda keçidsiz opacity:1 olur - iki eyni forma tam üst-üstə düşdüyü

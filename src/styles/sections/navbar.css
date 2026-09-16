@@ -9,9 +9,11 @@
 }
 
 .navbar {
-  /* Bütün bölmələr tünddür - naviqasiya həmişə açıq mətnli,
-     heç bir tünd/açıq keçid yoxdur. Yalnız scroll edildikdə tünd-şəffaf
-     blur qatı görünür. */
+  /* Default: tünd bölmə üzərində (açıq mətnli). Açıq bölmə (pipeline,
+     difference, usecases, roadmap, team) üzərinə çatanda hero.js-dəki
+     initNavbar() .is-light sinfini əlavə edir - rənglər aşağıda,
+     "Rejim: açıq bölmə" bölməsində. Yalnız scroll edildikdə əlavə olaraq
+     tünd/açıq-şəffaf blur qatı görünür (.is-scrolled). */
   position: fixed;
   top: 0;
   left: 0;
@@ -39,6 +41,7 @@
   gap: 0.6rem;
   text-decoration: none;
   color: #f1ede9;
+  transition: color 0.4s ease;
   /* Splash klonu naviqasiya loqosuna enənə qədər naviqasiya görünməz və
      toxunulmazdır (visibility, hit-testi və tab sırasını da söndürür) -
      preloader.js uçuş bitəndə .is-revealed sinfini verir. */
@@ -62,7 +65,7 @@
   flex-shrink: 0;
   color: #f1ede9;
   opacity: 0;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.35s ease, color 0.4s ease;
 }
 
 .navbar__name {
@@ -70,7 +73,7 @@
   font-weight: 700;
   letter-spacing: -0.01em;
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.4s ease, color 0.4s ease;
   transition-delay: 0.12s;
 }
 
@@ -93,7 +96,7 @@
   font-weight: 600;
   text-decoration: none;
   opacity: 0.82;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s ease, color 0.4s ease;
 }
 
 /* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
@@ -120,7 +123,8 @@
   font-size: var(--fs-small);
   font-weight: 600;
   text-decoration: none;
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s ease,
+    color 0.4s ease;
 }
 
 /* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
@@ -143,4 +147,32 @@
   .navbar__cta {
     padding: 0.55rem 1rem;
   }
+}
+
+/* ---------- Rejim: açıq bölmə (.is-light) ---------- */
+/* hero.js-dəki initNavbar() naviqasiyanın probe nöqtəsi (öz hündürlüyünün
+   ortası) hansı bölmənin üzərindədirsə ona görə bu sinfi əlavə/silir (bax
+   pipeline/difference/usecases/roadmap/team - sərt açıq bölmələr). Rənglər
+   var(--ink)/var(--paper) yox, sərt hex - naviqasiya bölmələr kimi OS
+   temasından asılı olmamalıdır. */
+
+.navbar.is-light .navbar__brand,
+.navbar.is-light .navbar__logo-svg,
+.navbar.is-light .navbar__name,
+.navbar.is-light .navbar__link {
+  color: #1a1817;
+}
+
+.navbar.is-light.is-scrolled {
+  background: rgba(241, 240, 238, 0.82);
+  box-shadow: 0 1px 0 rgba(26, 24, 23, 0.08);
+}
+
+/* CTA: TƏKLİF, TƏSDİQ GÖZLƏYİR (bax tapşırıq §3a) - ağ pill açıq bölmə
+   üzərində demək olar görünməz olardı (ağ-üstündə-ağ), ona görə tünd-mətnli
+   dizaynın tərsi (ink pill + paper mətn) seçilib, digər is-light rənglərlə
+   eyni hex-lər. Ekran şəklində göstəriləcək, təsdiqdən sonra son sayılsın. */
+.navbar.is-light .navbar__cta {
+  background: #1a1817;
+  color: #f1ede9;
 }
