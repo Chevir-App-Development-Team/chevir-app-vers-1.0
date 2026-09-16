@@ -186,19 +186,57 @@ export function initLoop() {
     labels.forEach((el, i) => el.classList.toggle('is-active', i === stage))
   }
 
+  // getPointAtLength() ölçülüb: scroll zamanı onUpdate-in hər tick-ində
+  // çağırılanda (köhnə kod) profil 4x CPU throttle-da 386ms-lik tək task
+  // göstərdi - mobildə bu animasiya pin-ə bağlı olmadığı üçün (aşağıda)
+  // istifadəçi hələ sərbəst scroll edərkən main thread-i tutub "geri atma"
+  // hissi yaradırdı. Həll: nöqtələr ANİMASİYA BAŞLAMAZDAN ƏVVƏL (bir dəfə,
+  // aşağıda buildPointCache-də) əvvəlcədən hesablanır, onUpdate isə yalnız
+  // keşdən oxuyub iki qonşu nöqtə arasında xətti interpolyasiya edir - CPU
+  // baxımından demək olar pulsuzdur. Keş resize-də YENİDƏN QURULMUR: path
+  // "d" atributu (deməli getTotalLength/getPointAtLength) SVG-nin öz
+  // viewBox koordinatındadır, ekran ölçüsündən asılı deyil (ölçülüb: 390px
+  // və 1440px-də eyni uzunluq) - yalnız desktop/mobil ARASINDA keçiddə
+  // (mm.add aşağıda) hər variant üçün ayrıca, təzə keş qurulur.
+  function buildPointCache(pathEl) {
+    const length = pathEl.getTotalLength()
+    // Uzunluğa mütənasib addım sayı (200-400 aralığında) - path nə qədər
+    // uzundursa, hamar görünmək üçün bir o qədər çox nöqtə lazımdır, amma
+    // yaddaşa görə yuxarı hədd qoyulub.
+    const sampleCount = Math.min(400, Math.max(200, Math.round(length / 1.5)))
+    const points = new Array(sampleCount + 1)
+    for (let i = 0; i <= sampleCount; i++) {
+      const pt = pathEl.getPointAtLength((i / sampleCount) * length)
+      points[i] = { x: pt.x, y: pt.y }
+    }
+    return points
+  }
+
+  function pointAtProgress(points, t) {
+    const scaled = t * (points.length - 1)
+    const i0 = Math.floor(scaled)
+    const i1 = Math.min(i0 + 1, points.length - 1)
+    const frac = scaled - i0
+    const p0 = points[i0]
+    const p1 = points[i1]
+    return {
+      x: p0.x + (p1.x - p0.x) * frac,
+      y: p0.y + (p1.y - p0.y) * frac,
+    }
+  }
+
   function buildPathProgress(pathEl, markerEl, labels, syncEls = []) {
     const proxy = { t: 0 }
-    let length = 0
+    const points = buildPointCache(pathEl)
     return {
       proxy,
       onUpdate: () => {
-        if (!length) length = pathEl.getTotalLength()
         const offset = String(100 * (1 - proxy.t))
         pathEl.style.strokeDashoffset = offset
         syncEls.forEach((el) => {
           el.style.strokeDashoffset = offset
         })
-        const pt = pathEl.getPointAtLength(proxy.t * length)
+        const pt = pointAtProgress(points, proxy.t)
         markerEl.setAttribute('cx', pt.x)
         markerEl.setAttribute('cy', pt.y)
         updateStageLabels(labels, proxy.t)
