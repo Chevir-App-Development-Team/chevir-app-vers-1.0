@@ -164,19 +164,25 @@ export class CyberHand {
 
     // Bilək mərkəzə, ölçü normallaşdırılır → kadrdaki yer/ölçü təsvirə təsir etməsin
     const wrist = landmarks[0];
-    const pts = landmarks.map((p) => new THREE.Vector3(
+    let pts = landmarks.map((p) => new THREE.Vector3(
       (p.x - wrist.x), -(p.y - wrist.y), -(p.z || 0) * 0.8,
     ));
+    
+    // Pad to 42 if only 21 points (hide second hand far off-screen)
+    if (pts.length === 21) {
+      for (let i = 0; i < 21; i++) pts.push(new THREE.Vector3(0, 0, -100));
+    }
+    
     let span = 0;
-    for (const p of pts) span = Math.max(span, p.length());
+    for (const p of pts) if (p.z > -50) span = Math.max(span, p.length());
     const s = span > 1e-6 ? 1.55 / span : 1;
-    pts.forEach((p) => p.multiplyScalar(s));
+    pts.forEach((p) => { if (p.z > -50) p.multiplyScalar(s); });
     // Sabit sürüşmə əvəzinə öz kütlə mərkəzinə görə mərkəzləşdiririk:
-    // bəzi hərflərdə əl aşağı baxır və sabit sürüşmə onu kadrdan çıxarırdı.
     const c = new THREE.Vector3();
-    for (const p of pts) c.add(p);
-    c.divideScalar(pts.length);
-    pts.forEach((p) => p.sub(c));
+    let visCount = 0;
+    for (const p of pts) { if (p.z > -50) { c.add(p); visCount++; } }
+    if (visCount > 0) c.divideScalar(visCount);
+    pts.forEach((p) => { if (p.z > -50) p.sub(c); });
     this.pose = pts;
     if (!this.hasPose) {
       // İlk poza: nöqtələri sıçratmadan birbaşa yerinə qoy

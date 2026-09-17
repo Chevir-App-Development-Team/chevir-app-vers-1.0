@@ -1,0 +1,12 @@
+import urllib.request
+import re
+
+url = 'https://www.jestdili.az/_next/static/chunks/53b9bdf7d62e25b6.js'
+req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+try:
+    js_code = urllib.request.urlopen(req).read().decode('utf-8')
+    idx = js_code.find('apiGetRaw')
+    print("Found apiGetRaw:")
+    print(js_code[max(0, idx-500):min(len(js_code), idx+500)])
+except Exception as e:
+    print(e)

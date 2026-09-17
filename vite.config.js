@@ -30,6 +30,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         tercume: resolve(import.meta.dirname, 'tercume/index.html'),
+        trending: resolve(import.meta.dirname, 'trending/index.html'),
       },
     },
   },

@@ -135,13 +135,18 @@ export class VrmAvatar {
   }
 
   /**
-   * Pozanı qola (və ya qollara) tətbiq edir.
-   * @param {Array<{x,y,z}>|null} landmarks 21 və ya 42 normallaşdırılmış nöqtə (null = hazır vəziyyət)
+   * Pozanı qola tətbiq edir.
+   * @param {Array<{x,y,z}>|null} landmarks 21 normallaşdırılmış nöqtə (null = hazır vəziyyət)
    * @param {{pose?: object, frame?: number}} meta poses.json-dakı kadr indeksi
+   * @param {string} [side] - 'left' or 'right'. If omitted, uses this.hand (single-hand mode)
    */
-  setHandPose(landmarks, meta = {}) {
-    if (!landmarks || (landmarks.length !== 21 && landmarks.length !== 42)) { 
-        this.clearHandPose(); 
+  setHandPose(landmarks, meta = {}, side = null) {
+    if (!landmarks || landmarks.length !== 21) { 
+        if (side) {
+            this.#toRest(side);
+        } else {
+            this.clearHandPose();
+        }
         return; 
     }
     this.lastPose = { landmarks, meta };
@@ -152,41 +157,45 @@ export class VrmAvatar {
     this.mode = 'sign';
     this.idle = 0;
 
-    // Əgər 42 nöqtədirsə, sol və sağ qolu eyni vaxtda idarə edirik
-    if (landmarks.length === 42) {
-        // extract_hands.py sorts by X coordinate. In a camera view, the right hand is on the left side (smaller X).
-        // So the first 21 points are the Right hand, and the second 21 points are the Left hand.
-        const rightLm = landmarks.slice(0, 21);
-        const leftLm = landmarks.slice(21, 42);
-        
-        // Sol qol
-        const solLeft = this.#solveSingleSide('left', leftLm, pose, asked);
-        if (solLeft) this.#setSide('left', solLeft.arm, solLeft.fingers);
-        else this.#toRest('left');
-        
-        // Sağ qol
-        const solRight = this.#solveSingleSide('right', rightLm, pose, asked);
-        if (solRight) this.#setSide('right', solRight.arm, solRight.fingers);
-        else this.#toRest('right');
-        
-        this.last = { isTwoHanded: true, left: solLeft, right: solRight, pose, frame: asked };
-        this.#frameCamera();
+    if (side) {
+      // Two-handed word mode: solve the specified side
+      const sol = this.#solveSingleSide(side, landmarks, pose, asked);
+      if (sol) this.#setSide(side, sol.arm, sol.fingers);
+      else this.#toRest(side);
+      
+      // Track per-side state
+      if (!this.last) this.last = {};
+      this.last.isTwoHanded = true;
+      this.last[side] = sol;
+      this.last.pose = pose;
+      this.last.frame = asked;
+      
+      // After both sides are set, frame the camera
+      this.#frameCamera();
     } else {
-        // 21 nöqtədirsə, yalnız aktiv qolu (this.hand) idarə edirik, digərini dincəldirik
-        const side = this.hand;
-        const sol = this.#solveSingleSide(side, landmarks, pose, asked);
-        if (sol) {
-            this.#setSide(side, sol.arm, sol.fingers);
-            this.last = { side, pose, frame: asked, ...sol };
-        }
-        this.#toRest(side === 'left' ? 'right' : 'left');
-        this.#frameCamera();
+      // Single-hand letter mode (original behavior)
+      const activeSide = this.hand;
+      const sol = this.#solveSingleSide(activeSide, landmarks, pose, asked);
+      if (sol) {
+        this.#setSide(activeSide, sol.arm, sol.fingers);
+        this.last = { side: activeSide, pose, frame: asked, isTwoHanded: false, ...sol };
+      }
+      this.#toRest(activeSide === 'left' ? 'right' : 'left');
+      this.#frameCamera();
     }
   }
 
   #solveSingleSide(side, landmarks, pose, asked) {
-    const frame = this.#frameFor(pose, asked, side);
-    const lm = frame === asked ? landmarks : pose?.frames?.[frame] || landmarks;
+    // For spike detection in dynamic letters, #frameFor may remap the frame.
+    // But we always use the landmarks passed to us (already the correct 21 points).
+    // Only for single-hand letter poses do we allow frame remapping.
+    let frame = asked;
+    let lm = landmarks;
+    if (pose?.frames && pose.frames[0]?.length === 21) {
+      // Single-hand letter pose — safe to use #frameFor and remap
+      frame = this.#frameFor(pose, asked, side);
+      if (frame !== asked) lm = pose.frames[frame] || landmarks;
+    }
     const cached = this.#solved.get(lm);
     let sol = cached?.[side];
     if (!sol) {

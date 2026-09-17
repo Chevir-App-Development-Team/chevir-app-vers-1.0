@@ -75,6 +75,25 @@ export class TextToSign {
     }
   }
 
+  /** İki əlli söz üçün: sol və sağ əli ayrı-ayrı göndərir. */
+  #emitWord(wordPose, frame) {
+    const leftLm = wordPose.left.frames[frame];
+    const rightLm = wordPose.right.frames[frame];
+    for (const t of this.targets) {
+      if (typeof t.setWordPose === 'function') {
+        // Dedicated two-hand method if target supports it
+        t.setWordPose(wordPose, frame);
+      } else if (typeof t.setHandPose === 'function') {
+        // VRM fallback: call setHandPose with left and right separately
+        t.setHandPose(leftLm, { pose: wordPose.left, frame }, 'left');
+        t.setHandPose(rightLm, { pose: wordPose.right, frame }, 'right');
+      } else if (typeof t.setPose === 'function') {
+        // CyberHand: combine into 42-point array for skeleton display
+        t.setPose([...leftLm, ...rightLm]);
+      }
+    }
+  }
+
   async play(text) {
     this.stop();
     const steps = this.plan(text);
@@ -98,7 +117,22 @@ export class TextToSign {
         await this.#wait(this.opts.spaceMs, token);
       } else if (step.kind === 'unknown') {
         await this.#wait(this.opts.transitionMs, token);
+      } else if (step.kind === 'word') {
+        // Two-handed word animation
+        const { pose } = step;   // { type: 'dynamic', left: {...}, right: {...} }
+        const numFrames = pose.left.frames.length;
+        const lead = first ? this.opts.leadInMs : 0;
+        first = false;
+        const dt = 1000 / (this.opts.dynamicFps * 1.4); // words play slightly faster
+        for (let f = 0; f < numFrames; f++) {
+          if (this._abort !== token) return;
+          this.#emitWord(pose, f);
+          await this.#wait(f === 0 ? dt + lead : dt, token);
+        }
+        await this.#wait(this.opts.holdMs * 0.45, token);
+        await this.#wait(this.opts.transitionMs, token);
       } else {
+        // Single-hand letter
         const { pose } = step;
         const frames = pose.frames;
         const lead = first ? this.opts.leadInMs : 0;
