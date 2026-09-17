@@ -37,13 +37,25 @@ export class TextToSign {
   plan(text) {
     const steps = [];
     const letters = this.poses?.letters ?? {};
-    for (const raw of [...text.toLowerCase()]) {
-      if (raw === ' ' || raw === '\n' || raw === '\t') {
+    const words = this.poses?.words ?? {};
+    
+    // Regex matches words and spaces
+    const tokens = text.toLowerCase().match(/\S+|\s+/g) || [];
+    
+    for (const token of tokens) {
+      if (token.trim() === '') {
         steps.push({ kind: 'space', char: ' ' });
-      } else if (letters[raw]) {
-        steps.push({ kind: 'letter', char: raw, pose: letters[raw] });
+      } else if (words[token]) {
+        steps.push({ kind: 'word', char: token, pose: words[token] });
       } else {
-        steps.push({ kind: 'unknown', char: raw });
+        // Fallback to spelling
+        for (const raw of [...token]) {
+          if (letters[raw]) {
+            steps.push({ kind: 'letter', char: raw, pose: letters[raw] });
+          } else {
+            steps.push({ kind: 'unknown', char: raw });
+          }
+        }
       }
     }
     return steps;

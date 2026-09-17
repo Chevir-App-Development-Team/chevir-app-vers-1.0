@@ -27,7 +27,7 @@ export class CyberHand {
   constructor(container, { showGrid = true } = {}) {
     this.container = container;
     this.pose = null;         // hədəf poza (21 × Vector3)
-    this.current = Array.from({ length: 21 }, () => new THREE.Vector3());
+    this.current = Array.from({ length: 42 }, () => new THREE.Vector3());
     this.hasPose = false;
     this.trails = [];
     this.startTime = performance.now();
@@ -100,10 +100,10 @@ export class CyberHand {
 
   #buildJoints() {
     this.joints = [];
-    const tips = new Set([4, 8, 12, 16, 20]);
-    for (let i = 0; i < 21; i++) {
+    const tips = new Set([4, 8, 12, 16, 20, 21+4, 21+8, 21+12, 21+16, 21+20]);
+    for (let i = 0; i < 42; i++) {
       const isTip = tips.has(i);
-      const isWrist = i === 0;
+      const isWrist = i === 0 || i === 21;
       const r = isWrist ? 0.105 : isTip ? 0.075 : 0.055;
       const geo = new THREE.SphereGeometry(r, 20, 20);
       const mat = new THREE.MeshBasicMaterial({
@@ -124,7 +124,7 @@ export class CyberHand {
   }
 
   #buildBones() {
-    this.bones = HAND_CONNECTIONS.map(() => {
+    this.bones = [...HAND_CONNECTIONS, ...HAND_CONNECTIONS].map(() => {
       const geo = new THREE.CylinderGeometry(0.022, 0.022, 1, 8, 1, true);
       geo.translate(0, 0.5, 0);                 // baza nöqtədə dayansın
       const mat = new THREE.MeshBasicMaterial({
@@ -139,7 +139,8 @@ export class CyberHand {
 
   #buildTrails() {
     for (let t = 0; t < TRAIL_COUNT; t++) {
-      const positions = new Float32Array(HAND_CONNECTIONS.length * 2 * 3);
+      const positions = new Float32Array(HAND_CONNECTIONS.length * 4 * 3);
+      
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       const mat = new THREE.LineBasicMaterial({
@@ -155,14 +156,16 @@ export class CyberHand {
 
   /**
    * Hədəf pozanı təyin edir.
-   * @param {Array<{x:number,y:number,z:number}>|null} landmarks normallaşdırılmış 21 nöqtə
+   * @param {Array<{x:number,y:number,z:number}>|null} landmarks normallaşdırılmış 21 və ya 42 nöqtə
    */
   setPose(landmarks) {
-    if (!landmarks || landmarks.length !== 21) { this.pose = null; return; }
+    if (!landmarks || (landmarks.length !== 21 && landmarks.length !== 42)) { this.pose = null; return; }
+    this.isTwoHand = landmarks.length === 42;
+
     // Bilək mərkəzə, ölçü normallaşdırılır → kadrdaki yer/ölçü təsvirə təsir etməsin
     const wrist = landmarks[0];
     const pts = landmarks.map((p) => new THREE.Vector3(
-      (p.x - wrist.x), -(p.y - wrist.y), -(p.z - wrist.z) * 0.8,
+      (p.x - wrist.x), -(p.y - wrist.y), -(p.z || 0) * 0.8,
     ));
     let span = 0;
     for (const p of pts) span = Math.max(span, p.length());
@@ -177,7 +180,7 @@ export class CyberHand {
     this.pose = pts;
     if (!this.hasPose) {
       // İlk poza: nöqtələri sıçratmadan birbaşa yerinə qoy
-      for (let i = 0; i < 21; i++) this.current[i].copy(pts[i]);
+      for (let i = 0; i < 42; i++) this.current[i].copy(pts[i]);
       this.hasPose = true;
     }
     this.root.visible = true;
@@ -204,7 +207,7 @@ export class CyberHand {
     // Hədəfə yumşaq yaxınlaşma (kritik sönümlü yaxınlaşma kimi)
     const k = 1 - Math.exp(-14 * dt);
     if (this.pose) {
-      for (let i = 0; i < 21; i++) this.current[i].lerp(this.pose[i], k);
+      for (let i = 0; i < 42; i++) this.current[i].lerp(this.pose[i], k);
       this.fade = Math.min(1, this.fade + dt * 5);
     } else {
       // Poza yoxdursa mərkəzə yığmırıq (bloom-da nəhəng ləkə olur) — söndürürük
@@ -237,9 +240,15 @@ export class CyberHand {
   #updateBones() {
     const a = new THREE.Vector3(), b = new THREE.Vector3();
     const up = new THREE.Vector3(0, 1, 0), dir = new THREE.Vector3();
-    HAND_CONNECTIONS.forEach(([i, j], n) => {
+    const conns = this.isTwoHand ? [...HAND_CONNECTIONS, ...HAND_CONNECTIONS.map(([i,j])=>[i+21, j+21])] : HAND_CONNECTIONS;
+    
+    // Hide all bones first
+    for(let b of this.bones) b.visible = false;
+    
+    conns.forEach(([i, j], n) => {
       a.copy(this.current[i]); b.copy(this.current[j]);
       const bone = this.bones[n];
+      bone.visible = true;
       dir.subVectors(b, a);
       const len = dir.length();
       bone.position.copy(a);
@@ -249,9 +258,9 @@ export class CyberHand {
   }
 
   #updateTrails() {
-    // Ən köhnə izi yenidən istifadə edirik (halqavari bufer)
     const head = this.trails.pop();
-    HAND_CONNECTIONS.forEach(([i, j], n) => {
+    const conns = this.isTwoHand ? [...HAND_CONNECTIONS, ...HAND_CONNECTIONS.map(([i,j])=>[i+21, j+21])] : HAND_CONNECTIONS;
+    conns.forEach(([i, j], n) => {
       const o = n * 6;
       head.positions[o] = this.current[i].x;
       head.positions[o + 1] = this.current[i].y;
@@ -260,6 +269,13 @@ export class CyberHand {
       head.positions[o + 4] = this.current[j].y;
       head.positions[o + 5] = this.current[j].z;
     });
+    // zero out remaining positions if 1 hand
+    if (!this.isTwoHand) {
+       for(let n=conns.length; n<this.bones.length; n++) {
+          const o = n * 6;
+          head.positions.fill(0, o, o+6);
+       }
+    }
     head.line.geometry.attributes.position.needsUpdate = true;
     this.trails.unshift(head);
     this.trails.forEach((tr, idx) => {

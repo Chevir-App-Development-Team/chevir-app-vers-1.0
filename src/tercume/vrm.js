@@ -135,34 +135,69 @@ export class VrmAvatar {
   }
 
   /**
-   * Bir hərf pozasını bütün qola tətbiq edir.
-   * @param {Array<{x,y,z}>|null} landmarks 21 normallaşdırılmış nöqtə (null → hazır vəziyyət)
-   * @param {{pose?: object, frame?: number}} meta poses.json-dakı hərf və kadr indeksi
+   * Pozanı qola (və ya qollara) tətbiq edir.
+   * @param {Array<{x,y,z}>|null} landmarks 21 və ya 42 normallaşdırılmış nöqtə (null = hazır vəziyyət)
+   * @param {{pose?: object, frame?: number}} meta poses.json-dakı kadr indeksi
    */
   setHandPose(landmarks, meta = {}) {
-    if (!landmarks || landmarks.length !== 21) { this.clearHandPose(); return; }
+    if (!landmarks || (landmarks.length !== 21 && landmarks.length !== 42)) { 
+        this.clearHandPose(); 
+        return; 
+    }
     this.lastPose = { landmarks, meta };
     if (!this.rigs) return;
 
-    const side = this.hand;
     const { pose } = meta;
     const asked = meta.frame ?? 0;
+    this.mode = 'sign';
+    this.idle = 0;
+
+    // Əgər 42 nöqtədirsə, sol və sağ qolu eyni vaxtda idarə edirik
+    if (landmarks.length === 42) {
+        // extract_hands.py sorts by X coordinate. In a camera view, the right hand is on the left side (smaller X).
+        // So the first 21 points are the Right hand, and the second 21 points are the Left hand.
+        const rightLm = landmarks.slice(0, 21);
+        const leftLm = landmarks.slice(21, 42);
+        
+        // Sol qol
+        const solLeft = this.#solveSingleSide('left', leftLm, pose, asked);
+        if (solLeft) this.#setSide('left', solLeft.arm, solLeft.fingers);
+        else this.#toRest('left');
+        
+        // Sağ qol
+        const solRight = this.#solveSingleSide('right', rightLm, pose, asked);
+        if (solRight) this.#setSide('right', solRight.arm, solRight.fingers);
+        else this.#toRest('right');
+        
+        this.last = { isTwoHanded: true, left: solLeft, right: solRight, pose, frame: asked };
+        this.#frameCamera();
+    } else {
+        // 21 nöqtədirsə, yalnız aktiv qolu (this.hand) idarə edirik, digərini dincəldirik
+        const side = this.hand;
+        const sol = this.#solveSingleSide(side, landmarks, pose, asked);
+        if (sol) {
+            this.#setSide(side, sol.arm, sol.fingers);
+            this.last = { side, pose, frame: asked, ...sol };
+        }
+        this.#toRest(side === 'left' ? 'right' : 'left');
+        this.#frameCamera();
+    }
+  }
+
+  #solveSingleSide(side, landmarks, pose, asked) {
     const frame = this.#frameFor(pose, asked, side);
-    const lm = frame === asked ? landmarks : pose.frames[frame];
+    const lm = frame === asked ? landmarks : pose?.frames?.[frame] || landmarks;
     const cached = this.#solved.get(lm);
     let sol = cached?.[side];
     if (!sol) {
-      // dinamik hərfdə əvvəlki kadrın həlli verilir — dirsək kadrdan kadra sıçramasın
-      const prev = frame > 0 && this.last?.pose === pose && this.last.side === side ? this.last.arm.info : null;
+      const prev = frame > 0 && this.last?.pose === pose && (this.last?.side === side || this.last?.isTwoHanded) 
+          ? (this.last.isTwoHanded ? this.last[side]?.arm?.info : this.last.arm?.info) 
+          : null;
       sol = this.#solve(side, lm, pose, frame, prev);
-      if (!sol) return;
+      if (!sol) return null;
       this.#solved.set(lm, { ...cached, [side]: sol });
     }
-    this.#setSide(side, sol.arm, sol.fingers);
-    this.#toRest(side === 'left' ? 'right' : 'left');
-    this.mode = 'sign';
-    this.idle = 0;
-    this.last = { side, pose, frame, ...sol };
+    return sol;
   }
 
   /**
@@ -271,11 +306,22 @@ export class VrmAvatar {
   }
 
   /**
-   * Kamera sabitdir: baş və işarə məkanı birlikdə kadrdadır. Əlin arxasınca
-   * getmir — hərəkət kamera sarsıntısı kimi yox, bədənin hərəkəti kimi görünür.
+   * Kamera sabitdir: baş və işarə məkanı birlikdə kadrdadır.
    */
   #frameCamera() {
-    const rig = this.rigs?.[this.hand];
+    if (!this.rigs) return;
+    
+    if (this.last?.isTwoHanded) {
+      const head = this.rigs.right.head;
+      // İki əl olanda mərkəzə və bir az geriyə çəkirik ki, tam gövdə görünsün
+      const target = new THREE.Vector3(0, head.y - 0.2, head.z);
+      this.camera.position.set(target.x, target.y + 0.1, target.z + 1.6);
+      this.camera.lookAt(target);
+      this.camTarget = target;
+      return;
+    }
+
+    const rig = this.rigs[this.hand];
     if (!rig) return;
     const c = this.camFrame ?? { bias: 0.78, dist: 1.25, lift: 0 };
     const space = signAnchor(rig, UP).lerp(signAnchor(rig, DOWN), 0.5);

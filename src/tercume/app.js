@@ -264,8 +264,9 @@ function initT2S() {
   const input = $('#t2s-input');
   const refresh = () => {
     const text = input.value;
-    $('#spelled').innerHTML = [...text].length
-      ? [...text].map((c) => `<i>${escapeHtml(c === ' ' ? '␣' : c)}</i>`).join('')
+    const steps = t2s.plan(text);
+    $('#spelled').innerHTML = steps.length
+      ? steps.map((s) => `<i>${escapeHtml(s.kind === 'space' ? '␣' : s.char)}</i>`).join('')
       : '<span class="muted">—</span>';
     const miss = t2s.missing(text);
     const warn = $('#t2s-warn');
@@ -304,19 +305,34 @@ function initT2S() {
     });
   }
 
+  // Lüğət vərəqi
+  const words = Object.keys(state.poses.words || {});
+  $('#word-count').textContent = `${words.length} söz`;
+  $('#words').innerHTML = words.map((w) => {
+    return `<button data-w="${escapeHtml(w)}" title="${escapeHtml(w)}">${escapeHtml(w)}</button>`;
+  }).join('');
+  $('#words').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-w]');
+    if (!btn) return;
+    // Play the full word animation
+    t2s.play(btn.dataset.w);
+    $$('#words button').forEach((b) => b.classList.toggle('is-on', b === btn));
+  });
+
   // Əlifba vərəqi
   const letters = Object.keys(state.poses.letters);
   $('#abc-count').textContent = `${letters.length} hərf`;
   $('#abc').innerHTML = letters.map((ch) => {
     const dyn = state.poses.letters[ch].type === 'dynamic';
     return `<button data-ch="${escapeHtml(ch)}" class="${dyn ? 'dyn' : ''}"
-      title="${escapeHtml(ch)}${dyn ? ' · dinamik' : ''}">${escapeHtml(ch)}</button>`;
+      title="${escapeHtml(ch)}${dyn ? ' — dinamik' : ''}">${escapeHtml(ch)}</button>`;
   }).join('');
   $('#abc').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-ch]');
     if (!btn) return;
     t2s.showLetter(btn.dataset.ch);
     $$('.abc button').forEach((b) => b.classList.toggle('is-on', b === btn));
+    $$('#words button').forEach((b) => b.classList.remove('is-on')); // clear words
   });
 
   refresh();
