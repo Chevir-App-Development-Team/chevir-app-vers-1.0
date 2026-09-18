@@ -620,6 +620,12 @@ kbd {
   background: var(--chip);
 }
 
+.spelled i.w {
+  padding: 0 8px;
+  font-family: inherit;
+  font-weight: 600;
+}
+
 .spelled i.done {
   color: var(--ink-2);
 }
@@ -640,6 +646,14 @@ kbd {
   text-shadow: 0 0 34px rgba(255, 79, 151, 0.45);
   font-family: var(--mono);
   padding: 6px 0;
+}
+
+/* Söz işarəsi: bütöv söz göstərilir, ensiz paneldə sığsın */
+.current-letter.is-word {
+  font-size: 30px;
+  font-family: inherit;
+  padding: 19px 0;
+  overflow-wrap: anywhere;
 }
 
 .abc {
@@ -684,6 +698,57 @@ kbd {
 }
 
 .abc button.is-on.dyn::after {
+  color: #3a0a22;
+}
+
+/* ── lüğət ── */
+.word-search {
+  margin-bottom: 8px;
+}
+
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 196px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.words button {
+  appearance: none;
+  border: 1px solid var(--line-2);
+  background: var(--chip);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.words button:hover {
+  background: var(--panel-2);
+}
+
+.words button.is-on {
+  background: var(--sig);
+  border-color: var(--sig);
+  color: var(--on-light);
+}
+
+.words button.two::after {
+  content: '2';
+  margin-left: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--spk);
+  vertical-align: super;
+}
+
+.words button.is-on.two::after {
   color: #3a0a22;
 }
 

@@ -1,31 +1,33 @@
 /**
- * Mətn → işarə dili (barmaq əlifbası ilə hecalama).
+ * Mətn → jest dili: söz işarələri + barmaq əlifbası.
  *
- * Verilən mətni hərflərə ayırır, hər hərf üçün real əl pozasını lüğətdən
- * götürür və HƏM VRM avatarını, HƏM cyber skeleti eyni landmark-larla
- * canlandırır — yəni iki görüntü eyni mənbədən sürülür, uyğunsuzluq olmur.
+ * Mətn sözlərə bölünür. Lüğətdə olan söz və ifadələr (AzSLD Words 200, bax
+ * tools/build_words.py) bütöv işarə kimi, qalanları hərf-hərf göstərilir.
+ * HƏM VRM avatarı, HƏM cyber skeleton eyni landmark-larla sürülür.
  *
- * Poza mənbəyi: AzSLD barmaq əlifbası videolarından çıxarılmış MediaPipe
- * landmark-ları (bax tools/build_poses.py). Statik hərflər bir kadr,
- * dinamik hərflər kadr ardıcıllığıdır.
+ * Hərf pozaları: AzSLD barmaq əlifbası (tools/build_poses.py). Statik hərflər
+ * bir kadr, dinamik hərflər kadr ardıcıllığıdır.
  */
+import { WordLexicon, azLower } from './words.js';
 
 const DEFAULTS = {
   holdMs: 620,        // statik hərfin saxlanma müddəti
-  transitionMs: 180,  // hərflər arası keçid
+  transitionMs: 180,  // addımlar arası keçid
   dynamicFps: 14,     // dinamik hərfin oynatma sürəti
   spaceMs: 420,       // boşluq (söz sonu) fasiləsi
-  leadInMs: 380,      // ilk hərfdə əlavə vaxt: avatarın qolu istirahətdən qalxır
+  leadInMs: 380,      // ilk addımda əlavə vaxt: avatarın qolu istirahətdən qalxır
+  wordHoldMs: 260,    // söz işarəsinin son pozasında qısa saxlama
+  speed: 1,           // ümumi sürət: 0.5 — iki dəfə yavaş (izləyicinin sürət idarəsi)
 };
 
 export class TextToSign {
-  constructor({ poses, targets = [], onLetter, onState } = {}) {
+  constructor({ poses, lexicon = new WordLexicon(null), targets = [], onLetter, onState } = {}) {
     this.poses = poses;                 // {letters: {hərf: {type, frames}}}
-    this.targets = targets;             // [{setPose(lm)|setHandPose(lm)}]
+    this.lexicon = lexicon;
+    this.targets = targets;             // [{setHandPose, setWordPose} | {setPose}]
     this.onLetter = onLetter;
     this.onState = onState;
     this.opts = { ...DEFAULTS };
-    this.queue = [];
     this.playing = false;
     this.paused = false;
     this._abort = null;
@@ -35,26 +37,17 @@ export class TextToSign {
 
   /** Mətni oynadıla bilən addımlara çevirir. */
   plan(text) {
-    const steps = [];
     const letters = this.poses?.letters ?? {};
-    const words = this.poses?.words ?? {};
-    
-    // Regex matches words and spaces
-    const tokens = text.toLowerCase().match(/\S+|\s+/g) || [];
-    
-    for (const token of tokens) {
-      if (token.trim() === '') {
+    const steps = [];
+    for (const seg of this.lexicon.segment(text)) {
+      if (seg.kind === 'space') {
         steps.push({ kind: 'space', char: ' ' });
-      } else if (words[token]) {
-        steps.push({ kind: 'word', char: token, pose: words[token] });
+      } else if (seg.kind === 'word') {
+        steps.push({ kind: 'word', char: seg.text, entry: seg.entry });
       } else {
-        // Fallback to spelling
-        for (const raw of [...token]) {
-          if (letters[raw]) {
-            steps.push({ kind: 'letter', char: raw, pose: letters[raw] });
-          } else {
-            steps.push({ kind: 'unknown', char: raw });
-          }
+        for (const ch of seg.text) {
+          const c = azLower(ch);
+          steps.push(letters[c] ? { kind: 'letter', char: c, pose: letters[c] } : { kind: 'unknown', char: ch });
         }
       }
     }
@@ -63,8 +56,7 @@ export class TextToSign {
 
   /** Mətndə hansı simvolların pozası yoxdur. */
   missing(text) {
-    return [...new Set(this.plan(text)
-      .filter((s) => s.kind === 'unknown').map((s) => s.char))];
+    return [...new Set(this.plan(text).filter((s) => s.kind === 'unknown').map((s) => s.char))];
   }
 
   /** `meta` ({pose, frame}) avatara metrik 3D və trayektoriya üçün lazımdır. */
@@ -75,22 +67,13 @@ export class TextToSign {
     }
   }
 
-  /** İki əlli söz üçün: sol və sağ əli ayrı-ayrı göndərir. */
-  #emitWord(wordPose, frame) {
-    const leftLm = wordPose.left.frames[frame];
-    const rightLm = wordPose.right.frames[frame];
+  /** Söz kadrı: avatar bütöv kadrı alır, skeleton isə görünən əllərin nöqtələrini. */
+  #emitWord(word, f) {
+    const fr = word.frames[f];
+    const pts = [fr.L, fr.R].filter(Boolean).flatMap((h) => h.n.map(([x, y, z]) => ({ x, y, z })));
     for (const t of this.targets) {
-      if (typeof t.setWordPose === 'function') {
-        // Dedicated two-hand method if target supports it
-        t.setWordPose(wordPose, frame);
-      } else if (typeof t.setHandPose === 'function') {
-        // VRM fallback: call setHandPose with left and right separately
-        t.setHandPose(leftLm, { pose: wordPose.left, frame }, 'left');
-        t.setHandPose(rightLm, { pose: wordPose.right, frame }, 'right');
-      } else if (typeof t.setPose === 'function') {
-        // CyberHand: combine into 42-point array for skeleton display
-        t.setPose([...leftLm, ...rightLm]);
-      }
+      if (typeof t.setWordPose === 'function') t.setWordPose(word, f);
+      else if (typeof t.setPose === 'function') t.setPose(pts.length ? pts : null);
     }
   }
 
@@ -105,6 +88,18 @@ export class TextToSign {
     this.paused = false;
     this.onState?.({ playing: true, total: steps.length, index: 0 });
 
+    // Söz kadrları əvvəlcədən gətirilir və həll olunur — oynatma ortasında şəbəkə
+    // və hesablama gözlənilməsin. Yüklənməyən söz hərf-hərf göstərilir.
+    const words = new Map();
+    await Promise.all(steps.filter((s) => s.kind === 'word').map(async (s) => {
+      words.set(s.entry.id, await this.lexicon.get(s.entry.id).catch(() => null));
+    }));
+    if (this._abort !== token) return;
+    for (const word of words.values()) {
+      if (word) for (const t of this.targets) t.prepareWord?.(word);
+    }
+
+    const sp = () => Math.max(this.opts.speed, 0.1);
     let first = true;
     for (let i = 0; i < steps.length; i++) {
       if (this._abort !== token) return;
@@ -114,42 +109,46 @@ export class TextToSign {
 
       if (step.kind === 'space') {
         this.#emit(null);
-        await this.#wait(this.opts.spaceMs, token);
+        await this.#wait(this.opts.spaceMs / sp(), token);
       } else if (step.kind === 'unknown') {
-        await this.#wait(this.opts.transitionMs, token);
-      } else if (step.kind === 'word') {
-        // Two-handed word animation
-        const { pose } = step;   // { type: 'dynamic', left: {...}, right: {...} }
-        const numFrames = pose.left.frames.length;
+        await this.#wait(this.opts.transitionMs / sp(), token);
+      } else if (step.kind === 'word' && words.get(step.entry.id)) {
+        const word = words.get(step.entry.id);
         const lead = first ? this.opts.leadInMs : 0;
         first = false;
-        const dt = 1000 / (this.opts.dynamicFps * 1.4); // words play slightly faster
-        for (let f = 0; f < numFrames; f++) {
+        const dt = 1000 / (word.fps * sp());
+        for (let f = 0; f < word.frames.length; f++) {
           if (this._abort !== token) return;
-          this.#emitWord(pose, f);
+          this.#emitWord(word, f);
           await this.#wait(f === 0 ? dt + lead : dt, token);
         }
-        await this.#wait(this.opts.holdMs * 0.45, token);
-        await this.#wait(this.opts.transitionMs, token);
+        await this.#wait((this.opts.wordHoldMs + this.opts.transitionMs) / sp(), token);
+      } else if (step.kind === 'word') {
+        // Söz yüklənmədi — hərf-hərf
+        for (const c of step.char.replace(/\s+/g, '')) {
+          const pose = this.poses?.letters?.[c];
+          if (!pose || this._abort !== token) continue;
+          this.#emit(pose.frames[0], { pose, frame: 0 });
+          await this.#wait((this.opts.holdMs + this.opts.transitionMs) / sp(), token);
+        }
       } else {
-        // Single-hand letter
         const { pose } = step;
         const frames = pose.frames;
         const lead = first ? this.opts.leadInMs : 0;
         first = false;
         if (pose.type === 'dynamic' && frames.length > 1) {
-          const dt = 1000 / this.opts.dynamicFps;
+          const dt = 1000 / (this.opts.dynamicFps * sp());
           for (let f = 0; f < frames.length; f++) {
             if (this._abort !== token) return;
             this.#emit(frames[f], { pose, frame: f });
             await this.#wait(f === 0 ? dt + lead : dt, token);
           }
-          await this.#wait(this.opts.holdMs * 0.45, token);
+          await this.#wait(this.opts.holdMs * 0.45 / sp(), token);
         } else {
           this.#emit(frames[0], { pose, frame: 0 });
-          await this.#wait(this.opts.holdMs + lead, token);
+          await this.#wait(this.opts.holdMs / sp() + lead, token);
         }
-        await this.#wait(this.opts.transitionMs, token);
+        await this.#wait(this.opts.transitionMs / sp(), token);
       }
     }
 
@@ -163,10 +162,10 @@ export class TextToSign {
   /** Tək hərfi göstərir (əlifba vərəqi üçün). */
   showLetter(ch) {
     this.stop();
-    const pose = this.poses?.letters?.[ch.toLowerCase()];
+    const pose = this.poses?.letters?.[azLower(ch)];
     if (!pose) return false;
     this.#emit(pose.frames[0], { pose, frame: 0 });
-    this.onLetter?.({ kind: 'letter', char: ch.toLowerCase(), pose, index: 0, total: 1 });
+    this.onLetter?.({ kind: 'letter', char: azLower(ch), pose, index: 0, total: 1 });
     return true;
   }
 
@@ -184,7 +183,6 @@ export class TextToSign {
     while (performance.now() < end || this.paused) {
       if (this._abort !== token) return;
       await new Promise((r) => setTimeout(r, 16));
-      if (this.paused) continue;
     }
   }
 }

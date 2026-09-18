@@ -5,3 +5,4 @@ const BASE = `${import.meta.env?.BASE_URL ?? '/'}tercume/`
 
 export const ASSET_BASE = `${BASE}assets/`
 export const WASM_BASE = `${BASE}wasm`
+export const WORDS_BASE = `${BASE}words/`

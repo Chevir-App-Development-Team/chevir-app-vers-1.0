@@ -11,14 +11,15 @@ Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında tərcümə: lay
 | Modul | Nə edir |
 |---|---|
 | **Jest → Mətn** | Veb-kamera → MediaPipe Hands → 20×63 → model → beam search + leksikon → Azərbaycan sözü |
-| **Mətn → Jest** | Mətn → hərflər → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
+| **Mətn → Jest** | Mətn → söz işarələri (192 söz) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
 
 Tərcümə üçün server yoxdur: video cihazdan çıxmır, gecikmə minimaldır, sayt statik fayl
 kimi hər yerdə host oluna bilər (jest dili videosu istifadəçinin üzünü daşıyır — məxfilik
 təsadüfi seçim deyil).
 
-> **Hazırkı həcm:** sistem yalnız barmaq əlifbasını tanıyır və göstərir — 32 hərf və
-> boşluq / enter / backspace. Söz və cümlə səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
+> **Hazırkı həcm:** kamera yalnız barmaq əlifbasını tanıyır — 32 hərf və boşluq / enter /
+> backspace. Avatar isə 192 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
+> Kameradan söz səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
 
 ## İşə salmaq
 
@@ -49,7 +50,8 @@ Kamera yalnız HTTPS və ya `localhost` üzərində işləyir (brauzer qaydası)
 
 - **Jest → Mətn** — kamerasız da sınana bilər: klaviaturadan hərf yazın (`s a l a m`),
   sağda beam və leksikon canlı işləyir. `Enter` sözü tamamlayır.
-- **Mətn → Jest** — mətn yazıb "Jest dilində göstər" düyməsinə basın, ya da əlifbadan hərfə toxunun.
+- **Mətn → Jest** — mətn yazıb "Jest dilində göstər" düyməsinə basın (lüğətdəki sözlər bütöv
+  işarə, qalanı hərf-hərf), ya da Lüğət / Əlifba vərəqindən sözə və ya hərfə toxunun.
 - **Model** — memarlıq və real AzSLD üzərində ölçmələr.
 
 ## Qovluq quruluşu
@@ -67,6 +69,7 @@ src/
     decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
     hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
     s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
+    words.js             söz lüğəti: mətni söz / ifadə / hərflərə bölür, sözü lazım olanda yükləyir
     skeleton.js          Three.js cyber skeleton (UnrealBloom)
     retarget.js          landmark → avatar: əl oriyentasiyası, qol IK, oynaq həddləri
     vrm.js               VRM 1.0 avatar: yaylı animasiya, nəfəs, göz qırpma, istirahət
@@ -74,11 +77,13 @@ src/
 public/
   media/, *.svg, og-image.png   sayt faylları
   tercume/assets/        model.bin, lm.json, vocab.json, poses.json, hand_landmarker.task
+  tercume/words/         söz işarələri: index.json + hər söz üçün <id>.json
   tercume/wasm/          MediaPipe wasm — @mediapipe/tasks-vision 0.10.14 ilə eyni olmalıdır
 tools/
   export_model.py        model/fingerspelling_33.h5 → model.bin + model.json
   build_lexicon.py       model/lexicon.txt → bigram DM + lüğət + prefikslər
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
+  build_words.py         AzSLD Words 200 videoları → public/tercume/words/ (poza + iki əl)
   verify_*.mjs/py        reqressiya yoxlamaları
 model/
   fingerspelling_33.h5   barmaq əlifbası modeli (mənbə)
@@ -100,10 +105,16 @@ python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
 .venv/bin/python tools/export_model.py     # model → model.bin + model.json
 .venv/bin/python tools/build_lexicon.py    # leksikon → lm.json, vocab.json, prefixes.json
 .venv/bin/python tools/build_poses.py      # AzSLD şəkilləri → poses.json
+.venv/bin/python tools/build_words.py      # AzSLD söz videoları → public/tercume/words/
 ```
 
 `build_poses.py` üçün AzSLD Fingerspelling datasetini (Zenodo 14222948, ~1.1 GB)
 `data/AzSLD_Fingerspelling/` altına açın və ya `--fs-dir` ilə yolunu verin. `data/` git-ə düşmür.
+
+`build_words.py` AzSLD Words 200 videolarını (`--words-dir`, standart `data/AzSLD_Words_200/`)
+və MediaPipe Pose modelini (`--pose-model`, standart `data/models/pose_landmarker_lite.task`,
+[yükləmə](https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task))
+istifadə edir; hər söz üçün 6-ya qədər video emal edib ən təmizini seçir.
 
 ## Modelin dəqiq portu
 
@@ -226,6 +237,40 @@ Datadan gələn üç tələ nəzərə alınıb:
 
 Barmaq xətasının qalanı əsasən oynaq həddlərindən gəlir: MediaPipe-in təxmin etdiyi
 yana və ya arxaya bükülmə anatomik mümkün deyilsə, avatar onu təkrarlamır.
+
+## Söz işarələri
+
+192 söz və ifadə (AzSLD Words 200, CC BY 4.0; tək hərfli etiketlər barmaq əlifbası ilə
+qarışdığı üçün buraxılıb). Mətn sözlərə bölünür və ən uzun uyğunluq axtarılır: "zəhmət
+olmasa", "bu gün" bütöv işarədir, lüğətdə olmayan söz hərf-hərf göstərilir.
+
+`tools/build_words.py` hər video kadrında iki şeyi çıxarır: MediaPipe **Pose** — çiyinlər,
+dirsəklər, biləklər, burun (əlin bədənə görə yeri) və MediaPipe **Hands** — hər iki əlin
+forması. Sağ/sol əl ekrandakı yerə görə yox, pozanın biləklərinə yaxınlığa görə təyin olunur
+(əllər çarpazlaşanda da düzgün qalır).
+
+Avatarda (`vrm.js`, `setWordPose`) hər iki qol birlikdə qurulur:
+
+1. **Yer bədənə nisbətəndir.** Siqnalçının çiyin çərçivəsi avatarın çiyinlərinə köçürülür
+   (miqyas — çiyin eninin nisbəti). "Yuxarı" şaquldur: oturan siqnalçının gövdə oxu ~20°
+   kameraya əyilir, ona görə öndəki əllər yuxarı qalxardı.
+2. **Üzə yaxın işarələr** (yanaq, çənə, qulaq) burundan ölçülür, üzə ən yaxın barmaq ucu
+   üzə köçürülür və ovuc ondan geri hesablanır — anime avatarın başı böyük, əli kiçikdir,
+   toxunma belə saxlanır. Ovuc başa və gövdəyə girmir.
+3. **Dirsək** siqnalçının dirsəyinə uyğun seçilir, bilək anatomik həddlərdə qalır.
+4. MediaPipe tək kameradan əlin dərinliyini hərdən güzgü kimi tərs verir. Hər kadrda iki
+   variant yoxlanır və bütün söz üzrə ən mümkün, ən hamar ardıcıllıq seçilir (Viterbi).
+   Tək kadrlıq səhv oriyentasiya oynadılmır.
+5. Dizin üstündə dayanan (işarədə iştirak etməyən) əl istirahətə enir; baza əl qalır.
+6. Kamera bütün işarəni — hər iki əlin bütün kadrlarını — kadra sığdırır.
+
+192 söz üzrə brauzerdə ölçülüb: ovucun hədəfdən məsafəsi median 2 sm (90% — 7 sm-dən
+az), barmaqların gövdəyə girməsi 0, kadrdan çıxan əl 0, başa girmə ≤ 1 sm (2 söz), bilək
+həddini azca aşan söz 10. Söz fayllarının formatı və mətnin bölünməsi:
+
+```bash
+node tools/verify_words.mjs
+```
 
 ## Mənbələr
 

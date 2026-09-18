@@ -17,7 +17,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import {
-  FINGER_CHAINS, measureRig, handTarget, frameSource, signAnchor, solveArm, solveFingers,
+  FINGER_CHAINS, measureRig, handTarget, mirrorEvidence, frameSource, signAnchor, solveArm, solveFingers,
   restArm, readyHand, relaxedFingers, trajectory, quatToVec, vecToQuat,
 } from './retarget.js';
 
@@ -27,10 +27,27 @@ const OMEGA = { arm: 11, hand: 15, finger: 21, body: 6 };
 const PAUSE_TO_REST = 0.9;   // s — yeni poza gəlməsə qol aşağı enir
 const BODY = ['spine', 'chest', 'upperChest', 'neck', 'head'];
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
+const DEG = Math.PI / 180;
+
+const CONTACT = [4, 8, 12, 16, 20, 5, 17];   // üzə toxuna bilən əl nöqtələri: barmaq ucları və ovucun kənarları
+
+/**
+ * Siqnalçının əl nöqtəsi pozanın koordinatlarında: pozanın biləyi + əl landmark-ının
+ * biləyə nisbətən yeri (metrlə, oxlar eynidir). j = 'palm' — ovuc mərkəzi, avatarın
+ * rig.palmOff-u ilə eyni nöqtələrdən: bilək, şəhadət, orta və çeçələ barmağın kökü.
+ */
+function signerPoint(wrist, hand, j, flipDepth) {
+  const off = j === 'palm'
+    ? [0, 1, 2].map((k) => (hand[5][k] + hand[9][k] + hand[17][k] - 3 * hand[0][k]) / 4)
+    : [0, 1, 2].map((k) => hand[j][k] - hand[0][k]);
+  if (flipDepth) off[2] = -off[2];
+  return wrist.map((v, k) => v + off[k]);
+}
 
 export class VrmAvatar {
   #solved = new WeakMap();       // landmark kadrı → {left, right} həll (poza datası dəyişmir)
   #spikes = new WeakMap();       // dinamik poza → {left, right} kadr xəritəsi
+  #words = new WeakMap();        // söz → kadrlar üzrə {left, right} həll
   #euler = new THREE.Euler();
   #v = new THREE.Vector3();
   #q = new THREE.Quaternion();
@@ -84,6 +101,10 @@ export class VrmAvatar {
       VRMUtils.deepDispose(this.vrm.scene);
       this.vrm = null;
     }
+    // Keşlənmiş həllər əvvəlki avatarın sümük uzunluqları ilə hesablanıb
+    this.#solved = new WeakMap();
+    this.#spikes = new WeakMap();
+    this.#words = new WeakMap();
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(url);
@@ -108,6 +129,8 @@ export class VrmAvatar {
         relaxed: relaxedFingers(rig),
       };
     }
+
+    this.body = this.#measureBody(vrm.humanoid);
 
     this.#initSprings();
     for (const side of SIDES) this.#toRest(side);
@@ -135,78 +158,35 @@ export class VrmAvatar {
   }
 
   /**
-   * Pozanı qola tətbiq edir.
+   * Hərf pozasını aktiv qola tətbiq edir (söz işarələri üçün setWordPose).
    * @param {Array<{x,y,z}>|null} landmarks 21 normallaşdırılmış nöqtə (null = hazır vəziyyət)
    * @param {{pose?: object, frame?: number}} meta poses.json-dakı kadr indeksi
-   * @param {string} [side] - 'left' or 'right'. If omitted, uses this.hand (single-hand mode)
    */
-  setHandPose(landmarks, meta = {}, side = null) {
-    if (!landmarks || landmarks.length !== 21) { 
-        if (side) {
-            this.#toRest(side);
-        } else {
-            this.clearHandPose();
-        }
-        return; 
-    }
+  setHandPose(landmarks, meta = {}) {
+    if (!landmarks || landmarks.length !== 21) { this.clearHandPose(); return; }
     this.lastPose = { landmarks, meta };
     if (!this.rigs) return;
 
+    const side = this.hand;
     const { pose } = meta;
     const asked = meta.frame ?? 0;
-    this.mode = 'sign';
-    this.idle = 0;
-
-    if (side) {
-      // Two-handed word mode: solve the specified side
-      const sol = this.#solveSingleSide(side, landmarks, pose, asked);
-      if (sol) this.#setSide(side, sol.arm, sol.fingers);
-      else this.#toRest(side);
-      
-      // Track per-side state
-      if (!this.last) this.last = {};
-      this.last.isTwoHanded = true;
-      this.last[side] = sol;
-      this.last.pose = pose;
-      this.last.frame = asked;
-      
-      // After both sides are set, frame the camera
-      this.#frameCamera();
-    } else {
-      // Single-hand letter mode (original behavior)
-      const activeSide = this.hand;
-      const sol = this.#solveSingleSide(activeSide, landmarks, pose, asked);
-      if (sol) {
-        this.#setSide(activeSide, sol.arm, sol.fingers);
-        this.last = { side: activeSide, pose, frame: asked, isTwoHanded: false, ...sol };
-      }
-      this.#toRest(activeSide === 'left' ? 'right' : 'left');
-      this.#frameCamera();
-    }
-  }
-
-  #solveSingleSide(side, landmarks, pose, asked) {
-    // For spike detection in dynamic letters, #frameFor may remap the frame.
-    // But we always use the landmarks passed to us (already the correct 21 points).
-    // Only for single-hand letter poses do we allow frame remapping.
-    let frame = asked;
-    let lm = landmarks;
-    if (pose?.frames && pose.frames[0]?.length === 21) {
-      // Single-hand letter pose — safe to use #frameFor and remap
-      frame = this.#frameFor(pose, asked, side);
-      if (frame !== asked) lm = pose.frames[frame] || landmarks;
-    }
+    const frame = this.#frameFor(pose, asked, side);
+    const lm = frame === asked ? landmarks : pose.frames[frame];
     const cached = this.#solved.get(lm);
     let sol = cached?.[side];
     if (!sol) {
-      const prev = frame > 0 && this.last?.pose === pose && (this.last?.side === side || this.last?.isTwoHanded) 
-          ? (this.last.isTwoHanded ? this.last[side]?.arm?.info : this.last.arm?.info) 
-          : null;
+      // dinamik hərfdə əvvəlki kadrın həlli verilir — dirsək kadrdan kadra sıçramasın
+      const prev = frame > 0 && this.last?.pose === pose && this.last.side === side ? this.last.arm.info : null;
       sol = this.#solve(side, lm, pose, frame, prev);
-      if (!sol) return null;
+      if (!sol) return;
       this.#solved.set(lm, { ...cached, [side]: sol });
     }
-    return sol;
+    this.#setSide(side, sol.arm, sol.fingers);
+    this.#toRest(side === 'left' ? 'right' : 'left');
+    this.mode = 'sign';
+    this.idle = 0;
+    this.last = { side, pose, frame, ...sol };
+    this.#frameCamera();
   }
 
   /**
@@ -253,11 +233,235 @@ export class VrmAvatar {
     };
   }
 
+  /**
+   * Söz işarəsinin bir kadrı — hər iki qol (format: tools/build_words.py).
+   * Əlin yeri siqnalçının çiyinlərinə nisbətən ölçülüb avatarın çiyinlərinə
+   * köçürülür: yanağa, çənəyə, sinəyə toxunan işarələr öz yerində qalır.
+   * Əlin forması və oriyentasiyası hərflərdəki kimi landmark-lardan gəlir.
+   */
+  setWordPose(word, frame) {
+    if (!this.rigs) return;
+    const sol = this.#wordFrame(word, frame);
+    for (const side of SIDES) {
+      if (sol[side]) this.#setSide(side, sol[side].arm, sol[side].fingers);
+      else this.#toRest(side);
+    }
+    this.mode = 'sign';
+    this.idle = 0;
+    this.last = { word, frame, ...sol };
+    this.#frameCamera('word', this.#wordBounds(word));
+  }
+
+  /** Sözü əvvəlcədən həll edir (oynatmadan qabaq, ilk kadrda ləngimə olmasın). */
+  prepareWord(word) {
+    if (this.rigs) this.#wordBounds(word);
+  }
+
+  #wordFrame(word, f) {
+    return this.#wordSolve(word)[f];
+  }
+
+  /**
+   * Sözün bütün kadrları birlikdə həll olunur. MediaPipe tək kameradan əlin
+   * dərinliyini hərdən güzgü kimi tərs verir (barmaqlar irəli əvəzinə bədənə
+   * baxır). Hər kadrda iki variant yoxlanır — dərinlik olduğu kimi və güzgülənmiş —
+   * və bütün kadrlar üzrə ən yaxşı ardıcıllıq seçilir (Viterbi): qol anatomik
+   * mümkün olsun, dirsək siqnalçınınkına uyğun olsun, əl kadrdan kadra sıçramasın.
+   */
+  #wordSolve(word) {
+    let sol = this.#words.get(word);
+    if (sol) return sol;
+    sol = word.frames.map(() => ({ left: null, right: null }));
+    const places = word.frames.map((fr) => (fr.b ? this.#signerToAvatar(fr.b) : null));
+    const ang = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b))));
+
+    for (const [side, key, wrist] of [['left', 'L', 5], ['right', 'R', 6]]) {
+      const rig = this.rigs[side];
+      const cand = word.frames.map((fr, f) => {
+        const hand = fr[key];
+        if (!hand || !fr.b) return null;
+        const place = places[f];
+        // Dizin üstündə dayanan (işarədə iştirak etməyən) əl istirahətə enir; baza əl
+        // (biler, saat, bayraq) bu həddən yuxarıda qalır
+        if (place.height(fr.b[wrist]) < -1.05) return null;
+        const norm = hand.n.map(([x, y, z]) => ({ x, y, z }));
+        const ev = mirrorEvidence(hand.w, side);
+        const row = [false, true].map((flip) => {
+          const target = handTarget(rig, { world: hand.w, norm, size: word.size, flipDepth: flip });
+          const anchor = this.#keepOut(this.#wordPalm(place, fr.b[wrist], hand.w, flip, rig));
+          const arm = solveArm(rig, target.R, anchor, null, { elbow: place.body(fr.b[wrist - 2]), shiftCost: 300 });
+          if (!arm) return null;
+          return { target, arm, anchor, cost: arm.info.cost + 0.3 * Math.max(0, flip ? -ev : ev) };
+        });
+        return row.some(Boolean) ? row : null;
+      });
+
+      // İrəli keçid: hər kadrın hər variantı üçün ən ucuz yol və haradan gəldiyi
+      const acc = cand.map(() => null);
+      cand.forEach((row, f) => {
+        if (!row) return;
+        acc[f] = row.map((c) => {
+          if (!c) return null;
+          let best = { total: c.cost, from: -1 };
+          acc[f - 1]?.forEach((p, i) => {
+            if (!p) return;
+            const t = p.total + c.cost + 2 * ang(cand[f - 1][i].target.R, c.target.R) ** 2;
+            if (best.from < 0 || t < best.total) best = { total: t, from: i };
+          });
+          return best;
+        });
+      });
+      // Geri izləmə (əlin görünmədiyi kadrlar ardıcıllığı hissələrə bölür)
+      const pick = cand.map(() => null);
+      for (let f = acc.length - 1; f >= 0; f--) {
+        if (!acc[f]) continue;
+        let j = !acc[f][1] || (acc[f][0] && acc[f][0].total <= acc[f][1].total) ? 0 : 1;
+        for (; f >= 0 && acc[f]?.[j]; f--) {
+          pick[f] = cand[f][j];
+          j = acc[f][j].from;
+          if (j < 0) break;
+        }
+      }
+      // Tək kadrlıq sıçrayış (MediaPipe əli bir kadr səhv oriyentasiyada verir): həll
+      // qonşulardan qat-qat baha, ya da əl hər iki qonşudan kəskin fərqlənir, qonşular
+      // isə bir-birinə yaxındır — o kadrda əvvəlki poza saxlanır
+      const R = (f) => pick[f].target.R;
+      const spike = pick.map((c, f) => {
+        const a = pick[f - 1], b = pick[f + 1];
+        if (!c || !a || !b) return false;
+        return (c.cost > 4 && c.cost > 3 * Math.max(a.cost, b.cost)) ||
+          (ang(R(f), R(f - 1)) > 50 * DEG && ang(R(f), R(f + 1)) > 50 * DEG && ang(R(f - 1), R(f + 1)) < 35 * DEG);
+      });
+      pick.forEach((c, f) => {
+        if (!c) return;
+        const use = spike[f] ? pick[f - 1] : c;
+        sol[f][side] = { ...use, fingers: solveFingers(rig, use.target.shape, use.target.shapeRinv) };
+      });
+    }
+    this.#words.set(word, sol);
+    return sol;
+  }
+
+  /** Sözün bütün kadrlarında əllərin tutduğu sahə (baş və çiyinlər də daxil) — kamera üçün. */
+  #wordBounds(word) {
+    const sol = this.#wordSolve(word);
+    if (!sol.bounds) {
+      const b = this.body;
+      const box = new THREE.Box3()
+        .expandByPoint(b.headCenter.clone().add(new THREE.Vector3(0, b.headRadius, 0)))
+        .expandByPoint(b.mid.clone().add(new THREE.Vector3(0, -0.25, 0)))
+        .expandByPoint(this.rigs.left.S).expandByPoint(this.rigs.right.S);
+      for (const fr of sol) {
+        for (const side of SIDES) if (fr[side]) box.expandByPoint(fr[side].anchor);
+      }
+      box.expandByVector(new THREE.Vector3(0.13, 0.13, 0));   // barmaqlar ovucdan kənara çıxır
+      sol.bounds = box;
+    }
+    return sol.bounds;
+  }
+
+  /**
+   * Siqnalçının çiyin çərçivəsi qurulur və nöqtə avatarın gövdəsinə köçürülür;
+   * miqyas çiyin eninin nisbətidir. Çiyin xətti bədənin dönməsini nəzərə alır.
+   * "Yuxarı" şaquldur (kamera düz dayanır), gövdə oxu deyil: oturan siqnalçının
+   * budları etibarsız tapılır və gövdə oxu ~20° kameraya əyilir — öndəki əllər
+   * avatarda yuxarı qalxardı. Baş isə gövdə ilə birgə önə əyilir, ona görə üzə
+   * yaxın nöqtə (yanaq, çənə, qulaq) burundan ölçülüb avatarın üzünə köçürülür;
+   * arada iki yerləşmə məsafəyə görə qarışdırılır. Pozanın dərinliyi zəifdir
+   * (qulaqdakı əl burundan önə düşür), ona görə üzə yaxın dərinlik yarıya sıxılır.
+   */
+  #signerToAvatar(b) {
+    const P = b.map(([x, y, z]) => new THREE.Vector3(x, -y, -z));
+    const mid = P[1].clone().add(P[2]).multiplyScalar(0.5);
+    const ax = P[1].clone().sub(P[2]);
+    const k = this.body.shoulderWidth / ax.length();
+    ax.normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    up.addScaledVector(ax, -up.dot(ax)).normalize();
+    const fwd = new THREE.Vector3().crossVectors(ax, up);
+    const vec = ([x, y, z]) => new THREE.Vector3(x, -y, -z);
+    const local = (d, depth = 1) => new THREE.Vector3(d.dot(ax), d.dot(up), depth * d.dot(fwd));
+    return {
+      /** Çiyinlərə nisbətən yer (dirsək, gövdə önündəki əl). */
+      body: (q) => local(vec(q).sub(mid)).multiplyScalar(k).add(this.body.mid),
+      /** Burundan ölçülən yer, dərinlik yarıya sıxılır. */
+      face: (q) => local(vec(q).sub(P[0]), 0.5).multiplyScalar(k).add(this.body.nose),
+      /** Üzə yaxınlıq: 1 — üzdə, 0 — ≥26 sm uzaqda. */
+      near: (q) => 1 - THREE.MathUtils.smoothstep(local(vec(q).sub(P[0]), 0.5).length(), 0.12, 0.26),
+      /** Siqnalçının istiqamət vektoru avatarın oxlarında (miqyassız). */
+      dir: (d) => local(vec(d)),
+      /** Çiyin ortasından şaquli məsafə, siqnalçının çiyin eni vahidində. */
+      height: (q) => (local(vec(q).sub(mid)).y * k) / this.body.shoulderWidth,
+    };
+  }
+
+  /**
+   * Söz kadrında ovucun hədəfi. Gövdə önündə ovuc çiyinlərə nisbətən köçürülür.
+   * Üzə yaxın işarədə isə üzə ən yaxın əl nöqtəsi (barmaq ucu, ovucun kənarı) üzə
+   * nisbətən köçürülür və ovuc ondan avatarın əl ölçüsü ilə geri hesablanır: anime
+   * avatarın başı böyük, əli kiçikdir — qulağa, yanağa toxunma belə saxlanır.
+   */
+  #wordPalm(map, wrist, hand, flip, rig) {
+    const palm = signerPoint(wrist, hand, 'palm', flip);
+    const body = map.body(palm);
+    let contact = palm, near = map.near(palm);
+    for (const j of CONTACT) {
+      const q = signerPoint(wrist, hand, j, flip);
+      const n = map.near(q);
+      if (n > near) { near = n; contact = q; }
+    }
+    if (near <= 0) return body;
+    const scale = rig.palmOff.length() / Math.hypot(...[0, 1, 2].map((k) => palm[k] - wrist[k]));
+    const back = map.dir(palm.map((v, k) => v - contact[k])).multiplyScalar(scale);
+    return map.face(contact).add(back).lerp(body, 1 - near);
+  }
+
+  /** Anime avatarın başı böyükdür: ovuc başın və gövdənin içinə girməsin. */
+  #keepOut(p) {
+    const b = this.body;
+    const d = p.clone().sub(b.headCenter);
+    const r = b.headRadius + 0.03;
+    if (d.length() < r) {
+      if (d.z < 0.25 * d.length()) d.z = 0.25 * d.length();   // üzə tərəf itələnir
+      p.copy(b.headCenter).addScaledVector(d.normalize(), r);
+    }
+    if (p.y < b.torsoTop && p.y > b.torsoBottom && Math.abs(p.x - b.mid.x) < b.torsoHalfWidth && p.z < b.chestZ) {
+      p.z = b.chestZ;
+    }
+    return p;
+  }
+
+  /** Söz işarələri üçün bədən ölçüləri — T-pozada, yaylardan əvvəl çağırılır. */
+  #measureBody(humanoid) {
+    const pos = (n) => humanoid.getNormalizedBoneNode(n)?.getWorldPosition(new THREE.Vector3());
+    const L = this.rigs.left.S, R = this.rigs.right.S;
+    const head = pos('head'), hips = pos('hips'), chest = pos('upperChest') ?? pos('chest');
+    const headCenter = head.clone().add(new THREE.Vector3(0, 0.085, 0.015));
+    const eyeL = pos('leftEye'), eyeR = pos('rightEye');
+    // Burnun ucu: göz almalarının ortasından 4 sm aşağı, 9.5 sm irəli (hər iki avatarın
+    // mesh-inə şüa atılaraq ölçülüb); göz sümüyü yoxdursa başın mərkəzindən
+    const nose = eyeL && eyeR
+      ? eyeL.clone().add(eyeR).multiplyScalar(0.5).add(new THREE.Vector3(0, -0.04, 0.095))
+      : headCenter.clone().add(new THREE.Vector3(0, -0.062, 0.1));
+    return {
+      mid: L.clone().add(R).multiplyScalar(0.5),
+      shoulderWidth: L.distanceTo(R),
+      headCenter,
+      nose,
+      headRadius: 0.115,
+      chestZ: chest.z + 0.13,
+      torsoTop: L.y + 0.02,
+      torsoBottom: hips.y,
+      torsoHalfWidth: 0.17,
+    };
+  }
+
   /** Poza bitdi: əl hazır vəziyyətə keçir, bir az sonra qol aşağı enir. */
   clearHandPose() {
     if (!this.rigs || this.mode === 'rest') return;
     const p = this.presets[this.hand];
     this.#setSide(this.hand, p.ready, p.relaxed);
+    this.#toRest(this.hand === 'left' ? 'right' : 'left');   // sözdən sonra ikinci əl də enir
     this.mode = 'pause';
     this.idle = 0;
   }
@@ -269,6 +473,11 @@ export class VrmAvatar {
       s.q.copy(s.target);
       s.w.set(0, 0, 0);
       s.node.quaternion.copy(s.q);
+    }
+    if (this.camGoal) {
+      this.camera.position.copy(this.camGoal.pos);
+      this.camTarget.copy(this.camGoal.target);
+      this.camera.lookAt(this.camTarget);
     }
     this.vrm?.update(0);
   }
@@ -315,30 +524,33 @@ export class VrmAvatar {
   }
 
   /**
-   * Kamera sabitdir: baş və işarə məkanı birlikdə kadrdadır.
+   * Kamera: hərfdə işarə edən əlin tərəfinə yaxın, sözdə gövdənin mərkəzinə
+   * (iki əl, üz və sinə birlikdə görünsün). Çərçivələr arasında yumşaq keçir.
    */
-  #frameCamera() {
+  #frameCamera(kind = 'letter', bounds = null) {
     if (!this.rigs) return;
-    
-    if (this.last?.isTwoHanded) {
-      const head = this.rigs.right.head;
-      // İki əl olanda mərkəzə və bir az geriyə çəkirik ki, tam gövdə görünsün
-      const target = new THREE.Vector3(0, head.y - 0.2, head.z);
-      this.camera.position.set(target.x, target.y + 0.1, target.z + 1.6);
-      this.camera.lookAt(target);
-      this.camTarget = target;
-      return;
+    let target, dist;
+    if (kind === 'word') {
+      // Sahə kadra sığsın: şaquli və üfüqi görmə bucağına görə məsafə, ən azı 1.4 m
+      const size = bounds.getSize(new THREE.Vector3());
+      const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+      target = bounds.getCenter(new THREE.Vector3());
+      target.z = this.body.mid.z + 0.08;
+      dist = THREE.MathUtils.clamp(Math.max(size.y / 2 / tan, size.x / 2 / (tan * this.camera.aspect)) + 0.1, 1.4, 2.4);
+    } else {
+      const rig = this.rigs[this.hand];
+      const c = this.camFrame ?? { bias: 0.78, dist: 1.25, lift: 0 };
+      const space = signAnchor(rig, UP).lerp(signAnchor(rig, DOWN), 0.5);
+      target = rig.head.clone().lerp(space, c.bias);
+      target.y += c.lift;
+      dist = c.dist;
     }
-
-    const rig = this.rigs[this.hand];
-    if (!rig) return;
-    const c = this.camFrame ?? { bias: 0.78, dist: 1.25, lift: 0 };
-    const space = signAnchor(rig, UP).lerp(signAnchor(rig, DOWN), 0.5);
-    const target = rig.head.clone().lerp(space, c.bias);
-    target.y += c.lift;
-    this.camera.position.set(target.x, target.y, target.z + c.dist);
-    this.camera.lookAt(target);
-    this.camTarget = target;
+    this.camGoal = { target, pos: new THREE.Vector3(target.x, target.y, target.z + dist) };
+    if (!this.camTarget) {
+      this.camTarget = target.clone();
+      this.camera.position.copy(this.camGoal.pos);
+      this.camera.lookAt(this.camTarget);
+    }
   }
 
   #loop = () => {
@@ -362,6 +574,12 @@ export class VrmAvatar {
     this.#animateLife(dt);
     this.#stepSprings(dt);
     this.vrm.update(dt);
+    if (this.camGoal) {
+      const k = 1 - Math.exp(-4 * dt);
+      this.camera.position.lerp(this.camGoal.pos, k);
+      this.camTarget.lerp(this.camGoal.target, k);
+      this.camera.lookAt(this.camTarget);
+    }
   }
 
   /** Nəfəs, başın kiçik hərəkəti, qolun titrəməyən yüngül yırğalanması, göz qırpma. */

@@ -205,6 +205,16 @@ export function poseHands(pose) {
   return res;
 }
 
+/**
+ * MediaPipe-in dərinliyi güzgü həll etməsinə dəlil (müsbət — bükülmə əlin tərəfinə
+ * uymur). Düz əldə və kameraya baxan barmaqlarda zəifdir, ona görə söz işarələrində
+ * yalnız köməkçi xal kimi işlədilir.
+ */
+export function mirrorEvidence(world, side) {
+  const e = curlEvidence(world);
+  return side === 'left' ? e : -e;
+}
+
 /** Kadr üçün handTarget girişi: avatarın tərəfinə güzgü və dərinlik düzəlişi daxil. */
 export function frameSource(pose, frame, side, landmarks = pose?.frames?.[frame]) {
   const hands = poseHands(pose);
@@ -217,7 +227,7 @@ export function frameSource(pose, frame, side, landmarks = pose?.frames?.[frame]
 
 /* ───────────────────────── qol ───────────────────────── */
 
-export function evalArm(rig, R, T, swivel) {
+export function evalArm(rig, R, T, swivel, elbow = null) {
   const toT = T.clone().sub(rig.S);
   const dist = toT.length();
   if (dist < 1e-6) return null;
@@ -259,12 +269,17 @@ export function evalArm(rig, R, T, swivel) {
   // hard: oynaq həddini aşma (fiziki mümkünsüz); qalanı rahatlıq və görünüş üçündür
   const hard = over(flex, ...LIMITS.wristFlex) ** 2 + over(radial, ...LIMITS.wristRadial) ** 2 +
     over(twist, -LIMITS.wristTwist, LIMITS.wristTwist) ** 2;
+  // Söz işarəsində dirsəyin yeri siqnalçıdan məlumdur (dərinlik daha az etibarlıdır);
+  // hərflərdə isə təbii zona ilə məhdudlaşdırılır
+  const elbowCost = elbow
+    ? 40 * ((E.x - elbow.x) ** 2 + (E.y - elbow.y) ** 2 + 0.4 * (E.z - elbow.z) ** 2)
+    : 40 * over(rE.y, -0.30, -0.08) ** 2 +          // dirsək çiyindən aşağıda, "qanad" kimi qalxmasın
+      40 * over(rE.x * rig.out, -0.02, 0.20) ** 2 + // bədənin içinə girməsin, "qanad" açılmasın
+      20 * over(rE.z, -0.14, 0.20) ** 2;
   const cost =
     40 * hard +
     0.35 * (flex * flex + 1.5 * radial * radial) + 0.12 * tau * tau +   // neytrala yaxın
-    40 * over(rE.y, -0.30, -0.08) ** 2 +          // dirsək çiyindən aşağıda, "qanad" kimi qalxmasın
-    40 * over(rE.x * rig.out, -0.02, 0.20) ** 2 + // bədənin içinə girməsin, "qanad" açılmasın
-    20 * over(rE.z, -0.14, 0.20) ** 2 +
+    elbowCost +
     30 * (dist - D) ** 2;                          // çatmırsa
   return { cost, hard, Qu, Ql, flex, radial, twist, tau, E, W: Wr, swivel };
 }
@@ -292,15 +307,17 @@ export function signAnchor(rig, handDir) {
  * (±90°) və əlin ±6 sm yerdəyişməsi arasında ən təbii həll iki mərhələdə
  * (kobud → dəqiq) axtarılır. `prev` — əvvəlki kadrın həlli: dinamik hərfdə
  * dirsək və önqol burulması kadrdan kadra sıçramasın.
+ * Söz işarəsində `elbow` (siqnalçının dirsəyi) verilir, ovucun yeri datadan
+ * gəldiyi üçün sürüşmə baha olur (`shiftCost`).
  * @returns {{upper, lower, hand, info}} lokal kvaternionlar
  */
-export function solveArm(rig, R, anchor, prev = null) {
+export function solveArm(rig, R, anchor, prev = null, { elbow = null, shiftCost = 15 } = {}) {
   const W0 = anchor.clone().sub(rig.palmOff.clone().applyQuaternion(R));
   let best = null;
   const consider = (shift, sw) => {
-    const c = evalArm(rig, R, W0.clone().add(shift), sw);
+    const c = evalArm(rig, R, W0.clone().add(shift), sw, elbow);
     if (!c) return;
-    c.cost += 15 * shift.lengthSq() + 0.02 * sw * sw;
+    c.cost += shiftCost * shift.lengthSq() + 0.02 * sw * sw;
     if (prev) c.cost += 25 * c.E.distanceToSquared(prev.E) + 0.5 * (c.tau - prev.tau) ** 2;
     c.shift = shift;
     if (!best || c.cost < best.cost) best = c;

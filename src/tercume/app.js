@@ -5,7 +5,8 @@
  * Bu, əlçatanlıq məhsulu üçün həm məxfilik, həm də xərc baxımından vacibdir
  * (statik fayl kimi hər yerdə host oluna bilər).
  */
-import { ASSET_BASE } from './paths.js';
+import { ASSET_BASE, WORDS_BASE } from './paths.js';
+import { WordLexicon, azLower } from './words.js';
 import { FingerspellModel } from './model.js';
 import { LexiconDecoder } from './decoder.js';
 import { CyberHand } from './skeleton.js';
@@ -27,7 +28,7 @@ const GATE_LABEL = {
 };
 
 const state = {
-  model: null, decoder: null, poses: null, eval: null,
+  model: null, decoder: null, poses: null, eval: null, lexicon: null,
   s2t: null, t2s: null,
   skelS2T: null, skelT2S: null, avatar: null,
   booted: { s2t: false, t2s: false, about: false },
@@ -42,13 +43,14 @@ function setStatus(text, stateName = '') {
 async function boot() {
   try {
     setStatus('Model yüklənir…');
-    const [model, decoder, poses, evalData] = await Promise.all([
+    const [model, decoder, poses, evalData, lexicon] = await Promise.all([
       FingerspellModel.load(`${ASSET_BASE}model.json`, `${ASSET_BASE}model.bin`),
       LexiconDecoder.load(`${ASSET_BASE}lm.json`, `${ASSET_BASE}vocab.json`, `${ASSET_BASE}prefixes.json`),
       loadPoses(`${ASSET_BASE}poses.json`),
       fetch(`${ASSET_BASE}eval.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      WordLexicon.load(`${WORDS_BASE}index.json`),
     ]);
-    Object.assign(state, { model, decoder, poses, eval: evalData });
+    Object.assign(state, { model, decoder, poses, eval: evalData, lexicon });
     setStatus(`${model.labels.length} sinif · ${decoder.words.length.toLocaleString('az')} söz`, 'ready');
 
     window.__chevir = state;   // sazlama qarmağı (brauzer konsolundan tənzimləmə)
@@ -242,9 +244,11 @@ async function bootT2SViews() {
 function initT2S() {
   const t2s = new TextToSign({
     poses: state.poses,
+    lexicon: state.lexicon,
     targets: [],
-    onLetter: ({ char, index }) => {
+    onLetter: ({ kind, char, index }) => {
       $('#current-letter').textContent = char === ' ' ? '␣' : char;
+      $('#current-letter').classList.toggle('is-word', kind === 'word');
       $$('#spelled i').forEach((el, i) => {
         el.classList.toggle('now', i === index);
         el.classList.toggle('done', i < index);
@@ -266,7 +270,7 @@ function initT2S() {
     const text = input.value;
     const steps = t2s.plan(text);
     $('#spelled').innerHTML = steps.length
-      ? steps.map((s) => `<i>${escapeHtml(s.kind === 'space' ? '␣' : s.char)}</i>`).join('')
+      ? steps.map((s) => `<i${s.kind === 'word' ? ' class="w"' : ''}>${escapeHtml(s.kind === 'space' ? '␣' : s.char)}</i>`).join('')
       : '<span class="muted">—</span>';
     const miss = t2s.missing(text);
     const warn = $('#t2s-warn');
@@ -305,16 +309,23 @@ function initT2S() {
     });
   }
 
-  // Lüğət vərəqi
-  const words = Object.keys(state.poses.words || {});
-  $('#word-count').textContent = `${words.length} söz`;
-  $('#words').innerHTML = words.map((w) => {
-    return `<button data-w="${escapeHtml(w)}" title="${escapeHtml(w)}">${escapeHtml(w)}</button>`;
-  }).join('');
+  // Lüğət vərəqi (AzSLD söz işarələri); axtarışla süzülür
+  const collator = new Intl.Collator('az');
+  const entries = [...state.lexicon.entries].sort((a, b) => collator.compare(a.text, b.text));
+  $('#word-count').textContent = `${entries.length} söz`;
+  const renderWords = (q = '') => {
+    const needle = azLower(q.trim());
+    const list = entries.filter((w) => !needle || w.text.includes(needle));
+    $('#words').innerHTML = list.length
+      ? list.map((w) => `<button data-w="${escapeHtml(w.text)}" class="${w.hands === 'LR' ? 'two' : ''}"
+          title="${escapeHtml(w.text)}${w.hands === 'LR' ? ' · iki əlli' : ''}">${escapeHtml(w.text)}</button>`).join('')
+      : '<span class="muted">tapılmadı</span>';
+  };
+  renderWords();
+  $('#word-search').addEventListener('input', (e) => renderWords(e.target.value));
   $('#words').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-w]');
     if (!btn) return;
-    // Play the full word animation
     t2s.play(btn.dataset.w);
     $$('#words button').forEach((b) => b.classList.toggle('is-on', b === btn));
   });
