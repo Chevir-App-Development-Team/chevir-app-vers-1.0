@@ -124,7 +124,7 @@
     transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Kanal rəngi (magenta/mavi) mətndə işlədilmir (bax CLAUDE.md) - aktiv
+/* Kanal rəngi (magenta/mavi) mətndə işlədilmir - aktiv
    vəziyyət rəng əvəzinə tam kontrastlı ton + ölçü ilə fərqləndirilir. */
 .pipeline__step.is-active .pipeline__number {
   color: #f1ede9;

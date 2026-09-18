@@ -20,7 +20,12 @@ venv/
 # AzSLD dataseti (Zenodo 14222948) — böyükdür, yerli saxlanılır
 data/
 
+# VRoid nümunə avatarları (AvatarSample_*) — lisenziyası yenidən paylaşmağa icazə vermir
+AvatarSample_*.vrm
 
+# Kökdə mənbə videoları və birdəfəlik skriptlər
+/*.mp4
+scratch/
 
 # Sistem və redaktor
 .DS_Store

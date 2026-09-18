@@ -188,6 +188,11 @@ təlim datası ola bilər — rəqəmlər **optimistdir**, kənarlaşdırılmı�
 
 ## Avatar
 
+İki avatar var: `avatar.vrm` (standart) və `avatarfem.vrm` (qadın) — komandanın öz VRM 1.0
+modelləri, lisenziyası yenidən paylaşmağa və kommersiya istifadəsinə icazə verir. VRoid-in
+`AvatarSample_*` nümunələri isə yenidən paylaşmağı qadağan edir — onlar repo-ya əlavə
+olunmamalıdır (`.gitignore`-dadır).
+
 VRM 1.0 (VRoid Studio), 30 barmaq sümüyü. Poza bütün qola ötürülür — çiyin, dirsək,
 bilək, barmaqlar (`src/tercume/retarget.js` riyazi hissə, `src/tercume/vrm.js` animasiya):
 
