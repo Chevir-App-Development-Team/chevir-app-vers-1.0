@@ -19,7 +19,7 @@ const WORDMARK_MARKUP = `
   <path d="M3.84 14.7838C3.84 17.7598 5.6 19.5198 8.256 19.5198C10.208 19.5198 11.648 18.5918 12.32 16.9598H16.32C15.456 20.6718 12.48 23.0398 8.288 23.0398C3.328 23.0398 0 19.7118 0 14.7518C0 9.82383 3.328 6.52783 8.288 6.52783C12.448 6.52783 15.456 8.86383 16.288 12.5118H12.288C11.616 10.9438 10.176 10.0478 8.256 10.0478C5.6 10.0478 3.84 11.8078 3.84 14.7838Z" fill="currentColor"/>
 `
 
-export const navbarMarkup = buildNavbarMarkup({ home: true })
+export const navbarMarkup = buildNavbarMarkup({ page: 'home' })
 
 export const heroMarkup = `
 <section class="hero" id="top" aria-label="Chevir">

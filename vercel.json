@@ -1,5 +1,6 @@
 {
   "redirects": [
-    { "source": "/tercume", "destination": "/tercume/", "permanent": true }
+    { "source": "/tercume", "destination": "/tercume/", "permanent": true },
+    { "source": "/nsosyal", "destination": "/nsosyal/", "permanent": true }
   ]
 }

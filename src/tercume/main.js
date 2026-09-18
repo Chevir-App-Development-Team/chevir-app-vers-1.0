@@ -5,4 +5,4 @@ import './tercume.css'
 import { navbarMarkup } from '../sections/navbar.js'
 import './app.js'
 
-document.querySelector('#site-nav').outerHTML = navbarMarkup({ home: false })
+document.querySelector('#site-nav').outerHTML = navbarMarkup({ page: 'tercume' })

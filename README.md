@@ -7,6 +7,7 @@ Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında tərcümə: lay
 |---|---|
 | `/` | layihənin saytı — Vite, GSAP (ScrollTrigger), Lenis, three.js 3D əl |
 | `/tercume/` | tərcümə sistemi: **Jest → Mətn** (kamera) və **Mətn → Jest** (VRM avatar + cyber skeleton) |
+| `/nsosyal/` | sistemin NSosyal axınına inteqrasiyası (prototip): jest dili ilə paylaşım və hər postda avatarla tərcümə |
 
 | Modul | Nə edir |
 |---|---|
@@ -53,12 +54,16 @@ Kamera yalnız HTTPS və ya `localhost` üzərində işləyir (brauzer qaydası)
 - **Mətn → Jest** — mətn yazıb "Jest dilində göstər" düyməsinə basın (lüğətdəki sözlər bütöv
   işarə, qalanı hərf-hərf), ya da Lüğət / Əlifba vərəqindən sözə və ya hərfə toxunun.
 - **Model** — memarlıq və real AzSLD üzərində ölçmələr.
+- **NSosyal demosu** (`/nsosyal/`) — postun altındakı "Jest dili" düyməsi avatarı açır;
+  "Jest dili ilə paylaş" kamera və ya video ilə altyazı yaradır. Kamerasız sınaq: kamera
+  sahəsinə klikləyib klaviaturadan hərf yazın, `Enter` sözü bitirir.
 
 ## Qovluq quruluşu
 
 ```
 index.html               sayt (/)
 tercume/index.html       tərcümə sistemi (/tercume/)
+nsosyal/index.html       NSosyal inteqrasiyası (/nsosyal/)
 src/
   main.js                sayt girişi
   sections/              sayt bölmələri; navbar.js hər iki səhifədə işlədilir
@@ -74,6 +79,9 @@ src/
     retarget.js          landmark → avatar: əl oriyentasiyası, qol IK, oynaq həddləri
     vrm.js               VRM 1.0 avatar: yaylı animasiya, nəfəs, göz qırpma, istirahət
     paths.js             statik faylların yolları
+  nsosyal/
+    main.js              axın, paylaşım paneli (Akış 1), avatar paneli (Akış 2) — tercume/ modulları ilə
+    nsosyal.css          açıq axın, tünd avatar paneli
 public/
   media/, *.svg, og-image.png   sayt faylları
   tercume/assets/        model.bin, lm.json, vocab.json, poses.json, hand_landmarker.task
@@ -271,6 +279,28 @@ həddini azca aşan söz 10. Söz fayllarının formatı və mətnin bölünməs
 ```bash
 node tools/verify_words.mjs
 ```
+
+## NSosyal inteqrasiyası
+
+`/nsosyal/` texniki hesabatın 3.3-cü bölməsindəki iki axını sistemin real modulları ilə
+göstərir (NSosyal-ın özü deyil — dizayn nümunəsi; postlar nümunədir).
+
+**Akış 1 — paylaşan.** "Jest dili ilə paylaş" gizli simvol deyil, başlığı və bağlama
+düyməsi olan ayrıca paneldir. Kamera və ya yüklənmiş video → `SignToText` → altyazı.
+Yüklənmiş video real vaxtda yox, kadr-kadr (30 kadr/s) emal olunur — zəif cihazda da kadr
+buraxılmır. Yoxlanmalı sözlər işarələnir: lüğətdə yoxdursa, əminlik aşağıdırsa və ya dekoder
+kameranın oxuduğu hərfləri düzəldibsə (məs. "salal" → "salam"). İstifadəçi altyazını
+düzəldir; yoxlanmamış söz qalıbsa, paylaşmadan əvvəl təsdiq istənir. Post video ilə birgə
+axına düşür və altyazısı ilə axtarılır. Video cihazdan çıxmır.
+
+**Akış 2 — oxuyan.** Hər postun əməliyyat sırasında bəyən / şərh / paylaş ilə eyni ölçüdə
+"Jest dili" düyməsi. Postun altında tünd avatar paneli açılır, mətn yerində qalır və oxunan
+söz vurğulanır (hərf-hərf göstərilən sözdə cari hərf də). Sürət (0.5×–1.25×), dayandırma,
+təkrar və güvən göstəricisi: neçə söz real siqnalçının işarəsi ilə, neçəsi hərf-hərf
+göstərilir, hansı simvolun işarəsi yoxdur. Panel klaviatura ilə idarə olunur, `Esc` bağlayır.
+
+Ağır hissələr lazım olanda yüklənir: avatar ilk "Jest dili" düyməsində, model və MediaPipe
+paylaşım paneli açılanda.
 
 ## Mənbələr
 

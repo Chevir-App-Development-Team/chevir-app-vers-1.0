@@ -138,6 +138,13 @@
   transform: translateY(-2px);
 }
 
+/* Dar ekranda üçüncü keçid gizlənir (loqo + keçid + CTA bir sətrə sığsın). */
+@media (max-width: 640px) {
+  .navbar__link--extra {
+    display: none;
+  }
+}
+
 /* Dar ekranda loqo + iki keçid bir sətrə sığsın. */
 @media (max-width: 480px) {
   .navbar__name {
