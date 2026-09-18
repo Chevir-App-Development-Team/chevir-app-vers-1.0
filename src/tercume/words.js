@@ -32,14 +32,23 @@ export class WordLexicon {
 
   /**
    * Mətni hissələrə bölür: {kind:'word', text, entry} | {kind:'text', text} | {kind:'space'}.
-   * `text` hissəsi kiçik hərflə və kənar durğu işarələri olmadan qaytarılır.
+   * `text` hissəsi kiçik hərflə və kənar durğu işarələri olmadan qaytarılır; `from`/`to`
+   * onun ilkin mətndəki yeridir (oxunan hissəni vurğulamaq üçün).
    */
   segment(text) {
     const parts = text.split(/(\s+)/).filter(Boolean);
     const toks = parts.map((p) => (/^\s+$/.test(p) ? null : azLower(p).replace(EDGE_PUNCT, '')));
+    // Hər tokenin ilkin mətndə yeri: hissənin başı + başdakı durğu işarələrinin uzunluğu
+    const at = [];
+    let pos = 0;
+    parts.forEach((p, i) => {
+      const lead = toks[i] ? azLower(p).indexOf(toks[i]) : 0;
+      at.push({ from: pos + lead, to: pos + lead + (toks[i]?.length ?? p.length) });
+      pos += p.length;
+    });
     const out = [];
     for (let i = 0; i < parts.length;) {
-      if (toks[i] === null) { out.push({ kind: 'space' }); i++; continue; }
+      if (toks[i] === null) { out.push({ kind: 'space', ...at[i] }); i++; continue; }
       if (!toks[i]) { i++; continue; }                       // yalnız durğu işarəsi
       let match = null;
       for (let n = this.maxTokens; n >= 1 && !match; n--) {
@@ -49,8 +58,13 @@ export class WordLexicon {
         const entry = this.byText.get(idx.map((j) => toks[j]).join(' '));
         if (entry) match = { entry, last: idx[idx.length - 1] };
       }
-      if (match) { out.push({ kind: 'word', text: match.entry.text, entry: match.entry }); i = match.last + 1; }
-      else { out.push({ kind: 'text', text: toks[i] }); i++; }
+      if (match) {
+        out.push({ kind: 'word', text: match.entry.text, entry: match.entry, from: at[i].from, to: at[match.last].to });
+        i = match.last + 1;
+      } else {
+        out.push({ kind: 'text', text: toks[i], ...at[i] });
+        i++;
+      }
     }
     return out;
   }

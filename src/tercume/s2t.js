@@ -73,11 +73,49 @@ export class SignToText {
     this.#tick();
   }
 
+  /**
+   * Yüklənmiş videonu kadr-kadr emal edir: real vaxtda oynatmaq əvəzinə hər 1/fps
+   * saniyəyə keçilir, ona görə zəif cihazda da heç bir kadr buraxılmır və nəticə
+   * kameradakı ilə eyni kadr tezliyindədir. Video bitəndə yarımçıq söz tamamlanır.
+   * @param {string} url video faylının ünvanı (məs. URL.createObjectURL(file))
+   */
+  async startFile(url, { fps = 30 } = {}) {
+    if (!this.landmarker) await this.init();
+    const v = this.video;
+    v.srcObject = null;
+    v.muted = true;
+    v.src = url;
+    await new Promise((resolve, reject) => {
+      v.onloadeddata = resolve;
+      v.onerror = () => reject(new Error('video oxunmadı (format dəstəklənmir?)'));
+    });
+    const token = {};
+    this._file = token;
+    this.running = true;
+    this.onStatus?.({ stage: 'running', message: 'Video emal olunur' });
+    for (let t = 0; t < v.duration; t += 1 / fps) {
+      v.currentTime = t;
+      await new Promise((resolve) => v.addEventListener('seeked', resolve, { once: true }));
+      if (this._file !== token) return;               // dayandırıldı
+      this.#process(v, { fileProgress: Math.min(t / v.duration, 1) });
+    }
+    this._file = null;
+    this.running = false;
+    this.finish();
+    this.onStatus?.({ stage: 'ended', message: 'Video bitdi' });
+  }
+
   stop() {
     this.running = false;
+    this._file = null;
     const s = this.video.srcObject;
     if (s) s.getTracks().forEach((t) => t.stop());
     this.video.srcObject = null;
+    if (this.video.src) {
+      this.video.pause();
+      this.video.removeAttribute('src');
+      this.video.load();
+    }
     this.win.reset();
     this.#resetGate();
     this.onStatus?.({ stage: 'stopped', message: 'Dayandırıldı' });
@@ -166,12 +204,16 @@ export class SignToText {
     const v = this.video;
     if (v.readyState < 2 || v.currentTime === this._lastVideoTime) return;
     this._lastVideoTime = v.currentTime;
+    this.#process(v);
+  };
 
+  /** Bir video kadrı: əl landmark-ları → pəncərə → (şərtlər ödənsə) hərf. */
+  #process(v, extra = {}) {
     const result = this.landmarker.detectForVideo(v, performance.now());
     const landmarks = result?.landmarks?.[0] ?? null;
     const status = this.pushFrame(extractKeypoints(result));
-    this.onFrame?.({ landmarks, ...status });
-  };
+    this.onFrame?.({ landmarks, ...status, ...extra });
+  }
 
   /** Proqnozu idarə siniflərinə görə tətbiq edir. */
   #handle(top) {

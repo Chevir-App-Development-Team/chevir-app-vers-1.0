@@ -37,12 +37,23 @@ for (const [text, want] of cases) {
 }
 check(azLower('İLHAM IŞIQ') === 'ilham ışıq', 'azLower: İ → i, I → ı');
 
+// Mövqelər: hər hissə ilkin mətndə öz yerini göstərir (postda vurğulama üçün)
+{
+  const text = '«Salam», zəhmət   olmasa İŞIQ!';
+  const got = toy.segment(text).filter((s) => s.kind !== 'space')
+    .map((s) => text.slice(s.from, s.to)).join('|');
+  const want = 'Salam|zəhmət   olmasa|İŞIQ';
+  check(got === want, `mövqelər: ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+
 // 2. Plan: lüğət sözü bütöv addım, qalan hərf-hərf
 const poses = rd(new URL('poses.json', A));
 check(!('words' in poses), 'poses.json-da köhnə "words" bölməsi yoxdur');
 const t2s = new TextToSign({ poses, lexicon: toy });
 const plan = t2s.plan('Salam ana').map((s) => `${s.kind}:${s.char}`).join(' ');
 check(plan === 'word:salam space:  letter:a letter:n letter:a', `plan("Salam ana") → ${plan}`);
+const pos = t2s.plan('Salam ana').map((s) => `${s.from}-${s.to}`).join(' ');
+check(pos === '0-5 5-6 6-7 7-8 8-9', `plan mövqeləri → ${pos}`);
 
 // 3. Real lüğətin faylları
 if (!existsSync(new URL('index.json', W))) {

@@ -39,16 +39,19 @@ export class TextToSign {
   plan(text) {
     const letters = this.poses?.letters ?? {};
     const steps = [];
+    // Hər addım mətndəki yerini daşıyır: from/to — addımın özü, seg — aid olduğu söz
     for (const seg of this.lexicon.segment(text)) {
+      const at = { from: seg.from, to: seg.to, seg: { from: seg.from, to: seg.to } };
       if (seg.kind === 'space') {
-        steps.push({ kind: 'space', char: ' ' });
+        steps.push({ kind: 'space', char: ' ', ...at });
       } else if (seg.kind === 'word') {
-        steps.push({ kind: 'word', char: seg.text, entry: seg.entry });
+        steps.push({ kind: 'word', char: seg.text, entry: seg.entry, ...at });
       } else {
-        for (const ch of seg.text) {
+        [...seg.text].forEach((ch, k) => {
           const c = azLower(ch);
-          steps.push(letters[c] ? { kind: 'letter', char: c, pose: letters[c] } : { kind: 'unknown', char: ch });
-        }
+          const pos = { ...at, from: seg.from + k, to: seg.from + k + 1 };
+          steps.push(letters[c] ? { kind: 'letter', char: c, pose: letters[c], ...pos } : { kind: 'unknown', char: ch, ...pos });
+        });
       }
     }
     return steps;
