@@ -315,7 +315,8 @@ export function solveArm(rig, R, anchor, prev = null) {
   if (!best) return null;
   const coarse = best;
   grid(0.02, (s) => {
-    for (let k = -4; k <= 4; k++) consider(s.add(coarse.shift), coarse.swivel + k * 2.5 * DEG * o);
+    const shift = s.add(coarse.shift);   // hər dönmə bucağı eyni sürüşmə ilə yoxlanır
+    for (let k = -4; k <= 4; k++) consider(shift, coarse.swivel + k * 2.5 * DEG * o);
   });
 
   // Ən yaxşı həll də həddi aşırsa, aşan hissə kəsilir — oynaq qırılmış görünməsin
