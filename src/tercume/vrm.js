@@ -23,7 +23,7 @@ import {
 
 const SIDES = ['left', 'right'];
 /** Yayların təbii tezliyi (rad/s); hədəfə ~5.8/ω saniyədə çatır: qol ≈0.5 s, barmaq ≈0.28 s. */
-const OMEGA = { arm: 11, hand: 15, finger: 21, body: 6 };
+const OMEGA = { arm: 16.5, hand: 22.5, finger: 31.5, body: 9 };
 const PAUSE_TO_REST = 0.9;   // s — yeni poza gəlməsə qol aşağı enir
 const BODY = ['spine', 'chest', 'upperChest', 'neck', 'head'];
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);

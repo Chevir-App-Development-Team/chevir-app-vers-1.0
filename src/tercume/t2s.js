@@ -12,11 +12,11 @@ import { WordLexicon, azLower } from './words.js';
 
 const DEFAULTS = {
   holdMs: 620,        // statik hərfin saxlanma müddəti
-  transitionMs: 180,  // addımlar arası keçid
+  transitionMs: 120,  // addımlar arası keçid (qısaldıldı)
   dynamicFps: 14,     // dinamik hərfin oynatma sürəti
-  spaceMs: 420,       // boşluq (söz sonu) fasiləsi
+  spaceMs: 250,       // boşluq (söz sonu) fasiləsi (qısaldıldı)
   leadInMs: 380,      // ilk addımda əlavə vaxt: avatarın qolu istirahətdən qalxır
-  wordHoldMs: 260,    // söz işarəsinin son pozasında qısa saxlama
+  wordHoldMs: 150,    // söz işarəsinin son pozasında qısa saxlama (qısaldıldı)
   speed: 1,           // ümumi sürət: 0.5 — iki dəfə yavaş (izləyicinin sürət idarəsi)
 };
 
@@ -111,7 +111,6 @@ export class TextToSign {
       this.onState?.({ playing: true, total: steps.length, index: i });
 
       if (step.kind === 'space') {
-        this.#emit(null);
         await this.#wait(this.opts.spaceMs / sp(), token);
       } else if (step.kind === 'unknown') {
         await this.#wait(this.opts.transitionMs / sp(), token);

@@ -208,7 +208,7 @@ const sign = {
   loading: null,
   t2s: null,
   post: null,
-  speed: store.get('ns-speed-2') !== null ? Number(store.get('ns-speed-2')) : 1.5,
+  speed: store.get('ns-speed-3') !== null ? Number(store.get('ns-speed-3')) : 2,
 }
 
 function buildPanel() {
@@ -243,7 +243,7 @@ function buildPanel() {
 
 function setSpeed(v) {
   sign.speed = v
-  store.set('ns-speed-2', String(v))
+  store.set('ns-speed-3', String(v))
   if (sign.t2s) sign.t2s.opts.speed = v
   $$('[data-speed]', sign.panel).forEach((b) => {
     const on = Number(b.dataset.speed) === v
