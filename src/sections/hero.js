@@ -4,6 +4,8 @@ import { HERO_TAGLINE } from '../lib/i18n.js'
 import { BRAND_LOGO_MARKUP } from '../lib/brandLogo.js'
 import { navbarMarkup as buildNavbarMarkup } from './navbar.js'
 
+const BASE = import.meta.env.BASE_URL
+
 // Naviqasiyanın tünd/açıq rejimini idarə edən sərt-kodlanmış bölmə siyahısı
 // (bax content.css "Sərt açıq" şərhləri) - burada saxlanılır ki, hansı
 // bölmələrin "açıq" olduğu TƏK yerdə (burda) qərarlaşdırılsın.
@@ -28,6 +30,7 @@ export const heroMarkup = `
   <svg class="hero__wordmark" viewBox="0 0 81 24" aria-hidden="true">${WORDMARK_MARKUP}</svg>
   <div class="hero__content">
     <p class="hero__tagline hero__desc">${HERO_TAGLINE}</p>
+    <a href="${BASE}nsosyal/" class="hero__nsosyal-btn">NSosyal demosu <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
 
     <div class="hero__logo-slot" aria-hidden="true">
       <svg
@@ -109,6 +112,7 @@ export function setupHero() {
 
   const logo = document.getElementById('brand-logo')
   const tagline = document.querySelector('.hero__tagline')
+  const nsosyalBtn = document.querySelector('.hero__nsosyal-btn')
   const cta = document.querySelector('.navbar__actions')
 
   // tagline/cta burda yalnız gizlədilir (instant set) - görünən reveal
@@ -116,11 +120,11 @@ export function setupHero() {
   // ilə tapır, t=2.9-da açır). Wordmark və əl splash örtüyünün altında adi
   // görünür qalır, əvvəlki başlıq/demo kimi.
   if (prefersReducedMotion) {
-    gsap.set([tagline, cta], { autoAlpha: 1 })
+    gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 1 })
     return { logo }
   }
 
-  gsap.set([tagline, cta], { autoAlpha: 0, y: 16 })
+  gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 0, y: 16 })
 
   return { logo }
 }

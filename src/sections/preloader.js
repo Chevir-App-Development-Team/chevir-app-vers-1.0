@@ -42,6 +42,7 @@ function runSplashAnimation(logo, lenis, onDone) {
   const splashEl = document.getElementById('splash')
   const countEl = splashEl.querySelector('[data-splash-count]')
   const desc = document.querySelector('.hero__desc')
+  const nsosyalBtn = document.querySelector('.hero__nsosyal-btn')
   const cta = document.querySelector('.navbar__actions')
   const scrollBtn = document.querySelector('.hero__scroll')
   const navbarLogo = document.querySelector('.navbar__logo-svg')
@@ -171,7 +172,7 @@ function runSplashAnimation(logo, lenis, onDone) {
       [],
       FLIGHT_END
     )
-    .to([desc, cta, scrollBtn], { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.05, ease: 'power2.out' }, 2.9)
+    .to([desc, nsosyalBtn, cta, scrollBtn].filter(Boolean), { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.05, ease: 'power2.out' }, 2.9)
 }
 
 export function initPreloader(lenis, logo, onDone) {

@@ -108,6 +108,31 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+.hero__nsosyal-btn {
+  display: none;
+  position: absolute;
+  top: calc(clamp(5rem, 11vh, 6.5rem) + 6.5rem);
+  left: var(--hero-pad-x);
+  z-index: 5;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+  pointer-events: auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .hero__nsosyal-btn {
+    display: inline-flex;
+  }
+}
+
 /* ---------- Qat 3: 3D əl (statik loqo yalnız fallback) ---------- */
 
 .hero__logo-slot {
