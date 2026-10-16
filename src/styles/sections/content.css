@@ -147,13 +147,23 @@
    ilə fərqi ağ fonla daha az olduğu üçün (kontrast delta ~yarısı) opasitiya
    bir qədər yuxarı qaldırılıb ki, "sönük" qalsın, amma görünsün. */
 .section-bg--logo .section-bg__svg {
-  color: #8b857e;
+  color: var(--decor-faint);
   opacity: 0.14;
 }
 
 .section-bg--dots .section-bg__svg {
-  color: var(--ink);
   width: min(48%, 460px);
+}
+
+/* Əl sxeleti dekoru kanal cütünü (--chevir-blue/--bridge-blue) daşıyır - həm
+   usecases, həm team açıq bölmədir (bax §1b), ona görə Bridge Blue birbaşa
+   işlədilir. */
+.section-bg--dots.section-bg--left .section-bg__svg {
+  color: var(--chevir-blue);
+}
+
+.section-bg--dots.section-bg--right .section-bg__svg {
+  color: var(--bridge-blue);
 }
 
 /* Ekran kənarına yapışır, aralarında boşluq qalmadan hissəsi kadrdan çıxır
@@ -179,16 +189,7 @@
   bottom: 6%;
 }
 
-.section-bg__logo-arc {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
-}
-
-.section-bg__logo-head {
-  fill: currentColor;
-}
-
+.section-bg__logo-shape,
 .section-bg__logo-dot {
   fill: currentColor;
 }
@@ -241,8 +242,8 @@
    base.css: color-scheme yalnız "light", bölmə ritmi hər ziyarətçidə eynidir). */
 
 .problem {
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
 }
 
 /* Grid .reveal (məzmun sarğısı) üzərindədir, .problem-in özündə deyil - bax
@@ -264,7 +265,7 @@
 .problem__number {
   font-size: var(--fs-h1);
   font-weight: 700;
-  color: #f1ede9;
+  color: var(--ink-on-dark);
   letter-spacing: -0.02em;
   line-height: 1;
 }
@@ -272,7 +273,7 @@
 .problem__stat-desc {
   margin-top: 0.75rem;
   max-width: 22rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-small);
   line-height: 1.5;
 }
@@ -290,7 +291,7 @@
 }
 
 .problem__paragraph {
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
 }
@@ -299,8 +300,8 @@
 /* Sərt açıq (bax "1. Problem" şərhi) - pipeline.css-in eyni prinsipi. */
 
 .difference {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--cloud);
+  color: var(--ink-on-light);
 }
 
 .difference__grid {
@@ -325,7 +326,7 @@
 
 .difference__item-desc {
   margin-top: 0.6rem;
-  color: var(--muted);
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
 }
@@ -333,8 +334,8 @@
 /* ---------- 3. Dəyərlər ---------- */
 
 .values {
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
   padding: clamp(4.5rem, 12vw, 9rem) clamp(1.25rem, 5vw, 4rem);
   padding-top: max(clamp(4.5rem, 12vw, 9rem), var(--navbar-h));
   text-align: center;
@@ -359,7 +360,7 @@
 .values__principle {
   margin: 1.75rem auto 0;
   max-width: 34rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-small);
   line-height: 1.55;
 }
@@ -381,14 +382,14 @@
 }
 
 .usecases {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--cloud);
+  color: var(--ink-on-light);
 }
 
 .usecases__item {
   padding: 1.25rem;
   border-radius: 1.25rem;
-  border: 1px solid rgba(26, 24, 23, 0.1);
+  border: 1px solid rgba(9, 22, 56, 0.1);
 }
 
 .usecases__item-title {
@@ -399,18 +400,18 @@
 
 .usecases__item-desc {
   margin-top: 0.6rem;
-  color: var(--muted);
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
 }
 
 /* ---------- 5. Hazırkı nəticələr ---------- */
-/* Sərt tünd (bax "1. Problem" şərhi) - video çərçivələri (.results__video-frame)
-   onsuz da sabit tünddür, bütün bölmə tünd olanda onlarla təbii birləşir. */
+/* Sərt açıq (bax "2. Fərqimiz" şərhi) - video çərçivələri (.results__video-frame)
+   bilərəkdən tünd saxlanılıb (bax aşağı), açıq fonda kontrast kart kimi görünür. */
 
 .results {
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--cloud);
+  color: var(--ink-on-light);
 }
 
 .results__intro {
@@ -419,7 +420,7 @@
 
 .results__lead {
   margin-top: 0.75rem;
-  color: #c9c3bc;
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
 }
@@ -432,14 +433,14 @@
 .results__accuracy-number {
   font-size: var(--fs-h1);
   font-weight: 700;
-  color: #f1ede9;
+  color: var(--ink-on-light);
   letter-spacing: -0.02em;
   line-height: 1;
 }
 
 .results__accuracy-desc {
   margin-top: 0.6rem;
-  color: #c9c3bc;
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-body);
   line-height: 1.5;
 }
@@ -447,7 +448,7 @@
 .results__accuracy-caveat {
   margin-top: 0.9rem;
   max-width: 34rem;
-  color: #c9c3bc;
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-small);
   line-height: 1.55;
 }
@@ -493,7 +494,7 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: #16130f;
+  background: var(--midnight);
   border-radius: 1.25rem;
   overflow: hidden;
 }
@@ -519,7 +520,7 @@
 
 .results__card-desc {
   margin-top: 0.4rem;
-  color: #c9c3bc;
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-small);
   line-height: 1.5;
 }
@@ -529,12 +530,11 @@
    (bax statement.css). */
 
 /* ---------- 7. Mərhələlər ---------- */
-/* Sərt tünd (bax "1. Problem" şərhi) - 5 açıq bölmə saytı həddindən artıq
-   açıqlaşdırırdı, roadmap tünd qalıb, yalnız difference/usecases/team açıq. */
+/* Sərt açıq (bax "2. Fərqimiz" şərhi) - irəliyə baxan, açıq registrdə. */
 
 .roadmap {
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--cloud);
+  color: var(--ink-on-light);
 }
 
 .roadmap__list {
@@ -564,7 +564,7 @@
     left: 1.25rem;
     right: calc(33.333% - 2.9167rem);
     height: 1px;
-    background: #c9c3bc;
+    background: var(--ink-on-light-muted);
     opacity: 0.35;
     z-index: 0;
   }
@@ -574,6 +574,8 @@
   }
 }
 
+/* Nömrəli dairələr kanal rəngini daşıyır (qrafik element, bax base.css-dəki
+   AA qeydi) - Chevir Blue, Cloud fonunda. */
 .roadmap__number {
   position: relative;
   z-index: 1;
@@ -583,8 +585,8 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
-  background: #f1ede9;
-  color: #16130f;
+  background: var(--chevir-blue);
+  color: #ffffff;
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -599,7 +601,7 @@
 
 .roadmap__item-desc {
   margin-top: 0.5rem;
-  color: #c9c3bc;
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
 }
@@ -612,8 +614,8 @@
 
 /* Sərt tünd (bax "1. Problem" şərhi). */
 .trust {
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
 }
 
 /* Flex .reveal (məzmun sarğısı) üzərindədir - bax .problem > .reveal
@@ -644,7 +646,7 @@
 
 .trust__lead {
   margin-top: 0.6rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-small);
   line-height: 1.55;
 }
@@ -669,7 +671,7 @@
    görünüşü yoxdur - yalnız nazik xətt. */
 .trust__item {
   padding-top: 1.1rem;
-  border-top: 1px solid rgba(241, 237, 233, 0.16);
+  border-top: 1px solid rgba(243, 247, 252, 0.16);
 }
 
 .trust__item:first-child {
@@ -683,7 +685,7 @@
     padding-top: 0;
     padding-left: 1.75rem;
     border-top: none;
-    border-left: 1px solid rgba(241, 237, 233, 0.16);
+    border-left: 1px solid rgba(243, 247, 252, 0.16);
   }
 
   .trust__item:first-child {
@@ -700,14 +702,14 @@
 
 .trust__item-desc {
   margin-top: 0.4rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-small);
   line-height: 1.55;
 }
 
 .trust__item-meta {
   margin-top: 0.35rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-small);
   opacity: 0.8;
 }
@@ -716,8 +718,8 @@
 /* Sərt açıq (bax "1. Problem" şərhi). */
 
 .team {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--cloud);
+  color: var(--ink-on-light);
 }
 
 .team__grid {
@@ -735,7 +737,7 @@
 }
 
 .team__card {
-  border-top: 1px solid rgba(26, 24, 23, 0.12);
+  border-top: 1px solid rgba(9, 22, 56, 0.12);
   padding-top: 1rem;
 }
 
@@ -747,14 +749,14 @@
 
 .team__role {
   margin-top: 0.2rem;
-  color: var(--muted);
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-small);
   font-weight: 600;
 }
 
 .team__bio {
   margin-top: 0.6rem;
-  color: var(--muted);
+  color: var(--ink-on-light-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
 }
@@ -766,8 +768,8 @@
 .contact {
   position: relative;
   overflow: hidden;
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
   padding: clamp(4.5rem, 11vw, 8rem) clamp(1.25rem, 5vw, 4rem) clamp(1.5rem, 4vw, 2.5rem);
   padding-top: max(clamp(4.5rem, 11vw, 8rem), var(--navbar-h));
   text-align: center;
@@ -782,7 +784,7 @@
     radial-gradient(45% 35% at 12% 18%, rgba(255, 255, 255, 0.09), transparent 70%),
     radial-gradient(40% 30% at 88% 28%, rgba(255, 255, 255, 0.07), transparent 70%),
     radial-gradient(50% 40% at 22% 90%, rgba(255, 255, 255, 0.06), transparent 70%),
-    #16130f;
+    var(--midnight);
 }
 
 .contact__grain {
@@ -810,7 +812,7 @@
   width: 100%;
   aspect-ratio: 81 / 24;
   height: auto;
-  color: #f1ede9;
+  color: var(--ink-on-dark);
   opacity: 0.5;
   filter: blur(3px);
   pointer-events: none;
@@ -842,7 +844,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-body);
   line-height: 1.5;
 }
@@ -852,8 +854,8 @@
   margin-top: 2rem;
   padding: 0.85rem 1.75rem;
   border-radius: 999px;
-  background: #f1ede9;
-  color: #1a1817;
+  background: var(--brand-gradient);
+  color: #ffffff;
   font-size: var(--fs-body);
   font-weight: 600;
   text-decoration: none;
@@ -868,7 +870,7 @@
   width: fit-content;
   margin-inline: auto;
   margin-top: clamp(3.5rem, 9vw, 6rem);
-  color: #8b857e;
+  color: var(--ink-on-dark-faint);
 }
 
 .contact__meta-copyright,

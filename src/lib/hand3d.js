@@ -3,8 +3,8 @@ import gsap from 'gsap'
 import { HAND_POSES, HAND_CONNECTIONS } from './handPoses.js'
 import { BREAKPOINTS } from './gsapSetup.js'
 
-// Hero-nun --signed/--spoken dəyərlərini oxuyur ki, rənglər CSS-dəki tək
-// mənbədən gəlsin (hero.css-də hər ikisi ağa çəkilib).
+// --hand-left/--hand-right dəyərlərini :root-dan oxuyur ki, rənglər CSS-dəki
+// tək mənbədən gəlsin - bu dəyişənlər heç yerdə override olunmur (base.css).
 function readCssColor(el, varName, fallback) {
   const value = getComputedStyle(el).getPropertyValue(varName).trim()
   return value || fallback
@@ -78,10 +78,11 @@ const WAVE_VERTEX = /* glsl */ `
   }
 `
 
-// Səhifənin tünd fon rəngi (#16130F - base.css-dəki --paper tündrejim dəyəri,
+// Səhifənin tünd fon rəngi (#091638 - base.css-dəki --midnight dəyəri,
 // loop.css-də də eyni sabit işlədilir). Hero həmişə tünd qaldığı üçün (bax:
-// hero.css) bu, dəyişən deyil, birbaşa yazılıb - hero ilə pipeline (dark mode-da)
-// arasında rəng tikişi qalmasın deyə.
+// hero.css) bu, dəyişən deyil, birbaşa yazılıb - hero ilə digər tünd bölmələr
+// arasında rəng tikişi qalmasın deyə. GLSL CSS dəyişənini oxuya bilmədiyi
+// üçün dəyər burda TƏKRARLANIR - --midnight dəyişsə, bura da yenilənməlidir.
 //
 // TAM SABİT: heç bir uniform vaxtdan asılı deyil (uTime yoxdur) - premium hiss
 // hərəkətdən yox, iki aydın işıq ləkəsindən və grain-dən gəlir.
@@ -162,7 +163,7 @@ const WAVE_FRAGMENT = /* glsl */ `
     float handMask = smoothstep(0.08, 0.30, length(centered));
     light *= mix(0.35, 1.0, handMask);
 
-    vec3 base = vec3(0.0863, 0.0745, 0.0588); // #16130F
+    vec3 base = vec3(0.0353, 0.0863, 0.2196); // #091638 (--midnight)
     vec3 color = base + vec3(light) * 0.55;
 
     // Grain - işığın gücünə bağlı (qaranlıqda demək olar yox, işıqda aydın),
@@ -204,11 +205,10 @@ function getGlowTexture() {
 // Müstəvi 980px-dən aşağı ekranlarda ümumiyyətlə yaradılmır (statik CSS
 // gradient qalır), yalnız əl render olunur.
 export function initHand3D(canvas) {
-  // hero.css overrides --signed and --spoken to white.
-  // We bypass that by reading from the root document, or using our fallback colors
-  // so the two hands have distinct, readable colors.
-  const jointColor = readCssColor(document.documentElement, '--signed', '#d6006c')
-  const boneColor = readCssColor(document.documentElement, '--spoken', '#0088b0')
+  // --hand-left/--hand-right base.css-də :root-da sabit təyin olunub, heç
+  // yerdə override olunmur - əlin iki tərəfi bu iki rəngi daşıyır.
+  const jointColor = readCssColor(document.documentElement, '--hand-left', '#0071ef')
+  const boneColor = readCssColor(document.documentElement, '--hand-right', '#6fb1ff')
 
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isDesktop ? 2 : 1.5))

@@ -29,9 +29,9 @@
 }
 
 .navbar.is-scrolled {
-  background: rgba(22, 19, 15, 0.82);
+  background: rgba(9, 22, 56, 0.82);
   backdrop-filter: blur(14px);
-  box-shadow: 0 1px 0 rgba(241, 237, 233, 0.1);
+  box-shadow: 0 1px 0 rgba(243, 247, 252, 0.1);
 }
 
 .navbar__brand {
@@ -40,7 +40,7 @@
   align-items: center;
   gap: 0.6rem;
   text-decoration: none;
-  color: #f1ede9;
+  color: var(--ink-on-dark);
   transition: color 0.4s ease;
   /* Splash klonu naviqasiya loqosuna enənə qədər naviqasiya görünməz və
      toxunulmazdır (visibility, hit-testi və tab sırasını da söndürür) -
@@ -59,13 +59,26 @@
   visibility: visible;
 }
 
-.navbar__logo-svg {
+/* İki loqo nüsxəsi (ağ/göy) üst-üstə - .is-light-ə görə bir-birinin üzərinə
+   sönür/yanır, flaş olmadan (hər ikisi həmişə DOM-dadır). */
+.navbar__logo {
+  position: relative;
   width: 26px;
   height: 26px;
   flex-shrink: 0;
-  color: #f1ede9;
+}
+
+.navbar__logo-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
-  transition: opacity 0.35s ease, color 0.4s ease;
+  transition: opacity 0.4s ease;
+}
+
+.navbar.is-revealed .navbar__logo-svg--dark {
+  opacity: 1;
 }
 
 .navbar__name {
@@ -78,7 +91,6 @@
 }
 
 /* Loqo əvvəl, wordmark bir az sonra - birlikdə yox. */
-.navbar.is-revealed .navbar__logo-svg,
 .navbar.is-revealed .navbar__name {
   opacity: 1;
 }
@@ -91,7 +103,7 @@
 
 .navbar__link {
   position: relative;
-  color: #f1ede9;
+  color: var(--ink-on-dark);
   font-size: var(--fs-small);
   font-weight: 600;
   text-decoration: none;
@@ -118,8 +130,8 @@
   flex-shrink: 0;
   padding: 0.6rem 1.4rem;
   border-radius: 999px;
-  background: #ffffff;
-  color: #0a0a0a;
+  background: var(--brand-gradient);
+  color: #ffffff;
   font-size: var(--fs-small);
   font-weight: 600;
   text-decoration: none;
@@ -159,27 +171,37 @@
 /* ---------- Rejim: açıq bölmə (.is-light) ---------- */
 /* hero.js-dəki initNavbar() naviqasiyanın probe nöqtəsi (öz hündürlüyünün
    ortası) hansı bölmənin üzərindədirsə ona görə bu sinfi əlavə/silir (bax
-   pipeline/difference/usecases/roadmap/team - sərt açıq bölmələr). Rənglər
-   var(--ink)/var(--paper) yox, sərt hex - naviqasiya bölmələr kimi OS
-   temasından asılı olmamalıdır. */
+   statement/difference/usecases/results/roadmap/team - sərt açıq bölmələr,
+   trust bilərəkdən tünd saxlanılıb). Rənglər var(--ink-on-light)/
+   var(--cloud) işlədir - naviqasiya bölmələr kimi OS temasından asılı
+   olmamalıdır, amma indi bu dəyişənlərin dəyəri hər yerdə sabitdir
+   (OS-dən yox, sinifdən asılıdır). */
 
 .navbar.is-light .navbar__brand,
-.navbar.is-light .navbar__logo-svg,
 .navbar.is-light .navbar__name,
 .navbar.is-light .navbar__link {
-  color: #1a1817;
+  color: var(--ink-on-light);
 }
 
 .navbar.is-light.is-scrolled {
-  background: rgba(241, 240, 238, 0.82);
-  box-shadow: 0 1px 0 rgba(26, 24, 23, 0.08);
+  background: rgba(243, 247, 252, 0.82);
+  box-shadow: 0 1px 0 rgba(9, 22, 56, 0.08);
 }
 
-/* CTA: TƏKLİF, TƏSDİQ GÖZLƏYİR (bax tapşırıq §3a) - ağ pill açıq bölmə
-   üzərində demək olar görünməz olardı (ağ-üstündə-ağ), ona görə tünd-mətnli
-   dizaynın tərsi (ink pill + paper mətn) seçilib, digər is-light rənglərlə
-   eyni hex-lər. Ekran şəklində göstəriləcək, təsdiqdən sonra son sayılsın. */
+/* Loqo: ağ nüsxə sönür, göy (gradient) nüsxə yanır - rəng DEYİL, markup
+   dəyişir (göy versiya gradient-dolğuludur, currentColor ilə ifadə oluna
+   bilməz), bax brandLogo.js. */
+.navbar.is-revealed.is-light .navbar__logo-svg--dark {
+  opacity: 0;
+}
+
+.navbar.is-revealed.is-light .navbar__logo-svg--light {
+  opacity: 1;
+}
+
+/* CTA: açıq bölmə üzərində gradient pill əvəzinə tünd-mətnli tərsi (midnight
+   pill + cloud mətn), digər is-light rənglərlə eyni mənbə. */
 .navbar.is-light .navbar__cta {
-  background: #1a1817;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--cloud);
 }

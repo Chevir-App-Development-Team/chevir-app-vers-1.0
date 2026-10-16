@@ -2,10 +2,9 @@
 
 .hero {
   /* Hero həmişə tünd qalır - sistemin işıq/tünd rejimindən asılı olmayaraq.
-     --signed/--spoken burda hand3d.js-nin oxuduğu rənglərdir (nöqtə/sümük),
-     hər ikisi ağa çəkilib. */
-  --signed: #ffffff;
-  --spoken: #ffffff;
+     3D əlin rəngləri (--hand-left/--hand-right) base.css-də :root-da sabit
+     təyin olunur, burda heç nə override edilmir - brend dəyişənləri heç
+     yerdə lokal override olunmur (bax base.css). */
   --hero-pad-x: clamp(1.25rem, 6vw, 4.5rem);
   /* Statik loqo fallback-ın (reduced-motion/WebGL-siz) yuxarı/aşağı sərhədləri
      - tagline və wordmark-a yer saxlamaq üçün. Canvas özü artıq bunlardan
@@ -16,16 +15,16 @@
   position: relative;
   overflow: hidden;
   min-height: 100svh;
-  background: #16130f;
-  color: #ffffff;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
   color-scheme: dark;
 }
 
 /* Statik CSS fallback - reduced-motion, WebGL-siz, və <980px-də dalğa shader-i
    heç yaradılmır, bu qat əsl fon kimi qalır (hərəkətsiz, "sabit gradient").
-   Masaüstündə WebGL yükləndikdə üstündən hero__scene keçir. Rəng #16130F -
-   base.css-dəki --paper tündrejim dəyəri (loop.css-də də eyni sabit) ki,
-   hero ilə pipeline arasında (tünd rejimdə) tikiş görünməsin. */
+   Masaüstündə WebGL yükləndikdə üstündən hero__scene keçir. Rəng --midnight -
+   hero ilə digər tünd bölmələr (loop.css-də də eyni dəyişən) arasında tikiş
+   görünməsin deyə eyni sabit. */
 .hero__bg {
   position: absolute;
   inset: 0;
@@ -34,7 +33,7 @@
     radial-gradient(45% 35% at 12% 18%, rgba(255, 255, 255, 0.09), transparent 70%),
     radial-gradient(40% 30% at 88% 28%, rgba(255, 255, 255, 0.07), transparent 70%),
     radial-gradient(50% 40% at 22% 90%, rgba(255, 255, 255, 0.06), transparent 70%),
-    #16130f;
+    var(--midnight);
 }
 
 /* Tək Three.js canvas - fon (noise dalğa + grain shader-li müstəvi, yalnız
@@ -75,7 +74,7 @@
   aspect-ratio: 81 / 24;
   height: auto;
   display: block;
-  color: #ffffff;
+  color: var(--ink-on-dark);
   opacity: 0.62;
   filter: blur(3px);
   pointer-events: none;
@@ -143,15 +142,10 @@
   justify-content: center;
 }
 
-/* Seçici .hero__logo-slot-a scope edilib (bare .brand-logo yox) - bu class
-   splash.js-nin klonladığı elementdə də qalır (splashLogo), splash klonu
-   #splash-in daxilindədir, .hero__logo-slot-un xaricində, ona görə bu
-   qayda ona TƏSİR ETMİR (əks halda splash animasiyası da gizli qalardı). */
 .hero__logo-slot .brand-logo {
   width: min(46vh, 80vw, 420px);
   height: min(46vh, 80vw, 420px);
   overflow: visible;
-  color: #ffffff;
   opacity: 0;
   transition: opacity 0.6s ease;
 }

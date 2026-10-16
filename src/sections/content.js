@@ -2,19 +2,17 @@ import gsap from 'gsap'
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
 import { HAND_POSE_OPEN, HAND_CONNECTIONS } from '../lib/handPoses.js'
 import { initLineCarousel } from '../lib/lineCarousel.js'
+import {
+  BRAND_LOGO_BLOB_A_D,
+  BRAND_LOGO_BLOB_B_D,
+  BRAND_LOGO_DOT_LEFT,
+  BRAND_LOGO_DOT_RIGHT,
+  BRAND_LOGO_VIEWBOX,
+} from '../lib/brandLogo.js'
 
 // public/ altındakı asset-lərə mütləq "/..." yolla deyil, BASE_URL ilə
 // istinad olunur (kök yolda "/" verir, amma alt qovluqda yayımlansa da işləyər).
 const BASE_URL = import.meta.env.BASE_URL
-
-// logo.svg-nin TAM forması (iki qövs, iki ox ucu, mərkəzi nöqtə) - fon
-// dekoru kimi təkrar istifadə, boz və fırlanan.
-const ARC_SIGNED_D =
-  'M50.5 88.5C45.3784 88.5 40.307 87.4912 35.5753 85.5313C30.8436 83.5714 26.5443 80.6986 22.9228 77.0772C19.3013 73.4557 16.4286 69.1563 14.4687 64.4247C12.5088 59.693 11.5 54.6215 11.5 49.5'
-const ARC_SPOKEN_D =
-  'M49.5 10.5C54.6216 10.5 59.693 11.5088 64.4247 13.4687C69.1564 15.4286 73.4557 18.3014 77.0772 21.9228C80.6986 25.5443 83.5714 29.8436 85.5313 34.5753C87.4912 39.307 88.5 44.3784 88.5 49.5'
-const HEAD_SIGNED_D = 'M11.5 34L21.4593 49.75H1.54071L11.5 34Z'
-const HEAD_SPOKEN_D = 'M88.5 65L78.5407 49.25L98.4593 49.25L88.5 65Z'
 
 // public/wordmark.svg-nin dəyişməz kopyası (hero.js-in özünün eyni prinsiplə
 // WORDMARK_MARKUP-u kimi) - currentColor ilə əlaqə/footer bölməsində böyük,
@@ -30,17 +28,17 @@ const CONTACT_WORDMARK_MARKUP = `
 `
 
 // side: 'left' | 'right' - dekor ekran kənarına yapışır (bax content.css
-// .section-bg--left/--right).
+// .section-bg--left/--right). Yeni loqonun həndəsəsi (iki damla + iki
+// nöqtə, brandLogo.js) - köhnə qövs/ox-ucu formasının tam əvəzi.
 function logoBackgroundMarkup(side) {
   return `
   <div class="section-bg section-bg--logo section-bg--${side}" aria-hidden="true">
-    <svg class="section-bg__svg" viewBox="0 0 100 100">
+    <svg class="section-bg__svg" viewBox="${BRAND_LOGO_VIEWBOX}">
       <g class="section-bg__logo-group">
-        <path class="section-bg__logo-arc" d="${ARC_SIGNED_D}" />
-        <path class="section-bg__logo-arc" d="${ARC_SPOKEN_D}" />
-        <path class="section-bg__logo-head" d="${HEAD_SIGNED_D}" />
-        <path class="section-bg__logo-head" d="${HEAD_SPOKEN_D}" />
-        <circle class="section-bg__logo-dot" cx="50" cy="50" r="4" />
+        <path class="section-bg__logo-shape" d="${BRAND_LOGO_BLOB_A_D}" />
+        <path class="section-bg__logo-shape" d="${BRAND_LOGO_BLOB_B_D}" />
+        <circle class="section-bg__logo-dot" cx="${BRAND_LOGO_DOT_LEFT.cx}" cy="${BRAND_LOGO_DOT_LEFT.cy}" r="${BRAND_LOGO_DOT_LEFT.r}" />
+        <circle class="section-bg__logo-dot" cx="${BRAND_LOGO_DOT_RIGHT.cx}" cy="${BRAND_LOGO_DOT_RIGHT.cy}" r="${BRAND_LOGO_DOT_RIGHT.r}" />
       </g>
     </svg>
   </div>`
@@ -490,14 +488,14 @@ function setupSectionBackgrounds() {
     }
 
     if (type === 'logo') {
-      // Mərkəzi nöqtə (viewBox 50,50) ətrafında fırlanır. CSS transform-box:
-      // view-box etibarsız çıxdı (qrupu SVG-nin öz sərhədindən kənara
-      // fırladıb görünməz edirdi) - svgOrigin GSAP-ın SVG-üçün xüsusi,
-      // etibarlı mexanizmidir (preloader.js-də də eyni texnika işlədilib).
+      // Mərkəzi nöqtə (viewBox 540,540 - BRAND_LOGO_VIEWBOX-un mərkəzi)
+      // ətrafında fırlanır. CSS transform-box: view-box etibarsız çıxdı
+      // (qrupu SVG-nin öz sərhədindən kənara fırladıb görünməz edirdi) -
+      // svgOrigin GSAP-ın SVG-üçün xüsusi, etibarlı mexanizmidir.
       const group = section.querySelector('.section-bg__logo-group')
       gsap.fromTo(
         group,
-        { rotate: 0, svgOrigin: '50 50' },
+        { rotate: 0, svgOrigin: '540 540' },
         { rotate, ease: 'none', scrollTrigger }
       )
     } else {

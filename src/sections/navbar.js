@@ -1,8 +1,10 @@
-import { BRAND_LOGO_MARKUP } from '../lib/brandLogo.js'
+import { BRAND_LOGO_MARKUP_WHITE, buildBrandLogoMarkupBlue, BRAND_LOGO_VIEWBOX } from '../lib/brandLogo.js'
 
-// Naviqasiya paneli üçün loqonun sadə, animasiyasız kopyası - id toqquşmasının
-// qarşısını almaq üçün id-siz.
-const NAVBAR_LOGO_MARKUP = BRAND_LOGO_MARKUP.replace(/\sid="[^"]*"/g, '')
+// Naviqasiya paneli üçün loqonun iki nüsxəsi (ağ + göy) üst-üstə yerləşdirilir
+// və navbar.css-dəki .is-light sinfinə görə bir-birinin üzərinə sönür/yanır -
+// göy nüsxənin gradient id-ləri "navbar" açarı ilə unikaldır (bax brandLogo.js),
+// ona görə preloader klonu ilə (başqa açar) heç vaxt toqquşmur.
+const NAVBAR_LOGO_MARKUP_BLUE = buildBrandLogoMarkupBlue('navbar')
 
 const BASE = import.meta.env.BASE_URL
 
@@ -30,7 +32,10 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
   return `
 <header class="navbar${cls}" data-navbar>
   <a class="navbar__brand" href="${home ? '#top' : BASE}">
-    <svg class="navbar__logo-svg" viewBox="0 0 100 100" aria-hidden="true">${NAVBAR_LOGO_MARKUP}</svg>
+    <span class="navbar__logo" aria-hidden="true">
+      <svg class="navbar__logo-svg navbar__logo-svg--dark" viewBox="${BRAND_LOGO_VIEWBOX}">${BRAND_LOGO_MARKUP_WHITE}</svg>
+      <svg class="navbar__logo-svg navbar__logo-svg--light" viewBox="${BRAND_LOGO_VIEWBOX}">${NAVBAR_LOGO_MARKUP_BLUE}</svg>
+    </span>
     <span class="navbar__name">Chevir</span>
   </a>
   <nav class="navbar__actions" aria-label="Əsas keçidlər">

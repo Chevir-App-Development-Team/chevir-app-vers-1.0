@@ -1,15 +1,17 @@
 import gsap from 'gsap'
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
 import { HERO_TAGLINE } from '../lib/i18n.js'
-import { BRAND_LOGO_MARKUP } from '../lib/brandLogo.js'
+import { BRAND_LOGO_MARKUP_WHITE, BRAND_LOGO_VIEWBOX } from '../lib/brandLogo.js'
 import { navbarMarkup as buildNavbarMarkup } from './navbar.js'
 
 const BASE = import.meta.env.BASE_URL
 
 // Naviqasiyanın tünd/açıq rejimini idarə edən sərt-kodlanmış bölmə siyahısı
 // (bax content.css "Sərt açıq" şərhləri) - burada saxlanılır ki, hansı
-// bölmələrin "açıq" olduğu TƏK yerdə (burda) qərarlaşdırılsın.
-const LIGHT_SECTION_SELECTOR = '.difference, .usecases, .team'
+// bölmələrin "açıq" olduğu TƏK yerdə (burda) qərarlaşdırılsın. .trust
+// bilərəkdən bu siyahıda deyil (tünd qalır) - əks halda usecases-dən
+// team-ə qədər 5 ardıcıl açıq bölmə yaranardı.
+const LIGHT_SECTION_SELECTOR = '.statement, .difference, .usecases, .results, .roadmap, .team'
 
 // public/wordmark.svg-nin dəyişməz kopyası (currentColor - hero-da ağ olur).
 const WORDMARK_MARKUP = `
@@ -33,11 +35,7 @@ export const heroMarkup = `
     <a href="${BASE}nsosyal/" class="hero__nsosyal-btn">NSosyal demosu <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
 
     <div class="hero__logo-slot" aria-hidden="true">
-      <svg
-        id="brand-logo"
-        class="brand-logo"
-        viewBox="0 0 100 100"
-      >${BRAND_LOGO_MARKUP}</svg>
+      <svg class="brand-logo" viewBox="${BRAND_LOGO_VIEWBOX}">${BRAND_LOGO_MARKUP_WHITE}</svg>
     </div>
   </div>
 </section>
@@ -55,7 +53,7 @@ function isWebGLAvailable() {
   }
 }
 
-// Statik #brand-logo yalnız FALLBACK kimi görünür (WebGL yoxdursa, reduced-motion,
+// Statik .brand-logo yalnız FALLBACK kimi görünür (WebGL yoxdursa, reduced-motion,
 // ya da 3D yüklənmə uğursuz olsa) - default gizlidir (hero.css), ona görə uğurlu
 // 3D yüklənmədə heç vaxt görünüb-yoxa çıxmır (əvvəlki "yanıb-sönmə" bugı).
 function setFallbackVisible(visible) {
@@ -110,23 +108,20 @@ function initHandVisual() {
 export function setupHero() {
   initHandVisual()
 
-  const logo = document.getElementById('brand-logo')
   const tagline = document.querySelector('.hero__tagline')
   const nsosyalBtn = document.querySelector('.hero__nsosyal-btn')
   const cta = document.querySelector('.navbar__actions')
 
   // tagline/cta burda yalnız gizlədilir (instant set) - görünən reveal
   // tween-i preloader.js-in öz splash timeline-ındadır (`.hero__desc` seçicisi
-  // ilə tapır, t=2.9-da açır). Wordmark və əl splash örtüyünün altında adi
-  // görünür qalır, əvvəlki başlıq/demo kimi.
+  // ilə tapır, uçuş bitəndə açır). Wordmark və əl splash örtüyünün altında
+  // adi görünür qalır, əvvəlki başlıq/demo kimi.
   if (prefersReducedMotion) {
     gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 1 })
-    return { logo }
+    return
   }
 
   gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 0, y: 16 })
-
-  return { logo }
 }
 
 // Naviqasiyanın probe nöqtəsi (öz hündürlüyünün ortası) hər hansı açıq
