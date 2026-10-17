@@ -110,6 +110,53 @@ def assign_signers(recs, emb_ids, emb, sim=0.45, gap_min=15.0, override=None):
     return out, report
 
 
+def _centroids(signers, emb_ids, emb):
+    sig = dict(zip(signers.rec_id, signers.signer))
+    groups = {}
+    for i, rid in enumerate(emb_ids):
+        if rid in sig:
+            groups.setdefault(sig[rid], []).append(i)
+    names = sorted(groups)
+    C = np.stack([_norm(np.asarray(emb, np.float32)[groups[g]].mean(0)) for g in names]) if names else np.zeros((0, 1))
+    return names, C, {g: len(v) for g, v in groups.items()}
+
+
+def split_groups(signers, emb_ids, emb, link_sim=0.40):
+    """Pseudo-signers that are ambiguously alike (centroid similarity >= link_sim) are tied together:
+    they always land in the same split. On AzSLD different people often score 0.35–0.40 and one
+    person's sittings 0.8+; in between nobody can tell, so such pairs never straddle train/test.
+    Union-find over the pairs → dict signer → group id."""
+    names, C, _ = _centroids(signers, emb_ids, emb)
+    parent = {n: n for n in signers.signer.unique()}
+
+    def root(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    S = C @ C.T if len(names) else np.zeros((0, 0))
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            if S[i, j] >= link_sim:
+                parent[root(names[i])] = root(names[j])
+    roots = sorted({root(n) for n in parent})
+    gid = {r: f'g{k:02d}' for k, r in enumerate(roots)}
+    return {n: gid[root(n)] for n in parent}
+
+
+def closest_pairs(signers, emb_ids, emb, top=8):
+    """Most similar pseudo-signer pairs with their splits — read next to the contact sheet.
+    With split_groups() no pair at or above link_sim can straddle two splits."""
+    names, C, n = _centroids(signers, emb_ids, emb)
+    split = dict(zip(signers.signer, signers.split))
+    S = C @ C.T
+    out = [{'a': names[i], 'b': names[j], 'sim': round(float(S[i, j]), 3),
+            'splits': f'{split.get(names[i])}/{split.get(names[j])}', 'recordings': f'{n[names[i]]}/{n[names[j]]}'}
+           for i in range(len(names)) for j in range(i + 1, len(names))]
+    return sorted(out, key=lambda r: -r['sim'])[:top]
+
+
 def pick_split(df, group_col: str, label_col: str, fracs=(0.7, 0.15, 0.15), seed: int = 0,
                trials: int = 4000, forced_train=()):
     """Random search over whole groups → dict group → 'train'|'val'|'test'.

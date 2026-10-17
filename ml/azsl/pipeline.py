@@ -246,8 +246,8 @@ def run_sentences(out_dir, paths, shard=0, num_shards=1, camera='Cam2', workers=
 
 # ---------------------------------------------------------------- split
 
-def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.45, gap_min=15.0, seed=0,
-              override_csv=None, heldout_sentence_frac=0.1, min_clips=20, k_folds=5, trials=4000):
+def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.45, link_sim=0.40, gap_min=15.0,
+              seed=0, override_csv=None, heldout_sentence_frac=0.1, min_clips=20, k_folds=5, trials=4000):
     """Pseudo-signers → one signer-level train/val/test split → per-task split files + benchmark.json."""
     import numpy as np
     import pandas as pd
@@ -260,8 +260,14 @@ def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.45, 
     emb_ids, emb, thumbs = sen.embeddings()
     ok = ~np.isnan(emb).any(1) if len(emb) else np.zeros(0, bool)
     emb_ids, emb = [i for i, k in zip(emb_ids, ok) if k], emb[ok]
+    # compact copy for tuning the clustering offline (anonymous vectors, no images; never committed)
+    priv = os.path.join(os.path.dirname(os.path.abspath(out_dir)), 'private')
+    os.makedirs(priv, exist_ok=True)
+    np.savez_compressed(os.path.join(priv, 'face_embeddings.npz'), ids=np.array(emb_ids), emb=emb.astype(np.float16))
     override = pd.read_csv(override_csv, dtype=str) if override_csv else None
     signers, rep = S.assign_signers(recs, emb_ids, emb, sim=sim, gap_min=gap_min, override=override)
+    group_of = S.split_groups(signers, emb_ids, emb, link_sim)
+    signers['split_group'] = signers.signer.map(group_of)
     m = sen.manifest.set_index('rec_id') if 'rec_id' in sen.manifest else sen.manifest.set_index('id')
     signers['has_landmarks'] = signers.rec_id.isin(m.index)
     signers['frontal'] = signers.rec_id.map(m['frontal'])
@@ -272,27 +278,30 @@ def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.45, 
     t = tags[~tags.dup].copy()
     t['signer'] = t.rec_id.map(signer_of)
     t = t.dropna(subset=['signer'])
+    t['split_group'] = t.signer.map(group_of)
 
-    # one signer-level split, optimised for covering the 200-word vocabulary in val and test
+    # one split over split groups (pseudo-signers + the ones ambiguously alike), optimised for
+    # covering the 200-word vocabulary in val and test, then shared by every task
     t200 = t[t.gloss.isin(vocab)]
-    unknown = [g for g in t.signer.unique() if g.startswith('unk-')]
-    assign, cover = S.pick_split(t200, 'signer', 'gloss', seed=seed, trials=trials, forced_train=unknown)
-    for g in t.signer.unique():
+    unknown = sorted({group_of[g] for g in t.signer.unique() if g.startswith('unk-')})
+    assign, cover = S.pick_split(t200, 'split_group', 'gloss', seed=seed, trials=trials, forced_train=unknown)
+    for g in set(group_of.values()):
         assign.setdefault(g, 'train')
-    fold_of = S.folds(t200[t200.signer.map(assign) == 'train'], 'signer', k_folds)
-    signers['split'] = signers.signer.map(assign).fillna('train')
-    signers['fold'] = signers.signer.map(fold_of)
+    fold_of = S.folds(t200[t200.split_group.map(assign) == 'train'], 'split_group', k_folds)
+    signers['split'] = signers.split_group.map(assign).fillna('train')
+    signers['fold'] = signers.split_group.map(fold_of)
+    split_of, fold_by_signer = dict(zip(signers.signer, signers.split)), dict(zip(signers.signer, signers.fold))
 
     # task 1 — Words_200 clips (link via tag key → recording → signer)
     w = words.merge(tags[['key', 'rec_id', 'start', 'end']], on='key', how='left')
     w['signer'] = w.rec_id.map(signer_of).fillna('unknown')
-    w['split'] = w.signer.map(assign).fillna('train')
-    w['fold'] = w.signer.map(fold_of)
+    w['split'] = w.signer.map(split_of).fillna('train')
+    w['fold'] = w.signer.map(fold_by_signer)
     # task 2 — every annotated gloss cut from the sentences (slice the recording's landmarks)
     n_clips, n_sig = t.groupby('gloss').size(), t.groupby('gloss').signer.nunique()
     t['in_w200'] = t.gloss.isin(vocab)
     t['min_clips'] = t.gloss.map((n_clips >= min_clips) & (n_sig >= 3))
-    t['split'], t['fold'] = t.signer.map(assign), t.signer.map(fold_of)
+    t['split'], t['fold'] = t.signer.map(split_of), t.signer.map(fold_by_signer)
     t['has_landmarks'] = t.rec_id.isin(m.index)
     # task 3 — whole sentences; a held-out set of sentence folders measures generalisation to unseen sentences
     rng = np.random.default_rng(seed)
@@ -319,8 +328,14 @@ def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.45, 
         os.path.join(out_dir, 'fingerspelling_split.csv'), index=False)
 
     split_signers = signers.drop_duplicates('signer').groupby('split').size().to_dict()
+    rep['closest_pairs'] = S.closest_pairs(signers, emb_ids, emb)
+    cross = [p['sim'] for p in S.closest_pairs(signers, emb_ids, emb, top=10_000) if len(set(p['splits'].split('/'))) > 1]
+    gsize = signers.groupby('split_group').size()
+    rep['split_groups'] = {'count': int(len(gsize)), 'largest_share': round(float(gsize.max() / gsize.sum()), 3),
+                           'per_split': signers.drop_duplicates('split_group').groupby('split').size().to_dict(),
+                           'max_cross_split_sim': max(cross, default=None), 'link_sim': link_sim}
     bench = {
-        'protocol': 'signer-independent; one signer→split map shared by all tasks; seed %d' % seed,
+        'protocol': 'signer-independent; one split-group→split map shared by all tasks; seed %d' % seed,
         'signers': {**rep, 'per_split': split_signers, 'sim_threshold': sim, 'session_gap_min': gap_min},
         'frontal_outliers': int((signers.frontal > 0.35).sum()),
         'words200': {'coverage': cover, 'unlinked_clips': int((w.signer == 'unknown').sum()),

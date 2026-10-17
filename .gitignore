@@ -36,3 +36,5 @@ Thumbs.db
 
 # ml/ yerli çıxışları (Kaggle notebook-larını lokalda sınayanda)
 azsl_out/
+ml/.kaggle_stage/
+ml/results/

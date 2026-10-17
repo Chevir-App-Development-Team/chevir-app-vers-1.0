@@ -1,0 +1,252 @@
+{
+ "protocol": "signer-independent; one split-group→split map shared by all tasks; seed 0",
+ "signers": {
+  "units": 463,
+  "split_off_recordings": 199,
+  "signers": 35,
+  "nearest_other_signer_sim": [
+   0.508,
+   0.508,
+   0.47,
+   0.47,
+   0.464,
+   0.464,
+   0.444,
+   0.444,
+   0.428,
+   0.428
+  ],
+  "signer_sentence_repeats": 965,
+  "recordings": 10104,
+  "without_face": 0,
+  "closest_pairs": [
+   {
+    "a": "p007",
+    "b": "p011",
+    "sim": 0.565,
+    "splits": "train/train",
+    "recordings": "213/250"
+   },
+   {
+    "a": "p003",
+    "b": "p020",
+    "sim": 0.518,
+    "splits": "test/test",
+    "recordings": "425/315"
+   },
+   {
+    "a": "p021",
+    "b": "p034",
+    "sim": 0.474,
+    "splits": "train/train",
+    "recordings": "385/238"
+   },
+   {
+    "a": "p002",
+    "b": "p029",
+    "sim": 0.46,
+    "splits": "train/train",
+    "recordings": "475/478"
+   },
+   {
+    "a": "p003",
+    "b": "p030",
+    "sim": 0.452,
+    "splits": "test/test",
+    "recordings": "425/485"
+   },
+   {
+    "a": "p007",
+    "b": "p008",
+    "sim": 0.424,
+    "splits": "train/train",
+    "recordings": "213/3"
+   },
+   {
+    "a": "p024",
+    "b": "p032",
+    "sim": 0.42,
+    "splits": "val/val",
+    "recordings": "237/239"
+   },
+   {
+    "a": "p010",
+    "b": "p013",
+    "sim": 0.414,
+    "splits": "train/train",
+    "recordings": "167/491"
+   }
+  ],
+  "split_groups": {
+   "count": 21,
+   "largest_share": 0.213,
+   "per_split": {
+    "test": 3,
+    "train": 14,
+    "val": 4
+   },
+   "max_cross_split_sim": 0.398,
+   "link_sim": 0.4
+  },
+  "per_split": {
+   "test": 5,
+   "train": 25,
+   "val": 5
+  },
+  "sim_threshold": 0.45,
+  "session_gap_min": 15.0
+ },
+ "frontal_outliers": 0,
+ "words200": {
+  "coverage": {
+   "missing_test": 0,
+   "missing_val": 0,
+   "fraction_error": 0.001,
+   "testable_classes": 198
+  },
+  "unlinked_clips": 78,
+  "majority_class": "MƏN",
+  "train_classes": 200,
+  "train": {
+   "samples": 5995,
+   "classes": 200,
+   "majority_acc": 0.2986,
+   "chance_balanced_acc": 0.005,
+   "unseen_in_train": 0
+  },
+  "val": {
+   "samples": 1274,
+   "classes": 187,
+   "majority_acc": 0.2865,
+   "chance_balanced_acc": 0.0053,
+   "unseen_in_train": 0
+  },
+  "test": {
+   "samples": 1288,
+   "classes": 191,
+   "majority_acc": 0.2888,
+   "chance_balanced_acc": 0.0052,
+   "unseen_in_train": 0
+  }
+ },
+ "glosses_min20": {
+  "majority_class": "MƏN",
+  "train_classes": 645,
+  "train": {
+   "samples": 32471,
+   "classes": 645,
+   "majority_acc": 0.1232,
+   "chance_balanced_acc": 0.0016,
+   "unseen_in_train": 0
+  },
+  "val": {
+   "samples": 7188,
+   "classes": 645,
+   "majority_acc": 0.1023,
+   "chance_balanced_acc": 0.0016,
+   "unseen_in_train": 0
+  },
+  "test": {
+   "samples": 7019,
+   "classes": 645,
+   "majority_acc": 0.1205,
+   "chance_balanced_acc": 0.0016,
+   "unseen_in_train": 0
+  }
+ },
+ "glosses_all": {
+  "majority_class": "MƏN",
+  "train_classes": 837,
+  "train": {
+   "samples": 34267,
+   "classes": 837,
+   "majority_acc": 0.1167,
+   "chance_balanced_acc": 0.0012,
+   "unseen_in_train": 0
+  },
+  "val": {
+   "samples": 7608,
+   "classes": 801,
+   "majority_acc": 0.0966,
+   "chance_balanced_acc": 0.0012,
+   "unseen_in_train": 1
+  },
+  "test": {
+   "samples": 7412,
+   "classes": 812,
+   "majority_acc": 0.1141,
+   "chance_balanced_acc": 0.0012,
+   "unseen_in_train": 3
+  }
+ },
+ "sentences": {
+  "heldout_folders": 49,
+  "test": 1511,
+  "train": 7108,
+  "val": 1485
+ },
+ "fingerspelling": {
+  "dynamic": {
+   "coverage": {
+    "missing_test": 0,
+    "missing_val": 0,
+    "fraction_error": 0.0,
+    "testable_classes": 8
+   },
+   "majority_class": "k",
+   "train_classes": 8,
+   "train": {
+    "samples": 4477,
+    "classes": 8,
+    "majority_acc": 0.1561,
+    "chance_balanced_acc": 0.125,
+    "unseen_in_train": 0
+   },
+   "val": {
+    "samples": 960,
+    "classes": 8,
+    "majority_acc": 0.0958,
+    "chance_balanced_acc": 0.125,
+    "unseen_in_train": 0
+   },
+   "test": {
+    "samples": 963,
+    "classes": 8,
+    "majority_acc": 0.0093,
+    "chance_balanced_acc": 0.125,
+    "unseen_in_train": 0
+   }
+  },
+  "static": {
+   "coverage": {
+    "missing_test": 0,
+    "missing_val": 0,
+    "fraction_error": 0.0,
+    "testable_classes": 22
+   },
+   "majority_class": "a",
+   "train_classes": 24,
+   "train": {
+    "samples": 671,
+    "classes": 24,
+    "majority_acc": 0.0596,
+    "chance_balanced_acc": 0.0417,
+    "unseen_in_train": 0
+   },
+   "val": {
+    "samples": 144,
+    "classes": 22,
+    "majority_acc": 0.0,
+    "chance_balanced_acc": 0.0455,
+    "unseen_in_train": 0
+   },
+   "test": {
+    "samples": 144,
+    "classes": 22,
+    "majority_acc": 0.0,
+    "chance_balanced_acc": 0.0455,
+    "unseen_in_train": 0
+   }
+  }
+ }
+}

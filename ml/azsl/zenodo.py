@@ -66,10 +66,16 @@ def download(url: str, dest: str, chunk: int = 1 << 24) -> str:
     return dest
 
 
-def _head_size(url: str) -> int:
+def _head_size(url: str, retries: int = 8) -> int:
     req = urllib.request.Request(url, headers={**UA, 'Range': 'bytes=0-0'})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return int(r.headers['Content-Range'].split('/')[-1])
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return int(r.headers['Content-Range'].split('/')[-1])
+        except (urllib.error.URLError, OSError, TimeoutError) as e:   # DNS blips, 429, resets
+            if attempt == retries - 1:
+                raise IOError(f'size of {url}: {e}') from e
+            time.sleep(min(300, 5 * 2 ** attempt))
 
 
 class RangeFile(io.RawIOBase):

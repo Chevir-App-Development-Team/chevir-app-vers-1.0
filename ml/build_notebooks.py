@@ -10,6 +10,7 @@ import nbformat as nbf
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODULES = ['__init__', 'zenodo', 'landmarks', 'store', 'sources', 'split', 'pipeline']
+TRAIN_MODULES = MODULES + ['features', 'train']
 NUM_SHARDS = 4
 
 SETUP = '''import glob, json, os, subprocess, sys, tempfile
@@ -55,9 +56,9 @@ def code(text):
     return nbf.v4.new_code_cell(text.strip())
 
 
-def package_cells():
+def package_cells(modules=MODULES):
     cells = [md('### The `azsl` package\nGenerated from `ml/azsl/` — edit it there, not here.')]
-    for m in MODULES:
+    for m in modules:
         with open(os.path.join(HERE, 'azsl', f'{m}.py'), encoding='utf-8') as f:
             cells.append(code(f'%%writefile {{PKG}}/azsl/{m}.py\n' + f.read()))
     return cells
@@ -197,6 +198,7 @@ Download `splits/` and commit it to `ml/splits/` — that is the frozen benchmar
 '''),
         code('''
 SIM = 0.45             # same-signer cosine similarity threshold (SFace); see the checks below
+LINK_SIM = 0.40        # pseudo-signers at least this alike always share a split (ambiguous = maybe one person)
 GAP_MIN = 15.0         # minutes between recordings that start a new session
 SEED = 0
 OVERRIDE_CSV = None    # optional CSV rec_id,signer with real signer ids, if the dataset authors share them
@@ -222,14 +224,18 @@ if len(sentence_dirs) < 4:
 '''),
         code('''
 bench, signers, thumbs = pipeline.run_split(index_dir[0], words_dirs, fs_dirs, sentence_dirs,
-                                            os.path.join(OUT, 'splits'), sim=SIM, gap_min=GAP_MIN,
+                                            os.path.join(OUT, 'splits'), sim=SIM, link_sim=LINK_SIM, gap_min=GAP_MIN,
                                             seed=SEED, override_csv=OVERRIDE_CSV)
-print(json.dumps(bench['signers'], indent=1, default=str))
+print(json.dumps({k: v for k, v in bench['signers'].items() if k != 'closest_pairs'}, indent=1, default=str))
+import pandas as pd
+pd.DataFrame(bench['signers']['closest_pairs'])   # a close pair across splits would be one person leaking
 '''),
         md('''
 ### Check the pseudo-signers
-Each row should be **one person**. Two people in one row → raise `SIM`; one person spread over
-several rows → lower it. `nearest_other_signer_sim` above should stay well below `SIM`, and
+Each row should be **one person**. One person spread over several rows is only harmful if the
+rows land in different splits — pseudo-signers at least `LINK_SIM` alike are tied to one split
+(`split_group`), and `closest_pairs` / `max_cross_split_sim` show what is left across splits.
+Two people in one row only makes the split coarser. `nearest_other_signer_sim` above should stay well below `SIM`, and
 `signer_sentence_repeats` small (a signer rarely records the same sentence twice).
 '''),
         code('''
@@ -257,13 +263,102 @@ print('frontal-camera outliers:', bench['frontal_outliers'])
     ])
 
 
+def nb04():
+    return notebook([
+        md("""
+# AzSLD 04 — train the word model (Phase 2)
+
+Isolated-sign recognition on landmarks, **signer-independent**: train on the sentence-cut signs
+of train signers (200-word vocabulary), report every epoch on the val signers, score the test
+signers once at the end with the best-on-val checkpoint. Model: Conv1D + Transformer, ~1.7 M
+parameters, exported to ONNX for the browser.
+
+**Inputs:** outputs of 01, the four 02 shards and 03 (*Add Input → Your Work → Notebooks*).
+**Kaggle settings:** Accelerator **GPU T4**, Internet **On** (only to install `onnx` if missing).
+**Writes** `train/`: `history.csv` (per epoch), `metrics.json` (test), `per_class_test_words.csv`,
+`best.pt`, `model.onnx`, `vocab.json`.
+
+Columns per epoch: `W_*` = Words_200 val clips (the benchmark), `S_*` = sentence-cut val signs;
+`mF1` = macro-F1. Always compare with the majority-class accuracy printed at the start.
+"""),
+        code("""
+SMOKE = False          # True: 2 epochs on a sample, to check the setup
+CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4, seed=0)
+"""),
+        code(SETUP),
+        code("""
+# ONNX export (for the browser) needs the onnx package; installed only if this image lacks it
+import importlib.util
+if ON_KAGGLE and importlib.util.find_spec('onnx') is None:
+    subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'onnx', 'onnxruntime'])
+"""),
+        *package_cells(TRAIN_MODULES),
+        code("""
+import pandas as pd, torch
+from azsl import train as T
+INPUT = '/kaggle/input' if ON_KAGGLE else OUT
+
+def find(pattern):
+    return sorted({os.path.dirname(p) for p in glob.glob(os.path.join(INPUT, '**', pattern), recursive=True)})
+
+splits_dir = find('splits/words200_split.csv')[0]
+words_dirs = find('landmarks/words200/manifest.csv')
+sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
+print('splits:', splits_dir, '\\nwords:', words_dirs, '\\nsentence shards:', len(sentence_dirs))
+print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none — this will be slow')
+with open(os.path.join(splits_dir, 'benchmark.json'), encoding='utf-8') as f:
+    print('split:', json.load(f)['signers'].get('split_groups'))
+"""),
+        code("""
+wsplit = pd.read_csv(os.path.join(splits_dir, 'words200_split.csv'), dtype={'key': str, 'rec_id': str})
+tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
+vocab_list = sorted(wsplit.gloss.unique())
+vocab = {g: i for i, g in enumerate(vocab_list)}
+tags = tags[tags.in_w200 & tags.has_landmarks & tags.split.notna()]
+if SMOKE:
+    tags = tags.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 1500), random_state=0))
+    wsplit = wsplit.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 300), random_state=0))
+    CFG.update(epochs=2)
+signs = T.load_sentence_signs(sentence_dirs, tags, vocab, margin=CFG['margin'])
+words = T.load_words200(words_dirs, wsplit, vocab)
+"""),
+        md('### Training — one line per epoch (`*` = new best on val macro-F1)'),
+        code("""
+result = T.fit(CFG, signs, words, vocab_list, os.path.join(OUT, 'train'))
+"""),
+        md('### Test (scored once, best-on-val checkpoint)'),
+        code("""
+import matplotlib.pyplot as plt
+h = pd.read_csv(os.path.join(OUT, 'train', 'history.csv'))
+for name in ('test_words', 'test_signs'):
+    if name in result:
+        r, t = result[name], result[name + '_tta']
+        print(f"{name}: top1 {r['top1']:.3f}  top5 {r['top5']:.3f}  macro-F1 {r['macro_f1']:.3f}  "
+              f"balanced {r['balanced_acc']:.3f}  (majority {r['majority_acc']:.3f}; with mirror-TTA top1 {t['top1']:.3f})")
+print('best epoch', result['best_epoch'])
+fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+ax[0].plot(h.epoch, h.train_loss, label='train loss'); ax[0].legend()
+for c in ('val_words_top1', 'val_words_macro_f1', 'val_signs_top1', 'val_signs_macro_f1'):
+    if c in h:
+        ax[1].plot(h.epoch, h[c], label=c)
+if 'test_words' in result:
+    ax[1].axhline(result['test_words']['majority_acc'], ls='--', c='gray', label='majority class')
+ax[1].legend(); plt.show()
+pd.read_csv(os.path.join(OUT, 'train', 'per_class_test_words.csv')).head(25)
+"""),
+    ])
+
+
 def main():
     out = os.path.join(HERE, 'notebooks')
     os.makedirs(out, exist_ok=True)
-    books = {'01_index_words200_fingerspelling.ipynb': nb01(), '03_split_benchmark.ipynb': nb03()}
+    books = {'01_index_words200_fingerspelling.ipynb': nb01(), '03_split_benchmark.ipynb': nb03(),
+             '04_train_words.ipynb': nb04()}
     for k in range(NUM_SHARDS):
         books[f'02_sentences_shard{k}.ipynb'] = nb02(k)
     for name, nb in books.items():
+        for i, c in enumerate(nb.cells):          # stable ids: a rebuild without changes is a no-op in git
+            c['id'] = f'{os.path.splitext(name)[0][:20]}-{i:02d}'
         nbf.validate(nb)
         with open(os.path.join(out, name), 'w', encoding='utf-8', newline='\n') as f:
             nbf.write(nb, f)
