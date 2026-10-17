@@ -33,3 +33,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ml/ yerli çıxışları (Kaggle notebook-larını lokalda sınayanda)
+azsl_out/

@@ -93,6 +93,8 @@ tools/
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
   build_words.py         AzSLD Words 200 videoları → public/tercume/words/ (poza + iki əl)
   verify_*.mjs/py        reqressiya yoxlamaları
+ml/                      yeni model üçün Kaggle boru xətti: AzSLD → landmark-lar → signer-independent
+                         split (bax ml/README.md)
 model/
   fingerspelling_33.h5   barmaq əlifbası modeli (mənbə)
   lexicon.txt            dekoder üçün söz korpusu
