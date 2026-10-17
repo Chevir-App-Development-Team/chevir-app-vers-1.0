@@ -171,8 +171,8 @@
 /* ---------- Rejim: açıq bölmə (.is-light) ---------- */
 /* hero.js-dəki initNavbar() naviqasiyanın probe nöqtəsi (öz hündürlüyünün
    ortası) hansı bölmənin üzərindədirsə ona görə bu sinfi əlavə/silir (bax
-   statement/difference/usecases/results/roadmap/team - sərt açıq bölmələr,
-   trust bilərəkdən tünd saxlanılıb). Rənglər var(--ink-on-light)/
+   hero/statement/difference/usecases/results/roadmap/team - sərt açıq
+   bölmələr, trust bilərəkdən tünd saxlanılıb). Rənglər var(--ink-on-light)/
    var(--cloud) işlədir - naviqasiya bölmələr kimi OS temasından asılı
    olmamalıdır, amma indi bu dəyişənlərin dəyəri hər yerdə sabitdir
    (OS-dən yox, sinifdən asılıdır). */
@@ -204,4 +204,14 @@
 .navbar.is-light .navbar__cta {
   background: var(--midnight);
   color: var(--cloud);
+}
+
+/* İSTİSNA: hero üzərində CTA tərs OLUNMUR - əsas pilot-müraciət düyməsi
+   bütün səhifədə (hero daxil) eyni gradient/ağ-mətn görünüşündə qalır,
+   yalnız loqo/mətn rəngi digər açıq bölmələrlə eyni qaydaya tabedir (bax
+   hero.js updateNavbarMode/.is-over-hero). Specificity (3 sinif) yuxarıdakı
+   `.is-light .navbar__cta` (2 sinif) qaydasını qəsdən üstələyir. */
+.navbar.is-light.is-over-hero .navbar__cta {
+  background: var(--brand-gradient);
+  color: #ffffff;
 }

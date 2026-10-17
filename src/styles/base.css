@@ -56,9 +56,20 @@
   --accent-b-on-dark: #6fb1ff;
 
   /* 3D əlin rəngləri (hand3d.js :root-dan oxuyur) - brend dəyişənlərindən
-     ayrı, heç vaxt override olunmayan sabitlər. */
+     ayrı, heç vaxt override olunmayan sabitlər. Hero həmişə açıq fon
+     olduğu üçün (bax hero.css) hər iki əl açıq fonda oxunaqlı tondadır -
+     --accent-b-on-dark BURDA YOX (adından da göründüyü kimi tünd fon
+     üçündür, açıq fonda kontrastı zəifdir). --hand-right xalis Bridge
+     Blue-dan bir qədər açılıb (70% Bridge + 30% Chevir, #0039cd) - ekranda
+     xalis Bridge Blue sol əllə müqayisədə həddindən artıq tünd/ağır
+     göründü (referans şəkildəki daha işıqlı indiqo tonu ilə tutuşdurularaq).
+     QEYD: dəyər `color-mix()` funksiyası YOX, ƏVVƏLCƏDƏN hesablanmış sabit
+     hex-dir - sınanıb, hand3d.js-dəki getComputedStyle()-la oxunan
+     `color-mix(...)` sətri THREE.Color-a HƏR BRAUZERDƏ düzgün ötürülmür
+     (əl ağ/pozulmuş render olundu, ekranda görüldü), sabit hex isə etibarlı
+     işləyir. */
   --hand-left: var(--chevir-blue);
-  --hand-right: var(--accent-b-on-dark);
+  --hand-right: #0039cd;
 
   --brand-gradient: linear-gradient(90deg, var(--chevir-blue), var(--bridge-blue));
 

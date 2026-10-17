@@ -123,11 +123,21 @@ function runSplashAnimation(lenis, onDone) {
   const nsosyalBtn = document.querySelector('.hero__nsosyal-btn')
   const cta = document.querySelector('.navbar__actions')
   const scrollBtn = document.querySelector('.hero__scroll')
-  // Naviqasiya səhifə açılan anda HƏMİŞƏ default (ağ, .is-light DEYİL) rejimdədir
-  // (hero tünddür, scroll hələ başlamayıb) - uçan element də ona görə ağla ENMƏLİDİR.
+  // Hədəf nüsxə (ağ/tünd-fon üçün, yoxsa göy/açıq-fon üçün) SABİT seçilmir -
+  // hero indi açıq olsa da, səhifə scroll bərpası ilə (brauzerin öz
+  // scrollRestoration-ı) başqa (tünd) bölmənin üzərində açıla bilər, onda
+  // navbar `.is-light` DEYİL və ağ nüsxə doğru hədəfdir. Qərar FLIGHT
+  // başlamazdan dərhal əvvəl, addFlightLandingTweens()-də verilir (bax aşağı) -
+  // bu an initNavbar()-un sinxron ilk `update()` çağırışından sonradır, ona
+  // görə `.is-light` dəyəri artıq doğrudur (main.js: initPreloader → initNavbar,
+  // eyni tick; FLIGHT isə 2×rAF+TIMING.FLIGHT_START qədər sonra başlayır).
+  const navbarEl = document.querySelector('[data-navbar]')
   const navbarLogoDark = document.querySelector('.navbar__logo-svg--dark')
-  // Tək layout oxuması, timeline başlamazdan ƏVVƏL - FLIGHT tween daxilində
-  // hər tick getBoundingClientRect() çağırmaq əvəzinə, hədəf BİR DƏFƏ ölçülür.
+  const navbarLogoLight = document.querySelector('.navbar__logo-svg--light')
+  // Hər iki nüsxə eyni konteynerin üzərində üst-üstədir (navbar.css:
+  // `.navbar__logo-svg{position:absolute;inset:0}`) - ölçü HANSININ
+  // sorğulandığından asılı deyil, tək layout oxuması kifayətdir (FLIGHT
+  // tween daxilində hər tick getBoundingClientRect() çağırmaq əvəzinə).
   const navbarRect = navbarLogoDark.getBoundingClientRect()
 
   // TƏK loqo elementi - klon/ikinci nüsxə YOXDUR. Bütün ardıcıllıq (yaranma,
@@ -241,23 +251,42 @@ function runSplashAnimation(lenis, onDone) {
     },
     TIMING.FLIGHT_START
   )
-  // Göy→ağ keçid uçuşla EYNİ vaxt pəncərəsində - İKİNCİ element/klon yox,
-  // elə BU elementin öz gradient-lərinin stop-color-u dəyişir (GSAP attr).
-  // Eniş anında hədəfin (navbar, ağ) rənginə tam uyğun gəlir.
-  tl.to(gradientStops, { attr: { 'stop-color': '#ffffff' }, duration: TIMING.FLIGHT_DURATION, ease: 'power2.inOut' }, TIMING.FLIGHT_START)
-  // Uçuş bitdiyi an: klon HƏDƏFDƏ SABİT dayanır (sönmür), naviqasiyanın ağ
-  // loqosu EYNİ anda keçidsiz opacity:1 olur - iki eyni forma tam üst-üstə
-  // düşdüyü üçün göz heç nə görmür. Bir kadr sonra element DOM-dan silinir.
-  tl.call(
-    () => {
-      revealNavbarLogoInstantly(navbarLogoDark)
-      revealNavbar()
-      clearInstantOverride(navbarLogoDark)
-      requestAnimationFrame(() => logoEl.remove())
-    },
-    [],
-    TIMING.FLIGHT_END
-  )
+
+  // Rəng-keçidi VƏ eniş hədəfi navbarın O ANKI (`.is-light`) vəziyyətinə
+  // görə seçilir - BUILD zamanı yox (main.js sırası: initPreloader
+  // initNavbar-dan ƏVVƏL çağırılır, o anda `.is-light` hələ doğru dəyəri
+  // daşımaya bilər), tl.play()-dən bilavasitə əvvəl (aşağıdakı 2×rAF-ın
+  // içində) - bu anda initNavbar()-un sinxron ilk `update()` çağırışı
+  // artıq bitib, `.is-light` etibarlıdır (həm scroll=0/hero, həm scroll
+  // bərpası ilə başqa/tünd bölmənin üzərində açılma halları üçün).
+  function addFlightLandingTweens() {
+    const isLight = navbarEl?.classList.contains('is-light') ?? false
+    const target = isLight ? navbarLogoLight : navbarLogoDark
+
+    // Göy→ağ keçid YALNIZ tünd-fon hədəfinə enəndə lazımdır (splash loqosu
+    // onsuz da başdan göy gradient-dədir, açıq-fon/göy hədəflə artıq
+    // piksel-dəqiq eynidir - bax brandLogo.js, eyni stop-color-lar). Uçuşla
+    // EYNİ vaxt pəncərəsində, İKİNCİ element/klon yox, elə BU elementin öz
+    // gradient-lərinin stop-color-u dəyişir (GSAP attr).
+    if (!isLight) {
+      tl.to(gradientStops, { attr: { 'stop-color': '#ffffff' }, duration: TIMING.FLIGHT_DURATION, ease: 'power2.inOut' }, TIMING.FLIGHT_START)
+    }
+
+    // Uçuş bitdiyi an: klon HƏDƏFDƏ SABİT dayanır (sönmür), naviqasiyanın
+    // müvafiq nüsxəsi EYNİ anda keçidsiz opacity:1 olur - iki eyni forma
+    // tam üst-üstə düşdüyü üçün göz heç nə görmür. Bir kadr sonra element
+    // DOM-dan silinir.
+    tl.call(
+      () => {
+        revealNavbarLogoInstantly(target)
+        revealNavbar()
+        clearInstantOverride(target)
+        requestAnimationFrame(() => logoEl.remove())
+      },
+      [],
+      TIMING.FLIGHT_END
+    )
+  }
 
   // e) Hero məzmunu - uçuş bitməzdən HERO_LEAD qədər əvvəl başlayır (overlap).
   tl.to(
@@ -275,6 +304,7 @@ function runSplashAnimation(lenis, onDone) {
   // "yeyə" bilmir.
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
+      addFlightLandingTweens()
       tl.play()
     })
   })

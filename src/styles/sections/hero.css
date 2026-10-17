@@ -1,7 +1,8 @@
 /* ---------- Hero ---------- */
 
 .hero {
-  /* Hero həmişə tünd qalır - sistemin işıq/tünd rejimindən asılı olmayaraq.
+  /* Hero açıq (Cloud) fondur - CTA-dan başqa bütün bölmə ritmi buna görə
+     qurulur (bax navbar.css `.is-light`, hero.js LIGHT_SECTION_SELECTOR).
      3D əlin rəngləri (--hand-left/--hand-right) base.css-də :root-da sabit
      təyin olunur, burda heç nə override edilmir - brend dəyişənləri heç
      yerdə lokal override olunmur (bax base.css). */
@@ -15,25 +16,39 @@
   position: relative;
   overflow: hidden;
   min-height: 100svh;
-  background: var(--midnight);
-  color: var(--ink-on-dark);
-  color-scheme: dark;
+  background: var(--cloud);
+  color: var(--ink-on-light);
 }
 
-/* Statik CSS fallback - reduced-motion, WebGL-siz, və <980px-də dalğa shader-i
-   heç yaradılmır, bu qat əsl fon kimi qalır (hərəkətsiz, "sabit gradient").
-   Masaüstündə WebGL yükləndikdə üstündən hero__scene keçir. Rəng --midnight -
-   hero ilə digər tünd bölmələr arasında tikiş qalmasın deyə əsas fon kimi
-   saxlanılır (bax: hand3d.js-dəki WAVE_FRAGMENT-in base rəngi də eynidir). */
+/* Statik CSS fon - WebGL yüklənmədən/sonra EYNİ qalır (canvas şəffafdır,
+   yalnız əli çəkir - bax hand3d.js, wavePlane artıq yoxdur), ona görə
+   yüklənmə ilə tam açılış arasında heç bir vizual sıçrayış olmur. Mövqe/rəng
+   referans şəkillə tutuşdurularaq seçilib: yuxarı-sol Chevir Blue, aşağı-sağ
+   Bridge Blue (bənövşəyə çalan) - hər ikisi çox aşağı opacity-də, "hamar,
+   çox yüngül" tələbinə uyğun. */
 .hero__bg {
   position: absolute;
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(45% 35% at 12% 18%, rgba(255, 255, 255, 0.09), transparent 70%),
-    radial-gradient(40% 30% at 88% 28%, rgba(255, 255, 255, 0.07), transparent 70%),
-    radial-gradient(50% 40% at 22% 90%, rgba(255, 255, 255, 0.06), transparent 70%),
-    var(--midnight);
+    radial-gradient(48% 40% at 8% 10%, rgba(0, 113, 239, 0.16), transparent 70%),
+    radial-gradient(42% 36% at 92% 88%, rgba(0, 33, 191, 0.12), transparent 70%),
+    var(--cloud);
+}
+
+/* Çox zəif dənəlik - content.css-dəki `.contact__grain` ilə EYNİ texnika
+   (statik SVG feTurbulence data-URI, animasiya yoxdur, ucuzdur). Opacity
+   contact-ın 0.14-ündən xeyli aşağı saxlanılıb (referans: "çox zəif"). */
+.hero__grain {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-repeat: repeat;
+  background-size: 180px 180px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* Tək Three.js canvas - fon (noise dalğa + grain shader-li müstəvi, yalnız
@@ -74,8 +89,8 @@
   aspect-ratio: 81 / 24;
   height: auto;
   display: block;
-  color: var(--ink-on-dark);
-  opacity: 0.62;
+  color: var(--bridge-blue);
+  opacity: 0.14;
   filter: blur(3px);
   pointer-events: none;
 }
@@ -104,7 +119,7 @@
   text-align: left;
   font-size: var(--fs-small);
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink-on-light-muted);
 }
 
 .hero__nsosyal-btn {
@@ -115,9 +130,9 @@
   z-index: 5;
   padding: 0.5rem 1.1rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(9, 22, 56, 0.06);
   backdrop-filter: blur(8px);
-  color: #fff;
+  color: var(--ink-on-light);
   font-size: var(--fs-small);
   font-weight: 600;
   text-decoration: none;
