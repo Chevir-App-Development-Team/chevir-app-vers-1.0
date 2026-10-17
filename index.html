@@ -29,10 +29,18 @@
     <link rel="preload" as="font" type="font/woff2" href="/fonts/Poppins-Regular.woff2" crossorigin />
     <link rel="preload" as="font" type="font/woff2" href="/fonts/Poppins-Bold.woff2" crossorigin />
     <script>
-      // Splash hər açılışda göstərilir (sessiyada yaddaşa alınmır).
-      // Reduced-motion olmayan istifadəçilərdə splash "yanıb" görünməsin deyə
-      // sayt yüklənənə qədər scroll kilidlənir.
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // Splash YALNIZ reload-da və ya kənar/birbaşa keçiddə (eyni-mənbəli
+      // referrer yoxdursa) göstərilir - sayt-daxili keçiddə (/tercume,
+      // /nsosyal, geri) və ya reduced-motion-da ATLANIR. Qərar paint-dən
+      // ƏVVƏL, sinxron verilir ki, FOUC/yanıb-sönmə olmasın - bu bayraq
+      // preloader.js-də oxunur (bax initPreloader).
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var navEntry = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || null;
+      var navType = navEntry ? navEntry.type : 'navigate';
+      var sameOriginRef = document.referrer.indexOf(location.origin) === 0;
+      var showSplash = !reducedMotion && navType !== 'back_forward' && (navType === 'reload' || !sameOriginRef);
+      window.__SPLASH_SHOW__ = showSplash;
+      if (showSplash) {
         document.documentElement.classList.add('preloading');
       }
     </script>

@@ -46,7 +46,7 @@
   }
 
   .loop__stage {
-    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, 220px);
+    grid-template-columns: minmax(0, 248px) minmax(0, 1fr) minmax(0, 248px);
     align-items: center;
     gap: 1.5rem;
     min-height: 42vh;
@@ -65,7 +65,7 @@
 .loop__side {
   border: 1px solid rgba(243, 247, 252, 0.16);
   border-radius: 1.25rem;
-  padding: 1.5rem;
+  padding: 1.1rem 1.25rem;
   text-align: center;
   background: rgba(243, 247, 252, 0.03);
   width: 100%;
@@ -81,9 +81,13 @@
 }
 
 .loop__side-title {
-  font-size: var(--fs-h3);
+  /* --fs-h3 (digər bölmələrdə işlədilir, bax base.css) bu kartın məhdud
+     enliyi üçün çox böyükdür - "məhdudiyyətli" sözü daşıyır. Kart-spesifik,
+     daha dar clamp (ölçülüb: kart daxili enliyi ~195-220px). */
+  font-size: clamp(1.15rem, 1rem + 0.45vw, 1.45rem);
   font-weight: 600;
   margin-bottom: 0.35rem;
+  overflow-wrap: break-word;
 }
 
 .loop__side--signed .loop__side-title {

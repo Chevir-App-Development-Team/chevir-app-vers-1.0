@@ -2,8 +2,8 @@
 
 #splash {
   /* Hero kimi splash da həmişə açıq fonda qalır, sistemin tünd rejimindən asılı
-     olmadan - lokal dəyişən override lazım deyil, çünki klonlanan loqo artıq
-     currentColor yox, öz gradient/flat fill-i ilə gəlir (bax brandLogo.js). */
+     olmadan - lokal dəyişən override lazım deyil, çünki loqo artıq currentColor
+     yox, öz gradient/flat fill-i ilə gəlir (bax preloader.js). */
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -17,18 +17,34 @@
 
 .splash__logo {
   /* Dekorativdir - klik/toxunma tutmamalıdır. GSAP burda position/x/y/
-     width/height-i birbaşa idarə edir (bax preloader.js) - ölçü CSS-dən
-     deyil, JS-dən gəlir. */
+     width/height/scale-i birbaşa idarə edir (bax preloader.js) - ölçü
+     CSS-dən deyil, JS-dən gəlir. #splash-ın (z-index 200, clip-path tətbiq
+     olunan) DAXİLİNDƏ DEYİL - body-nin birbaşa övladıdır (bax preloader.js),
+     ona görə z-index-i ondan yüksək olmalıdır ki, dairə bağlananda loqo
+     kəsilmədən üstdə görünsün. */
   pointer-events: none;
+  z-index: 201;
 }
 
-/* İki qat (göy/ağ) üst-üstə - uçuş zamanı bir-birinin üzərinə keçir (bax
-   preloader.js-dəki FLIGHT_START/FLIGHT_DURATION pəncərəsi). */
 .splash__logo-svg {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Başlanğıc gizli vəziyyət CSS-DƏDİR, JS-də deyil - JS gec yüklənsə/icra
+   gecikərsə belə, İLK BOYANAN kadrda qövslər/gözlər görünməməlidir.
+   preloader.js bu dəyərləri JS-dən TƏKRAR təyin etmir, timeline-ın özü ilk
+   boyanmadan sonraya (2×rAF) təxirə salınır ki, ağır sinxron JS işi
+   (navbar/pipeline/loop/content init) bitənə qədər GSAP saatı işləməsin.
+
+   VACİB: bu elementlərə HEÇ BİR transform/scale verilmir (nə burda, nə
+   JS-də) - hər path/ellipse SVG-nin öz, son, düzgün koordinatında sabit
+   qalır. "Yaranma" hissi yalnız OPACITY ilə, əlavə olaraq bütöv loqo
+   elementinin (.splash__logo, preloader.js-də) scale-i ilə verilir. */
+.splash__logo-svg [data-logo-part^="blob-"],
+.splash__logo-svg [data-logo-part^="dot-"] {
+  opacity: 0;
 }
 
 /* Wordmark uçuş bitəndən 0.25s sonra görünsün (loqodan sonra, birlikdə yox).

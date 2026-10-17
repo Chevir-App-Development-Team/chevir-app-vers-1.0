@@ -130,6 +130,19 @@ p {
   margin: 0;
 }
 
+/* Son-çarə təhlükəsizlik toru - uzun Azərbaycan sözləri (ə/ğ/ı/ş/ç/ö/ü daxil)
+   məhdud enlikli konteynerlərdə kənara çıxmasın. Sözləri ORTADAN kəsmək son
+   seçimdir - əsl həll hər bölmədə font-size/konteyner enliyi uyğunlaşdırmaqdır
+   (bax loop.css-dəki kart-spesifik clamp). */
+h1,
+h2,
+h3,
+p,
+button,
+a {
+  overflow-wrap: break-word;
+}
+
 a,
 button {
   font-family: inherit;
