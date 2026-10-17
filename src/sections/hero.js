@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
-import { HERO_TAGLINE } from '../lib/i18n.js'
+import { HERO_TAGLINE_LINE1, HERO_TAGLINE_LINE2 } from '../lib/i18n.js'
 import { buildBrandLogoMarkupBlue, BRAND_LOGO_VIEWBOX } from '../lib/brandLogo.js'
 import { navbarMarkup as buildNavbarMarkup } from './navbar.js'
 
@@ -35,11 +35,13 @@ const HERO_LOGO_MARKUP_BLUE = buildBrandLogoMarkupBlue('hero-fallback')
 export const heroMarkup = `
 <section class="hero" id="top" aria-label="Chevir">
   <div class="hero__bg" aria-hidden="true"></div>
-  <div class="hero__grain" aria-hidden="true"></div>
   <canvas class="hero__scene" data-hero-canvas aria-hidden="true"></canvas>
   <svg class="hero__wordmark" viewBox="0 0 81 24" aria-hidden="true">${WORDMARK_MARKUP}</svg>
   <div class="hero__content">
-    <p class="hero__tagline hero__desc">${HERO_TAGLINE}</p>
+    <p class="hero__tagline hero__desc">
+      <span class="hero__tagline-line hero__tagline-line--light">${HERO_TAGLINE_LINE1}</span>
+      <span class="hero__tagline-line hero__tagline-line--bold">${HERO_TAGLINE_LINE2}</span>
+    </p>
     <a href="${BASE}nsosyal/" class="hero__nsosyal-btn">NSosyal demosu <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
 
     <div class="hero__logo-slot" aria-hidden="true">
@@ -118,18 +120,22 @@ export function setupHero() {
 
   const tagline = document.querySelector('.hero__tagline')
   const nsosyalBtn = document.querySelector('.hero__nsosyal-btn')
-  const cta = document.querySelector('.navbar__actions')
+  // navbar__actions əvəzinə iki ayrı element (bax navbar.js) - mərkəzə
+  // yerləşən linklər və sağdakı CTA artıq ortaq konteynerdə deyil (grid
+  // 1fr auto 1fr), ikisi ayrıca animasiya olunur.
+  const navLinks = document.querySelector('.navbar__links')
+  const navCta = document.querySelector('.navbar__cta')
 
   // tagline/cta burda yalnız gizlədilir (instant set) - görünən reveal
   // tween-i preloader.js-in öz splash timeline-ındadır (`.hero__desc` seçicisi
   // ilə tapır, uçuş bitəndə açır). Wordmark və əl splash örtüyünün altında
   // adi görünür qalır, əvvəlki başlıq/demo kimi.
   if (prefersReducedMotion) {
-    gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 1 })
+    gsap.set([tagline, nsosyalBtn, navLinks, navCta], { autoAlpha: 1 })
     return
   }
 
-  gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 0, y: 16 })
+  gsap.set([tagline, nsosyalBtn, navLinks, navCta], { autoAlpha: 0, y: 16 })
 }
 
 // Naviqasiyanın probe nöqtəsi (öz hündürlüyünün ortası) hər hansı açıq

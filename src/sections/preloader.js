@@ -121,7 +121,10 @@ function runSplashAnimation(lenis, onDone) {
   const splashEl = document.getElementById('splash')
   const desc = document.querySelector('.hero__desc')
   const nsosyalBtn = document.querySelector('.hero__nsosyal-btn')
-  const cta = document.querySelector('.navbar__actions')
+  // navbar__actions əvəzinə iki ayrı element (bax navbar.js/hero.js) - grid
+  // 1fr auto 1fr düzümündə linklər və CTA artıq ortaq konteynerdə deyil.
+  const navLinks = document.querySelector('.navbar__links')
+  const navCta = document.querySelector('.navbar__cta')
   const scrollBtn = document.querySelector('.hero__scroll')
   // Hədəf nüsxə (ağ/tünd-fon üçün, yoxsa göy/açıq-fon üçün) SABİT seçilmir -
   // hero indi açıq olsa da, səhifə scroll bərpası ilə (brauzerin öz
@@ -290,7 +293,7 @@ function runSplashAnimation(lenis, onDone) {
 
   // e) Hero məzmunu - uçuş bitməzdən HERO_LEAD qədər əvvəl başlayır (overlap).
   tl.to(
-    [desc, nsosyalBtn, cta, scrollBtn].filter(Boolean),
+    [desc, nsosyalBtn, navLinks, navCta, scrollBtn].filter(Boolean),
     { autoAlpha: 1, y: 0, duration: TIMING.HERO_DURATION, stagger: TIMING.HERO_STAGGER, ease: 'power2.out' },
     TIMING.HERO_START
   )

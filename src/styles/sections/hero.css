@@ -6,7 +6,10 @@
      3D əlin rəngləri (--hand-left/--hand-right) base.css-də :root-da sabit
      təyin olunur, burda heç nə override edilmir - brend dəyişənləri heç
      yerdə lokal override olunmur (bax base.css). */
-  --hero-pad-x: clamp(1.25rem, 6vw, 4.5rem);
+  /* Naviqasiyanın sol padding-i ilə HƏRFİ EYNİ düstur (bax navbar.css
+     `.navbar`) - başlığın/loqonun sol kənarları hər ölçüdə tam üst-üstə
+     düşsün deyə, fərqli clamp() yox, eyni düstur paylaşılır. */
+  --hero-pad-x: clamp(1.25rem, 5vw, 4rem);
   /* Statik loqo fallback-ın (reduced-motion/WebGL-siz) yuxarı/aşağı sərhədləri
      - tagline və wordmark-a yer saxlamaq üçün. Canvas özü artıq bunlardan
      asılı deyil (tam ekranı örtür, bax .hero__scene). */
@@ -99,22 +102,43 @@
   position: absolute;
   /* --hero-top-zone artıq canvas-ın öz sərhədi deyil (canvas tam ekranı örtür) -
      əl indi böyüdüyü üçün tagline naviqasiyaya yaxın, əlin üstündən aralı saxlanılır.
-     Sol tərəfdə dayanır (mərkəzdə əlin üstünə düşməsin). */
+     Sol tərəfdə dayanır (mərkəzdə əlin üstünə düşməsin). Sol hiza
+     --hero-pad-x - navbar-dakı loqo ilə EYNİ dəyişən (bax navbar.css
+     `.navbar` padding), x hizalanması bununla təmin olunur. */
   top: clamp(5rem, 11vh, 6.5rem);
   left: var(--hero-pad-x);
+  right: var(--hero-pad-x);
   z-index: 5;
   margin: 0;
-  max-width: min(70vw, 18rem);
+  display: flex;
+  flex-direction: column;
   text-align: left;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  color: var(--ink-on-light-muted);
+  line-height: 1.05;
+}
+
+.hero__tagline-line {
+  font-size: clamp(2.75rem, 6vw, 5.5rem);
+}
+
+/* Birinci sətir - yüngül (Light 300), solğun mavi-boz. QEYD: xalis Chevir
+   Blue-nun 60%-lik opacity qarışığı ölçülüb - Cloud fonda kontrast 2.34
+   (AA-nın böyük-mətn 3:1 həddindən aşağı). Bunun əvəzinə kontrastı
+   ölçülmüş (3.75) sabit ton işlədilir - "solğun mavi-boz" görünüşü
+   saxlayır, əlçatanlıq güzəştsiz qalır (bax CLAUDE.md). */
+.hero__tagline-line--light {
+  font-weight: 300;
+  color: #6081a9;
+}
+
+.hero__tagline-line--bold {
+  font-weight: 700;
+  color: var(--bridge-blue);
 }
 
 .hero__nsosyal-btn {
   display: none;
   position: absolute;
-  top: calc(clamp(5rem, 11vh, 6.5rem) + 6.5rem);
+  top: calc(clamp(5rem, 11vh, 6.5rem) + 2 * 2.75rem * 1.05 + 1.25rem);
   left: var(--hero-pad-x);
   z-index: 5;
   padding: 0.5rem 1.1rem;

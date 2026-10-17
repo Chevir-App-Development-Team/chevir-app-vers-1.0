@@ -12,6 +12,8 @@ function readCssColor(el, varName, fallback) {
 
 const JOINT_RADIUS = 0.045
 
+const isDesktop = window.matchMedia(BREAKPOINTS.isDesktop).matches
+
 // Bütün pozalar üzrə OX-BAZLI sərhəd qutusu (tək radius yox, əvvəlki
 // origin/main versiyasında olduğu kimi) - kamera məsafəsi və "yuxarı-mərkəz"
 // sürüşdürməsi bu qutuya görə hesablanır, hər iki ox üçün ayrıca (sfera-
@@ -65,9 +67,134 @@ function computeHandFraming(poses) {
   return { center, halfExtents, maxSpanHalf }
 }
 
-const HAND_FRAME = computeHandFraming(HAND_POSES)
+// Problemin kökü: əllər pozalarda bir-birindən uzaqlaşanda "iki əl birgə"
+// sərhəd qutusu böyüyür, kamera geri çəkilir, hər əl kiçik görünür (ölçülüb:
+// ~8% en, 19% hündürlük). Düzəliş: hər pozada hər əli (formasına/bucağına
+// TOXUNMADAN, bütöv rigid sürüşdürmə ilə) iki əlin ortaq mərkəzinə doğru
+// sıxırıq - bax compressPoseGap. Bu, statik olaraq BİR DƏFƏ (modul
+// yüklənəndə) ADJUSTED_POSES-ə tətbiq olunur, sonra HAND_FRAME və bütün
+// joint-mövqe istifadələri (setFromPose/morphToNextPose) bu massivdən
+// oxuyur - computeFramingDistance-in özü dəyişmir, pozalar boyu kamera
+// məsafəsi/mərkəz/ölçü eyni statik sxemlə (BİR dəfə) hesablanır.
+function compressPoseGap(pose, compress) {
+  function handCenter(lo, hi) {
+    let cx = 0, cy = 0, cz = 0
+    for (let i = lo; i < hi; i++) {
+      cx += pose[i][0]
+      cy += pose[i][1]
+      cz += pose[i][2]
+    }
+    const n = hi - lo
+    return [cx / n, cy / n, cz / n]
+  }
+  const leftCenter = handCenter(0, 21)
+  const rightCenter = handCenter(21, 42)
+  const mid = [
+    (leftCenter[0] + rightCenter[0]) / 2,
+    (leftCenter[1] + rightCenter[1]) / 2,
+    (leftCenter[2] + rightCenter[2]) / 2,
+  ]
+  function shiftFor(center) {
+    return [
+      (center[0] - mid[0]) * (compress - 1),
+      (center[1] - mid[1]) * (compress - 1),
+      (center[2] - mid[2]) * (compress - 1),
+    ]
+  }
+  const leftShift = shiftFor(leftCenter)
+  const rightShift = shiftFor(rightCenter)
+  return pose.map((landmark, i) => {
+    const shift = i < 21 ? leftShift : rightShift
+    return [landmark[0] + shift[0], landmark[1] + shift[1], landmark[2] + shift[2]]
+  })
+}
 
-const isDesktop = window.matchMedia(BREAKPOINTS.isDesktop).matches
+// Masaüstündə 0.6, mobildə (dar ekran) daha aqressiv 0.45 - iki yeganə
+// "tənzimlənən rəqəm" (tapşırıqda tələb olunduğu kimi).
+const GAP_COMPRESS = isDesktop ? 0.6 : 0.45
+const gapCompressedPoses = HAND_POSES.map((pose) => compressPoseGap(pose, GAP_COMPRESS))
+
+// SAFETY_FILL (0.97) toxunulmur - union-sərhəd (computeFramingDistance-dəki
+// "təhlükəsizlik döşəməsi") HƏLƏ DƏ bir neçə "outlier" (həddindən artıq
+// enli/hündür) pozanın təyin etdiyi UCA görə hesablanırdı. Əvəzinə: 40
+// pozanın (gap-sıxmadan SONRA) öz en/hündürlüyünün 80-ci faizini (percentile)
+// limit götürürük - bu limiti aşan HAZIR AZ SAYDA poza (bax aşağıdakı
+// ölçmə - 16/40) rigid (formasına toxunmadan, yalnız öz ortaq mərkəzinə
+// doğru bərabər miqyasla) kiçildilir, limit/ölçü əmsalı ilə (≤1, heç vaxt
+// böyütmür). Nəticədə union-sərhəd kiçilir, kamera bir az da yaxınlaşır -
+// SAFETY_FILL-in özü DƏYİŞMƏDƏN. Ölçülüb (70 və 80-ci faiz sınanıb): 80
+// daha az pozaya toxunur VƏ bir az böyük orta ölçü verir, ona görə seçilib.
+const OUTLIER_PERCENTILE = 80
+
+function poseBoxWH(pose) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  pose.forEach(([x, y]) => {
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  })
+  return { w: maxX - minX, h: maxY - minY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 }
+}
+
+function percentile(values, p) {
+  const sorted = values.slice().sort((a, b) => a - b)
+  const idx = (p / 100) * (sorted.length - 1)
+  const lo = Math.floor(idx)
+  const hi = Math.ceil(idx)
+  if (lo === hi) return sorted[lo]
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)
+}
+
+function capOutlierPoses(poses, pct) {
+  const boxes = poses.map(poseBoxWH)
+  const widthLimit = percentile(boxes.map((b) => b.w), pct)
+  const heightLimit = percentile(boxes.map((b) => b.h), pct)
+  return poses.map((pose, i) => {
+    const box = boxes[i]
+    const factor = Math.min(1, widthLimit / box.w, heightLimit / box.h)
+    if (factor >= 1) return pose
+    return pose.map(([x, y, z]) => [box.cx + (x - box.cx) * factor, box.cy + (y - box.cy) * factor, z * factor])
+  })
+}
+
+// Hər pozanın öz iki-əl-birgə mərkəzi (x/y) FƏRQLİ idi - bu, "ən pis poza"nın
+// (kənara sürüşmüş mərkəzli) tagline-a nə qədər yaxınlaşdığını təyin edən
+// əsas amil idi (ölçülüb: cəmi ~18-19px marja). Düzəliş: hər pozanı (gap-
+// sıxmadan SONRA, outlier-limitdən ƏVVƏL - limit artıq mərkəzlənmiş
+// pozalara görə hesablansın deyə) rigid sürüşdürüb öz mərkəzini BÜTÜN
+// pozalar üçün EYNİ sabit nöqtəyə (40 pozanın öz mərkəzlərinin ortalaması)
+// köçürürük - z TOXUNULMUR. Nəticə: pozalar arası mövqe fərqi (yalnız ÖLÇÜ
+// fərqi qalır) aradan qalxır, union-sərhəd xeyli kiçilir.
+function recenterPoses(poses) {
+  const centers = poses.map((pose) => {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    pose.forEach(([x, y]) => {
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    })
+    return [(minX + maxX) / 2, (minY + maxY) / 2]
+  })
+  const fixedX = centers.reduce((sum, c) => sum + c[0], 0) / centers.length
+  const fixedY = centers.reduce((sum, c) => sum + c[1], 0) / centers.length
+  return poses.map((pose, i) => {
+    const dx = fixedX - centers[i][0]
+    const dy = fixedY - centers[i][1]
+    return pose.map(([x, y, z]) => [x + dx, y + dy, z])
+  })
+}
+
+const recenteredPoses = recenterPoses(gapCompressedPoses)
+const ADJUSTED_POSES = capOutlierPoses(recenteredPoses, OUTLIER_PERCENTILE)
+
+// Sıxılmamış pozaların çərçivəsi YALNIZ aşağıdakı JOINT_RADIUS_COMPENSATION
+// hesabı üçün saxlanılır (bax initHand3D) - joint-mövqe məntiqi bundan
+// istifadə ETMİR, yalnız ADJUSTED_POSES/HAND_FRAME işlədilir.
+const ORIGINAL_HAND_FRAME = computeHandFraming(HAND_POSES)
+const HAND_FRAME = computeHandFraming(ADJUSTED_POSES)
+
 const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches
 // Toxunma cihazlarında (coarse pointer və ya <980px) barmaqla scroll əl
 // çevirməyə getməsin deyə orbit idarəsi tamamilə sönür - əl yalnız avtomatik
@@ -95,16 +222,20 @@ const TARGET_FILL_HEIGHT = 0.5 // 45-55% aralığının ortası (masaüstü həd
 const TARGET_FILL_WIDTH = 0.75 // 70-80% aralığının ortası (mobil hədəfi, TƏK poza üçün)
 const SAFETY_FILL = 0.97 // kəsilmə-təhlükəsizlik döşəməsi: union qutusu HEÇ VAXT bunu keçməsin (3% ehtiyat)
 
-function computeFramingDistance(camera) {
+// `frame` parametrləşdirilib (əvvəlcə birbaşa modul-səviyyəli HAND_FRAME-i
+// oxuyurdu) - JOINT_RADIUS_COMPENSATION hesabında (aşağıda) EYNİ düsturu
+// həm sıxılmış (HAND_FRAME), həm orijinal (ORIGINAL_HAND_FRAME) sərhədlə
+// çağırmaq üçün lazımdır, başqa heç nə dəyişmir.
+function computeFramingDistance(camera, frame) {
   const vHalf = (camera.fov * Math.PI) / 360
   const tanV = Math.tan(vHalf)
   const aspect = camera.aspect
 
-  const scaledSpanHalfX = HAND_FRAME.maxSpanHalf[0] * HAND_SCALE
-  const scaledSpanHalfY = HAND_FRAME.maxSpanHalf[1] * HAND_SCALE
-  const scaledUnionHalfX = HAND_FRAME.halfExtents[0] * HAND_SCALE
-  const scaledUnionHalfY = HAND_FRAME.halfExtents[1] * HAND_SCALE
-  const scaledUnionHalfZ = HAND_FRAME.halfExtents[2] * HAND_SCALE
+  const scaledSpanHalfX = frame.maxSpanHalf[0] * HAND_SCALE
+  const scaledSpanHalfY = frame.maxSpanHalf[1] * HAND_SCALE
+  const scaledUnionHalfX = frame.halfExtents[0] * HAND_SCALE
+  const scaledUnionHalfY = frame.halfExtents[1] * HAND_SCALE
+  const scaledUnionHalfZ = frame.halfExtents[2] * HAND_SCALE
 
   const distanceForHeightTarget = scaledSpanHalfY / (TARGET_FILL_HEIGHT * tanV)
   const distanceForWidthTarget = scaledSpanHalfX / (TARGET_FILL_WIDTH * tanV * aspect)
@@ -114,6 +245,18 @@ function computeFramingDistance(camera) {
   // Dərinlik (z) ehtiyatı - qutunun kameraya ən yaxın üzü də sığsın.
   return Math.max(distanceForHeightTarget, distanceForWidthTarget, distanceForHeightSafety, distanceForWidthSafety) + scaledUnionHalfZ
 }
+
+// Sıxılmış sərhəd kiçik olduğu üçün kamera YAXINLAŞIR (əl böyüyür) - bax
+// yuxarı. Nöqtə (joint) radiusu dünya-vahidlərində SABİT qaldığından, bu
+// yaxınlaşma onu da (əl ilə bərabər) böyüdərdi. Tapşırıqda "nöqtə radiusu
+// artmasın, əvvəlki piksel ölçüsündə qalsın" tələb olunduğu üçün, kameranın
+// yaxınlaşma nisbəti (bir dəfə, 35°-lik FOV və tipik masaüstü 1.6 aspektlə)
+// hesablanıb JOINT_RADIUS-a TƏRS tətbiq olunur (bax initHand3D) - nəticədə
+// ekrandakı nöqtə ölçüsü təxminən əvvəlki kimi qalır, yalnız əlin öz
+// sahəsi (barmaq açılımı/sümük uzunluğu) böyüyür.
+const REFERENCE_CAMERA = { fov: 35, aspect: 1.6 }
+const JOINT_RADIUS_COMPENSATION =
+  computeFramingDistance(REFERENCE_CAMERA, HAND_FRAME) / computeFramingDistance(REFERENCE_CAMERA, ORIGINAL_HAND_FRAME)
 
 // Render qatında TƏHLÜKƏSİZ bayraq - true olanda əl pivotu Y oxu ətrafında
 // 180° çevrilir, barmaqlar kameraya doğru baxar (bax tick() aşağıda).
@@ -182,7 +325,7 @@ export function initHand3D(canvas) {
   scene.add(frame)
 
   const jointCount = HAND_POSES[0].length
-  const jointGeometry = new THREE.SphereGeometry(JOINT_RADIUS, 10, 8)
+  const jointGeometry = new THREE.SphereGeometry(JOINT_RADIUS * JOINT_RADIUS_COMPENSATION, 10, 8)
   const jointMaterial = new THREE.MeshBasicMaterial()
   const joints = new THREE.InstancedMesh(jointGeometry, jointMaterial, jointCount)
   const color1 = new THREE.Color(jointColor)
@@ -233,7 +376,7 @@ export function initHand3D(canvas) {
   const glowMaterial = new THREE.PointsMaterial({
     map: getGlowTexture(),
     vertexColors: true,
-    size: 0.28,
+    size: 0.28 * JOINT_RADIUS_COMPENSATION,
     sizeAttenuation: true,
     transparent: true,
     opacity: 0.95,
@@ -268,7 +411,7 @@ export function initHand3D(canvas) {
     }
     applyJoints()
   }
-  setFromPose(HAND_POSES[0])
+  setFromPose(ADJUSTED_POSES[0])
 
   // ---- pozalar arasında yumşaq keçid (nöqtələr sıçramır) ----
   let poseIndex = 0
@@ -276,9 +419,9 @@ export function initHand3D(canvas) {
   let poseTimer = null
 
   function morphToNextPose() {
-    const from = HAND_POSES[poseIndex]
-    const nextIndex = (poseIndex + 1) % HAND_POSES.length
-    const to = HAND_POSES[nextIndex]
+    const from = ADJUSTED_POSES[poseIndex]
+    const nextIndex = (poseIndex + 1) % ADJUSTED_POSES.length
+    const to = ADJUSTED_POSES[nextIndex]
     // Keçid müddəti: videonun effektiv kadr sürəti 20fps → 0.05s per kadr.
     const isLoopRestart = nextIndex === 0
     poseT.value = 0
@@ -360,7 +503,7 @@ export function initHand3D(canvas) {
     renderer.setSize(w, h, false)
     camera.aspect = w / h
 
-    const distance = computeFramingDistance(camera)
+    const distance = computeFramingDistance(camera, HAND_FRAME)
     camera.position.set(0, 0, distance)
     camera.lookAt(0, 0, 0)
     camera.far = distance + 20
@@ -372,7 +515,17 @@ export function initHand3D(canvas) {
     const visibleHalfHeight = distance * Math.tan(vHalf)
     const requiredHalf = HAND_FRAME.halfExtents[1] * HAND_SCALE
     const spare = Math.max(0, visibleHalfHeight - requiredHalf)
-    frame.position.y = spare * UPWARD_BIAS
+    // Əlləri ümumi bir qədər aşağı sal - başlıq iki sətirli böyük heading-ə
+    // çevrildiyi üçün (bax hero.css .hero__tagline-line) yuxarı yer azaldı.
+    // QEYD: bunu `recenterPoses()`-in sabit nöqtəsində ETMƏK OLMAZ - istənilən
+    // bircins sürüşdürmə `model.position = -HAND_FRAME.center` addımında
+    // avtomatik ləğv olunur (riyazi sübut edilib: tərcümə edilmiş data-nın
+    // öz hesablanan mərkəzi EYNİ miqdarda sürüşür, fərq sabit qalır). Ona
+    // görə düzəliş BURADA, ekran-nisbi faizlə (hero hündürlüyünün bu qədər
+    // hissəsi) - yeganə pipeline nöqtəsi harda faktiki təsir edir.
+    const DOWNWARD_SHIFT_FRACTION = 0.34
+    const downwardShift = DOWNWARD_SHIFT_FRACTION * (2 * visibleHalfHeight)
+    frame.position.y = spare * UPWARD_BIAS - downwardShift
   }
   layoutScene()
 

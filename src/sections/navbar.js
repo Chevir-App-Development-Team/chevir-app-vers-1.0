@@ -38,10 +38,10 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
     </span>
     <span class="navbar__name">Chevir</span>
   </a>
-  <nav class="navbar__actions" aria-label="Əsas keçidlər">
+  <nav class="navbar__links" aria-label="Əsas keçidlər">
     ${links}
-    <a class="navbar__cta" href="${home ? '' : BASE}#pilot">Pilot tərəfdaş olun</a>
   </nav>
+  <a class="navbar__cta" href="${home ? '' : BASE}#pilot">Pilot tərəfdaş olun</a>
 </header>
 `
 }

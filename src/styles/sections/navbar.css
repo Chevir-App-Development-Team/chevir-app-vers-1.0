@@ -19,9 +19,14 @@
   left: 0;
   right: 0;
   z-index: 50;
-  display: flex;
+  /* Keçidlər logo/CTA enindən ASILI OLMAYAN HƏQİQİ mərkəzdə dayansın deyə
+     3-sütunlu grid (1fr auto 1fr) - flex + space-between-də mərkəz sütunu
+     yalnız iki kənar elementin enləri TƏSADÜFƏN bərabər olanda düzgün
+     ortalanır, grid isə bunu strukturca təmin edir (bax .navbar__brand/
+     __links/__cta-dakı justify-self). */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: 1.1rem clamp(1.25rem, 5vw, 4rem);
   background: transparent;
   transition: background-color 0.4s ease, box-shadow 0.4s ease,
@@ -36,6 +41,7 @@
 
 .navbar__brand {
   position: relative;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
@@ -95,17 +101,21 @@
   opacity: 1;
 }
 
-.navbar__actions {
+/* Yalnız keçidlər - CTA artıq ayrı grid sütunundadır (bax .navbar yuxarıda),
+   ona görə bu konteynerin eni CTA-dan asılı deyil, mərkəz sütununu dəqiq
+   doldurur. */
+.navbar__links {
+  justify-self: center;
   display: flex;
   align-items: center;
-  gap: clamp(0.9rem, 2.5vw, 1.75rem);
+  gap: 2.5rem;
 }
 
 .navbar__link {
   position: relative;
   color: var(--ink-on-dark);
   font-size: var(--fs-small);
-  font-weight: 600;
+  font-weight: 400;
   text-decoration: none;
   opacity: 0.82;
   transition: opacity 0.3s ease, color 0.4s ease;
@@ -124,8 +134,24 @@
   text-underline-offset: 4px;
 }
 
+/* Açıq bölmədə (bax aşağı .is-light) keçidlər Bridge Blue - Chevir Blue
+   BU ÖLÇÜDƏ (--fs-small) İŞLƏDİLMİR: ölçülüb, Cloud fonda kontrastı 3.89-4.24
+   (AA kiçik-mətn tələbi 4.5-dən aşağı, bax CLAUDE.md "Əlçatanlıq"). Bridge
+   Blue eyni kontrastı 9.91 ilə keçir - güzəşt yoxdur tələbinə görə seçilib.
+   Tünd bölmədə (.is-light yoxdursa) rəng YUXARIDAKI --ink-on-dark olaraq
+   DƏYİŞMƏDƏN qalır. */
+.navbar.is-light .navbar__link {
+  color: var(--bridge-blue);
+  opacity: 1;
+}
+
+.navbar.is-light .navbar__link:hover {
+  color: var(--midnight);
+}
+
 .navbar__cta {
   position: relative;
+  justify-self: end;
   display: inline-block;
   flex-shrink: 0;
   padding: 0.6rem 1.4rem;
@@ -178,8 +204,7 @@
    (OS-dən yox, sinifdən asılıdır). */
 
 .navbar.is-light .navbar__brand,
-.navbar.is-light .navbar__name,
-.navbar.is-light .navbar__link {
+.navbar.is-light .navbar__name {
   color: var(--ink-on-light);
 }
 
