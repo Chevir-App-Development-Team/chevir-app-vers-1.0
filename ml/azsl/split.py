@@ -37,7 +37,7 @@ def _norm(x):
     return x / (np.linalg.norm(x, axis=-1, keepdims=True) + 1e-9)
 
 
-def cluster_signers(rec_ids, emb, session_of: dict, sim: float = 0.45):
+def cluster_signers(rec_ids, emb, session_of: dict, sim: float = 0.60):
     """→ (dict rec_id → signer, report dict). `emb` rows are L2-normalised SFace means."""
     from sklearn.cluster import AgglomerativeClustering
     by_session = {}
@@ -81,7 +81,7 @@ def cluster_signers(rec_ids, emb, session_of: dict, sim: float = 0.45):
     return signer, report
 
 
-def assign_signers(recs, emb_ids, emb, sim=0.45, gap_min=15.0, override=None):
+def assign_signers(recs, emb_ids, emb, sim=0.60, gap_min=15.0, override=None):
     """recs → DataFrame rec_id, session, signer, has_emb. Recordings without a face fall back to
     their session's signer; with neither they become 'unk-<session>'."""
     ses = sessions(recs, gap_min)
@@ -110,23 +110,27 @@ def assign_signers(recs, emb_ids, emb, sim=0.45, gap_min=15.0, override=None):
     return out, report
 
 
-def _centroids(signers, emb_ids, emb):
+def _units(signers, emb_ids, emb):
+    """(session, signer) units — one sitting of one person — and their centroids."""
     sig = dict(zip(signers.rec_id, signers.signer))
+    ses = dict(zip(signers.rec_id, signers.session))
+    E = np.asarray(emb, np.float32)
     groups = {}
     for i, rid in enumerate(emb_ids):
         if rid in sig:
-            groups.setdefault(sig[rid], []).append(i)
-    names = sorted(groups)
-    C = np.stack([_norm(np.asarray(emb, np.float32)[groups[g]].mean(0)) for g in names]) if names else np.zeros((0, 1))
-    return names, C, {g: len(v) for g, v in groups.items()}
+            groups.setdefault((ses[rid], sig[rid]), []).append(i)
+    keys = sorted(groups)
+    C = np.stack([_norm(E[groups[k]].mean(0)) for k in keys]) if keys else np.zeros((0, 1))
+    return keys, C, {k: len(v) for k, v in groups.items()}
 
 
-def split_groups(signers, emb_ids, emb, link_sim=0.40):
-    """Pseudo-signers that are ambiguously alike (centroid similarity >= link_sim) are tied together:
-    they always land in the same split. On AzSLD different people often score 0.35–0.40 and one
-    person's sittings 0.8+; in between nobody can tell, so such pairs never straddle train/test.
+def split_groups(signers, emb_ids, emb, link_sim=0.50):
+    """Tie pseudo-signers that share a look-alike sitting: if ANY sitting of one is >= link_sim
+    similar to any sitting of the other, they always land in the same split. Comparing sittings,
+    not cluster averages, matters — a cluster that mixes two people has an average resembling
+    neither. On AzSLD one person's sittings score 0.6+ and different people mostly < 0.5.
     Union-find over the pairs → dict signer → group id."""
-    names, C, _ = _centroids(signers, emb_ids, emb)
+    keys, C, _ = _units(signers, emb_ids, emb)
     parent = {n: n for n in signers.signer.unique()}
 
     def root(a):
@@ -135,26 +139,35 @@ def split_groups(signers, emb_ids, emb, link_sim=0.40):
             a = parent[a]
         return a
 
-    S = C @ C.T if len(names) else np.zeros((0, 0))
-    for i in range(len(names)):
-        for j in range(i + 1, len(names)):
-            if S[i, j] >= link_sim:
-                parent[root(names[i])] = root(names[j])
+    if len(keys) > 1:
+        I, J = np.where(np.triu(C @ C.T, 1) >= link_sim)
+        for i, j in zip(I, J):
+            if keys[i][1] != keys[j][1]:
+                parent[root(keys[i][1])] = root(keys[j][1])
     roots = sorted({root(n) for n in parent})
     gid = {r: f'g{k:02d}' for k, r in enumerate(roots)}
     return {n: gid[root(n)] for n in parent}
 
 
-def closest_pairs(signers, emb_ids, emb, top=8):
-    """Most similar pseudo-signer pairs with their splits — read next to the contact sheet.
-    With split_groups() no pair at or above link_sim can straddle two splits."""
-    names, C, n = _centroids(signers, emb_ids, emb)
+def closest_pairs(signers, emb_ids, emb, top=8, cross_split_only=False):
+    """Most similar sittings of different pseudo-signers, with their splits — read next to the
+    contact sheet. With split_groups() no pair at or above link_sim straddles two splits."""
+    keys, C, n = _units(signers, emb_ids, emb)
     split = dict(zip(signers.signer, signers.split))
-    S = C @ C.T
-    out = [{'a': names[i], 'b': names[j], 'sim': round(float(S[i, j]), 3),
-            'splits': f'{split.get(names[i])}/{split.get(names[j])}', 'recordings': f'{n[names[i]]}/{n[names[j]]}'}
-           for i in range(len(names)) for j in range(i + 1, len(names))]
-    return sorted(out, key=lambda r: -r['sim'])[:top]
+    S = np.triu(C @ C.T, 1)
+    order = np.dstack(np.unravel_index(np.argsort(-S, axis=None), S.shape))[0]
+    out = []
+    for i, j in order:
+        if j <= i or keys[i][1] == keys[j][1]:
+            continue
+        a, b = keys[i], keys[j]
+        if cross_split_only and split.get(a[1]) == split.get(b[1]):
+            continue
+        out.append({'a': f'{a[1]} {a[0]}', 'b': f'{b[1]} {b[0]}', 'sim': round(float(S[i, j]), 3),
+                    'splits': f'{split.get(a[1])}/{split.get(b[1])}', 'recordings': f'{n[a]}/{n[b]}'})
+        if len(out) >= top:
+            break
+    return out
 
 
 def pick_split(df, group_col: str, label_col: str, fracs=(0.7, 0.15, 0.15), seed: int = 0,

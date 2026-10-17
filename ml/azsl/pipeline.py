@@ -246,7 +246,7 @@ def run_sentences(out_dir, paths, shard=0, num_shards=1, camera='Cam2', workers=
 
 # ---------------------------------------------------------------- split
 
-def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.45, link_sim=0.40, gap_min=15.0,
+def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.60, link_sim=0.50, gap_min=15.0,
               seed=0, override_csv=None, heldout_sentence_frac=0.1, min_clips=20, k_folds=5, trials=4000):
     """Pseudo-signers → one signer-level train/val/test split → per-task split files + benchmark.json."""
     import numpy as np
@@ -329,7 +329,7 @@ def run_split(index_dir, words_dirs, fs_dirs, sentence_dirs, out_dir, sim=0.45, 
 
     split_signers = signers.drop_duplicates('signer').groupby('split').size().to_dict()
     rep['closest_pairs'] = S.closest_pairs(signers, emb_ids, emb)
-    cross = [p['sim'] for p in S.closest_pairs(signers, emb_ids, emb, top=10_000) if len(set(p['splits'].split('/'))) > 1]
+    cross = [p['sim'] for p in S.closest_pairs(signers, emb_ids, emb, top=1, cross_split_only=True)]
     gsize = signers.groupby('split_group').size()
     rep['split_groups'] = {'count': int(len(gsize)), 'largest_share': round(float(gsize.max() / gsize.sum()), 3),
                            'per_split': signers.drop_duplicates('split_group').groupby('split').size().to_dict(),

@@ -197,8 +197,8 @@ assignment is shared by every task, so a test signer is never seen in training.
 Download `splits/` and commit it to `ml/splits/` — that is the frozen benchmark every model is scored on.
 '''),
         code('''
-SIM = 0.45             # same-signer cosine similarity threshold (SFace); see the checks below
-LINK_SIM = 0.40        # pseudo-signers at least this alike always share a split (ambiguous = maybe one person)
+SIM = 0.60             # sittings at least this alike (average linkage) form one pseudo-signer
+LINK_SIM = 0.50        # pseudo-signers with ANY two sittings this alike always share a split
 GAP_MIN = 15.0         # minutes between recordings that start a new session
 SEED = 0
 OVERRIDE_CSV = None    # optional CSV rec_id,signer with real signer ids, if the dataset authors share them
@@ -233,9 +233,9 @@ pd.DataFrame(bench['signers']['closest_pairs'])   # a close pair across splits w
         md('''
 ### Check the pseudo-signers
 Each row should be **one person**. One person spread over several rows is only harmful if the
-rows land in different splits — pseudo-signers at least `LINK_SIM` alike are tied to one split
-(`split_group`), and `closest_pairs` / `max_cross_split_sim` show what is left across splits.
-Two people in one row only makes the split coarser. `nearest_other_signer_sim` above should stay well below `SIM`, and
+rows land in different splits — pseudo-signers with any two sittings at least `LINK_SIM` alike
+are tied to one split (`split_group`); `closest_pairs` / `max_cross_split_sim` compare sittings
+and show what is left across splits. Two people in one row → raise `SIM`. `nearest_other_signer_sim` above should stay well below `SIM`, and
 `signer_sentence_repeats` small (a signer rarely records the same sentence twice).
 '''),
         code('''

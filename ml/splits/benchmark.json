@@ -1,99 +1,99 @@
 {
  "protocol": "signer-independent; one split-group→split map shared by all tasks; seed 0",
  "signers": {
-  "units": 463,
-  "split_off_recordings": 199,
-  "signers": 35,
+  "units": 604,
+  "split_off_recordings": 340,
+  "signers": 38,
   "nearest_other_signer_sim": [
-   0.508,
-   0.508,
-   0.47,
-   0.47,
-   0.464,
-   0.464,
-   0.444,
-   0.444,
+   0.514,
+   0.514,
+   0.478,
+   0.478,
+   0.467,
+   0.433,
+   0.433,
+   0.43,
    0.428,
    0.428
   ],
-  "signer_sentence_repeats": 965,
+  "signer_sentence_repeats": 653,
   "recordings": 10104,
   "without_face": 0,
   "closest_pairs": [
    {
-    "a": "p007",
-    "b": "p011",
-    "sim": 0.565,
+    "a": "p003 s0101",
+    "b": "p001 s0103",
+    "sim": 0.823,
     "splits": "train/train",
-    "recordings": "213/250"
+    "recordings": "10/104"
    },
    {
-    "a": "p003",
-    "b": "p020",
-    "sim": 0.518,
-    "splits": "test/test",
-    "recordings": "425/315"
-   },
-   {
-    "a": "p021",
-    "b": "p034",
-    "sim": 0.474,
+    "a": "p003 s0102",
+    "b": "p001 s0103",
+    "sim": 0.816,
     "splits": "train/train",
-    "recordings": "385/238"
+    "recordings": "20/104"
    },
    {
-    "a": "p002",
-    "b": "p029",
-    "sim": 0.46,
+    "a": "p001 s0103",
+    "b": "p003 s0106",
+    "sim": 0.801,
     "splits": "train/train",
-    "recordings": "475/478"
+    "recordings": "104/47"
    },
    {
-    "a": "p003",
-    "b": "p030",
-    "sim": 0.452,
-    "splits": "test/test",
-    "recordings": "425/485"
-   },
-   {
-    "a": "p007",
-    "b": "p008",
-    "sim": 0.424,
+    "a": "p001 s0100",
+    "b": "p003 s0101",
+    "sim": 0.785,
     "splits": "train/train",
-    "recordings": "213/3"
+    "recordings": "90/10"
    },
    {
-    "a": "p024",
-    "b": "p032",
-    "sim": 0.42,
-    "splits": "val/val",
-    "recordings": "237/239"
-   },
-   {
-    "a": "p010",
-    "b": "p013",
-    "sim": 0.414,
+    "a": "p001 s0103",
+    "b": "p003 s0111",
+    "sim": 0.781,
     "splits": "train/train",
-    "recordings": "167/491"
+    "recordings": "104/14"
+   },
+   {
+    "a": "p001 s0103",
+    "b": "p003 s0112",
+    "sim": 0.776,
+    "splits": "train/train",
+    "recordings": "104/32"
+   },
+   {
+    "a": "p001 s0100",
+    "b": "p003 s0102",
+    "sim": 0.775,
+    "splits": "train/train",
+    "recordings": "90/20"
+   },
+   {
+    "a": "p001 s0100",
+    "b": "p003 s0106",
+    "sim": 0.742,
+    "splits": "train/train",
+    "recordings": "90/47"
    }
   ],
   "split_groups": {
-   "count": 21,
-   "largest_share": 0.213,
+   "count": 28,
+   "largest_share": 0.199,
    "per_split": {
-    "test": 3,
-    "train": 14,
-    "val": 4
+    "test": 8,
+    "train": 15,
+    "val": 5
    },
-   "max_cross_split_sim": 0.398,
-   "link_sim": 0.4
+   "max_cross_split_sim": 0.492,
+   "link_sim": 0.5
   },
   "per_split": {
-   "test": 5,
-   "train": 25,
+   "test": 9,
+   "train": 24,
    "val": 5
   },
-  "sim_threshold": 0.45,
+  "sim_threshold": 0.6,
   "session_gap_min": 15.0
  },
  "frontal_outliers": 0,
@@ -101,30 +101,30 @@
   "coverage": {
    "missing_test": 0,
    "missing_val": 0,
-   "fraction_error": 0.001,
+   "fraction_error": 0.0,
    "testable_classes": 198
   },
   "unlinked_clips": 78,
   "majority_class": "MƏN",
   "train_classes": 200,
   "train": {
-   "samples": 5995,
+   "samples": 5957,
    "classes": 200,
-   "majority_acc": 0.2986,
+   "majority_acc": 0.2919,
    "chance_balanced_acc": 0.005,
    "unseen_in_train": 0
   },
   "val": {
-   "samples": 1274,
-   "classes": 187,
-   "majority_acc": 0.2865,
+   "samples": 1302,
+   "classes": 189,
+   "majority_acc": 0.3118,
    "chance_balanced_acc": 0.0053,
    "unseen_in_train": 0
   },
   "test": {
-   "samples": 1288,
-   "classes": 191,
-   "majority_acc": 0.2888,
+   "samples": 1298,
+   "classes": 192,
+   "majority_acc": 0.2943,
    "chance_balanced_acc": 0.0052,
    "unseen_in_train": 0
   }
@@ -133,57 +133,57 @@
   "majority_class": "MƏN",
   "train_classes": 645,
   "train": {
-   "samples": 32471,
+   "samples": 32596,
    "classes": 645,
-   "majority_acc": 0.1232,
+   "majority_acc": 0.12,
    "chance_balanced_acc": 0.0016,
    "unseen_in_train": 0
   },
   "val": {
-   "samples": 7188,
+   "samples": 7091,
    "classes": 645,
-   "majority_acc": 0.1023,
+   "majority_acc": 0.1165,
    "chance_balanced_acc": 0.0016,
    "unseen_in_train": 0
   },
   "test": {
-   "samples": 7019,
+   "samples": 6991,
    "classes": 645,
-   "majority_acc": 0.1205,
+   "majority_acc": 0.1204,
    "chance_balanced_acc": 0.0016,
    "unseen_in_train": 0
   }
  },
  "glosses_all": {
   "majority_class": "MƏN",
-  "train_classes": 837,
+  "train_classes": 834,
   "train": {
-   "samples": 34267,
-   "classes": 837,
-   "majority_acc": 0.1167,
+   "samples": 34443,
+   "classes": 834,
+   "majority_acc": 0.1136,
    "chance_balanced_acc": 0.0012,
    "unseen_in_train": 0
   },
   "val": {
-   "samples": 7608,
-   "classes": 801,
-   "majority_acc": 0.0966,
+   "samples": 7473,
+   "classes": 811,
+   "majority_acc": 0.1105,
    "chance_balanced_acc": 0.0012,
-   "unseen_in_train": 1
+   "unseen_in_train": 5
   },
   "test": {
-   "samples": 7412,
-   "classes": 812,
-   "majority_acc": 0.1141,
+   "samples": 7371,
+   "classes": 809,
+   "majority_acc": 0.1142,
    "chance_balanced_acc": 0.0012,
    "unseen_in_train": 3
   }
  },
  "sentences": {
   "heldout_folders": 49,
-  "test": 1511,
-  "train": 7108,
-  "val": 1485
+  "test": 1508,
+  "train": 7067,
+  "val": 1529
  },
  "fingerspelling": {
   "dynamic": {

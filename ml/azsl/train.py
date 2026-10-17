@@ -66,7 +66,10 @@ def load_sentence_signs(sentence_dirs, tags, vocab, margin=8, log=print):
     """tags (glosses_split.csv rows) → Bank per split, sliced from whole-recording landmarks."""
     store = LandmarkStore(sentence_dirs)
     idx = store.index
-    tags = tags[tags.rec_id.isin(idx.index) & tags.gloss.isin(vocab)].copy()
+    n0 = len(tags)
+    tags = tags[tags.rec_id.isin(idx.index) & tags.gloss.isin(vocab) & tags.start.notna() & tags.end.notna()].copy()
+    if len(tags) < n0:
+        log(f'  {n0 - len(tags)} signs dropped (no landmarks, outside the vocabulary or no frame range)')
     tags['_order'] = list(zip(tags.rec_id.map(idx['dir']), tags.rec_id.map(idx['part'])))
     banks = {s: Bank() for s in ('train', 'val', 'test')}
     t0, skipped = time.time(), 0

@@ -50,7 +50,8 @@ def kaggle_exe():
 
 
 def kg(*args, check=True, capture=True):
-    r = subprocess.run([kaggle_exe(), *args], capture_output=capture, text=True, encoding='utf-8', errors='replace')
+    env = {**os.environ, 'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'}   # the CLI prints → and crashes on cp1252
+    r = subprocess.run([kaggle_exe(), *args], capture_output=capture, text=True, encoding='utf-8', errors='replace', env=env)
     if check and r.returncode:
         sys.exit(f'kaggle {" ".join(args)} failed:\n{(r.stdout or "") + (r.stderr or "")}')
     return (r.stdout or '') + (r.stderr or '')
