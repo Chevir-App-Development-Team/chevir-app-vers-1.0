@@ -9,7 +9,7 @@ Python's protobuf 4.25 breaks it.
     python ml/kaggle_run.py status                 # every notebook
     python ml/kaggle_run.py log 02-1               # last lines of a run's log
     python ml/kaggle_run.py splits                 # 03's splits/ → ml/splits/ (a few MB)
-    python ml/kaggle_run.py results                # 04's history/metrics/ONNX/best.pt → ml/results/ (~15 MB)
+    python ml/kaggle_run.py results --to run3      # 04's history/metrics/ONNX/best.pt → ml/results/run3/ (~15 MB)
 
 Each push creates a new version of the notebook on Kaggle and starts running it. All notebooks
 are private, CPU-only; 01/02 have internet on (they read Zenodo), 03 reads 01+02 outputs.
@@ -110,6 +110,7 @@ def main():
     ap.add_argument('which', nargs='?', default='all')
     ap.add_argument('--smoke', action='store_true', help='push with SMOKE = True (a few files, ~3 min)')
     ap.add_argument('--user', help='Kaggle username (else read from the CLI config)')
+    ap.add_argument('--to', help='results: folder name under ml/results/ (default: latest)')
     a = ap.parse_args()
     user = a.user or (None if a.cmd == 'stage' else username())
 
@@ -162,7 +163,7 @@ def main():
         src = os.path.join(tmp, 'train')
         if not os.path.isdir(src):
             sys.exit(f'no train/ in the output of {ref} yet')
-        dst = os.path.join(HERE, 'results')
+        dst = os.path.join(HERE, 'results', a.to or 'latest')   # other runs' folders are left alone
         shutil.rmtree(dst, ignore_errors=True)
         shutil.copytree(src, dst)
         shutil.rmtree(tmp, ignore_errors=True)

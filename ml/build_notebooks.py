@@ -287,10 +287,12 @@ CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4,
 """),
         code(SETUP),
         code("""
-# ONNX export (for the browser) needs the onnx package; installed only if this image lacks it
+# ONNX export (for the browser) needs onnx; onnxruntime checks the export against PyTorch.
+# Installed only if this image lacks them.
 import importlib.util
-if ON_KAGGLE and importlib.util.find_spec('onnx') is None:
-    subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'onnx', 'onnxruntime'])
+missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is None]
+if ON_KAGGLE and missing:
+    subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
 """),
         *package_cells(TRAIN_MODULES),
         code("""

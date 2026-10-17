@@ -85,5 +85,76 @@ scored once with it. `W` = Words_200 clips (the benchmark); `S` = sentence-cut s
 | Run | Split | Status | Best epoch | Val W top-1 / macro-F1 | Test W top-1 / top-5 / macro-F1 / balanced | Test S top-1 / macro-F1 | Majority (test W) | Notes |
 |---|---|---|---|---|---|---|---|---|
 | 1 | v4 | crashed while loading data | — | — | — | — | — | 7 annotations without a frame range (fixed) |
-| 2 | v5 | *running* | | | | | | v5 later rejected (mixed rows), so this run only checks the training setup |
-| 3 | v6 | planned | | | | | | |
+| 2 | v5 | done, 60 epochs × 26 s on T4 | 60 | 0.834 / 0.855 (top-1 peaked at 0.875, epoch 35) | 0.853 / 0.988 / 0.859 / 0.871 · mirror-TTA 0.859 / 0.988 / 0.869 / 0.882 | 0.872 / 0.874 (majority 0.179) | 0.294 | v5 later rejected for mixed rows, so this checks the setup; the number may be slightly optimistic |
+| **3** | **v6** | done, 60 epochs × 26.6 s on T4 | 58 | 0.885 / 0.857 (top-1 peaked at 0.893, epoch 32) | **0.853 / 0.981 / 0.835 / 0.850** · mirror-TTA 0.851 / 0.981 / 0.832 / 0.848 | 0.858 / 0.853 (majority 0.162) | 0.309 | **headline**: clean split, same config as run 2 |
+
+### Run 2: per epoch (split v5)
+
+| Epoch | Train loss | Train acc | Val W top-1 | Val W top-5 | Val W macro-F1 | Val W balanced | Val S top-1 | Val S macro-F1 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 4.563 | 0.140 | 0.582 | 0.818 | 0.231 | 0.279 | 0.558 | 0.276 |
+| 2 | 2.671 | 0.509 | 0.572 | 0.842 | 0.476 | 0.531 | 0.589 | 0.536 |
+| 3 | 1.968 | 0.670 | 0.782 | 0.960 | 0.635 | 0.669 | 0.756 | 0.682 |
+| 5 | 1.607 | 0.772 | 0.736 | 0.971 | 0.683 | 0.727 | 0.747 | 0.727 |
+| 10 | 1.342 | 0.852 | 0.860 | 0.982 | 0.790 | 0.816 | 0.845 | 0.821 |
+| 15 | 1.245 | 0.880 | 0.857 | 0.986 | 0.803 | 0.826 | 0.851 | 0.833 |
+| 20 | 1.177 | 0.900 | 0.857 | 0.983 | 0.814 | 0.823 | 0.843 | 0.823 |
+| 30 | 1.088 | 0.927 | 0.865 | 0.986 | 0.814 | 0.843 | 0.854 | 0.836 |
+| 40 | 1.020 | 0.948 | 0.865 | 0.981 | 0.838 | 0.853 | 0.878 | 0.861 |
+| 50 | 0.974 | 0.966 | 0.853 | 0.982 | 0.846 | 0.863 | 0.866 | 0.867 |
+| 60 | 0.961 | 0.971 | 0.834 | 0.982 | 0.855 | 0.869 | 0.857 | 0.869 |
+
+Observations (run 2):
+- Top-1 peaks mid-training while macro-F1 keeps rising. The n_c^-0.5 sampling trades some accuracy
+  on MƏN for the rare glosses, and the best macro-F1 is at the last epoch, so longer training is
+  worth its own run.
+- Mirror test-time augmentation (average of the clip and its mirror) adds +0.6 top-1 and +1.0 macro-F1
+  in run 2. Run 3 does not replicate this (−0.2 top-1), so it is not counted as a gain.
+- Most test errors are between word forms that are likely the same sign: İSTƏYİRƏM → İSTƏMƏK (0/5),
+  İŞSİZ → İŞLƏMƏK (0/5), MƏNİM → MƏN (2/21), GEDƏ → GETMƏK, OLMUSUZ → OLMAQ. AzSLD labels
+  Azerbaijani word forms, not sign glosses, so a lemma-merged evaluation is a candidate experiment.
+- ONNX export works (6.8 MB). The onnxruntime check was skipped because Kaggle lacks onnxruntime.
+
+### Run 3: per epoch (split v6, headline)
+
+| Epoch | Train loss | Train acc | Val W top-1 | Val W top-5 | Val W macro-F1 | Val W balanced | Val S top-1 | Val S macro-F1 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 4.561 | 0.140 | 0.553 | 0.807 | 0.221 | 0.279 | 0.544 | 0.226 |
+| 2 | 2.668 | 0.514 | 0.742 | 0.941 | 0.540 | 0.590 | 0.746 | 0.587 |
+| 3 | 1.982 | 0.672 | 0.743 | 0.946 | 0.613 | 0.690 | 0.725 | 0.622 |
+| 5 | 1.622 | 0.768 | 0.796 | 0.970 | 0.716 | 0.769 | 0.797 | 0.734 |
+| 10 | 1.354 | 0.846 | 0.845 | 0.979 | 0.782 | 0.819 | 0.835 | 0.790 |
+| 15 | 1.247 | 0.879 | 0.858 | 0.986 | 0.791 | 0.824 | 0.864 | 0.832 |
+| 20 | 1.184 | 0.894 | 0.819 | 0.985 | 0.813 | 0.850 | 0.843 | 0.821 |
+| 30 | 1.097 | 0.921 | 0.830 | 0.988 | 0.847 | 0.867 | 0.852 | 0.860 |
+| 40 | 1.024 | 0.948 | 0.878 | 0.983 | 0.836 | 0.857 | 0.888 | 0.864 |
+| 50 | 0.975 | 0.967 | 0.878 | 0.980 | 0.852 | 0.871 | 0.898 | 0.881 |
+| 60 | 0.966 | 0.969 | 0.884 | 0.982 | 0.851 | 0.871 | 0.897 | 0.872 |
+
+The full 60-epoch history is in `history.csv` in the Kaggle output of `04-train-words` version 3.
+
+Test, best-on-val checkpoint (epoch 58), split v6:
+
+| Test set | Samples | Top-1 | Top-5 | Macro-F1 | Balanced acc | Majority |
+|---|---|---|---|---|---|---|
+| Words_200 clips | 1,290 | 0.853 | 0.981 | 0.835 | 0.850 | 0.309 |
+| Sentence-cut signs | 4,646 | 0.858 | 0.979 | 0.853 | 0.856 | 0.162 |
+
+Observations (run 3):
+- 129 of the 180 glosses in the test set reach recall ≥ 0.9. The 11 at recall 0 mostly have only 1–2
+  test clips (HARDA, HƏKİM, ORA, QARABAĞ, SONRA, TAKSİ, YATMAQ, YOXDUR, ZƏNG, ÇANTA, İŞSİZ).
+- MƏNİM → MƏN is still the main systematic confusion (recall 3/33): a possessive "my" vs "I",
+  probably the same or a near-identical sign.
+- Val top-1 swings by ±3 points between epochs (0.819 at epoch 20, 0.893 at 32). Val has 7 signers,
+  so one signer's clips move the number. Macro-F1 is steadier and keeps improving to the end.
+- Runs 2 and 3 both score 0.853 test top-1, but on different test sets (v5 vs v6); this is a coincidence.
+- Test is below val (0.853 vs 0.885 top-1), as expected when val is used to pick the checkpoint and the
+  test signers are new.
+- Local copies of run 2's full outputs were overwritten by a download bug (now fixed). Run 2's
+  numbers above were copied before that.
+
+Candidate next experiments (one change at a time, all on split v6):
+- longer training (100 epochs; best macro-F1 was at the end in both runs)
+- lemma-merged evaluation (İSTƏYİRƏM/İSTƏMƏK, MƏNİM/MƏN, GEDƏ/GETMƏK, …)
+- feature ablations: no face/blendshapes, hands only (what the browser can run most cheaply)
+- several seeds, to put error bars on the headline number
