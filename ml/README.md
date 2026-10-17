@@ -83,21 +83,20 @@ AzSLD has no signer ids, so every frontal recording gets a pseudo-signer:
 1. **Sessions:** recordings sorted by the timestamp in their file name. A gap over 15 min
    starts a new session (one sitting ≈ one signer). Different signers do record on the same day.
 2. **Faces:** a mean [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface)
-   embedding per recording. A sitting is one person (its recordings agree at a median 0.95).
-   Recordings far from their sitting's centroid are split off, then sittings are clustered
-   (average linkage) at cosine similarity 0.60 (`SIM`) → 38 pseudo-signers. An earlier 0.45
-   put two people in some rows.
-3. **Split groups:** two pseudo-signers are tied if *any* of their sittings are at least 0.50
-   alike (`LINK_SIM`) → 28 groups. On AzSLD one person's sittings score 0.6+ and different people
-   mostly < 0.5. Comparing sittings rather than cluster averages matters, because a mixed cluster's
-   average resembles neither person (that missed leaks of 0.58–0.67 in an earlier version). Tied
-   pseudo-signers always share a split. The closest sittings across splits now score 0.49.
+   embedding per recording, clustered **per recording** (average linkage, cosine 0.55, `SIM`)
+   → 39 pseudo-signers. The clusters are identical from 0.50 to 0.60, and no cluster has face pairs
+   below 0.4. Clustering per sitting failed: 29 of 179 sittings have two people taking turns,
+   and a sitting's average face resembles neither.
+3. **Split groups:** two pseudo-signers are tied if *any* of their (sitting, signer) units are at least
+   0.50 alike (`LINK_SIM`) → 35 groups. One person's sittings score 0.6+, different people mostly
+   < 0.5. Tied pseudo-signers always share a split; the closest pair across splits scores 0.49.
 4. **One group → train/val/test map (≈70/15/15 of samples)** is shared by every task, chosen so
    the 200-word vocabulary is covered in val and test. A test signer is never seen in training
    by any model. Train groups also get 5 CV folds.
 
-Current split (`ml/splits/`): 24 / 5 / 9 pseudo-signers. Words_200: 5,957 / 1,302 / 1,298 clips,
-covering 200 / 189 / 192 glosses. Majority class (MƏN) ≈ 29–31% of val and test.
+Current split (`ml/splits/`, notebook 03 v6): 27 / 7 / 5 pseudo-signers. Words_200: 6,009 / 1,254 /
+1,294 clips, covering 200 / 186 / 180 glosses. Majority class (MƏN): 28.6% of val, 31.1% of test.
+The history of the split, with what each version got wrong, is in `EXPERIMENTS.md` (E2).
 
 Check the contact sheet in 03 (one row per pseudo-signer) before trusting the split. If the
 dataset authors can share real signer ids, pass them as `OVERRIDE_CSV` (`rec_id,signer`).

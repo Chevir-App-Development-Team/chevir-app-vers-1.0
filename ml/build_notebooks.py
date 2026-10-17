@@ -189,7 +189,7 @@ def nb03():
 (*Add Input → Your Work → Notebooks*). **Kaggle settings:** Accelerator **None**; Internet not needed.
 
 AzSLD has no signer ids, so recordings are grouped into pseudo-signers: sessions from the
-recording timestamps, then face embeddings (see `azsl/split.py`). One signer → train/val/test
+recording faces clustered per recording, then look-alikes tied into split groups (see `azsl/split.py`). One signer → train/val/test
 assignment is shared by every task, so a test signer is never seen in training.
 
 **Writes** `splits/`: `signers.csv`, `words200_split.csv`, `glosses_split.csv`,
@@ -197,7 +197,7 @@ assignment is shared by every task, so a test signer is never seen in training.
 Download `splits/` and commit it to `ml/splits/` — that is the frozen benchmark every model is scored on.
 '''),
         code('''
-SIM = 0.60             # sittings at least this alike (average linkage) form one pseudo-signer
+SIM = 0.55             # recordings at least this alike (average linkage) form one pseudo-signer
 LINK_SIM = 0.50        # pseudo-signers with ANY two sittings this alike always share a split
 GAP_MIN = 15.0         # minutes between recordings that start a new session
 SEED = 0

@@ -4,18 +4,19 @@ AzSLD ships no signer ids and Words_200 clips are UUID-named, which is how the o
 I3D repo ended up with the same signers in train and test. Here every Sentences
 recording gets a pseudo-signer:
 
-  1. sessions — recordings ordered by their file-name timestamp; a gap of more than
-     `gap_min` minutes (or a new day) starts a new session. One sitting ≈ one signer.
-  2. faces — a mean SFace embedding per recording (landmarks.Extractor._embed).
-     Recordings far from their session's centroid are split off (a second person
-     in that sitting), then session cores + split-offs are clustered (average
-     linkage, cosine) at similarity `sim`.
-  3. one signer → split assignment, chosen so the 200-word vocabulary is covered in
+  1. faces — a mean SFace embedding per recording (landmarks.Extractor._embed),
+     clustered per RECORDING (average linkage, cosine) at similarity `sim`. Not per
+     sitting: 29 of 179 sittings have two people taking turns, and a sitting's average
+     resembles neither. The clusters are identical from 0.50 to 0.60 (a clear gap).
+  2. split groups — pseudo-signers are tied if any of their sittings look alike
+     (split_groups), so a look-alike can never sit on both sides of the split.
+  3. one group → split assignment, chosen so the 200-word vocabulary is covered in
      val/test, and reused for every task (words, sentence-cut glosses, sentences),
      so a test signer is never seen in training by any model.
 
-If the dataset authors can provide real signer ids, pass them as an override CSV
-(rec_id, signer) and steps 1–2 are skipped for those recordings.
+Sessions (recording timestamps, `gap_min`) only define sittings for step 2 and give
+recordings without a face their sitting's signer. Real signer ids from the dataset
+authors can be passed as an override CSV (rec_id, signer).
 """
 import numpy as np
 
@@ -37,51 +38,34 @@ def _norm(x):
     return x / (np.linalg.norm(x, axis=-1, keepdims=True) + 1e-9)
 
 
-def cluster_signers(rec_ids, emb, session_of: dict, sim: float = 0.60):
+def cluster_signers(rec_ids, emb, sim: float = 0.55):
     """→ (dict rec_id → signer, report dict). `emb` rows are L2-normalised SFace means."""
     from sklearn.cluster import AgglomerativeClustering
-    by_session = {}
-    for i, rid in enumerate(rec_ids):
-        by_session.setdefault(session_of.get(rid, f'nosession-{rid}'), []).append(i)
-
-    units, members = [], []                      # unit embedding, indices of its recordings
-    split_off = 0
-    for idx in by_session.values():
-        core = list(idx)
-        for _ in range(2):                       # centroid, drop far members, centroid again
-            c = _norm(emb[core].mean(0))
-            keep = [i for i in core if emb[i] @ c >= sim]
-            if not keep or len(keep) == len(core):
-                break
-            core = keep
-        units.append(_norm(emb[core].mean(0)))
-        members.append(core)
-        for i in idx:
-            if i not in core:
-                units.append(emb[i])
-                members.append([i])
-                split_off += 1
-    U = np.stack(units)
-    if len(U) == 1:
+    if len(rec_ids) == 1:
         labels = np.zeros(1, int)
     else:
         labels = AgglomerativeClustering(n_clusters=None, metric='cosine', linkage='average',
-                                         distance_threshold=1 - sim).fit_predict(U)
-    signer = {}
-    for lab, mem in zip(labels, members):
-        for i in mem:
-            signer[rec_ids[i]] = f'p{lab:03d}'
-    # similarity of each unit to its nearest other cluster — a clean gap means the threshold is safe
-    cents = {lab: _norm(U[labels == lab].mean(0)) for lab in set(labels)}
-    C = np.stack(list(cents.values()))
+                                         distance_threshold=1 - sim).fit_predict(emb)
+    signer = {rid: f'p{lab:03d}' for rid, lab in zip(rec_ids, labels)}
+    sizes = np.bincount(labels)
+    labs = np.unique(labels)
+    C = np.stack([_norm(emb[labels == lab].mean(0)) for lab in labs])
     S = C @ C.T
     np.fill_diagonal(S, -1)
-    report = {'units': len(U), 'split_off_recordings': split_off, 'signers': len(cents),
+    # purity: share of face pairs < 0.4 inside a cluster (two people in one row shows up here)
+    rng, mixed = np.random.default_rng(0), []
+    for lab in labs[sizes[labs] >= 20]:
+        ix = np.where(labels == lab)[0]
+        ix = rng.choice(ix, min(400, len(ix)), replace=False)
+        P = emb[ix] @ emb[ix].T
+        mixed.append(float((P[np.triu_indices(len(ix), 1)] < 0.4).mean()))
+    report = {'signers': int(len(labs)), 'tiny_signers_lt20_recordings': int((sizes < 20).sum()),
+              'worst_cluster_mixed_pairs': round(max(mixed, default=0.0), 4),
               'nearest_other_signer_sim': [round(float(x), 3) for x in np.sort(S.max(1))[::-1][:10]]}
     return signer, report
 
 
-def assign_signers(recs, emb_ids, emb, sim=0.60, gap_min=15.0, override=None):
+def assign_signers(recs, emb_ids, emb, sim=0.55, gap_min=15.0, override=None):
     """recs → DataFrame rec_id, session, signer, has_emb. Recordings without a face fall back to
     their session's signer; with neither they become 'unk-<session>'."""
     ses = sessions(recs, gap_min)
@@ -91,7 +75,7 @@ def assign_signers(recs, emb_ids, emb, sim=0.60, gap_min=15.0, override=None):
     out['has_emb'] = out.rec_id.isin(has)
     signer, report = ({}, {'signers': 0})
     if len(emb_ids):
-        signer, report = cluster_signers(list(emb_ids), _norm(np.asarray(emb, np.float32)), ses.to_dict(), sim)
+        signer, report = cluster_signers(list(emb_ids), _norm(np.asarray(emb, np.float32)), sim)
     out['signer'] = out.rec_id.map(signer)
     maj = out.dropna(subset=['signer']).groupby('session').signer.agg(lambda s: s.value_counts().index[0])
     miss = out.signer.isna()
@@ -125,10 +109,10 @@ def _units(signers, emb_ids, emb):
 
 
 def split_groups(signers, emb_ids, emb, link_sim=0.50):
-    """Tie pseudo-signers that share a look-alike sitting: if ANY sitting of one is >= link_sim
-    similar to any sitting of the other, they always land in the same split. Comparing sittings,
-    not cluster averages, matters — a cluster that mixes two people has an average resembling
-    neither. On AzSLD one person's sittings score 0.6+ and different people mostly < 0.5.
+    """Tie pseudo-signers that share a look-alike sitting: if ANY (sitting, signer) unit of one is
+    >= link_sim similar to any unit of the other, they always land in the same split. Units, not
+    cluster averages: an average over many recordings hides one look-alike sitting. On AzSLD one
+    person's sittings score 0.6+ and different people mostly < 0.5.
     Union-find over the pairs → dict signer → group id."""
     keys, C, _ = _units(signers, emb_ids, emb)
     parent = {n: n for n in signers.signer.unique()}
