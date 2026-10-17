@@ -46,6 +46,14 @@ function revealNavbar() {
   document.querySelector('[data-navbar]')?.classList.add('is-revealed')
 }
 
+// revealNavbar()-ın analoqu - hero məzmunu (tagline/nsosyal-btn) üçün.
+// HƏR İKİ çağırış yerində (splash var/yox) revealNavbar() ilə BİRLİKDƏ
+// çağırılır ki, animasiya skriptindən asılı olmayan, həmişə görünən
+// struktur təmin olunsun (bax hero.css `.hero.is-revealed`).
+function revealHero() {
+  document.querySelector('.hero')?.classList.add('is-revealed')
+}
+
 // Naviqasiya loqosunu ANİ (keçidsiz) görünən edir - navbar.css-də bu elementin
 // öz "opacity 0.4s" keçidi var, amma uçan elementdən ötürməni KƏSİKSİZ etmək
 // üçün elə həmin anda dəqiq üst-üstə düşməlidir, tədricən sönən/yanan iki
@@ -283,6 +291,7 @@ function runSplashAnimation(lenis, onDone) {
       () => {
         revealNavbarLogoInstantly(target)
         revealNavbar()
+        revealHero()
         clearInstantOverride(target)
         requestAnimationFrame(() => logoEl.remove())
       },
@@ -330,6 +339,7 @@ export function initPreloader(lenis, onDone) {
 
   if (prefersReducedMotion || !shouldShow) {
     revealNavbar()
+    revealHero()
     finishSplash(lenis)
   } else {
     lenis.stop()

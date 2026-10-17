@@ -114,10 +114,27 @@
   flex-direction: column;
   text-align: left;
   line-height: 1.05;
+  /* Default GİZLİ, animasiya skriptindən ASILI OLMAYARAQ - yalnız
+     `.hero.is-revealed`-də görünən (bax preloader.js revealHero(), HƏR
+     İKİ yolda - splash var/yox - çağırılır). KÖK SƏBƏB (əvvəlki bug):
+     gizli başlanğıc vəziyyət JS-dən (gsap.set) qoyulurdu, splash atlanan
+     sayt-daxili keçiddə heç kim geri açmırdı - elementlər həmişəlik gizli
+     qalırdı. İndi CSS-sinif-əsaslı, splash tween-i (bax preloader.js
+     `runSplashAnimation`) bu başlanğıc vəziyyətdən oxuyub animasiya edir -
+     splash-ın görünüşü DƏYİŞMİR, yalnız "gizlətmək kim edir" dəyişdi. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+}
+
+.hero.is-revealed .hero__tagline {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .hero__tagline-line {
-  font-size: clamp(2.75rem, 6vw, 5.5rem);
+  font-size: clamp(2.2rem, 4.8vw, 4.4rem);
 }
 
 /* Birinci sətir - yüngül (Light 300), solğun mavi-boz. QEYD: xalis Chevir
@@ -138,7 +155,10 @@
 .hero__nsosyal-btn {
   display: none;
   position: absolute;
-  top: calc(clamp(5rem, 11vh, 6.5rem) + 2 * 2.75rem * 1.05 + 1.25rem);
+  /* 2*2.2rem*1.05 - başlığın iki sətrinin minimum (mobil, clamp-ın aşağı
+     ucu) hündürlüyü, bax .hero__tagline-line - başlıq ölçüsü dəyişəndə
+     bu da uyğunlaşdırılmalıdır. */
+  top: calc(clamp(5rem, 11vh, 6.5rem) + 2 * 2.2rem * 1.05 + 1.25rem);
   left: var(--hero-pad-x);
   z-index: 5;
   padding: 0.5rem 1.1rem;
@@ -152,6 +172,16 @@
   pointer-events: auto;
   align-items: center;
   gap: 0.5rem;
+  /* Eyni default-gizli/`.is-revealed` sxemi - bax .hero__tagline. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+}
+
+.hero.is-revealed .hero__nsosyal-btn {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 @media (max-width: 640px) {

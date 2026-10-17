@@ -11,7 +11,7 @@ const BASE = import.meta.env.BASE_URL
 const LINKS = {
   home: { href: '', label: 'Ana səhifə' },
   tercume: { href: 'tercume/', label: 'Sistemi sına' },
-  nsosyal: { href: 'nsosyal/', label: 'NSosyal demosu' },
+  nsosyal: { href: 'nsosyal/', label: 'NSosyal' },
 }
 
 /**

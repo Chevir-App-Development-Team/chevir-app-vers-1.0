@@ -836,6 +836,18 @@
   margin: 0 auto;
 }
 
+/* Masaüstündə tək sətir - mobildə (≤600px) max-width/mətn ölçüsünə görə
+   təbii iki sətrə düşə bilər, buna İCAZƏ VERİLİR (yalnız bu media query-dən
+   yuxarıda nowrap tətbiq olunur). Mərkəzləmə `.contact`-ın öz
+   `text-align:center`-indən gəlir (miras), max-width ləğv olunanda da
+   itmir. */
+@media (min-width: 601px) {
+  .contact__heading {
+    max-width: none;
+    white-space: nowrap;
+  }
+}
+
 .contact__asks {
   margin: 1.75rem auto 0;
   padding: 0;

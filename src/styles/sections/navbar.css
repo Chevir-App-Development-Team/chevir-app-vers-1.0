@@ -109,6 +109,21 @@
   display: flex;
   align-items: center;
   gap: 2.5rem;
+  /* Default GİZLİ, .navbar__brand ilə EYNİ sxem (bax yuxarıda) - yalnız
+     `.navbar.is-revealed`-də görünən. KÖK SƏBƏB (əvvəlki bug): bu element
+     əvvəllər YALNIZ JS-dən (gsap.set) gizlədilirdi, CSS-fallback-ı yox idi -
+     splash atlanan sayt-daxili keçiddə heç kim geri açmırdı. İndi
+     `.navbar__brand`-ın artıq işlək olan sxemi ilə eynidir - `revealNavbar()`
+     onsuz da HƏR İKİ yolda (splash var/yox) çağırılır, əlavə JS lazım deyil. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+}
+
+.navbar.is-revealed .navbar__links {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .navbar__link {
@@ -118,7 +133,8 @@
   font-weight: 400;
   text-decoration: none;
   opacity: 0.82;
-  transition: opacity 0.3s ease, color 0.4s ease;
+  transform-origin: center;
+  transition: opacity 0.3s ease, color 0.4s ease, transform 0.2s ease;
 }
 
 /* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
@@ -128,10 +144,20 @@
   inset: -12px -8px;
 }
 
-.navbar__link:hover {
+/* Hover/fokusda rəng DƏYİŞMİR, alt xətt YOXDUR - yalnız azca böyümə (layout
+   sürüşməsi olmadan, təkcə transform). Aydın fokus halqası base.css-dəki
+   qlobal `:focus-visible` qaydasından gəlir (toxunulmayıb). */
+.navbar__link:hover,
+.navbar__link:focus-visible {
   opacity: 1;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar__link:hover,
+  .navbar__link:focus-visible {
+    transform: none;
+  }
 }
 
 /* Açıq bölmədə (bax aşağı .is-light) keçidlər Bridge Blue - Chevir Blue
@@ -139,14 +165,11 @@
    (AA kiçik-mətn tələbi 4.5-dən aşağı, bax CLAUDE.md "Əlçatanlıq"). Bridge
    Blue eyni kontrastı 9.91 ilə keçir - güzəşt yoxdur tələbinə görə seçilib.
    Tünd bölmədə (.is-light yoxdursa) rəng YUXARIDAKI --ink-on-dark olaraq
-   DƏYİŞMƏDƏN qalır. */
+   DƏYİŞMƏDƏN qalır. Hover/fokusda BURADA DA rəng dəyişmir (yalnız böyümə,
+   yuxarıdakı ümumi qayda). */
 .navbar.is-light .navbar__link {
   color: var(--bridge-blue);
   opacity: 1;
-}
-
-.navbar.is-light .navbar__link:hover {
-  color: var(--midnight);
 }
 
 .navbar__cta {
@@ -162,7 +185,21 @@
   font-weight: 600;
   text-decoration: none;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s ease,
-    color 0.4s ease;
+    color 0.4s ease, opacity 0.4s ease;
+  /* Default GİZLİ - .navbar__links ilə EYNİ səbəb/sxem (bax yuxarıda).
+     QEYD: `transform` BURADA İŞLƏDİLMİR (yalnız opacity/visibility) - bu
+     elementin artıq ÖZ hover transform-u var (aşağıda `:hover{transform:
+     translateY(-2px)}`, TOXUNULMAYIB) - əgər gizli/görünən vəziyyət də
+     transform işlətsəydi, CSS spesifiklik toqquşması (`.navbar.is-revealed
+     .navbar__cta` 3 sinif, `.navbar__cta:hover` 2) hover effektini poza
+     bilərdi (splash atlanan yolda, GSAP inline stilin olmadığı halda). */
+  opacity: 0;
+  visibility: hidden;
+}
+
+.navbar.is-revealed .navbar__cta {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
