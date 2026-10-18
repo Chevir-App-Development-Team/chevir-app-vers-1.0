@@ -97,7 +97,8 @@ def main():
               f'{ts.get("top1", float("nan")):.3f} / {ts.get("macro_f1", float("nan")):.3f}     '
               f'{tw.get("majority_acc", float("nan")):.3f}')
 
-    seeds = [n for n in allm if n.startswith('seed') or n.startswith('ref')]
+    # seed runs: 'seed1', 'no_face_seed2', … plus the reference run (seed 0 of the same setup)
+    seeds = [n for n in allm if n.startswith(('seed', 'ref')) or '_seed' in n]
     if len(seeds) > 1:
         print(f'\nseed runs ({", ".join(seeds)}): mean ± std')
         for which in ('test_words', 'test_signs'):

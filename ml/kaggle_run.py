@@ -162,7 +162,7 @@ def main():
     elif a.cmd == 'results':
         ref = f'{user}/{NOTEBOOKS["04"][1]}'
         tmp = tempfile.mkdtemp(prefix='kaggle_results_')
-        small = r'history\.csv|metrics\.json|vocab\.json|per_class_test_words\.csv|predictions\.npz'
+        small = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|per_class_test_words\.csv|predictions\.npz'
         files = small + (r'|model\.onnx|best\.pt' if a.models else '')
         run = re.escape(a.run) if a.run else '[^/]+'
         kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', rf'^train/(summary\.csv|({run}/)?({files}))$',

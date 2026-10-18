@@ -262,11 +262,58 @@ this, so they have no manifests and no no-face scores.
 
 | Run | Split | Status | Runs (each = run 3 setup with this change) |
 |---|---|---|---|
-| 5a–5d | v6 | *running*: notebook 04 v5, pushed 2026-10-18 14:25 | no face seed 1, no face seed 2, no face + `face_drop` 0.5, all features + `face_drop` 0.5 |
+| 5a–5d | v6 | done: notebook 04 v5, 4 × 28 min on a T4 | no face seed 1, no face seed 2, no face + `face_drop` 0.5, all features + `face_drop` 0.5 |
 
 Run 5 was pushed before the ONNX export fix (E5), so its `model.onnx` files accept only 32 frames
 and their export check fails. The checkpoints are fine; models for the browser are re-exported from
 `best.pt` (`ml/make_manifest.py --export`).
+
+### Run 5: no face over seeds, face dropout (split v6)
+
+Test, best-on-val checkpoint. "Face off" = the same model scored with the face removed (privacy mode,
+or no face tracker in the browser). Run 4d is the seed-0 run of the no-face setup.
+
+| Run | Features | Best epoch | Val W macro-F1 | Test W top-1 / top-5 / macro-F1 / balanced | Test W, face off: top-1 / macro-F1 | Test W merged (183): top-1 / macro-F1 | Test S top-1 / macro-F1 |
+|---|---|---|---|---|---|---|---|
+| 4d no face, seed 0 | 400 | 45 | 0.861 | 0.878 / 0.986 / 0.863 / 0.885 | not scored | 0.950 / 0.906 | 0.868 / 0.852 |
+| **5a no face, seed 1** | 400 | 55 | **0.873** | 0.854 / 0.985 / 0.849 / 0.867 | 0.854 / 0.846 | 0.948 / 0.892 | 0.870 / 0.856 |
+| 5b no face, seed 2 | 400 | 44 | 0.861 | 0.852 / 0.986 / 0.830 / 0.856 | 0.852 / 0.829 | 0.940 / 0.882 | 0.863 / 0.846 |
+| 5c no face + `face_drop` 0.5 | 400 | 38 | 0.861 | 0.788 / 0.982 / 0.802 / 0.825 | 0.789 / 0.804 | 0.933 / 0.854 | 0.839 / 0.833 |
+| 5d all features + `face_drop` 0.5 | 656 | 48 | 0.861 | 0.851 / 0.983 / 0.848 / 0.863 | 0.848 / 0.847 | 0.940 / 0.892 | 0.863 / 0.850 |
+
+Mean ± sample std over three seeds:
+
+| Setup | Test W top-1 | Test W macro-F1 | Test W balanced | Test S top-1 | Test S macro-F1 |
+|---|---|---|---|---|---|
+| All features (runs 3, 4a, 4b) | 0.817 ± 0.039 | 0.830 ± 0.005 | 0.847 ± 0.002 | 0.845 ± 0.015 | 0.851 ± 0.003 |
+| No face (runs 4d, 5a, 5b) | 0.861 ± 0.015 | 0.847 ± 0.016 | 0.869 ± 0.014 | 0.867 ± 0.003 | 0.851 ± 0.005 |
+
+Ensembles (average of the softmax probabilities, from the saved test predictions):
+
+| Ensemble | Test W top-1 / top-5 / macro-F1 / balanced | Test S top-1 / top-5 / macro-F1 / balanced |
+|---|---|---|
+| No face, 3 seeds (4d, 5a, 5b) | 0.880 / 0.987 / 0.860 / 0.881 | 0.882 / 0.988 / 0.862 / 0.872 |
+| All features, 2 seeds (4a, 4b) | 0.800 / 0.986 / 0.853 / 0.869 | 0.846 / 0.985 / 0.857 / 0.865 |
+| All 7 runs with saved predictions (4a, 4b, 4c, 4d, 5a, 5b, 5d) | 0.874 / 0.987 / 0.862 / 0.877 | 0.882 / 0.988 / 0.875 / 0.882 |
+
+Observations (run 5):
+- **Run 4d was the lucky seed.** Over three seeds, no face gives Words_200 macro-F1 0.847 ± 0.016, against
+  0.830 ± 0.005 for all features. On sentence-cut signs both are 0.851. Without face is at least as good
+  and needs one tracker less, but "the face hurts" is not supported: the difference is within the
+  run-to-run spread.
+- **The run-to-run spread is larger than the seed spread suggests.** 5c differs from 4d only in that the
+  "face detected" flag is randomly zeroed in training, and its test macro-F1 is 0.061 lower, with the
+  same val macro-F1 (0.861). With 5 test signers, single-run test differences below ~0.03 should not be
+  read as real. Report means over seeds.
+- **The face flag barely matters in practice.** Scored with the face removed, the no-face models lose
+  0.003 / 0.001 test macro-F1 (val 0.0007 for 5a), so the browser can drop the face tracker (E6).
+- **Face dropout gives a full model that works without the face**: 5d loses 0.001 without face (0.848 →
+  0.847) and is as good as the full-feature seeds. Runs 3/4 have no face-off scores to compare with.
+- **Ensembles help**: three no-face seeds reach 0.860 Words_200 macro-F1 (seed mean 0.847) and 0.862 on
+  sentence-cut signs. All seven runs together reach 0.875 on sentence-cut signs. This is what the
+  planned landmark server would run; the browser keeps one model.
+- **Browser model = 5a, picked on validation** (highest val macro-F1, 0.873), not on test. 4d has the
+  best test score, but choosing it by that would make the test number optimistic.
 
 ---
 
@@ -338,4 +385,3 @@ Two export bugs, found and fixed on the way:
 - **The export check compared against a model in training mode.** `torch.onnx.export` restores the
   wrapper module's mode afterwards, and a new wrapper is in training mode, so dropout and batch
   statistics were on in the comparison. The wrapper is now put in eval mode first.
-
