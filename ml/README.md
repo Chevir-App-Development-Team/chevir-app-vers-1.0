@@ -187,7 +187,21 @@ models. The server is not built yet. These pieces keep both paths identical:
   max_len, groups), the full `spec()`, seed / fold / split_id, val and test metrics (including `*_noface`).
   Every run keeps its own model, so seeds and folds can be ensembled: average the softmax probabilities.
 - **Privacy mode:** train with `face_drop` (probability that a clip loses its face and blendshapes) so one
-  model serves both modes. Every run reports scores with and without face.
+  model serves both modes. Every run whose input the face can change reports scores with and without
+  face. That includes hands-only and hands + pose models: one of the 4 presence flags is "face detected",
+  so they are not face-free unless trained with `face_drop` (`train.reads_face`).
+- **Browser model:** `src/tercume/recognizer.js` (`LocalRecognizer`) loads `manifest.json` +
+  `model.onnx` from `public/tercume/assets/word_model/`, refuses another `feature_version`, and runs
+  onnxruntime-web 1.30.0 (WASM, one thread, so no special HTTP headers; Vite bundles its `.wasm`
+  next to the JS). Install a trained run with
+  `python ml/make_manifest.py <run_dir> [--export] --install`. It writes the manifest for runs that
+  predate it, re-exports `model.onnx` from `best.pt` with `--export`, and records PyTorch logits for the
+  fixture cases in `ml/fixtures/word_model_ref.json`. `node tools/verify_recognizer.mjs` then runs the
+  browser code (features.js → onnxruntime-web) on the same cases and must match them.
+- **ONNX export:** the exported graph takes any clip length (1 × T × F). Models exported before this
+  fix (runs 2–5) accept only T = 32 frames: `nn.MultiheadAttention` fixed the traced length into a
+  reshape. Re-export them with `make_manifest.py --export`. `export_onnx` now checks lengths 7, 32 and 64
+  against the training forward pass and leaves `model_file` empty in the manifest if they differ.
 
 ## Analysing results (no GPU)
 

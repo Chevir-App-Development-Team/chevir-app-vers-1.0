@@ -73,6 +73,7 @@ src/
     model.js             Keras MLP-nin JS irəli keçidi (TensorFlow.js YOX — 4 matmul)
     features.js          landmark-lar → söz modelinin girişi (ml/azsl/features.py preprocess()-in portu)
     landmarks.js         söz modeli üçün iki əl + poza + üz landmark-ları, sağ/sol əl slotları (ml/azsl/landmarks.py-ın əkizi)
+    recognizer.js        söz tanıyıcı: manifest.json + model.onnx → onnxruntime-web (WASM), bir işarə → top-k söz
     decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
     hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
     s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
@@ -89,12 +90,14 @@ public/
   tercume/assets/        model.bin, lm.json, vocab.json, poses.json, hand/pose/face_landmarker .task faylları
   tercume/words/         söz işarələri: index.json + hər söz üçün <id>.json
   tercume/wasm/          MediaPipe wasm — @mediapipe/tasks-vision 0.10.14 ilə eyni olmalıdır
+  tercume/assets/word_model/   söz modeli: model.onnx + manifest.json (ml/make_manifest.py --install)
 tools/
   export_model.py        model/fingerspelling_33.h5 → model.bin + model.json
   build_lexicon.py       model/lexicon.txt → bigram DM + lüğət + prefikslər
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
   build_words.py         AzSLD Words 200 videoları → public/tercume/words/ (poza + iki əl)
-  verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/)
+  verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
+                         verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch)
 ml/                      yeni model üçün Kaggle boru xətti: AzSLD → landmark-lar → signer-independent
                          split (bax ml/README.md)
 model/
@@ -106,6 +109,8 @@ docs/
 
 `@mediapipe/tasks-vision` versiyası dəqiq bağlanıb (`0.10.14`): paketi yeniləsəniz,
 `node_modules/@mediapipe/tasks-vision/wasm/` fayllarını `public/tercume/wasm/`-a köçürün.
+`onnxruntime-web` də dəqiq bağlanıb (`1.30.0`). Onun `.wasm` faylını Vite özü build-ə çıxarır
+(`vite.config.js`-də `optimizeDeps.exclude`), ona görə əl ilə köçürmək lazım deyil.
 
 ## Assetləri yenidən qurmaq
 

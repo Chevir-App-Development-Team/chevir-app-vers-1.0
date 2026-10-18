@@ -241,8 +241,10 @@ Observations (run 4):
   60 epochs stays the default.
 - **Mirror TTA is not a consistent gain** (−0.014 to +0.013 top-1, −0.009 to +0.017 macro-F1 over five
   runs). It stays off.
-- For the browser, a model without face points also means one tracker less per frame (the face
-  landmarker) and a privacy mode for free.
+- For the browser, a model without face points could save the face tracker. It is **not face-free
+  yet**: its 4 presence flags include "face detected", which was ≈ 1 in all training data. Switching
+  the face off changes its logits by up to 0.34 on the synthetic fixture cases. On the 3 real signs in
+  E5 the change is ≤ 0.002 in probability. Run 5 measures it (`*_noface` scores, `face_drop`).
 
 ### Word-form families (evaluation only)
 
@@ -257,6 +259,14 @@ From the next batch on, every run also writes `manifest.json` (feature_version 1
 seed / split_id, metrics) and reports test scores **without face points** (`*_noface`, privacy mode).
 `face_drop` (training with the face randomly removed) is a new experiment variable. Runs 1–4 predate
 this, so they have no manifests and no no-face scores.
+
+| Run | Split | Status | Runs (each = run 3 setup with this change) |
+|---|---|---|---|
+| 5a–5d | v6 | *running*: notebook 04 v5, pushed 2026-10-18 14:25 | no face seed 1, no face seed 2, no face + `face_drop` 0.5, all features + `face_drop` 0.5 |
+
+Run 5 was pushed before the ONNX export fix (E5), so its `model.onnx` files accept only 32 frames
+and their export check fails. The checkpoints are fine; models for the browser are re-exported from
+`best.pt` (`ml/make_manifest.py --export`).
 
 ---
 
@@ -283,3 +293,49 @@ frame timestamps.
 The differences are far below the training augmentation (±10° rotation, ±15% scale, 0.003 jitter), and
 the slot rule never disagrees. The reference used MediaPipe 1.0.1, while the training data was extracted
 with 0.10.35; both use the same models.
+
+---
+
+## E5 — Word model in the browser (local recognizer)
+
+Model: run 4d (no face, 400 features, test Words_200 macro-F1 0.863), re-exported from `best.pt`
+(6.6 MB ONNX, opset 17), in `public/tercume/assets/word_model/` with its `manifest.json`.
+Runtime: `src/tercume/recognizer.js`, onnxruntime-web 1.30.0, WASM, one thread.
+
+**Same input → same output as PyTorch** (`node tools/verify_recognizer.mjs`): the synthetic fixture
+cases go through features.js and onnxruntime-web, against `best.pt` on the training forward pass
+(`ml/fixtures/word_model_ref.json`):
+
+| Case | Frames | Max abs logit difference | Top-5 order |
+|---|---|---|---|
+| short, one hand lost for 3 frames (with / without face) | 12 | 1.9e-6 / 1.9e-6 | same |
+| no body found (centre from the hands) | 20 | 5.5e-6 / 6.7e-6 | same |
+| 70 frames resampled to 64, no face detected | 64 | 1.4e-6 / 1.4e-6 | same |
+| privacy mode (face off) | 12 | 1.9e-6 / 1.9e-6 | same |
+
+**A real recording, full chain in the browser.** This is the E4 recording (sentence "Sizin adınız
+nədir?", signer p005, *train* split). It checks correctness, not accuracy. Browser = MediaPipe in the
+page → `LandmarkClip.toRaw(start − 1, end)` → recognizer. Python = the reference landmarks → features.py
+→ PyTorch.
+
+| Sign (frames) | Python + PyTorch | Browser, face on | Browser, face off |
+|---|---|---|---|
+| SİZ (23–42) | SİZ 0.928 | SİZ 0.927 | SİZ 0.929 |
+| AD (46–57) | AD 0.926 | AD 0.926 | AD 0.926 |
+| NƏDİR (61–85) | NƏDİR 0.913 | NƏDİR 0.925 | NƏDİR 0.923 |
+
+| Speed (in-app browser pane) | |
+|---|---|
+| Recognizer load (manifest + 6.6 MB model + 14.2 MB WASM, dev server) | 0.47 s |
+| One sign, 12–25 frames | 5–8 ms (first call 26 ms) |
+| Landmarks, three models | 60 ms per frame (88 ms in E4; same pane, so the live-camera check is still open) |
+
+Two export bugs, found and fixed on the way:
+- **The ONNX graph only took 32 frames.** `nn.MultiheadAttention` fixed the traced length (32) into a
+  reshape, so any other clip length fails in onnxruntime (`{20,1,192}` → `{32,4,48}`). This affects every
+  `model.onnx` of runs 2–5. Export now writes the same attention out with the same weights. Its outputs
+  match the training forward pass to 5e-7 in PyTorch and 2e-6 in onnxruntime at T = 7, 32 and 64.
+- **The export check compared against a model in training mode.** `torch.onnx.export` restores the
+  wrapper module's mode afterwards, and a new wrapper is in training mode, so dropout and batch
+  statistics were on in the comparison. The wrapper is now put in eval mode first.
+
