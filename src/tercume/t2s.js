@@ -70,10 +70,29 @@ export class TextToSign {
     }
   }
 
-  /** Söz kadrı: avatar bütöv kadrı alır, skeleton isə görünən əllərin nöqtələrini. */
+  /**
+   * Söz kadrı: avatar bütöv kadrı alır, skeleton isə əllərin nöqtələrini.
+   * Skeletə metrik 3B nöqtələr verilir — pozanın bilək nöqtəsi + əlin öz landmark-ları.
+   * Şəkil koordinatları işlədiləndə hər əlin dərinliyi öz biləyinə nisbətən olurdu, ona görə
+   * iki əl eyni müstəviyə yığılır və bir-birinin içinə girmiş kimi görünürdü.
+   */
   #emitWord(word, f) {
-    const fr = word.frames[f];
-    const pts = [fr.L, fr.R].filter(Boolean).flatMap((h) => h.n.map(([x, y, z]) => ({ x, y, z })));
+    // Avatar hansı kadrı və dərinlik variantını seçibsə, skeleton da eynisini göstərsin
+    const used = this.targets.map((t) => t.wordHands?.(word, f)).find(Boolean) ?? null;
+    const pts = [];
+    for (const [side, key, wrist] of [['left', 'L', 5], ['right', 'R', 6]]) {
+      const info = used ? used[side] : { frame: f, flip: false };
+      if (used && !info) continue;                       // avatar bu əli istirahətə endirib
+      const fr = word.frames[info.frame] ?? word.frames[f];
+      const hand = fr[key];
+      if (!hand) continue;
+      const base = fr.b?.[wrist];
+      const sz = info.flip ? -1 : 1;
+      for (const [x, y, z] of hand.w) {
+        const o = [x - hand.w[0][0], y - hand.w[0][1], sz * (z - hand.w[0][2])];
+        pts.push(base ? { x: base[0] + o[0], y: base[1] + o[1], z: base[2] + o[2] } : { x: o[0], y: o[1], z: o[2] });
+      }
+    }
     for (const t of this.targets) {
       if (typeof t.setWordPose === 'function') t.setWordPose(word, f);
       else if (typeof t.setPose === 'function') t.setPose(pts.length ? pts : null);
