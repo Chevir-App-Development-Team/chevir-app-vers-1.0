@@ -15,8 +15,15 @@ const EDGE_PUNCT = /^[.,!?;:"'“”‘’«»()[\]…–—-]+|[.,!?;:"'“”�
 export class WordLexicon {
   constructor(index) {
     this.entries = index?.words ?? [];
-    this.byText = new Map(this.entries.map((w) => [w.text, w]));
-    this.maxTokens = Math.max(1, ...this.entries.map((w) => w.text.split(' ').length));
+    // Açar kiçik hərflə saxlanır: xüsusi adlar lüğətdə böyük hərflə yazılır (Bakı,
+    // Azərbaycan), mətndən gələn token isə həmişə kiçik hərfdədir. `alt` — eyni işarənin
+    // digər yazılışları (danışıq forması: burada/burda).
+    this.byText = new Map();
+    for (const w of this.entries) {
+      for (const t of [w.text, ...(w.alt ?? [])]) this.byText.set(azLower(t), w);
+    }
+    this.maxTokens = Math.max(1, ...this.entries.flatMap(
+      (w) => [w.text, ...(w.alt ?? [])].map((t) => t.split(' ').length)));
     this.cache = new Map();
   }
 

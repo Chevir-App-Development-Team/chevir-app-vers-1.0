@@ -147,13 +147,17 @@ function palmFrame(rig, P) {
  * isə metrik dünya koordinatlarından (perspektiv və nisbət təhrifi yoxdur).
  * İkisi arasındakı fərq bəzi hərflərdə 30°-yə çatır (ölçülüb).
  */
-export function handTarget(rig, { world, norm, size, mirror = false, flipDepth = false }) {
+export function handTarget(rig, { world, norm, size, mirror = false, flipDepth = false,
+                                  flipNorm = flipDepth, flipWorld = flipDepth }) {
   const sx = mirror ? -1 : 1;
-  const sz = flipDepth ? 1 : -1;
+  // Dərinliyin güzgülənməsi şəkil və metrik landmark-larda fərqli ola bilər (ölçülüb:
+  // kadrların ¼-ində iki mənbə əlin tərəfini fərqli göstərir), ona görə ayrıca verilir.
+  const szP = flipNorm ? 1 : -1;
+  const szW = flipWorld ? 1 : -1;
   const a = size ? size[0] / size[1] : 1;
-  const P = norm.map((p) => vec(sx * p.x * a, -p.y, sz * p.z * a));
+  const P = norm.map((p) => vec(sx * p.x * a, -p.y, szP * p.z * a));
   const view = palmFrame(rig, P);
-  const shape = world ? world.map(([x, y, z]) => vec(sx * x, -y, sz * z)) : P;
+  const shape = world ? world.map(([x, y, z]) => vec(sx * x, -y, szW * z)) : P;
   const shapeFrame = world ? palmFrame(rig, shape) : view;
   return { ...view, P, shape, shapeRinv: shapeFrame.Rinv };
 }
@@ -205,16 +209,6 @@ export function poseHands(pose) {
   return res;
 }
 
-/**
- * MediaPipe-in dərinliyi güzgü həll etməsinə dəlil (müsbət — bükülmə əlin tərəfinə
- * uymur). Düz əldə və kameraya baxan barmaqlarda zəifdir, ona görə söz işarələrində
- * yalnız köməkçi xal kimi işlədilir.
- */
-export function mirrorEvidence(world, side) {
-  const e = curlEvidence(world);
-  return side === 'left' ? e : -e;
-}
-
 /** Kadr üçün handTarget girişi: avatarın tərəfinə güzgü və dərinlik düzəlişi daxil. */
 export function frameSource(pose, frame, side, landmarks = pose?.frames?.[frame]) {
   const hands = poseHands(pose);
@@ -227,7 +221,7 @@ export function frameSource(pose, frame, side, landmarks = pose?.frames?.[frame]
 
 /* ───────────────────────── qol ───────────────────────── */
 
-export function evalArm(rig, R, T, swivel, elbow = null) {
+export function evalArm(rig, R, T, swivel, elbow = null, avoid = null, cutoff = Infinity) {
   const toT = T.clone().sub(rig.S);
   const dist = toT.length();
   if (dist < 1e-6) return null;
@@ -269,19 +263,46 @@ export function evalArm(rig, R, T, swivel, elbow = null) {
   // hard: oynaq həddini aşma (fiziki mümkünsüz); qalanı rahatlıq və görünüş üçündür
   const hard = over(flex, ...LIMITS.wristFlex) ** 2 + over(radial, ...LIMITS.wristRadial) ** 2 +
     over(twist, -LIMITS.wristTwist, LIMITS.wristTwist) ** 2;
-  // Söz işarəsində dirsəyin yeri siqnalçıdan məlumdur (dərinlik daha az etibarlıdır);
-  // hərflərdə isə təbii zona ilə məhdudlaşdırılır
-  const elbowCost = elbow
-    ? 40 * ((E.x - elbow.x) ** 2 + (E.y - elbow.y) ** 2 + 0.4 * (E.z - elbow.z) ** 2)
+  // Dirsəyin anatomik zonası hər iki rejimdə işləyir: insanda dirsək çiyindən aşağıda,
+  // bədənin yanında və onun arxasına keçmədən qalır. Söz işarəsində zona daha genişdir
+  // (işarələr dirsəyi qaldırır) və üstünə siqnalçıdan gələn yönləndirmə əlavə olunur.
+  // Zona olmayanda dirsək gövdənin arxasına düşür və said bədənin içindən keçirdi.
+  const zone = elbow
+    ? 40 * over(rE.y, -0.34, 0.04) ** 2 +
+      40 * over(rE.x * rig.out, -0.05, 0.30) ** 2 +
+      30 * over(rE.z, -0.10, 0.26) ** 2
     : 40 * over(rE.y, -0.30, -0.08) ** 2 +          // dirsək çiyindən aşağıda, "qanad" kimi qalxmasın
       40 * over(rE.x * rig.out, -0.02, 0.20) ** 2 + // bədənin içinə girməsin, "qanad" açılmasın
       20 * over(rE.z, -0.14, 0.20) ** 2;
-  const cost =
+  const elbowCost = zone + (elbow
+    ? 40 * ((E.x - elbow.x) ** 2 + (E.y - elbow.y) ** 2 + 0.4 * (E.z - elbow.z) ** 2)
+    : 0);
+  const baseCost =
     40 * hard +
     0.35 * (flex * flex + 1.5 * radial * radial) + 0.12 * tau * tau +   // neytrala yaxın
     elbowCost +
     30 * (dist - D) ** 2;                          // çatmırsa
-  return { cost, hard, Qu, Ql, flex, radial, twist, tau, E, W: Wr, swivel };
+  // Bədəndən qaçma: dirsək, bilək və aralıq nöqtələr gövdənin/başın içinə düşməsin.
+  // Bu, IK-nın öz qiymətində olmalıdır — sonradan düzəltmək mümkün olmur, çünki oynaq
+  // həddi (hard) dirsəyi kilidləyir və xarici itələmə onu yerindən tərpədə bilmir.
+  // Maneə qiyməti mənfi ola bilmədiyi üçün onsuz da uduzan namizəd üçün hesablanmır:
+  // IK-nın şəbəkəsində namizədlərin böyük hissəsi belədir və bu, həlli sürətləndirir.
+  let bodyCost = 0;
+  if (avoid && baseCost < cutoff) {
+    const mid = E.clone().add(Wr).multiplyScalar(0.5);
+    const upper = rig.S.clone().lerp(E, 0.75);
+    // Sümüyün öz qalınlığı da nəzərə alınır: oxu səthdən 2.5 sm kənarda olmalıdır.
+    // Çəki böyükdür, çünki rəqib `hard` termi 100-ə qədər qalxır; kiçik cərimə qolu
+    // bədəndən çıxara bilmir (ölçülüb).
+    // Barmaqlar da yoxlanılır: bilək bayırda qala bilər, amma uzanmış əl bədənin içinə
+    // girər. Ovuc istiqaməti palmOff vektorudur, barmaq ucu ondan təqribən 2.2 qat uzaqda.
+    const tip = Wr.clone().addScaledVector(rig.palmOff.clone().applyQuaternion(R), 2.2);
+    for (const p of [E, Wr, mid, upper, tip]) {
+      const depth = avoid(p);              // müsbət = maneənin içində (pay daxildir)
+      if (depth > 0) bodyCost += 3000 * depth * depth;
+    }
+  }
+  return { cost: baseCost + bodyCost, hard, body: bodyCost, Qu, Ql, flex, radial, twist, tau, E, W: Wr, swivel };
 }
 
 /**
@@ -311,11 +332,11 @@ export function signAnchor(rig, handDir) {
  * gəldiyi üçün sürüşmə baha olur (`shiftCost`).
  * @returns {{upper, lower, hand, info}} lokal kvaternionlar
  */
-export function solveArm(rig, R, anchor, prev = null, { elbow = null, shiftCost = 15 } = {}) {
+export function solveArm(rig, R, anchor, prev = null, { elbow = null, shiftCost = 15, avoid = null } = {}) {
   const W0 = anchor.clone().sub(rig.palmOff.clone().applyQuaternion(R));
   let best = null;
   const consider = (shift, sw) => {
-    const c = evalArm(rig, R, W0.clone().add(shift), sw, elbow);
+    const c = evalArm(rig, R, W0.clone().add(shift), sw, elbow, avoid, best ? best.cost : Infinity);
     if (!c) return;
     c.cost += shiftCost * shift.lengthSq() + 0.02 * sw * sw;
     if (prev) c.cost += 25 * c.E.distanceToSquared(prev.E) + 0.5 * (c.tau - prev.tau) ** 2;
@@ -419,19 +440,60 @@ function thumbChain(fr, t) {
 }
 
 /** @returns {Object<string, THREE.Quaternion>} qısa sümük adı → lokal dönmə */
+const LONG_FINGERS = ['Index', 'Middle', 'Ring', 'Little'];
+
+/**
+ * Barmaqların yana açılma bucaqları. Hər barmaq ayrıca hesablananda qonşular bir-birini
+ * kəsə bilir (landmark səs-küyü yana açılmada böyüyür), ona görə qonşu cütlər üçün
+ * yaxınlaşma məhdudlaşdırılır: kökləri arasındakı məsafə və barmağın uzunluğu nə qədər
+ * bucağa icazə verirsə, o qədər. Beləcə barmaqlar bir-birinə toxuna bilər, amma keçə bilməz.
+ */
+function fingerSpreads(rig, targets) {
+  const sp = {}, axis = {}, proj = {}, reach = {};
+  for (const name of LONG_FINGERS) {
+    const fr = rig.fingers[name];
+    const f = fr.dirs[0], n = orthTo(rig.n0, f), l = vec().crossVectors(f, n);
+    const t0 = targets[name][0];
+    const tp = t0.clone().addScaledVector(n, -t0.dot(n));
+    // çox bükülmüş barmaqda ovuc müstəvisindəki proyeksiya kiçikdir → yana açılma etibarsız
+    sp[name] = clamp(Math.atan2(tp.dot(l), tp.dot(f)) * THREE.MathUtils.smoothstep(tp.length(), 0.2, 0.6),
+      -LIMITS.mcpSpread, LIMITS.mcpSpread);
+    axis[name] = Math.sign(l.dot(rig.s0)) || 1;      // açılmanın işarəsi ovucun eninə oxunda
+    proj[name] = fr.pos[0].dot(rig.s0);
+    reach[name] = Math.max(fr.pos[0].distanceTo(fr.pos[2]) * 1.45, 0.03);
+  }
+  const order = [...LONG_FINGERS].sort((a, b) => proj[b] - proj[a]);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < order.length - 1; i++) {
+      const a = order[i], b = order[i + 1];
+      // barmaq uclarının yerini dəyişmədən yaxınlaşa biləcəyi bucaq
+      // 8° ehtiyat: barmaq uclarında ~10 mm məsafə qalır, yəni toxunurlar, amma kəsişmirlər
+      const room = Math.abs(proj[a] - proj[b]) / Math.min(reach[a], reach[b]) - 8 * DEG;
+      const diff = sp[a] * axis[a] - sp[b] * axis[b];      // mənfi = yaxınlaşma
+      if (diff >= -room) continue;
+      const fix = (-room - diff) / 2;
+      sp[a] += (fix * axis[a]);
+      sp[b] -= (fix * axis[b]);
+    }
+  }
+  return sp;
+}
+
 export function solveFingers(rig, P, Rinv) {
   const res = {};
   const seg = (i, j) => P[j].clone().sub(P[i]).applyQuaternion(Rinv).normalize();
-  for (const [name, { lm, bones }] of Object.entries(FINGER_CHAINS)) {
+  const targets = {};
+  for (const [name, { lm }] of Object.entries(FINGER_CHAINS)) {
+    targets[name] = [seg(lm[0], lm[1]), seg(lm[1], lm[2]), seg(lm[2], lm[3])];
+  }
+  const spreads = fingerSpreads(rig, targets);
+  for (const [name, { bones }] of Object.entries(FINGER_CHAINS)) {
     const fr = rig.fingers[name];
-    const t = [seg(lm[0], lm[1]), seg(lm[1], lm[2]), seg(lm[2], lm[3])];
+    const t = targets[name];
     const locals = name === 'Thumb' ? thumbChain(fr, t) : buildChain(fr, rig.n0, (k, f, n) => {
       if (k === 0) {
         const l = vec().crossVectors(f, n);
-        const tp = t[0].clone().addScaledVector(n, -t[0].dot(n));
-        // çox bükülmüş barmaqda ovuc müstəvisindəki proyeksiya kiçikdir → yana açılma etibarsız
-        const spread = clamp(Math.atan2(tp.dot(l), tp.dot(f)) * THREE.MathUtils.smoothstep(tp.length(), 0.2, 0.6),
-          -LIMITS.mcpSpread, LIMITS.mcpSpread);
+        const spread = clamp(spreads[name], -LIMITS.mcpSpread, LIMITS.mcpSpread);
         const f1 = f.clone().multiplyScalar(Math.cos(spread)).addScaledVector(l, Math.sin(spread));
         return { spread, flex: clamp(Math.atan2(t[0].dot(n), t[0].dot(f1)), ...LIMITS.mcpFlex) };
       }

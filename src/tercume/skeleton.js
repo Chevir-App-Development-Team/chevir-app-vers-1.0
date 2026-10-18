@@ -164,8 +164,11 @@ export class CyberHand {
 
     // Bilək mərkəzə, ölçü normallaşdırılır → kadrdaki yer/ölçü təsvirə təsir etməsin
     const wrist = landmarks[0];
+    // Dərinlik də biləyə nisbətəndir: metrik 3B nöqtələr veriləndə (söz işarələri, iki əl)
+    // mütləq z iki əli eyni müstəviyə yığırdı. Normallaşdırılmış əl datasında z[0] = 0,
+    // ona görə bu dəyişiklik orada heç nəyi dəyişmir.
     let pts = landmarks.map((p) => new THREE.Vector3(
-      (p.x - wrist.x), -(p.y - wrist.y), -(p.z || 0) * 0.8,
+      (p.x - wrist.x), -(p.y - wrist.y), -((p.z || 0) - (wrist.z || 0)) * 0.8,
     ));
     
     // Pad to 42 if only 21 points (hide second hand far off-screen)
