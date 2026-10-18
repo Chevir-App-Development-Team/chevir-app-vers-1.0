@@ -1,6 +1,8 @@
 {
   "meta.title": "Chevir - eşitmə məhdudiyyətli və eşidən arasında real vaxtda tərcümə",
   "meta.description": "Chevir - Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında real vaxtda ikitərəfli tərcümə. Pilot tərəfdaş axtarırıq.",
+  "meta.ogImage": "https://chevirapp.com/og-image-az-v2.png",
+  "meta.ogImageAlt": "Chevir loqosu və \"Jest dilini eşidilən edirik\" sloqanı",
 
   "splash.loading": "Chevir yüklənir",
 

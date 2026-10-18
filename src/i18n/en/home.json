@@ -1,6 +1,8 @@
 {
   "meta.title": "Chevir - real-time translation between the speech- and hearing-impaired and the hearing",
   "meta.description": "Chevir - real-time two-way translation between Azerbaijani Sign Language and spoken Azerbaijani. We are looking for pilot partners.",
+  "meta.ogImage": "https://chevirapp.com/og-image-en-v2.png",
+  "meta.ogImageAlt": "Chevir logo with the tagline \"Sign language, made audible.\"",
   "splash.loading": "Chevir is loading",
   "hero.title.line1": "Sign language,",
   "hero.title.line2": "made audible.",
