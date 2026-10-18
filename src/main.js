@@ -7,6 +7,7 @@ import './styles/sections/pipeline.css'
 import './styles/sections/loop.css'
 import './styles/sections/content.css'
 import './styles/sections/teknofest.css'
+import './styles/sections/bakuid.css'
 
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import './lib/gsapSetup.js'

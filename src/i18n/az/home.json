@@ -1,6 +1,8 @@
 {
   "meta.title": "Chevir - eşitmə məhdudiyyətli və eşidən arasında real vaxtda tərcümə",
   "meta.description": "Chevir - Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında real vaxtda ikitərəfli tərcümə. Pilot tərəfdaş axtarırıq.",
+  "meta.ogImage": "https://chevirapp.com/og-image-az-v2.png",
+  "meta.ogImageAlt": "Chevir loqosu və \"Jest dilini eşidilən edirik\" sloqanı",
 
   "splash.loading": "Chevir yüklənir",
 
@@ -74,8 +76,8 @@
   "results.card.1.title": "Tanınma çıxışı",
   "results.card.1.desc": "Tanınan işarənin mətn və səs çıxışına çevrilməsi.",
 
-  "teknofest.title.line1": "NSosyal İnnovasiya",
-  "teknofest.title.line2": "Yarışmasında",
+  "teknofest.title.line1": "TEKNOFEST 2026",
+  "teknofest.title.line2": "NSosyal İnnovasiya Yarışmasında",
   "teknofest.title.line3": "3-cü yer.",
   "teknofest.text": "332 müraciət arasından 22 finalçıdan biri olduq. Bu kateqoriyada finala çıxan yeganə azərbaycanlı komanda kimi ilk üçlüyə düşdük.",
   "teknofest.stat.1.value": "332",
@@ -87,6 +89,13 @@
   "teknofest.date": "30 sentyabr – 4 oktyabr 2026",
   "teknofest.img.stage.alt": "TEKNOFEST səhnəsində Azərbaycan bayrağı və mükafat çeki ilə komandamız",
   "teknofest.img.team.alt": "Komandamız TEKNOFEST kubokları və medalları ilə",
+  "teknofest.img.team2.alt": "Komandamız TEKNOFEST-də NSosyal İnnovasiya Yarışması divarının qarşısında",
+
+  "bakuid.title.line1": "Baku ID: ilk stend təcrübəsi",
+  "bakuid.title.line2": "və ilk üçlükdə.",
+  "bakuid.text": "Chevir komandası Baku ID-də ilk dəfə startap olaraq öz stendi ilə iştirak etdi. Beş gün ərzində (16–21 sentyabr) layihə ziyarətçilərin diqqətini cəlb etdi və ilk üçlükdə yer aldı.",
+  "bakuid.badge": "Baku ID · 17–18 sentyabr",
+  "bakuid.img.alt": "Seeder-in Baku ID üzrə ən çox baxılan startaplar siyahısı (16–21 sentyabr): Chevir 3-cü yerdədir",
 
   "impact.ariaLabel": "Təsir",
   "impact.line1": "Azərbaycanda eşitmə məhdudiyyətli şəxslərin ünsiyyət qurması ya tərcüməçilərdən, ya da ailə üzvlərindən asılıdır.",
