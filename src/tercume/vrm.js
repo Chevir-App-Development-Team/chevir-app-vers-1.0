@@ -490,7 +490,8 @@ export class VrmAvatar {
           }
         }
         if (!arm) return null;
-        return { target, arm, anchor, elbow, flip, frame: f, cost: arm.info.cost };
+        // goal — datadan gələn ilkin yer: sonrakı düzəlişlər anchor-u dəyişir, ölçmə ona baxır
+        return { target, arm, anchor, goal: anchor.clone(), elbow, flip, frame: f, cost: arm.info.cost };
       });
 
       // Tək kadrlıq sıçrayış (MediaPipe əli bir kadr səhv tapır): üç əlaməti var —
@@ -519,7 +520,7 @@ export class VrmAvatar {
           const elbow = a.elbow && b.elbow ? a.elbow.clone().lerp(b.elbow, 0.5) : c.elbow;
           const arm = solveArm(rig, mid, anchor, null, { elbow, shiftCost: 300, avoid });
           use = arm
-            ? { ...a, target: { ...a.target, R: mid }, anchor, elbow, arm, frame: f }
+            ? { ...a, target: { ...a.target, R: mid }, anchor, goal: anchor.clone(), elbow, arm, frame: f }
             : a;
         }
         sol[f][side] = { ...use, fingers: solveFingers(rig, use.target.shape, use.target.shapeRinv) };
@@ -700,6 +701,7 @@ export class VrmAvatar {
         if (!arm || arm.info.hard > Math.max(0.05, a.arm.info.hard + 0.02)) continue;
         sol[f][side] = {
           ...a, target: { ...a.target, R: mid }, anchor, elbow, arm, frame: f,
+          goal: a.goal.clone().lerp(b.goal, 0.5),
           fingers: solveFingers(this.rigs[side], a.target.shape, a.target.shapeRinv),
         };
       }
