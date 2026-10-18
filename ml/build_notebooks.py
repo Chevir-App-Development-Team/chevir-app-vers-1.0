@@ -286,13 +286,15 @@ SMOKE = False          # True: 2 epochs on a sample, to check the setup
 CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4, seed=0)
 # Each entry = one experiment: CFG with these changes. All share the loaded data; results go to
 # train/<name>/ and train/summary.csv. Run 3 (split v6, seed 0, all features) is the reference.
+# Run 4 (seed1, seed2, hands_only, no_face, epochs100): no_face = hands + pose was best, one seed.
+# Run 5: does no_face hold over seeds, and without the face tracker (the "face detected" flag)?
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
+NO_FACE = HANDS + ['pose']
 RUNS = {
-    'seed1': dict(seed=1),
-    'seed2': dict(seed=2),
-    'hands_only': dict(groups=HANDS),
-    'no_face': dict(groups=HANDS + ['pose']),
-    'epochs100': dict(epochs=100),
+    'no_face_seed1': dict(groups=NO_FACE, seed=1),
+    'no_face_seed2': dict(groups=NO_FACE, seed=2),
+    'no_face_fd50': dict(groups=NO_FACE, face_drop=0.5),     # flag randomly 0 in training
+    'full_fd50': dict(face_drop=0.5),                        # all features, face randomly removed
 }
 """),
         code(SETUP),

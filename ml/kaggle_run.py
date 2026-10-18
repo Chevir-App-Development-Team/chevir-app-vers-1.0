@@ -10,7 +10,8 @@ Python's protobuf 4.25 breaks it.
     python ml/kaggle_run.py log 02-1               # last lines of a run's log
     python ml/kaggle_run.py splits                 # 03's splits/ → ml/splits/ (a few MB)
     python ml/kaggle_run.py results --to run4      # 04's summary/history/metrics/predictions → ml/results/run4/
-                                                   # (--models adds best.pt + model.onnx)
+                                                   # (--models adds best.pt + model.onnx,
+                                                   #  --run no_face fetches only that run)
 
 Each push creates a new version of the notebook on Kaggle and starts running it. All notebooks
 are private, CPU-only; 01/02 have internet on (they read Zenodo), 03 reads 01+02 outputs.
@@ -113,6 +114,7 @@ def main():
     ap.add_argument('--user', help='Kaggle username (else read from the CLI config)')
     ap.add_argument('--to', help='results: folder name under ml/results/ (default: latest)')
     ap.add_argument('--models', action='store_true', help='results: also best.pt + model.onnx (bigger downloads)')
+    ap.add_argument('--run', help='results: only this run of the batch (e.g. no_face), to save bandwidth')
     a = ap.parse_args()
     user = a.user or (None if a.cmd == 'stage' else username())
 
@@ -162,7 +164,8 @@ def main():
         tmp = tempfile.mkdtemp(prefix='kaggle_results_')
         small = r'history\.csv|metrics\.json|vocab\.json|per_class_test_words\.csv|predictions\.npz'
         files = small + (r'|model\.onnx|best\.pt' if a.models else '')
-        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', rf'^train/(summary\.csv|([^/]+/)?({files}))$',
+        run = re.escape(a.run) if a.run else '[^/]+'
+        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', rf'^train/(summary\.csv|({run}/)?({files}))$',
            '-q', check=False)
         src = os.path.join(tmp, 'train')
         if not os.path.isdir(src):

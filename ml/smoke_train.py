@@ -64,8 +64,11 @@ def main():
     man = json.load(open(os.path.join(out, 'train', 'face_drop', 'manifest.json'), encoding='utf-8'))
     assert man['feature_version'] == T.FT.FEATURE_VERSION and man['works_without_face']
     assert 'test_words_noface' in man['metrics'] and man['input']['n_features'] == T.FT.N_FEAT
-    assert 'test_words_noface' not in json.load(open(os.path.join(out, 'train', 'hands_only', 'metrics.json'),
-                                                     encoding='utf-8'))
+    # hands only still reads the "face detected" flag: scored without face too, and not marked face-free
+    assert 'test_words_noface' in json.load(open(os.path.join(out, 'train', 'hands_only', 'metrics.json'),
+                                                 encoding='utf-8'))
+    assert not json.load(open(os.path.join(out, 'train', 'hands_only', 'manifest.json'),
+                              encoding='utf-8'))['works_without_face']
     assert rows[1]['n_features'] == len(T.FT.columns(hands)) < T.FT.N_FEAT
     pz = np.load(os.path.join(out, 'train', 'hands_only', 'predictions.npz'))
     assert pz['test_words_probs'].shape == (len(words['test']), len(vocab_list)), pz['test_words_probs'].shape

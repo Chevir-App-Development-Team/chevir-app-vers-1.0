@@ -153,6 +153,11 @@ def collate(batch):
 
 # ---------------------------------------------------------------- model
 
+def _mask(x, valid):
+    """B×T×1 float mask; without `valid` all ones (shape taken from x, so ONNX keeps T dynamic)."""
+    return torch.ones_like(x[..., :1]) if valid is None else valid[:, :, None].to(x.dtype)
+
+
 class ECA(nn.Module):
     """Efficient channel attention over the masked time average."""
 
@@ -174,7 +179,7 @@ class ConvBlock(nn.Module):
         self.bn, self.eca, self.pw2, self.drop = nn.BatchNorm1d(h), ECA(), nn.Linear(h, dim), nn.Dropout(drop)
 
     def forward(self, x, valid):
-        m = valid[:, :, None].to(x.dtype)
+        m = _mask(x, valid)
         y = F.silu(self.pw1(self.norm(x))) * m
         y = y.transpose(1, 2)
         y = self.eca(F.silu(self.bn(self.dw(y))), m.transpose(1, 2))
@@ -191,9 +196,21 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x, valid):
         h = self.n1(x)
-        a, _ = self.attn(h, h, h, key_padding_mask=~valid, need_weights=False)
+        if valid is None:
+            a = self._attend(h)
+        else:
+            a, _ = self.attn(h, h, h, key_padding_mask=~valid, need_weights=False)
         x = x + self.drop(a)
         return x + self.drop(self.ff(self.n2(x)))
+
+    def _attend(self, h):
+        """self.attn without a mask, written out with its own weights. Its forward() bakes the traced
+        length into a reshape, so the exported ONNX would accept only that many frames."""
+        mha = self.attn
+        qkv = F.linear(h, mha.in_proj_weight, mha.in_proj_bias).unflatten(-1, (3, mha.num_heads, -1))
+        q, k, v = qkv.permute(2, 0, 3, 1, 4).unbind(0)                     # each B×heads×T×d
+        w = (q @ k.transpose(-1, -2)) * (mha.head_dim ** -0.5)
+        return mha.out_proj((w.softmax(-1) @ v).transpose(1, 2).flatten(2))
 
 
 class Net(nn.Module):
@@ -206,8 +223,8 @@ class Net(nn.Module):
         self.blocks = nn.ModuleList(blocks)
         self.norm, self.drop, self.head = nn.LayerNorm(dim), nn.Dropout(head_drop), nn.Linear(dim, n_cls)
 
-    def forward(self, x, valid):
-        m = valid[:, :, None].to(x.dtype)
+    def forward(self, x, valid=None):           # valid B×T; None = every frame is real (one clip)
+        m = _mask(x, valid)
         h = self.stem_norm(self.stem(x)) * m
         for b in self.blocks:
             h = b(h, valid)
@@ -223,7 +240,7 @@ class Exportable(nn.Module):
         self.net = net
 
     def forward(self, x):                        # 1×T×N_FEAT
-        return self.net(x, torch.ones(x.shape[:2], dtype=torch.bool, device=x.device))
+        return self.net(x)
 
 
 # ---------------------------------------------------------------- metrics
@@ -258,6 +275,12 @@ def predict(model, bank, device, batch=128, workers=2, tta=False, groups=None, f
                 logits.append(model(x.to(device), m.to(device)).float().softmax(1).cpu())
         outs.append(torch.cat(logits).numpy())
     return np.mean(outs, 0)
+
+
+def reads_face(groups) -> bool:
+    """Does the model input change when the face is missing? Also true for 'flags' alone: one of the
+    four presence flags is "face detected", so a hands + pose model still sees the face tracker."""
+    return not groups or bool({'face', 'blend', 'flags'} & set(groups))
 
 
 # ---------------------------------------------------------------- training
@@ -348,7 +371,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         result[name] = scores(p, bank.labels)
         result[name]['majority_acc'] = float((bank.labels == major).mean())
         result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True, groups=groups), bank.labels)
-        if not groups or ('face' in groups or 'blend' in groups):   # privacy mode: same model, no face points
+        if reads_face(groups):                                      # privacy mode: same model, no face points
             result[name + '_noface'] = scores(predict(model, bank, device, workers=nw, groups=groups, face=False),
                                               bank.labels)
         if name == 'test_words':
@@ -376,8 +399,8 @@ def write_manifest(out_dir, cfg, vocab_list, result, n_in, onnx_ok=True):
                   'padding': 'none — one clip per call (T frames, T <= max_len after preprocess)'},
         'output': {'name': 'logits', 'shape': [1, len(vocab_list)], 'note': 'softmax not applied; '
                    'ensembles average the softmax probabilities'},
-        'face_drop': cfg['face_drop'], 'works_without_face': bool(cfg['face_drop']) or (
-            bool(cfg['groups']) and 'face' not in cfg['groups'] and 'blend' not in cfg['groups']),
+        # without face = trained with the face randomly removed, or an input the face cannot change
+        'face_drop': cfg['face_drop'], 'works_without_face': bool(cfg['face_drop']) or not reads_face(cfg['groups']),
         'contract': FT.spec(),
         'run': os.path.basename(os.path.normpath(out_dir)), 'seed': cfg['seed'], 'fold': cfg.get('fold'),
         'split_id': cfg.get('split_id'), 'best_epoch': result.get('best_epoch'), 'params': result.get('params'),
@@ -443,25 +466,38 @@ def _per_class(p, y, vocab, out_dir):
 def export_onnx(model, path, log=print, n_in=FT.N_FEAT):
     try:
         model = model.float().eval().cpu()
+        # eval() on the wrapper too: export() restores the wrapper's mode afterwards, and a fresh module
+        # is in training mode — that would switch the model to dropout + batch statistics
+        wrapped = Exportable(model).eval()
         dummy = torch.zeros(1, 32, n_in)
         kw = dict(input_names=['x'], output_names=['logits'], dynamic_axes={'x': {1: 'T'}}, opset_version=17)
         try:
-            torch.onnx.export(Exportable(model), (dummy,), path, dynamo=False, **kw)
+            torch.onnx.export(wrapped, (dummy,), path, dynamo=False, **kw)
         except TypeError:
-            torch.onnx.export(Exportable(model), (dummy,), path, **kw)
+            torch.onnx.export(wrapped, (dummy,), path, **kw)
         log(f'ONNX: {path} ({os.path.getsize(path) / 1e6:.1f} MB)')
-        ok = True
-        try:                                     # same logits as torch, for a short and a long clip?
+        try:
             import onnxruntime as ort
             sess = ort.InferenceSession(path)
-            for T_ in (12, 64):
-                x = torch.randn(1, T_, n_in)
-                ref = Exportable(model)(x).detach().numpy()
-                got = sess.run(None, {'x': x.numpy()})[0]
-                log(f'  onnxruntime vs torch, T={T_}: max abs diff {float(np.abs(ref - got).max()):.2e}')
         except ImportError:
-            log('  (onnxruntime not installed — not compared)')
-        return ok
+            sess = None
+            log('  (onnxruntime not installed — ONNX not run, only the export path checked in torch)')
+        worst = 0.0
+        with torch.no_grad():                    # the reference is the training/eval path (masked attention)
+            for T_ in (7, 32, 64):               # other lengths than the traced 32
+                x = torch.randn(1, T_, n_in)
+                ref = model(x, torch.ones(1, T_, dtype=torch.bool)).numpy()
+                outs = {'torch export path': wrapped(x).numpy()}
+                if sess is not None:
+                    outs['onnxruntime'] = sess.run(None, {'x': x.numpy()})[0]
+                for what, got in outs.items():
+                    d = float(np.abs(ref - got).max())
+                    worst = max(worst, d)
+                    log(f'  {what} vs torch, T={T_}: max abs diff {d:.2e}')
+        if worst > 1e-3:
+            log('  export does not reproduce the model: model.onnx is NOT marked as usable')
+            return False
+        return True
     except Exception as e:  # noqa: BLE001 — the browser export must not lose a finished training run
         log(f'ONNX export failed (training results are saved): {e!r}')
         return False
