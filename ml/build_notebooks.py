@@ -392,8 +392,8 @@ and the detected words are matched with the annotated glosses.
 the val choice and the segmentation defaults of `segment.py`.
 
 Version 1 of this notebook (run 5a, the full `segment_eval.GRID`) chose the defaults of segmentation
-v2. Version 2 compares the models with an "unknown sign" class (run 6) on a narrower grid: the
-window set and rest line that won in version 1, with a wider range of thresholds.
+v2. Versions 3 and 4 compare the models with an "unknown sign" class (runs 6 and 7) on a narrower
+grid: the window set and rest line that won in version 1, with a wider range of thresholds.
 
 **Inputs:** the four 02 shards, 03 (splits) and 04 (trained models: `train/<run>/best.pt`).
 **Kaggle settings:** CPU (scoring is ~2 ms per window; the GPU queue is not worth it), Internet off.
@@ -402,7 +402,8 @@ chosen model's `best.pt`, `model.onnx`, `manifest.json`).
 """),
         code(f"""
 SMOKE = False                  # True: 30 recordings per split, to check the setup
-MODEL_RUNS = ['unk_w1', 'unk_w4', 'unk_w8']    # run 6: unknown-sign class, weight 1 / 4 / 8
+MODEL_RUNS = ['unk_w1_open', 'unk_w4_open']    # run 7: unknown class, checkpoint on open-set accuracy
+# (v3 compared run 6: unk_w1 / unk_w4 / unk_w8; best val F1 0.736, unk_w8, p >= 0.5, overlap <= 25 %)
 FACE = False                   # the browser runs these models without the face tracker (s2w.js needsFace)
 GRID = dict(rest_line=(1.0,), lens=((16, 24, 32),),
             min_p=(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), max_overlap=(0.0, 0.25, 0.5))

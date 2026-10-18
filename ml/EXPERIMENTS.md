@@ -363,6 +363,26 @@ Observations (run 6):
   open-set accuracy.
 - Which model is better for word mode is decided on the val sentences (E6, notebook 05 v3).
 
+### Run 7: unknown class, checkpoint on open-set accuracy (split v6)
+
+Run 6 with one change: the checkpoint is the epoch with the best val open-set accuracy
+(`select='open'`), not the best val Words_200 macro-F1. Weights 1 and 4. Notebook 04 v7, 2 × ~42 min.
+
+| Run | Checkpoint rule | Best epoch | Val W macro-F1 | Val unknown rejected | Val open-set acc. | Test W macro-F1 | Test W macro-F1, known only | Test unknown rejected | Known rejected, test S | Test open-set acc. |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 6a, weight 1 | W macro-F1 | 22 | 0.862 | 0.672 | 0.809 | 0.815 | 0.817 | 0.685 | 2.1 % | 0.790 |
+| 6b, weight 4 | W macro-F1 | 24 | 0.850 | 0.820 | 0.840 | 0.812 | 0.820 | 0.830 | 3.9 % | 0.825 |
+| 6c, weight 8 | W macro-F1 | 32 | 0.838 | 0.872 | 0.855 | 0.796 | 0.819 | 0.887 | 5.1 % | 0.841 |
+| **7a, weight 1** | open-set acc. | 54 | 0.853 | 0.848 | 0.869 | 0.827 | **0.847** | 0.863 | 3.1 % | 0.854 |
+| **7b, weight 4** | open-set acc. | 53 | 0.812 | 0.896 | **0.875** | 0.813 | 0.846 | **0.911** | 5.0 % | **0.864** |
+
+Observations (run 7):
+- **The later checkpoints reject unknown signs much better at no cost to the known words.** At
+  weight 1, rejection rises from 0.685 to 0.863 on test, and the known-only Words_200 macro-F1 goes
+  back up to 0.847, against 0.849 for 5a, which has no unknown class.
+- Run 6's checkpoints cannot be fetched any more: the Kaggle CLI serves only the latest version of a
+  notebook's output and ignores a version suffix. Notebook 05 now saves the model it picks.
+
 ---
 
 ## E4 — Browser landmarks vs the training pipeline
