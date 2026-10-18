@@ -198,6 +198,14 @@ models. The server is not built yet. These pieces keep both paths identical:
   predate it, re-exports `model.onnx` from `best.pt` with `--export`, and records PyTorch logits for the
   fixture cases in `ml/fixtures/word_model_ref.json`. `node tools/verify_recognizer.mjs` then runs the
   browser code (features.js → onnxruntime-web) on the same cases and must match them.
+- **Word mode (continuous signing):** `azsl/segment.py` is the reference for cutting a landmark
+  stream into signs (activity from the hand height, spans between rests, then the model picks
+  non-overlapping windows inside a span). The browser twin is `src/tercume/segment.js`. Both are checked
+  on `ml/fixtures/segment_v<N>.json` (`node tools/verify_segment.mjs`). `make_fixture.py` writes it, and
+  `--check` fails if the rules change without a `SEGMENT_VERSION` bump. Results so far: `EXPERIMENTS.md`
+  E6.
+- **Face tracker in the browser:** word mode loads it only if the model's validation macro-F1
+  without face (`val_words_noface` in the manifest) is more than 0.01 below the score with face.
 - **ONNX export:** the exported graph takes any clip length (1 × T × F). Models exported before this
   fix (runs 2–5) accept only T = 32 frames: `nn.MultiheadAttention` fixed the traced length into a
   reshape. Re-export them with `make_manifest.py --export`. `export_onnx` now checks lengths 7, 32 and 64

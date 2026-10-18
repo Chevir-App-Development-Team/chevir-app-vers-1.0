@@ -348,6 +348,9 @@ with 0.10.35; both use the same models.
 Model: run 4d (no face, 400 features, test Words_200 macro-F1 0.863), re-exported from `best.pt`
 (6.6 MB ONNX, opset 17), in `public/tercume/assets/word_model/` with its `manifest.json`.
 Runtime: `src/tercume/recognizer.js`, onnxruntime-web 1.30.0, WASM, one thread.
+**Since run 5 the installed model is 5a** (no face, seed 1, picked on validation; test Words_200
+macro-F1 0.849, merged 0.892). Its check: max logit difference 4.5e-6, same top-5 on all 8 cases.
+The tables below are for 4d; E6 has 5a on the same recording.
 
 **Same input → same output as PyTorch** (`node tools/verify_recognizer.mjs`): the synthetic fixture
 cases go through features.js and onnxruntime-web, against `best.pt` on the training forward pass
@@ -385,3 +388,59 @@ Two export bugs, found and fixed on the way:
 - **The export check compared against a model in training mode.** `torch.onnx.export` restores the
   wrapper module's mode afterwards, and a new wrapper is in training mode, so dropout and batch
   statistics were on in the comparison. The wrapper is now put in eval mode first.
+
+---
+
+## E6 — Word mode: cutting continuous signing into words (browser)
+
+`src/tercume/s2w.js` (`SignToWords`) + `src/tercume/segment.js`, with the Python reference
+`ml/azsl/segment.py`. In the app: Jest → Mətn, "Nə tanınsın: sözlər".
+
+Method (no training, version 1):
+1. **Activity.** A frame is active when a hand is seen with its wrist above the rest line: shoulder
+   line + 1.0 shoulder width. In AzSLD the hands rest in the lap, 1.25–1.3 shoulder widths below the
+   shoulders, and are mostly not detected there.
+2. **Spans.** A span opens after 3 active frames and closes after 8 resting ones, with 8 frames of
+   context on both sides (the training margin). Words appear when the hands go down.
+3. **Words inside a span.** Continuous signing has no rest between signs, so the model chooses the cuts.
+   Candidates are the whole span plus windows of 12, 18 and 26 frames every 3 frames, centred where the
+   hands are up. They are scored by top-1 probability, then greedy non-maximum suppression (overlap
+   ≤ 25 % of the shorter window, p ≥ 0.5) runs, and neighbours with the same word merge. Isolated words
+   (rest → sign → rest, like Words_200) usually win as the whole span.
+
+**Python and browser give the same cuts** (`node tools/verify_segment.mjs` against
+`ml/fixtures/segment_v1.json`, written by `ml/make_fixture.py`):
+
+| Step | Equal |
+|---|---|
+| frame activity | 8 / 8 random cases (320 frames) |
+| spans (online in JS, offline in Python) | 60 / 60 random sequences (135 spans) |
+| candidate windows | 30 / 30 |
+| choice + merge | 30 / 30 |
+
+**On the E4 recording** ("Sizin adınız nədir?", *train* split: this checks the mechanism, not
+accuracy), in the app, video file processed frame by frame:
+
+| | SİZ (annotated 23–42) | AD (46–57) | NƏDİR (61–85) | Span split |
+|---|---|---|---|---|
+| Python reference, run 4d | SİZ 23–40, 0.932 | AD 44–61, 0.928 | NƏDİR 68–85, 0.925 | 53 model calls |
+| Browser, run 4d, 3 trackers | SİZ 22–47, 0.937 | AD 46–57, 0.926 | NƏDİR 58–83, 0.930 | 155 ms |
+| Browser, run 5a, no face tracker | SİZ 25–45, 0.923 | AD 46–57, 0.915 | NƏDİR 61–86, 0.919 | 164 ms |
+
+The whole span as one sign gives SİZ 0.244, so cutting is needed for sentences. The first prototype,
+without the "centre where the hands are up" rule and without merging, found the three words plus a
+duplicate SİZ and a spurious AYAQ while the hands went down.
+
+| Speed (in-app browser pane, this recording) | |
+|---|---|
+| Landmarks, hands + body (5a: no face tracker, see run 5) | 39.9 ms per frame (25 fps) |
+| Landmarks, hands + body + face | 52.5 ms per frame (19 fps) |
+| Splitting one 70-frame span (~50 windows) | 155–165 ms, after the hands go down |
+
+The face tracker is loaded only if the model needs it: when the manifest's validation macro-F1
+without face is more than 0.01 below with face (`needsFace` in s2w.js). For 5a the gap is 0.0007.
+
+**Open:** these numbers are one training-split recording. Next is a held-out evaluation on the val and
+test sentences (signers never seen in training), on Kaggle: word precision / recall against the
+annotated glosses, and how often a word is cut in two or merged, with the parameters chosen on val.
+Live-camera speed is still unmeasured.

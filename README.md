@@ -74,6 +74,8 @@ src/
     features.js          landmark-lar → söz modelinin girişi (ml/azsl/features.py preprocess()-in portu)
     landmarks.js         söz modeli üçün iki əl + poza + üz landmark-ları, sağ/sol əl slotları (ml/azsl/landmarks.py-ın əkizi)
     recognizer.js        söz tanıyıcı: manifest.json + model.onnx → onnxruntime-web (WASM), bir işarə → top-k söz
+    segment.js           söz rejimi: axını işarələrə bölür (ml/azsl/segment.py-ın əkizi)
+    s2w.js               söz rejimi: kamera/video → landmark-lar → bölmə → tanınan sözlər
     decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
     hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
     s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
@@ -97,7 +99,8 @@ tools/
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
   build_words.py         AzSLD Words 200 videoları → public/tercume/words/ (poza + iki əl)
   verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
-                         verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch)
+                         verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch;
+                         verify_segment.mjs: söz rejiminin bölücüsü ↔ Python)
 ml/                      yeni model üçün Kaggle boru xətti: AzSLD → landmark-lar → signer-independent
                          split (bax ml/README.md)
 model/

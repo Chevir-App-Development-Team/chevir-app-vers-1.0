@@ -1,8 +1,9 @@
-"""Golden file for the feature contract (features.preprocess), version FEATURE_VERSION.
+"""Golden files for the feature contract (features.preprocess, FEATURE_VERSION) and for word-mode
+segmentation (segment.py, SEGMENT_VERSION).
 
-    python ml/make_fixture.py           # write ml/fixtures/features_v<N>.{json,bin}
-    python ml/make_fixture.py --check   # recompute and compare — fails if features changed but
-                                        # FEATURE_VERSION was not bumped
+    python ml/make_fixture.py           # write ml/fixtures/features_v<N>.{json,bin}, segment_v<M>.json
+    python ml/make_fixture.py --check   # recompute and compare — fails if features or segmentation
+                                        # changed but their version was not bumped
 
 Synthetic, seeded landmarks (no real person's data). The JS port for the browser (Phase 5) and the
 landmark server must reproduce `expected` from `raw` — the same pattern as tools/verify_forward.*.
@@ -16,6 +17,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from azsl import features as FT  # noqa: E402
+from azsl import segment as SG  # noqa: E402
 from azsl.landmarks import assign_hands  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures')
@@ -76,6 +78,57 @@ def hand_slot_cases(n=300):
     return out
 
 
+def _nan_list(a):
+    return [None if not np.isfinite(v) else float(v) for v in np.asarray(a, np.float32).ravel()]
+
+
+def segment_cases():
+    """Random inputs for each step of segment.py and its answers (browser twin: segment.js)."""
+    rng = np.random.default_rng(2026)
+    variant = {**SG.SEGMENT, 'min_on': 2, 'min_off': 5, 'margin': 4, 'min_span': 5, 'max_span': 50,
+               'lens': (8, 11), 'stride': 2, 'min_p': 0.4, 'max_overlap': 0.3}
+    act = []
+    for k in range(8):
+        T = 40
+        hand = np.full((T, 2, 21, 3), np.nan, np.float32)
+        seen = rng.random((T, 2)) < 0.6
+        hand[..., :2] = np.where(seen[:, :, None, None], rng.uniform(0.1, 1.3, (T, 2, 21, 2)), np.nan)
+        pose = rng.uniform(0.2, 0.8, (T, 9, 3)).astype(np.float32)
+        pose[rng.random(T) < (0.5 if k == 0 else 0.15)] = np.nan          # no body in some frames
+        aspect = float(rng.choice([16 / 9, 4 / 3, 1.0]))
+        raw = {'hand': hand, 'pose': pose}
+        act.append({'T': T, 'aspect': aspect, 'rest_line': SG.SEGMENT['rest_line'],
+                    'hand': _nan_list(hand), 'pose': _nan_list(pose),
+                    'active': [bool(a) for a in SG.activity(raw, aspect)]})
+    spans, wins, picks = [], [], []
+    for k in range(60):
+        p = SG.SEGMENT if k % 2 else variant
+        runs, a = [], bool(rng.random() < 0.5)
+        while sum(len(r) for r in runs) < int(rng.integers(10, 300)):
+            runs.append([a] * int(rng.integers(1, 40 if a else 15)))
+            a = not a
+        seq = [x for r in runs for x in r]
+        spans.append({'params': _jsonable(p), 'active': seq, 'spans': [list(s) for s in SG.spans(seq, p)]})
+    for k in range(30):
+        p = SG.SEGMENT if k % 2 else variant
+        lo = int(rng.integers(0, 50))
+        c0 = lo + int(rng.integers(0, 10))
+        c1 = c0 + int(rng.integers(1, 80))
+        span = (lo, c1 + int(rng.integers(0, 10)), c0, c1)
+        ws = SG.windows(span, p)
+        wins.append({'params': _jsonable(p), 'span': list(span), 'windows': [list(w) for w in ws]})
+        labels = ['A', 'B', 'C', 'D']
+        scored = [(a, b, labels[int(rng.integers(0, 4))], float(np.round(rng.random(), 2))) for a, b in ws]
+        picks.append({'params': _jsonable(p), 'scored': [list(w) for w in scored],
+                      'kept': [list(w) for w in SG.pick(scored, p)]})
+    return {'segment_version': SG.SEGMENT_VERSION, 'params': _jsonable(SG.SEGMENT),
+            'activity': act, 'spans': spans, 'windows': wins, 'pick': picks}
+
+
+def _jsonable(p):
+    return {k: list(v) if isinstance(v, tuple) else v for k, v in p.items()}
+
+
 def build():
     blobs, meta, off = [], [], 0
     for c in cases():
@@ -98,7 +151,16 @@ def build():
 def main():
     meta, blob = build()
     stem = os.path.join(OUT, f'features_v{FT.FEATURE_VERSION}')
+    seg = json.loads(json.dumps(segment_cases()))
+    seg_path = os.path.join(OUT, f'segment_v{SG.SEGMENT_VERSION}.json')
     if '--check' in sys.argv:
+        if not os.path.exists(seg_path):
+            sys.exit(f'no fixture for segment_version {SG.SEGMENT_VERSION} — run without --check to create it')
+        with open(seg_path, encoding='utf-8') as f:
+            if json.load(f) != seg:
+                sys.exit(f'segmentation changed but SEGMENT_VERSION is still {SG.SEGMENT_VERSION}: bump it, '
+                         'update segment.js and regenerate the fixture')
+        print(f'segmentation matches fixture v{SG.SEGMENT_VERSION}')
         if not os.path.exists(stem + '.bin'):
             sys.exit(f'no fixture for feature_version {FT.FEATURE_VERSION} — run without --check to create it')
         ref = np.fromfile(stem + '.bin', dtype='<f4')
@@ -108,6 +170,9 @@ def main():
         print(f'features match fixture v{FT.FEATURE_VERSION} ({len(meta["cases"])} cases)')
         return
     os.makedirs(OUT, exist_ok=True)
+    with open(seg_path, 'w', encoding='utf-8') as f:
+        json.dump(seg, f, separators=(',', ':'))
+    print(f'wrote {seg_path} ({os.path.getsize(seg_path) / 1024:.0f} KB)')
     blob.tofile(stem + '.bin')
     with open(stem + '.json', 'w', encoding='utf-8') as f:
         json.dump(meta, f, ensure_ascii=False, indent=1)
