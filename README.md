@@ -12,14 +12,14 @@ Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında tərcümə: lay
 | Modul | Nə edir |
 |---|---|
 | **Jest → Mətn** | Veb-kamera → MediaPipe Hands → 20×63 → model → beam search + leksikon → Azərbaycan sözü |
-| **Mətn → Jest** | Mətn → söz işarələri (192 söz) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
+| **Mətn → Jest** | Mətn → söz işarələri (292 söz) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
 
 Tərcümə üçün server yoxdur: video cihazdan çıxmır, gecikmə minimaldır, sayt statik fayl
 kimi hər yerdə host oluna bilər (jest dili videosu istifadəçinin üzünü daşıyır — məxfilik
 təsadüfi seçim deyil).
 
 > **Hazırkı həcm:** kamera yalnız barmaq əlifbasını tanıyır — 32 hərf və boşluq / enter /
-> backspace. Avatar isə 192 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
+> backspace. Avatar isə 292 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
 > Kameradan söz səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
 
 ## İşə salmaq
@@ -97,7 +97,8 @@ tools/
   export_model.py        model/fingerspelling_33.h5 → model.bin + model.json
   build_lexicon.py       model/lexicon.txt → bigram DM + lüğət + prefikslər
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
-  build_words.py         AzSLD Words 200 videoları → public/tercume/words/ (poza + iki əl)
+  build_words.py         AzSLD söz videoları → public/tercume/words/ (poza + iki əl)
+  build_sentence_words.py  AzSLD Sentences-dən yeni sözlər kəsib lüğətə əlavə edir
   verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
                          verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch;
                          verify_segment.mjs: söz rejiminin bölücüsü ↔ Python)
@@ -126,6 +127,7 @@ python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
 .venv/bin/python tools/build_lexicon.py    # leksikon → lm.json, vocab.json, prefixes.json
 .venv/bin/python tools/build_poses.py      # AzSLD şəkilləri → poses.json
 .venv/bin/python tools/build_words.py      # AzSLD söz videoları → public/tercume/words/
+.venv/bin/python tools/build_sentence_words.py --count 100   # cümlələrdən yeni sözlər
 ```
 
 `build_poses.py` üçün AzSLD Fingerspelling datasetini (Zenodo 14222948, ~1.1 GB)
@@ -260,9 +262,20 @@ yana və ya arxaya bükülmə anatomik mümkün deyilsə, avatar onu təkrarlam�
 
 ## Söz işarələri
 
-192 söz və ifadə (AzSLD Words 200, CC BY 4.0; tək hərfli etiketlər barmaq əlifbası ilə
-qarışdığı üçün buraxılıb). Mətn sözlərə bölünür və ən uzun uyğunluq axtarılır: "zəhmət
-olmasa", "bu gün" bütöv işarədir, lüğətdə olmayan söz hərf-hərf göstərilir.
+292 söz və ifadə (AzSLD, CC BY 4.0; tək hərfli etiketlər barmaq əlifbası ilə qarışdığı üçün
+buraxılıb). Mətn sözlərə bölünür və ən uzun uyğunluq axtarılır: "zəhmət olmasa", "bu gün"
+bütöv işarədir, lüğətdə olmayan söz hərf-hərf göstərilir.
+
+İki mənbə var: **Words 200** (təkbaşına çəkilmiş kliplər) və **Sentences** (cümlə videoları,
+hər sözün kadr aralığı etiketlənib — 10 104 cümlə, ~49 000 söz nümunəsi, 841 fərqli söz).
+`tools/build_sentence_words.py` cümlə datasetindən istənilən sözü kəsib lüğətə əlavə edir:
+43.8 GB-lıq arxiv endirilmir, zip-in kataloqu oxunub yalnız lazımi fayllar HTTP range ilə
+götürülür (Cam2 — 1280×960, annotasiyadakı kadr nömrələri ona aiddir). Hər sözün faylında
+mənbə qeydi saxlanılır: hansı cümlədən, hansı kadr aralığından kəsilib.
+
+Söz id-ləri fayl adı və URL üçün yalnız `[a-z0-9-]` olur; transliterasiya iki sözü eyni id-yə
+gətirəndə (şəhər və səhər → `seher`) sıra nömrəsi əlavə olunur (`seher-2`), göstərilən mətn
+isə həmişə tam yazılışdır.
 
 `tools/build_words.py` hər video kadrında iki şeyi çıxarır: MediaPipe **Pose** — çiyinlər,
 dirsəklər, biləklər, burun (əlin bədənə görə yeri) və MediaPipe **Hands** — hər iki əlin
@@ -284,9 +297,9 @@ Avatarda (`vrm.js`, `setWordPose`) hər iki qol birlikdə qurulur:
 5. Dizin üstündə dayanan (işarədə iştirak etməyən) əl istirahətə enir; baza əl qalır.
 6. Kamera bütün işarəni — hər iki əlin bütün kadrlarını — kadra sığdırır.
 
-192 söz üzrə brauzerdə ölçülüb: ovucun hədəfdən məsafəsi median 2 sm (90% — 7 sm-dən
-az), barmaqların gövdəyə girməsi 0, kadrdan çıxan əl 0, başa girmə ≤ 1 sm (2 söz), bilək
-həddini azca aşan söz 10. Söz fayllarının formatı və mətnin bölünməsi:
+292 söz üzrə brauzerdə ölçülüb: ovucun hədəfdən məsafəsi median 2 sm (90% — 7 sm-dən az),
+barmaqların başa və gövdəyə girməsi ≤ 1 sm (hər biri 1 sözdə), kadrdan çıxan əl yoxdur,
+bilək həddini azca aşan söz 6. Söz fayllarının formatı və mətnin bölünməsi:
 
 ```bash
 node tools/verify_words.mjs

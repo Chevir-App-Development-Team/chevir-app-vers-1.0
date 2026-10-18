@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'node:path'
+import { i18nHtmlPlugin } from './src/i18n/html-plugin.js'
 
-// /tercume, /nsosyal (slash-sız) → slash-lı: Vite-in SPA fallback-i slash-sız ünvanda
-// ana səhifəni qaytarır. Production-da eyni yönləndirmə vercel.json-dadır.
-const PAGES = ['/tercume', '/nsosyal']
+// /tercume, /nsosyal, /en (slash-sız) → slash-lı: Vite-in SPA fallback-i
+// slash-sız ünvanda ana səhifəni qaytarır. Production-da eyni yönləndirmə
+// vercel.json-dadır.
+const PAGES = ['/tercume', '/nsosyal', '/en']
 function redirectPages(req, res, next) {
   const [path, query] = req.url.split('?')
   if (!PAGES.includes(path)) return next()
@@ -12,7 +14,8 @@ function redirectPages(req, res, next) {
   res.end()
 }
 
-// Üç səhifə: sayt (/), tərcümə sistemi (/tercume/), NSosyal inteqrasiya demosu (/nsosyal/)
+// Dörd səhifə: sayt (/ + EN nüsxəsi /en/), tərcümə sistemi (/tercume/),
+// NSosyal inteqrasiya demosu (/nsosyal/)
 export default defineConfig({
   plugins: [
     {
@@ -25,6 +28,7 @@ export default defineConfig({
         server.middlewares.use(redirectPages)
       },
     },
+    i18nHtmlPlugin(import.meta.dirname),
   ],
   // onnxruntime-web öz .wasm faylını import.meta.url ilə tapır: əvvəlcədən paketlənsə (dev) yol
   // pozulur, build isə faylı assets/-ə özü çıxarır — public/-də ayrıca nüsxə lazım deyil
@@ -33,6 +37,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
+        en: resolve(import.meta.dirname, 'en/index.html'),
         tercume: resolve(import.meta.dirname, 'tercume/index.html'),
         nsosyal: resolve(import.meta.dirname, 'nsosyal/index.html'),
       },

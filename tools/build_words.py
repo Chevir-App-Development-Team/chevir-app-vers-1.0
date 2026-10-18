@@ -18,6 +18,7 @@ olanda yükləyir). Mənbə: AzSLD (Zenodo 14222948, CC BY 4.0).
 """
 import argparse
 import json
+import re
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -43,6 +44,8 @@ SKIP = {'A', 'D', 'Ə', 'İ', 'J', 'M', 'N', 'S'}
 ALIAS = {
     'GUN': 'gün', 'IKI': 'iki', 'İŞİGİ': 'işığı', 'SÖNDURƏ': 'söndürə', 'ÜNVANLİ': 'ünvanlı',
     'XİRDA': 'xırda', 'RƏSİM': 'rəsm', 'EŞİTMƏ MƏHDÜDİYYƏTLİ': 'eşitmə məhdudiyyətli',
+    'COX': 'çox', 'DOVLƏT': 'dövlət', 'SAGLAM': 'sağlam', 'IL': 'il', 'PENİSYA': 'pensiya',
+    'QARABAQ': 'qarabağ', 'KECİR': 'keçir', 'AGIRDI': 'ağırdı', 'YAZA': 'yaza',
 }
 
 TRANSLIT = str.maketrans({'ə': 'e', 'ı': 'i', 'ö': 'o', 'ü': 'u', 'ş': 's', 'ç': 'c', 'ğ': 'g', ' ': '-'})
@@ -53,8 +56,19 @@ def az_lower(s: str) -> str:
     return s.replace('I', 'ı').replace('İ', 'i').lower()
 
 
-def word_id(text: str) -> str:
-    return text.translate(TRANSLIT)
+def word_id(text: str, used=None) -> str:
+    """
+    Fayl adı və URL üçün id: yalnız [a-z0-9-]. Durğu işarələri atılır ("kim?" → "kim").
+    Transliterasiya bəzi sözləri eyni id-yə gətirir (şəhər və səhər → seher), ona görə
+    toqquşanda sıra nömrəsi əlavə olunur; göstərilən mətn (`text`) həmişə tam yazılışdır.
+    """
+    base = re.sub(r'[^a-z0-9-]', '', text.translate(TRANSLIT)).strip('-') or 'soz'
+    if used is None or base not in used:
+        return base
+    n = 2
+    while f'{base}-{n}' in used:
+        n += 1
+    return f'{base}-{n}'
 
 
 _hand = _pose = None
@@ -198,8 +212,9 @@ def build_word(label: str):
 
 
 def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for old in OUT_DIR.glob('*.json'):
+    out_dir = ARGS.out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob('*.json'):
         old.unlink()
     labels = sorted(p.name for p in ARGS.words_dir.iterdir() if p.is_dir() and p.name not in SKIP)
     if ARGS.only:
@@ -214,21 +229,21 @@ def main():
                 dropped.append((text, round(score, 2)))
                 print(f'  ✗ {text:<22} keyfiyyət {score:.2f}', flush=True)
                 continue
-            wid = word_id(text)
+            wid = word_id(text, {w['id'] for w in index})
             data = {'id': wid, 'text': text, 'label': label, **rec}
-            (OUT_DIR / f'{wid}.json').write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')),
-                                                  encoding='utf8')
+            (out_dir / f'{wid}.json').write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')),
+                                                 encoding='utf8')
             index.append({'id': wid, 'text': text, 'hands': rec['hands'], 'frames': len(rec['frames'])})
             print(f'  ✓ {text:<22} {rec["hands"]:<2} {len(rec["frames"]):>3} kadr  keyfiyyət {score:.2f}  ({rec["video"]})',
                   flush=True)
 
     index.sort(key=lambda w: w['text'])
-    (OUT_DIR / 'index.json').write_text(json.dumps({
-        'source': 'AzSLD Words 200 (Zenodo 14222948, CC BY 4.0)',
+    (out_dir / 'index.json').write_text(json.dumps({
+        'source': ARGS.source,
         'count': len(index),
         'words': index,
     }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
-    total = sum(p.stat().st_size for p in OUT_DIR.glob('*.json'))
+    total = sum(p.stat().st_size for p in out_dir.glob('*.json'))
     print(f'\n{len(index)} söz yazıldı ({total / 1024:.0f} KB), {len(dropped)} söz atıldı: {dropped}')
 
 
@@ -240,7 +255,14 @@ ap.add_argument('--stride', type=int, default=2, help='30 kadr/s videodan hər n
 ap.add_argument('--min-score', type=float, default=0.45)
 ap.add_argument('--workers', type=int, default=4)
 ap.add_argument('--only', nargs='*', help='yalnız bu sözlər (sınaq üçün)')
-ARGS = ap.parse_args()
+ap.add_argument('--out-dir', type=Path, default=OUT_DIR, help='çıxış qovluğu (standart: public/tercume/words)')
+ap.add_argument('--source', default='AzSLD Words 200 (Zenodo 14222948, CC BY 4.0)',
+                help='index.json-dakı mənbə qeydi')
+# Arqumentlər yalnız birbaşa işə salanda oxunur: modul başqa alətdən (build_sentence_words.py)
+# import olunanda onun arqumentlərini oxumağa çalışmasın. İşçi proseslər fork olunduğu üçün
+# ARGS pool yaradılmazdan əvvəl təyin olunur və onlara ötürülür.
+ARGS = None
 
 if __name__ == '__main__':
+    ARGS = ap.parse_args()
     main()

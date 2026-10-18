@@ -1,0 +1,151 @@
+/* ---------- BAKU ID ---------- */
+/* Təsdiqlənmiş statik mockup-ın (1440px, bk_d.html/bk_common.css) bir-başa
+   portu - masaüstü dəyərlər (piksel, rəng, qradiyent) DƏYİŞDİRİLMİR. ≥980px-də
+   mockup-ın öz position:absolute koordinatları işlədilir (bax teknofest.css-
+   dəki eyni şərh), mobil/planşet isə TAM AYRI, axın-əsaslı (flex,
+   position:static) qaydalarla qurulub. */
+
+.bakuid {
+  position: relative;
+  overflow: hidden;
+  background: var(--cloud);
+  padding: clamp(3rem, 9vw, 4.5rem) clamp(1.25rem, 5vw, 3rem);
+}
+
+.bakuid__glow {
+  position: absolute;
+  left: 50%;
+  top: 40px;
+  width: 420px;
+  height: 420px;
+  margin-left: -210px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 113, 239, 0.16), transparent);
+  pointer-events: none;
+}
+
+.bakuid__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.25rem;
+}
+
+.bakuid__text {
+  width: 100%;
+  max-width: 500px;
+}
+
+.bakuid__heading {
+  margin: 0;
+  font-size: clamp(2rem, 1.5rem + 2vw, 2.25rem);
+  line-height: 1.1;
+  font-weight: 300;
+  color: #6081a9;
+  letter-spacing: -0.01em;
+}
+
+.bakuid__heading-line {
+  display: block;
+}
+
+.bakuid__heading-line--bold {
+  font-weight: 700;
+  color: var(--bridge-blue);
+}
+
+.bakuid__paragraph {
+  margin-top: 1.1rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: #3a4a6b;
+}
+
+.bakuid__badge {
+  display: inline-block;
+  margin-top: 1.25rem;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #d3deef;
+  font-size: 13px;
+  color: var(--bridge-blue);
+  font-weight: 500;
+}
+
+.bakuid__shot {
+  position: relative;
+  width: 100%;
+  max-width: 390px;
+  aspect-ratio: 390 / 487;
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow: 0 30px 70px rgba(9, 22, 56, 0.18), 0 0 0 1px rgba(9, 22, 56, 0.06);
+}
+
+.bakuid__shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (min-width: 980px) {
+  .bakuid {
+    height: 640px;
+    padding: 0;
+    background: radial-gradient(40% 60% at 88% 20%, rgba(0, 113, 239, 0.1), transparent 70%),
+      radial-gradient(35% 50% at 8% 95%, rgba(0, 33, 191, 0.06), transparent 70%), var(--cloud);
+  }
+
+  .bakuid__glow {
+    left: auto;
+    top: 60px;
+    right: 60px;
+    width: 560px;
+    height: 520px;
+    margin-left: 0;
+  }
+
+  .bakuid__inner {
+    display: block;
+    height: 100%;
+  }
+
+  .bakuid__text {
+    position: absolute;
+    left: 80px;
+    top: 130px;
+    width: 600px;
+    max-width: none;
+  }
+
+  .bakuid__heading {
+    font-size: 46px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+
+  .bakuid__paragraph {
+    margin-top: 26px;
+    font-size: 17px;
+    line-height: 1.65;
+    max-width: 500px;
+  }
+
+  .bakuid__badge {
+    margin-top: 22px;
+  }
+
+  .bakuid__shot {
+    position: absolute;
+    right: 140px;
+    top: 76px;
+    width: 390px;
+    height: 487px;
+    max-width: none;
+    aspect-ratio: auto;
+  }
+}

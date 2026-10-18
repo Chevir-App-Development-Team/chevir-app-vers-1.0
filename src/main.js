@@ -6,6 +6,8 @@ import './styles/sections/statement.css'
 import './styles/sections/pipeline.css'
 import './styles/sections/loop.css'
 import './styles/sections/content.css'
+import './styles/sections/teknofest.css'
+import './styles/sections/bakuid.css'
 
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import './lib/gsapSetup.js'
@@ -28,8 +30,8 @@ ${contentMarkup}
 `
 
 const lenis = createLenis()
-const { logo } = setupHero()
-initPreloader(lenis, logo, () => {})
+setupHero()
+initPreloader(lenis, () => {})
 initNavbar()
 initPipeline()
 initLoop()

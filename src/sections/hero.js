@@ -1,17 +1,19 @@
-import gsap from 'gsap'
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
-import { HERO_TAGLINE } from '../lib/i18n.js'
-import { BRAND_LOGO_MARKUP } from '../lib/brandLogo.js'
+import { t } from '../lib/i18n.js'
+import { buildBrandLogoMarkupBlue, BRAND_LOGO_VIEWBOX } from '../lib/brandLogo.js'
 import { navbarMarkup as buildNavbarMarkup } from './navbar.js'
 
 const BASE = import.meta.env.BASE_URL
 
 // Naviqasiyanın tünd/açıq rejimini idarə edən sərt-kodlanmış bölmə siyahısı
 // (bax content.css "Sərt açıq" şərhləri) - burada saxlanılır ki, hansı
-// bölmələrin "açıq" olduğu TƏK yerdə (burda) qərarlaşdırılsın.
-const LIGHT_SECTION_SELECTOR = '.difference, .usecases, .team'
+// bölmələrin "açıq" olduğu TƏK yerdə (burda) qərarlaşdırılsın. .hero da
+// buradadır (indi açıq fondur, bax hero.css). .trust bilərəkdən bu
+// siyahıda deyil (tünd qalır) - əks halda usecases-dən team-ə qədər 5
+// ardıcıl açıq bölmə yaranardı.
+const LIGHT_SECTION_SELECTOR = '.hero, .statement, .difference, .usecases, .results, .roadmap, .team, .bakuid'
 
-// public/wordmark.svg-nin dəyişməz kopyası (currentColor - hero-da ağ olur).
+// public/wordmark.svg-nin dəyişməz kopyası (currentColor - hero.css-də rəngi təyin olunur).
 const WORDMARK_MARKUP = `
   <path d="M72.418 13.7919C72.418 8.92787 75.49 6.46387 80.354 6.46387V9.98387C77.794 9.98387 76.258 11.2319 76.258 13.7919V22.7519H72.418V13.7919Z" fill="currentColor"/>
   <path d="M66.6309 2.112C66.6309 0.959999 67.5589 0 68.7429 0C69.9269 0 70.8549 0.959999 70.8549 2.112C70.8549 3.328 69.9269 4.256 68.7429 4.256C67.5589 4.256 66.6309 3.328 66.6309 2.112ZM66.8229 22.752V6.752H70.6629V22.752H66.8229Z" fill="currentColor"/>
@@ -23,21 +25,31 @@ const WORDMARK_MARKUP = `
 
 export const navbarMarkup = buildNavbarMarkup({ page: 'home' })
 
+// Statik loqo (reduced-motion/WebGL-siz fallback, bax initHandVisual) ağ
+// yox, göy nüsxə ilə göstərilir - hero indi açıq fondur, ağ (#fff) fill
+// Cloud fonda demək olar görünməz olardı. Unikal idSuffix digər göy
+// nüsxələrlə (navbar, splash) gradient id toqquşmasının qarşısını alır.
+const HERO_LOGO_MARKUP_BLUE = buildBrandLogoMarkupBlue('hero-fallback')
+
 export const heroMarkup = `
-<section class="hero" id="top" aria-label="Chevir">
+<section class="hero" id="top" aria-label="${t('common.brand.name')}">
   <div class="hero__bg" aria-hidden="true"></div>
   <canvas class="hero__scene" data-hero-canvas aria-hidden="true"></canvas>
   <svg class="hero__wordmark" viewBox="0 0 81 24" aria-hidden="true">${WORDMARK_MARKUP}</svg>
   <div class="hero__content">
-    <p class="hero__tagline hero__desc">${HERO_TAGLINE}</p>
-    <a href="${BASE}nsosyal/" class="hero__nsosyal-btn">NSosyal demosu <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
+    <p class="hero__tagline hero__desc">
+      <span class="hero__tagline-line hero__tagline-line--light">${t('home.hero.title.line1')}</span>
+      <span class="hero__tagline-line hero__tagline-line--bold">${t('home.hero.title.line2')}</span>
+    </p>
+    <a href="${BASE}nsosyal/" class="hero__nsosyal-btn">${t('common.nav.nsosyal')} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
 
     <div class="hero__logo-slot" aria-hidden="true">
-      <svg
-        id="brand-logo"
-        class="brand-logo"
-        viewBox="0 0 100 100"
-      >${BRAND_LOGO_MARKUP}</svg>
+      <svg class="brand-logo" viewBox="${BRAND_LOGO_VIEWBOX}">${HERO_LOGO_MARKUP_BLUE}</svg>
+    </div>
+
+    <div class="hero__mobile-actions">
+      <a class="hero__mobile-cta" href="${BASE}#pilot">${t('common.nav.cta')}</a>
+      <a class="hero__mobile-secondary" href="${BASE}tercume/">${t('common.nav.tercume')}</a>
     </div>
   </div>
 </section>
@@ -55,7 +67,7 @@ function isWebGLAvailable() {
   }
 }
 
-// Statik #brand-logo yalnız FALLBACK kimi görünür (WebGL yoxdursa, reduced-motion,
+// Statik .brand-logo yalnız FALLBACK kimi görünür (WebGL yoxdursa, reduced-motion,
 // ya da 3D yüklənmə uğursuz olsa) - default gizlidir (hero.css), ona görə uğurlu
 // 3D yüklənmədə heç vaxt görünüb-yoxa çıxmır (əvvəlki "yanıb-sönmə" bugı).
 function setFallbackVisible(visible) {
@@ -107,26 +119,19 @@ function initHandVisual() {
   }
 }
 
+// Hero məzmununun (tagline/nsosyal-btn) və navbar keçidlərinin başlanğıc
+// gizli/görünən vəziyyəti artıq BURADA JS ilə qoyulmur - CSS-dədir (bax
+// hero.css `.hero__tagline`/`.hero__nsosyal-btn`, navbar.css
+// `.navbar__links`/`.navbar__cta`: default gizli, `.is-revealed`-də
+// görünən). KÖK SƏBƏB (əvvəlki bug): bu funksiya HƏR ZAMAN `autoAlpha:0`
+// qoyurdu, amma splash atlanan yolda (sayt-daxili keçid, bax
+// preloader.js initPreloader) heç nə geri açmırdı - elementlər həmişəlik
+// gizli qalırdı. İndi CSS-dəki gizli vəziyyət YALNIZ `.is-revealed` sinfi
+// yoxdursa tətbiq olunur, bu sinif HƏR İKİ yolda (splash var/yox) çağırılır
+// (bax preloader.js revealNavbar/revealHero) - animasiya skriptindən asılı
+// olmayan, default görünən struktur.
 export function setupHero() {
   initHandVisual()
-
-  const logo = document.getElementById('brand-logo')
-  const tagline = document.querySelector('.hero__tagline')
-  const nsosyalBtn = document.querySelector('.hero__nsosyal-btn')
-  const cta = document.querySelector('.navbar__actions')
-
-  // tagline/cta burda yalnız gizlədilir (instant set) - görünən reveal
-  // tween-i preloader.js-in öz splash timeline-ındadır (`.hero__desc` seçicisi
-  // ilə tapır, t=2.9-da açır). Wordmark və əl splash örtüyünün altında adi
-  // görünür qalır, əvvəlki başlıq/demo kimi.
-  if (prefersReducedMotion) {
-    gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 1 })
-    return { logo }
-  }
-
-  gsap.set([tagline, nsosyalBtn, cta], { autoAlpha: 0, y: 16 })
-
-  return { logo }
 }
 
 // Naviqasiyanın probe nöqtəsi (öz hündürlüyünün ortası) hər hansı açıq
@@ -134,13 +139,22 @@ export function setupHero() {
 // YOX, hər dəfə TƏZƏDƏN oxunan getBoundingClientRect() işlədilir - pin
 // olunan bölmələr (pipeline__media) səhifəyə pin-spacer hündürlüyü əlavə
 // edir, statik/keşlənmiş dəyər həmin əlavədən sonra köhnəlmiş qalardı.
-function updateNavbarMode(navbarEl, lightSections) {
+//
+// `.is-over-hero` ayrıca izlənir - hero digər açıq bölmələrdən FƏRQLİ
+// olaraq CTA düyməsinin rəngini TƏRS ETMİR (gradient/ağ mətn olaraq qalır,
+// bax navbar.css `.is-light.is-over-hero .navbar__cta`) - yalnız loqo/mətn
+// rəngi digər açıq bölmələrlə eyni qaydaya tabedir.
+function updateNavbarMode(navbarEl, lightSections, heroEl) {
   const probeY = navbarEl.getBoundingClientRect().height / 2
   const isLight = lightSections.some((section) => {
     const rect = section.getBoundingClientRect()
     return rect.top <= probeY && rect.bottom >= probeY
   })
   navbarEl.classList.toggle('is-light', isLight)
+  if (heroEl) {
+    const heroRect = heroEl.getBoundingClientRect()
+    navbarEl.classList.toggle('is-over-hero', heroRect.top <= probeY && heroRect.bottom >= probeY)
+  }
 }
 
 export function initNavbar() {
@@ -172,8 +186,9 @@ export function initNavbar() {
   // pin-spacer hündürlüyü nə vaxt əlavə olunursa olsun avtomatik düzgündür,
   // heç bir trigger sərhədi ilə bağlı olmur.
   const lightSections = Array.from(document.querySelectorAll(LIGHT_SECTION_SELECTOR))
+  const heroEl = document.querySelector('.hero')
   if (lightSections.length) {
-    const update = () => updateNavbarMode(navbarEl, lightSections)
+    const update = () => updateNavbarMode(navbarEl, lightSections, heroEl)
     window.addEventListener('scroll', update, { passive: true })
     window.addEventListener('load', update)
     update()

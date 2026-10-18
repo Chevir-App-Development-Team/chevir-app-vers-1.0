@@ -19,9 +19,14 @@
   left: 0;
   right: 0;
   z-index: 50;
-  display: flex;
+  /* Keçidlər logo/CTA enindən ASILI OLMAYAN HƏQİQİ mərkəzdə dayansın deyə
+     3-sütunlu grid (1fr auto 1fr) - flex + space-between-də mərkəz sütunu
+     yalnız iki kənar elementin enləri TƏSADÜFƏN bərabər olanda düzgün
+     ortalanır, grid isə bunu strukturca təmin edir (bax .navbar__brand/
+     __links/__cta-dakı justify-self). */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: 1.1rem clamp(1.25rem, 5vw, 4rem);
   background: transparent;
   transition: background-color 0.4s ease, box-shadow 0.4s ease,
@@ -29,18 +34,19 @@
 }
 
 .navbar.is-scrolled {
-  background: rgba(22, 19, 15, 0.82);
+  background: rgba(9, 22, 56, 0.82);
   backdrop-filter: blur(14px);
-  box-shadow: 0 1px 0 rgba(241, 237, 233, 0.1);
+  box-shadow: 0 1px 0 rgba(243, 247, 252, 0.1);
 }
 
 .navbar__brand {
   position: relative;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
   text-decoration: none;
-  color: #f1ede9;
+  color: var(--ink-on-dark);
   transition: color 0.4s ease;
   /* Splash klonu naviqasiya loqosuna enənə qədər naviqasiya görünməz və
      toxunulmazdır (visibility, hit-testi və tab sırasını da söndürür) -
@@ -59,13 +65,26 @@
   visibility: visible;
 }
 
-.navbar__logo-svg {
+/* İki loqo nüsxəsi (ağ/göy) üst-üstə - .is-light-ə görə bir-birinin üzərinə
+   sönür/yanır, flaş olmadan (hər ikisi həmişə DOM-dadır). */
+.navbar__logo {
+  position: relative;
   width: 26px;
   height: 26px;
   flex-shrink: 0;
-  color: #f1ede9;
+}
+
+.navbar__logo-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
-  transition: opacity 0.35s ease, color 0.4s ease;
+  transition: opacity 0.4s ease;
+}
+
+.navbar.is-revealed .navbar__logo-svg--dark {
+  opacity: 1;
 }
 
 .navbar__name {
@@ -78,25 +97,44 @@
 }
 
 /* Loqo əvvəl, wordmark bir az sonra - birlikdə yox. */
-.navbar.is-revealed .navbar__logo-svg,
 .navbar.is-revealed .navbar__name {
   opacity: 1;
 }
 
-.navbar__actions {
+/* Yalnız keçidlər - CTA artıq ayrı grid sütunundadır (bax .navbar yuxarıda),
+   ona görə bu konteynerin eni CTA-dan asılı deyil, mərkəz sütununu dəqiq
+   doldurur. */
+.navbar__links {
+  justify-self: center;
   display: flex;
   align-items: center;
-  gap: clamp(0.9rem, 2.5vw, 1.75rem);
+  gap: 2.5rem;
+  /* Default GİZLİ, .navbar__brand ilə EYNİ sxem (bax yuxarıda) - yalnız
+     `.navbar.is-revealed`-də görünən. KÖK SƏBƏB (əvvəlki bug): bu element
+     əvvəllər YALNIZ JS-dən (gsap.set) gizlədilirdi, CSS-fallback-ı yox idi -
+     splash atlanan sayt-daxili keçiddə heç kim geri açmırdı. İndi
+     `.navbar__brand`-ın artıq işlək olan sxemi ilə eynidir - `revealNavbar()`
+     onsuz da HƏR İKİ yolda (splash var/yox) çağırılır, əlavə JS lazım deyil. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+}
+
+.navbar.is-revealed .navbar__links {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .navbar__link {
   position: relative;
-  color: #f1ede9;
+  color: var(--ink-on-dark);
   font-size: var(--fs-small);
-  font-weight: 600;
+  font-weight: 400;
   text-decoration: none;
   opacity: 0.82;
-  transition: opacity 0.3s ease, color 0.4s ease;
+  transform-origin: center;
+  transition: opacity 0.3s ease, color 0.4s ease, transform 0.2s ease;
 }
 
 /* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
@@ -106,10 +144,41 @@
   inset: -12px -8px;
 }
 
-.navbar__link:hover {
+/* Hover/fokusda rəng DƏYİŞMİR, alt xətt YOXDUR - yalnız azca böyümə (layout
+   sürüşməsi olmadan, təkcə transform). Aydın fokus halqası base.css-dəki
+   qlobal `:focus-visible` qaydasından gəlir (toxunulmayıb). */
+.navbar__link:hover,
+.navbar__link:focus-visible {
   opacity: 1;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar__link:hover,
+  .navbar__link:focus-visible {
+    transform: none;
+  }
+}
+
+/* Açıq bölmədə (bax aşağı .is-light) keçidlər Bridge Blue - Chevir Blue
+   BU ÖLÇÜDƏ (--fs-small) İŞLƏDİLMİR: ölçülüb, Cloud fonda kontrastı 3.89-4.24
+   (AA kiçik-mətn tələbi 4.5-dən aşağı, bax CLAUDE.md "Əlçatanlıq"). Bridge
+   Blue eyni kontrastı 9.91 ilə keçir - güzəşt yoxdur tələbinə görə seçilib.
+   Tünd bölmədə (.is-light yoxdursa) rəng YUXARIDAKI --ink-on-dark olaraq
+   DƏYİŞMƏDƏN qalır. Hover/fokusda BURADA DA rəng dəyişmir (yalnız böyümə,
+   yuxarıdakı ümumi qayda). */
+.navbar.is-light .navbar__link {
+  color: var(--bridge-blue);
+  opacity: 1;
+}
+
+/* CTA (indi .navbar__end-in içində, bax aşağı) özü artıq grid elementi
+   deyil, ona görə `justify-self` yoxdur - mövqeni sarğı təyin edir. */
+.navbar__end {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
 }
 
 .navbar__cta {
@@ -118,13 +187,27 @@
   flex-shrink: 0;
   padding: 0.6rem 1.4rem;
   border-radius: 999px;
-  background: #ffffff;
-  color: #0a0a0a;
+  background: var(--brand-gradient);
+  color: #ffffff;
   font-size: var(--fs-small);
   font-weight: 600;
   text-decoration: none;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s ease,
-    color 0.4s ease;
+    color 0.4s ease, opacity 0.4s ease;
+  /* Default GİZLİ - .navbar__links ilə EYNİ səbəb/sxem (bax yuxarıda).
+     QEYD: `transform` BURADA İŞLƏDİLMİR (yalnız opacity/visibility) - bu
+     elementin artıq ÖZ hover transform-u var (aşağıda `:hover{transform:
+     translateY(-2px)}`, TOXUNULMAYIB) - əgər gizli/görünən vəziyyət də
+     transform işlətsəydi, CSS spesifiklik toqquşması (`.navbar.is-revealed
+     .navbar__cta` 3 sinif, `.navbar__cta:hover` 2) hover effektini poza
+     bilərdi (splash atlanan yolda, GSAP inline stilin olmadığı halda). */
+  opacity: 0;
+  visibility: hidden;
+}
+
+.navbar.is-revealed .navbar__cta {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
@@ -136,6 +219,244 @@
 
 .navbar__cta:hover {
   transform: translateY(-2px);
+}
+
+/* ---------- AZ | EN dil keçidi ---------- */
+/* İki nüsxə: `.navbar__lang` (masaüstü, CTA-nın yanında, `.navbar__end`
+   daxilində) və `.navbar__lang--menu` (hamburger dropdown-unun sonunda,
+   bax aşağı ≤1023px bloku - yalnız `[data-nav-menu]` olan səhifələrdə
+   render olunur, navbar.js). Hover/fokus `.navbar__link` ilə EYNİ (yalnız
+   böyümə). */
+.navbar__lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 15px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.4s ease;
+}
+
+.navbar.is-revealed .navbar__lang {
+  opacity: 1;
+  visibility: visible;
+}
+
+.navbar__lang-link {
+  position: relative;
+  color: var(--ink-on-dark);
+  font-size: var(--fs-small);
+  font-weight: 400;
+  text-decoration: none;
+  opacity: 0.82;
+  transform-origin: center;
+  transition: opacity 0.3s ease, color 0.4s ease, transform 0.2s ease;
+}
+
+/* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
+.navbar__lang-link::before {
+  content: '';
+  position: absolute;
+  inset: -12px -6px;
+}
+
+.navbar__lang-link:hover,
+.navbar__lang-link:focus-visible {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar__lang-link:hover,
+  .navbar__lang-link:focus-visible {
+    transform: none;
+  }
+}
+
+/* Aktiv dil: qalın + kanal-B vurğu rəngi. Tünd fonda Bridge Blue AA-nı
+   keçmir (kontrast 1.66, bax CLAUDE.md "Kanal məntiqi") - ona görə
+   `--accent-b-on-dark` (kontrast 7.95), açıq fonda (`.is-light`) isə
+   birbaşa Bridge Blue (kontrast 9.91, `.navbar__link`-lə EYNİ qayda). */
+.navbar__lang-link.is-active {
+  color: var(--accent-b-on-dark);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.navbar.is-light .navbar__lang-link {
+  color: var(--bridge-blue);
+  opacity: 0.82;
+}
+
+.navbar.is-light .navbar__lang-link.is-active {
+  color: var(--bridge-blue);
+  font-weight: 600;
+  opacity: 1;
+}
+
+/* Hamburger-dropdown nüsxəsi (`--menu`) və onun ayırıcı xətti default GİZLİ
+   - yalnız açıq dropdown daxilində görünür (bax ≤1023px bloku aşağıda),
+   əks halda masaüstü sətirində (`.navbar__links` həmişə DOM-da olan ikinci
+   nüsxə kimi) təkrar görünərdi. */
+.navbar__lang-divider,
+.navbar__lang--menu {
+  display: none;
+}
+
+/* ---------- Mobil/planşet hamburger menyusu (yalnız [data-nav-menu], ≤1023px) ---------- */
+/* `data-nav-menu` navbar.js-dəki MENU_ENABLED_PAGES siyahısından gəlir
+   (hazırda yalnız "home") - CSS səhifə ADI yox, bu boolean atributa bağlıdır,
+   ona görə gələcəkdə başqa səhifəyə hamburger lazım olsa, CSS-ə TOXUNULMADAN
+   yalnız həmin siyahıya səhifə əlavə etmək kifayətdir. Masaüstü (≥1024px)
+   və bu atributu olmayan səhifələrdə (/tercume, /nsosyal) HƏR ZAMAN gizli.
+   Üç keçid (bax LINKS, navbar.js) 601-1023px aralığında CTA ilə birgə
+   sığmadığı üçün (ölçülüb: boşluq 0-2px) bu aralıqda da linklər dropdown-a
+   köçür, CTA görünən qalır (toggle mərkəz sütunda, CTA-nın gizlənmə qaydası
+   DƏYİŞMİR - bax aşağı ≤600px bloku). ≤600px-də CTA da gizlənir (hero-nun
+   öz alt düymələri əvəz edir, bax hero.css) - toggle sağ sütuna keçir.
+   İkon klikdə iki xəttdən X-ə dönür, .navbar__links eyni elementi (mövcud
+   linklər + AZ|EN, bax navbar.js menuLangBlock) ağ dropdown kartı kimi
+   göstərir. */
+.navbar__toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(243, 247, 252, 0.35);
+  background: rgba(243, 247, 252, 0.14);
+  cursor: pointer;
+  transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+
+.navbar__toggle-bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink-on-dark);
+  transition: transform 0.2s ease, background-color 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar__toggle-bar {
+    transition: background-color 0.4s ease;
+  }
+}
+
+@media (max-width: 1023px) {
+  .navbar[data-nav-menu] .navbar__links {
+    display: none;
+  }
+
+  /* Masaüstü AZ|EN nüsxəsi bu enlərdə gizlənir - dropdown-un öz sonundakı
+     `--menu` nüsxəsi (bax aşağı) onu əvəz edir. CTA-ya TOXUNULMUR (əvvəlki
+     qayda ilə eyni, yalnız ≤600px-də gizlənir). */
+  .navbar[data-nav-menu] .navbar__lang:not(.navbar__lang--menu) {
+    display: none;
+  }
+
+  .navbar[data-nav-menu] .navbar__toggle {
+    display: inline-flex;
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: center;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .navbar[data-nav-menu].is-revealed .navbar__toggle {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__toggle-bar:first-child {
+    transform: translateY(4px) rotate(45deg);
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__toggle-bar:last-child {
+    transform: translateY(-4px) rotate(-45deg);
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 170px;
+    padding: 0.6rem;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 113, 239, 0.16);
+    box-shadow: 0 16px 32px rgba(9, 22, 56, 0.14);
+    z-index: 60;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__link {
+    color: var(--bridge-blue);
+    opacity: 1;
+    font-weight: 400;
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    transform: none;
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__link--extra {
+    display: inline-flex;
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__link:hover,
+  .navbar[data-nav-menu].is-menu-open .navbar__link:focus-visible {
+    background: rgba(0, 113, 239, 0.08);
+    transform: none;
+  }
+
+  /* Dropdown-un sonunda AZ|EN - nazik ayırıcıdan sonra, ayrıca sətir. */
+  .navbar[data-nav-menu].is-menu-open .navbar__lang-divider {
+    display: block;
+    height: 1px;
+    margin: 0.35rem 0.75rem;
+    background: rgba(0, 113, 239, 0.14);
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__lang--menu {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    padding: 0.4rem 0.75rem 0.2rem;
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* ≤600px: CTA da gizlənir (hero-nun öz alt düymələri əvəz edir, bax
+   hero.css), toggle sağ sütuna keçir - yuxarıdakı ≤1023px blokundan SONRA
+   gəldiyi üçün (eyni spesifiklik, source-order) bu dəyərlər üstələyir. */
+@media (max-width: 600px) {
+  .navbar[data-nav-menu] .navbar__cta {
+    display: none;
+  }
+
+  .navbar[data-nav-menu] .navbar__toggle {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__links {
+    left: auto;
+    right: clamp(1.25rem, 5vw, 4rem);
+    transform: none;
+  }
 }
 
 /* Dar ekranda üçüncü keçid gizlənir (loqo + keçid + CTA bir sətrə sığsın). */
@@ -154,32 +475,72 @@
   .navbar__cta {
     padding: 0.55rem 1rem;
   }
+
+  /* `[data-nav-menu]` olmayan səhifələrdə (/tercume, /nsosyal) bu enlərdə
+     hamburger yoxdur, AZ|EN masaüstü nüsxəsi sətir-daxili qalırdı - mövcud
+     sıxlığı ARTIRMASIN deyə burda gizlədilir (`--menu` nüsxəsi onsuz da bu
+     səhifələrdə heç render olunmur, bax navbar.js menuLangBlock). Home-da
+     artıq ≤1023px-də hamburger aktivdir, bu qayda ora təsir etmir. */
+  .navbar__lang:not(.navbar__lang--menu) {
+    display: none;
+  }
 }
 
 /* ---------- Rejim: açıq bölmə (.is-light) ---------- */
 /* hero.js-dəki initNavbar() naviqasiyanın probe nöqtəsi (öz hündürlüyünün
    ortası) hansı bölmənin üzərindədirsə ona görə bu sinfi əlavə/silir (bax
-   pipeline/difference/usecases/roadmap/team - sərt açıq bölmələr). Rənglər
-   var(--ink)/var(--paper) yox, sərt hex - naviqasiya bölmələr kimi OS
-   temasından asılı olmamalıdır. */
+   hero/statement/difference/usecases/results/roadmap/team - sərt açıq
+   bölmələr, trust bilərəkdən tünd saxlanılıb). Rənglər var(--ink-on-light)/
+   var(--cloud) işlədir - naviqasiya bölmələr kimi OS temasından asılı
+   olmamalıdır, amma indi bu dəyişənlərin dəyəri hər yerdə sabitdir
+   (OS-dən yox, sinifdən asılıdır). */
 
 .navbar.is-light .navbar__brand,
-.navbar.is-light .navbar__logo-svg,
-.navbar.is-light .navbar__name,
-.navbar.is-light .navbar__link {
-  color: #1a1817;
+.navbar.is-light .navbar__name {
+  color: var(--ink-on-light);
 }
 
 .navbar.is-light.is-scrolled {
-  background: rgba(241, 240, 238, 0.82);
-  box-shadow: 0 1px 0 rgba(26, 24, 23, 0.08);
+  background: rgba(243, 247, 252, 0.82);
+  box-shadow: 0 1px 0 rgba(9, 22, 56, 0.08);
 }
 
-/* CTA: TƏKLİF, TƏSDİQ GÖZLƏYİR (bax tapşırıq §3a) - ağ pill açıq bölmə
-   üzərində demək olar görünməz olardı (ağ-üstündə-ağ), ona görə tünd-mətnli
-   dizaynın tərsi (ink pill + paper mətn) seçilib, digər is-light rənglərlə
-   eyni hex-lər. Ekran şəklində göstəriləcək, təsdiqdən sonra son sayılsın. */
+/* Loqo: ağ nüsxə sönür, göy (gradient) nüsxə yanır - rəng DEYİL, markup
+   dəyişir (göy versiya gradient-dolğuludur, currentColor ilə ifadə oluna
+   bilməz), bax brandLogo.js. */
+.navbar.is-revealed.is-light .navbar__logo-svg--dark {
+  opacity: 0;
+}
+
+.navbar.is-revealed.is-light .navbar__logo-svg--light {
+  opacity: 1;
+}
+
+/* CTA: açıq bölmə üzərində gradient pill əvəzinə tünd-mətnli tərsi (midnight
+   pill + cloud mətn), digər is-light rənglərlə eyni mənbə. */
 .navbar.is-light .navbar__cta {
-  background: #1a1817;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--cloud);
+}
+
+/* İSTİSNA: hero üzərində CTA tərs OLUNMUR - əsas pilot-müraciət düyməsi
+   bütün səhifədə (hero daxil) eyni gradient/ağ-mətn görünüşündə qalır,
+   yalnız loqo/mətn rəngi digər açıq bölmələrlə eyni qaydaya tabedir (bax
+   hero.js updateNavbarMode/.is-over-hero). Specificity (3 sinif) yuxarıdakı
+   `.is-light .navbar__cta` (2 sinif) qaydasını qəsdən üstələyir. */
+.navbar.is-light.is-over-hero .navbar__cta {
+  background: var(--brand-gradient);
+  color: #ffffff;
+}
+
+/* Hamburger: açıq bölmədə ağ dairə + incə mavi kontur, xətlər Bridge Blue
+   (bax yuxarıda ---------- Mobil hamburger menyusu ----------, default tünd
+   fon üçün rənglər orda). */
+.navbar.is-light .navbar__toggle {
+  background: var(--cloud);
+  border-color: rgba(0, 113, 239, 0.22);
+}
+
+.navbar.is-light .navbar__toggle-bar {
+  background: var(--bridge-blue);
 }

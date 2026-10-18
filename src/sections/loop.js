@@ -1,22 +1,29 @@
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { BREAKPOINTS } from '../lib/gsapSetup.js'
+import { t } from '../lib/i18n.js'
+
+// SVG-nin 6 mətn etiketi (hər diaqramda - desktop+mobil - 2 dəfə) əslində
+// yalnız 3 unikal sözdür, sırası yoluna görə tərs: A yolu sign→gloss→mətn+səs,
+// B yolu mətn+səs→gloss→sign.
+const LABEL_SIGN = t('home.loop.label.sign')
+const LABEL_GLOSS = t('home.loop.label.gloss')
+const LABEL_TEXT_VOICE = t('home.loop.label.textVoice')
 
 export const loopMarkup = `
 <section class="loop" id="loop-diagram" aria-labelledby="loop-heading">
   <div class="loop__intro">
     <h2 id="loop-heading" class="loop__heading">
-      Chevir dövrəni hər iki istiqamətdə bağlayır
+      ${t('home.loop.heading')}
     </h2>
     <p class="loop__lead">
-      Eşitmə məhdudiyyətli vətəndaşın jesti mətnə və səsə çevrilir, eşidən tərəfin cavabı
-      yenidən jest dilinə qayıdır. Heç bir tərəf gözləmir.
+      ${t('home.loop.lead')}
     </p>
   </div>
   <div class="loop__stage">
-    <div class="loop__side loop__side--signed" data-frame>
-      <h3 class="loop__side-title">Eşitmə məhdudiyyətli şəxs</h3>
-      <p class="loop__side-desc">Jest dilində danışır, kameraya baxır.</p>
+    <div class="loop__side loop__side--signed is-active" data-frame>
+      <h3 class="loop__side-title">${t('home.loop.side.signed.title')}</h3>
+      <p class="loop__side-desc">${t('home.loop.side.signed.desc')}</p>
     </div>
 
     <svg
@@ -51,12 +58,12 @@ export const loopMarkup = `
       />
       <circle class="loop__marker loop__marker--signed" r="6" aria-hidden="true" />
       <circle class="loop__marker loop__marker--spoken" r="6" aria-hidden="true" />
-      <text class="loop__stage-label" data-path="a" data-stage="0">jest</text>
-      <text class="loop__stage-label" data-path="a" data-stage="1">gloss</text>
-      <text class="loop__stage-label" data-path="a" data-stage="2">mətn + səs</text>
-      <text class="loop__stage-label" data-path="b" data-stage="0">mətn + səs</text>
-      <text class="loop__stage-label" data-path="b" data-stage="1">gloss</text>
-      <text class="loop__stage-label" data-path="b" data-stage="2">jest</text>
+      <text class="loop__stage-label" data-path="a" data-stage="0">${LABEL_SIGN}</text>
+      <text class="loop__stage-label" data-path="a" data-stage="1">${LABEL_GLOSS}</text>
+      <text class="loop__stage-label" data-path="a" data-stage="2">${LABEL_TEXT_VOICE}</text>
+      <text class="loop__stage-label" data-path="b" data-stage="0">${LABEL_TEXT_VOICE}</text>
+      <text class="loop__stage-label" data-path="b" data-stage="1">${LABEL_GLOSS}</text>
+      <text class="loop__stage-label" data-path="b" data-stage="2">${LABEL_SIGN}</text>
     </svg>
 
     <svg
@@ -91,17 +98,17 @@ export const loopMarkup = `
       />
       <circle class="loop__marker loop__marker--signed" r="6" aria-hidden="true" />
       <circle class="loop__marker loop__marker--spoken" r="6" aria-hidden="true" />
-      <text class="loop__stage-label" data-path="a" data-stage="0">jest</text>
-      <text class="loop__stage-label" data-path="a" data-stage="1">gloss</text>
-      <text class="loop__stage-label" data-path="a" data-stage="2">mətn + səs</text>
-      <text class="loop__stage-label" data-path="b" data-stage="0">mətn + səs</text>
-      <text class="loop__stage-label" data-path="b" data-stage="1">gloss</text>
-      <text class="loop__stage-label" data-path="b" data-stage="2">jest</text>
+      <text class="loop__stage-label" data-path="a" data-stage="0">${LABEL_SIGN}</text>
+      <text class="loop__stage-label" data-path="a" data-stage="1">${LABEL_GLOSS}</text>
+      <text class="loop__stage-label" data-path="a" data-stage="2">${LABEL_TEXT_VOICE}</text>
+      <text class="loop__stage-label" data-path="b" data-stage="0">${LABEL_TEXT_VOICE}</text>
+      <text class="loop__stage-label" data-path="b" data-stage="1">${LABEL_GLOSS}</text>
+      <text class="loop__stage-label" data-path="b" data-stage="2">${LABEL_SIGN}</text>
     </svg>
 
     <div class="loop__side loop__side--spoken" data-frame>
-      <h3 class="loop__side-title">Sosial xidmət agenti</h3>
-      <p class="loop__side-desc">Danışıq dilində eşidir və cavab verir.</p>
+      <h3 class="loop__side-title">${t('home.loop.side.spoken.title')}</h3>
+      <p class="loop__side-desc">${t('home.loop.side.spoken.desc')}</p>
     </div>
   </div>
 </section>
@@ -113,6 +120,16 @@ export function initLoop() {
 
   const stageEl = section.querySelector('.loop__stage')
   const sides = Array.from(section.querySelectorAll('[data-frame]'))
+  const signedSide = section.querySelector('.loop__side--signed')
+  const spokenSide = section.querySelector('.loop__side--spoken')
+
+  // Hansı kartın "işıqlı" olduğunu idarə edir - A yolu gedərkən (irəli VƏ
+  // geri scroll) signed, B yolu gedərkən spoken aktivdir. Hər iki tərəf
+  // qarşılıqlı inhisarlıdır (.loop__side.is-active, bax loop.css).
+  function setActiveSide(side) {
+    signedSide.classList.toggle('is-active', side === 'signed')
+    spokenSide.classList.toggle('is-active', side === 'spoken')
+  }
 
   function positionLabels(pathEl, labels, viewBoxWidth, offset, offsets, vertical) {
     const length = pathEl.getTotalLength()
@@ -171,6 +188,7 @@ export function initLoop() {
     gsap.set([markerA, markerB], { opacity: 0 })
     labelsA.forEach((el, i) => el.classList.toggle('is-active', i === labelsA.length - 1))
     labelsB.forEach((el, i) => el.classList.toggle('is-active', i === labelsB.length - 1))
+    setActiveSide('spoken')
   }
 
   function setStaticStart(variant) {
@@ -179,6 +197,7 @@ export function initLoop() {
     gsap.set([markerA, markerB], { opacity: 0 })
     labelsA.forEach((el) => el.classList.remove('is-active'))
     labelsB.forEach((el) => el.classList.remove('is-active'))
+    setActiveSide('signed')
   }
 
   function updateStageLabels(labels, t) {
@@ -225,7 +244,7 @@ export function initLoop() {
     }
   }
 
-  function buildPathProgress(pathEl, markerEl, labels, syncEls = []) {
+  function buildPathProgress(pathEl, markerEl, labels, onPhase, syncEls = []) {
     const proxy = { t: 0 }
     const points = buildPointCache(pathEl)
     return {
@@ -240,14 +259,15 @@ export function initLoop() {
         markerEl.setAttribute('cx', pt.x)
         markerEl.setAttribute('cy', pt.y)
         updateStageLabels(labels, proxy.t)
+        onPhase()
       },
     }
   }
 
   function buildTimeline(variant, scrollTriggerVars) {
     const { pathA, pathB, pathBHaloOuter, pathBHaloMid, markerA, markerB, labelsA, labelsB } = variant
-    const a = buildPathProgress(pathA, markerA, labelsA)
-    const b = buildPathProgress(pathB, markerB, labelsB, [pathBHaloOuter, pathBHaloMid])
+    const a = buildPathProgress(pathA, markerA, labelsA, () => setActiveSide('signed'))
+    const b = buildPathProgress(pathB, markerB, labelsB, () => setActiveSide('spoken'), [pathBHaloOuter, pathBHaloMid])
 
     return gsap.timeline({
       paused: !scrollTriggerVars,

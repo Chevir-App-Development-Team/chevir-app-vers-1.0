@@ -1,18 +1,13 @@
 /* ---------- Splash ---------- */
 
 #splash {
-  /* Hero kimi splash da həmişə açıq fonda qalır, sistemin tünd rejimindən asılı olmadan.
-     --ink də lazımdır: #splash indi birbaşa body-nin övladıdır (.hero-nun daxilində
-     deyil), ona görə hero-nun lokal --ink təyinatını miras almır - klonlanan loqonun
-     "currentColor" nöqtəsi bunsuz sistem tünd rejimində səhv rəngə düşərdi. */
-  --paper: #f1f0ee;
-  --muted: #6e6965;
-  --ink: #1a1817;
-
+  /* Hero kimi splash da həmişə açıq fonda qalır, sistemin tünd rejimindən asılı
+     olmadan - lokal dəyişən override lazım deyil, çünki loqo artıq currentColor
+     yox, öz gradient/flat fill-i ilə gəlir (bax preloader.js). */
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: var(--paper);
+  background: var(--cloud);
   clip-path: circle(150% at 50% 50%);
 }
 
@@ -21,8 +16,35 @@
 }
 
 .splash__logo {
-  /* Dekorativdir - klik/toxunma tutmamalıdır. */
+  /* Dekorativdir - klik/toxunma tutmamalıdır. GSAP burda position/x/y/
+     width/height/scale-i birbaşa idarə edir (bax preloader.js) - ölçü
+     CSS-dən deyil, JS-dən gəlir. #splash-ın (z-index 200, clip-path tətbiq
+     olunan) DAXİLİNDƏ DEYİL - body-nin birbaşa övladıdır (bax preloader.js),
+     ona görə z-index-i ondan yüksək olmalıdır ki, dairə bağlananda loqo
+     kəsilmədən üstdə görünsün. */
   pointer-events: none;
+  z-index: 201;
+}
+
+.splash__logo-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Başlanğıc gizli vəziyyət CSS-DƏDİR, JS-də deyil - JS gec yüklənsə/icra
+   gecikərsə belə, İLK BOYANAN kadrda qövslər/gözlər görünməməlidir.
+   preloader.js bu dəyərləri JS-dən TƏKRAR təyin etmir, timeline-ın özü ilk
+   boyanmadan sonraya (2×rAF) təxirə salınır ki, ağır sinxron JS işi
+   (navbar/pipeline/loop/content init) bitənə qədər GSAP saatı işləməsin.
+
+   VACİB: bu elementlərə HEÇ BİR transform/scale verilmir (nə burda, nə
+   JS-də) - hər path/ellipse SVG-nin öz, son, düzgün koordinatında sabit
+   qalır. "Yaranma" hissi yalnız OPACITY ilə, əlavə olaraq bütöv loqo
+   elementinin (.splash__logo, preloader.js-də) scale-i ilə verilir. */
+.splash__logo-svg [data-logo-part^="blob-"],
+.splash__logo-svg [data-logo-part^="dot-"] {
+  opacity: 0;
 }
 
 /* Wordmark uçuş bitəndən 0.25s sonra görünsün (loqodan sonra, birlikdə yox).
@@ -31,15 +53,4 @@
    dəyişmədən bu gecikməni ötürür. */
 .navbar.is-revealed .navbar__name {
   transition-delay: 0.25s;
-}
-
-.splash__counter {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, calc(clamp(70px, 10vw, 110px) + 1.5rem));
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-small);
-  color: var(--muted);
-  letter-spacing: 0.02em;
 }
