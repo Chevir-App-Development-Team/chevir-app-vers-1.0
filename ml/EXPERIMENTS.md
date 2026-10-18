@@ -87,7 +87,14 @@ scored once with it. `W` = Words_200 clips (the benchmark); `S` = sentence-cut s
 | 1 | v4 | crashed while loading data | — | — | — | — | — | 7 annotations without a frame range (fixed) |
 | 2 | v5 | done, 60 epochs × 26 s on T4 | 60 | 0.834 / 0.855 (top-1 peaked at 0.875, epoch 35) | 0.853 / 0.988 / 0.859 / 0.871 · mirror-TTA 0.859 / 0.988 / 0.869 / 0.882 | 0.872 / 0.874 (majority 0.179) | 0.294 | v5 later rejected for mixed rows, so this checks the setup; the number may be slightly optimistic |
 | **3** | **v6** | done, 60 epochs × 26.6 s on T4 | 58 | 0.885 / 0.857 (top-1 peaked at 0.893, epoch 32) | **0.853 / 0.981 / 0.835 / 0.850** · mirror-TTA 0.851 / 0.981 / 0.832 / 0.848 | 0.858 / 0.853 (majority 0.162) | 0.309 | **headline**: clean split, same config as run 2 |
-| 4a–4e | v6 | *running*: notebook 04 v4, one session | | | | | | seed 1, seed 2, hands only (382 features), no face (400 features), 100 epochs |
+| 4a | v6 | done, 60 epochs × 27.4 s | 39 | 0.865 / 0.882 | 0.775 / 0.985 / 0.825 / 0.845 | 0.829 / 0.852 | 0.309 | seed 1 (otherwise run 3) |
+| 4b | v6 | done, 60 epochs × 27.4 s | 41 | 0.877 / 0.856 | 0.822 / 0.981 / 0.830 / 0.847 | 0.848 / 0.848 | 0.309 | seed 2 |
+| 4c | v6 | done, 60 epochs × 25.9 s | 35 | 0.889 / 0.861 | 0.820 / 0.985 / 0.833 / 0.849 | 0.845 / 0.837 | 0.309 | hands only: 382 features (hands, hand shape, hand velocity, flags) |
+| **4d** | **v6** | done, 60 epochs × 26.0 s | 45 | 0.902 / 0.861 | **0.878 / 0.986 / 0.863 / 0.885** | 0.868 / 0.852 | 0.309 | **no face**: 400 features (hands + 9 body points); best run so far, one seed |
+| 4e | v6 | done, 100 epochs × 27.6 s | 84 | 0.890 / 0.861 | 0.843 / 0.977 / 0.825 / 0.844 | 0.861 / 0.849 | 0.309 | 100 epochs |
+
+Runs 4a–4e are one Kaggle session (notebook 04 v4, 2 h 35 min of training on a T4). Everything not named in
+Notes is the run 3 setup (656 features, 60 epochs, seed 0).
 
 ### Run 2: per epoch (split v5)
 
@@ -154,11 +161,88 @@ Observations (run 3):
 - Local copies of run 2's full outputs were overwritten by a download bug (now fixed). Run 2's
   numbers above were copied before that.
 
-Candidate next experiments (one change at a time, all on split v6):
+Candidate next experiments after run 3 (one change at a time, all on split v6), all run in run 4:
 - longer training (100 epochs; best macro-F1 was at the end in both runs)
 - lemma-merged evaluation (İSTƏYİRƏM/İSTƏMƏK, MƏNİM/MƏN, GEDƏ/GETMƏK, …)
 - feature ablations: no face/blendshapes, hands only (what the browser can run most cheaply)
 - several seeds, to put error bars on the headline number
+
+### Run 4: seeds, feature ablations, 100 epochs (split v6)
+
+Validation per epoch, Words_200 clips, **top-1 / macro-F1**. The full histories (every epoch, all
+columns of the run 3 table) are in `history.csv` of each run in the Kaggle output of
+`04-train-words` version 4.
+
+| Epoch | 4a seed 1 | 4b seed 2 | 4c hands only | 4d no face | 4e 100 epochs |
+|---|---|---|---|---|---|
+| 1 | 0.581 / 0.230 | 0.576 / 0.226 | 0.584 / 0.270 | 0.620 / 0.265 | 0.567 / 0.238 |
+| 2 | 0.634 / 0.507 | 0.698 / 0.551 | 0.727 / 0.575 | 0.733 / 0.595 | 0.668 / 0.571 |
+| 3 | 0.580 / 0.536 | 0.742 / 0.640 | 0.795 / 0.679 | 0.748 / 0.677 | 0.763 / 0.631 |
+| 5 | 0.820 / 0.723 | 0.807 / 0.725 | 0.851 / 0.762 | 0.828 / 0.750 | 0.812 / 0.741 |
+| 10 | 0.807 / 0.801 | 0.871 / 0.806 | 0.854 / 0.811 | 0.861 / 0.806 | 0.854 / 0.788 |
+| 15 | 0.813 / 0.822 | 0.855 / 0.799 | 0.847 / 0.816 | 0.859 / 0.794 | 0.802 / 0.786 |
+| 20 | 0.824 / 0.839 | 0.875 / 0.817 | 0.874 / 0.824 | 0.872 / 0.816 | 0.731 / 0.814 |
+| 30 | 0.836 / 0.847 | 0.883 / 0.854 | 0.884 / 0.846 | 0.865 / 0.832 | 0.851 / 0.821 |
+| 40 | 0.867 / 0.865 | 0.883 / 0.830 | 0.851 / 0.846 | 0.890 / 0.850 | 0.859 / 0.830 |
+| 50 | 0.865 / 0.862 | 0.881 / 0.843 | 0.886 / 0.856 | 0.897 / 0.851 | 0.881 / 0.840 |
+| 60 | 0.897 / 0.867 | 0.872 / 0.838 | 0.884 / 0.845 | 0.899 / 0.854 | 0.866 / 0.847 |
+| 70 | — | — | — | — | 0.880 / 0.836 |
+| 80 | — | — | — | — | 0.854 / 0.851 |
+| 90 | — | — | — | — | 0.867 / 0.858 |
+| 100 | — | — | — | — | 0.877 / 0.856 |
+
+Test, best-on-val checkpoint of each run. "Merged" = the 13 word-form families confirmed by Nigar
+Alishzade counted as one class (183 classes, `ml/analyze.py`). Run 3 saved no predictions, so it
+has no merged score.
+
+| Run | Features | Test W top-1 / top-5 / macro-F1 / balanced | Test W merged (183): top-1 / top-5 / macro-F1 / balanced | Test S top-1 / top-5 / macro-F1 / balanced | Mirror-TTA test W top-1 / macro-F1 |
+|---|---|---|---|---|---|
+| 3 (seed 0) | 656 | 0.853 / 0.981 / 0.835 / 0.850 | — | 0.858 / 0.979 / 0.853 / 0.856 | 0.851 / 0.832 |
+| 4a seed 1 | 656 | 0.775 / 0.985 / 0.825 / 0.845 | 0.937 / 0.987 / 0.871 / 0.889 | 0.829 / 0.984 / 0.852 / 0.863 | 0.761 / 0.828 |
+| 4b seed 2 | 656 | 0.822 / 0.981 / 0.830 / 0.847 | 0.940 / 0.983 / 0.880 / 0.891 | 0.848 / 0.981 / 0.848 / 0.857 | 0.824 / 0.835 |
+| 4c hands only | 382 | 0.820 / 0.985 / 0.833 / 0.849 | 0.936 / 0.985 / 0.881 / 0.893 | 0.845 / 0.981 / 0.837 / 0.851 | 0.833 / 0.833 |
+| **4d no face** | **400** | **0.878 / 0.986 / 0.863 / 0.885** | **0.950 / 0.988 / 0.906 / 0.925** | 0.868 / 0.984 / 0.852 / 0.863 | 0.872 / 0.854 |
+| 4e 100 epochs | 656 | 0.843 / 0.977 / 0.825 / 0.844 | 0.942 / 0.981 / 0.875 / 0.891 | 0.861 / 0.978 / 0.849 / 0.859 | 0.848 / 0.842 |
+
+Full model (656 features), 3 seeds (runs 3, 4a, 4b), mean ± sample std:
+
+| Test set | Top-1 | Top-5 | Macro-F1 | Balanced acc |
+|---|---|---|---|---|
+| Words_200 clips | 0.817 ± 0.039 | 0.983 ± 0.002 | 0.830 ± 0.005 | 0.847 ± 0.002 |
+| Sentence-cut signs | 0.845 ± 0.015 | 0.981 ± 0.002 | 0.851 ± 0.003 | 0.859 ± 0.004 |
+
+Where the top-1 spread comes from (test Words_200, most frequent wrong pairs):
+
+| Run | MƏN recall (399 clips, 31 % of test) | MƏN → MƏNİM | Other top confusions |
+|---|---|---|---|
+| 4a seed 1 | 0.699 | 115 | O → ONUN 26, MƏNİM → MƏN 20 |
+| 4b seed 2 | 0.852 | 53 | MƏNİM → MƏN 24, SİZ → SİZİN 16 |
+| 4c hands only | 0.895 | 31 | O → ONUN 33, MƏNİM → MƏN 27 |
+| 4d no face | 0.987 | 1 | MƏNİM → MƏN 33, O → ONUN 16 |
+| 4e 100 epochs | 0.925 | 15 | O → ONUN 30, MƏNİM → MƏN 28 |
+
+Observations (run 4):
+- **Top-1 is not a stable headline metric on this test set.** With the same setup, top-1 ranges
+  0.775–0.853 over three seeds, while macro-F1 (±0.005) and balanced accuracy (±0.002) barely move.
+  Almost all of the difference is one boundary: MƏN is 31 % of the test clips, and a seed that puts
+  that boundary differently sends up to 115 of them to MƏNİM (same sign, confirmed family). Merged
+  top-1 is 0.936–0.950 in every run. Report macro-F1 / balanced accuracy as the main numbers, and
+  top-1 next to merged top-1.
+- **No face (hands + body, 400 features) is the best run on every Words_200 metric**: macro-F1 0.863
+  vs 0.830 ± 0.005 for the full model (+0.033, about 6 seed standard deviations), balanced 0.885 vs
+  0.847 ± 0.002, merged macro-F1 0.906. On sentence-cut signs it equals the full model in macro-F1
+  (0.852 vs 0.851 ± 0.003) and is higher in top-1 (0.868). It is one seed, so it needs seeds 1 and 2
+  before it is a headline. A plausible reason (not tested): the 204 face coordinates and 52
+  blendshapes describe the signer's face as much as the sign, which does not transfer to new signers.
+- **The body points matter, the face does not (so far)**: hands only 0.833 macro-F1 W (inside the
+  full-model spread) and 0.837 on S (−0.014); adding the 9 body points (no face) gives +0.030 W and
+  +0.015 S over hands only.
+- **100 epochs does not help**: best epoch 84, test macro-F1 0.825, inside the 60-epoch seed spread.
+  60 epochs stays the default.
+- **Mirror TTA is not a consistent gain** (−0.014 to +0.013 top-1, −0.009 to +0.017 macro-F1 over five
+  runs). It stays off.
+- For the browser, a model without face points also means one tracker less per frame (the face
+  landmarker) and a privacy mode for free.
 
 ### Word-form families (evaluation only)
 
