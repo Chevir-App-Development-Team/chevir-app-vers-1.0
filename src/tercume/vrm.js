@@ -42,6 +42,8 @@ const R_FINGER = 0.008;
 const R_PALM = 0.010;
 const R_FOREARM = 0.030;
 const R_UPPERARM = 0.040;
+// Oynatmada əllərin bir-birinə girməsinə icazə (metr): səthlər toxuna bilər, keçə bilməz
+const GUARD_SLACK = 0.003;
 
 const FINGER_BONE_NAMES = {
   Thumb: ['Metacarpal', 'Proximal', 'Distal'],
@@ -82,20 +84,64 @@ function quatAngle(a, b) {
   return 2 * Math.acos(Math.min(1, Math.abs(a.dot(b))));
 }
 
-/** İki sümük parçası arasındakı ən qısa məsafə və həmin nöqtələr. */
-function segmentDistance(p1, p2, p3, p4) {
-  const u = p2.clone().sub(p1), v = p4.clone().sub(p3), w0 = p1.clone().sub(p3);
-  const a = u.dot(u), b = u.dot(v), c = v.dot(v), d = u.dot(w0), e = v.dot(w0);
+/**
+ * İki sümük parçası arasındakı ən qısa məsafə; ən yaxın nöqtələr `pa`, `pb`-yə yazılır.
+ * Bir parametr sərhədə kəsiləndə digəri yenidən hesablanır: ikisini ayrıca kəsmək ən yaxın
+ * cütü itirir və məsafəni şişirdir (barmaq ucu ovucun kənarına yaxınlaşanda olur).
+ * Allokasiyasızdır — oynatmada hər kadr yüzlərlə dəfə çağırılır.
+ */
+function segmentClosest(p1, p2, p3, p4, pa, pb) {
+  const ux = p2.x - p1.x, uy = p2.y - p1.y, uz = p2.z - p1.z;
+  const vx = p4.x - p3.x, vy = p4.y - p3.y, vz = p4.z - p3.z;
+  const wx = p1.x - p3.x, wy = p1.y - p3.y, wz = p1.z - p3.z;
+  const a = ux * ux + uy * uy + uz * uz, b = ux * vx + uy * vy + uz * vz, c = vx * vx + vy * vy + vz * vz;
+  const d = ux * wx + uy * wy + uz * wz, e = vx * wx + vy * wy + vz * wz;
   const den = a * c - b * b;
-  let s = 0, t = 0;
-  if (den > 1e-9) {
-    s = THREE.MathUtils.clamp((b * e - c * d) / den, 0, 1);
-    t = THREE.MathUtils.clamp((a * e - b * d) / den, 0, 1);
-  } else if (c > 1e-9) {
-    t = THREE.MathUtils.clamp(e / c, 0, 1);
+  const cl = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+  let s = den > 1e-12 ? cl((b * e - c * d) / den) : 0;
+  let t = c > 1e-12 ? (b * s + e) / c : 0;
+  if (t < 0) { t = 0; s = a > 1e-12 ? cl(-d / a) : 0; }
+  else if (t > 1) { t = 1; s = a > 1e-12 ? cl((b - d) / a) : 0; }
+  pa.set(p1.x + s * ux, p1.y + s * uy, p1.z + s * uz);
+  pb.set(p3.x + t * vx, p3.y + t * vy, p3.z + t * vz);
+  return pa.distanceTo(pb);
+}
+
+/**
+ * Əlin kapsulları 21 nöqtədən (MediaPipe sırası): avatarın sümükləri də, siqnalçının
+ * landmark-ları da eyni hissələrə bölünür və eyni radiuslarla ölçülür. Hər barmağın üç
+ * sümüyü (sonuncusu uca qədər), ovuc — bilək → barmaq kökləri yelpiyi və köklər xətti.
+ */
+function handCapsules(P, shape) {
+  const out = [];
+  Object.keys(FINGER_BONE_NAMES).forEach((name, i) => {
+    const j = 1 + 4 * i;
+    for (let k = 0; k < 3; k++) out.push([P[j + k], P[j + k + 1], shape.radius[name][k], name]);
+  });
+  for (const j of [5, 9, 13, 17]) out.push([P[0], P[j], shape.radius.palm, 'ovuc']);
+  out.push([P[5], P[17], shape.radius.palm, 'ovuc'], [P[0], P[1], shape.radius.Thumb[0], 'ovuc']);
+  return out;
+}
+
+/**
+ * İki hissə dəsti (sol, sağ) arasında ən kiçik səth məsafəsi (mənfi = içəri girib), ən yaxın
+ * nöqtələr və ayrılma oxu (soldan sağa).
+ */
+function closestParts(A, B, skip = null) {
+  const pa = new THREE.Vector3(), pb = new THREE.Vector3();
+  let best = null;
+  for (const a of A) for (const b of B) {
+    if (skip?.(a, b)) continue;
+    const d = segmentClosest(a[0], a[1], b[0], b[1], pa, pb) - a[2] - b[2];
+    if (!best || d < best.gap) best = { gap: d, pair: `${a[3]}/${b[3]}`, pa: pa.clone(), pb: pb.clone(), a, b };
   }
-  const pa = p1.clone().addScaledVector(u, s), pb = p3.clone().addScaledVector(v, t);
-  return [pa.distanceTo(pb), pa, pb];
+  if (!best) return null;
+  const axis = best.pb.clone().sub(best.pa);
+  // Parçalar kəsişirsə ən yaxın nöqtələr üst-üstə düşür və istiqamət itir:
+  // onda toqquşan iki sümüyün mərkəzləri arasındakı ox götürülür.
+  if (axis.lengthSq() < 1e-8) axis.copy(best.b[0]).add(best.b[1]).sub(best.a[0]).sub(best.a[1]);
+  if (axis.lengthSq() < 1e-8) axis.set(1, 0, 0);
+  return { gap: best.gap, pair: best.pair, axis: axis.normalize(), pa: best.pa, pb: best.pb, a: best.a, b: best.b };
 }
 
 /**
@@ -126,37 +172,39 @@ function handGap(fr) {
   return gap;
 }
 
-/** Siqnalçının barmaq sümükləri (bilək → MCP → PIP → DIP → uc) poza koordinatlarında. */
-function signerSegments(fr, hand, wrist, flipDepth) {
-  const at = (j) => {
-    const o = [0, 1, 2].map((k) => hand.w[j][k] - hand.w[0][k]);
+/** Siqnalçının əlinin 21 nöqtəsi poza koordinatlarında (bilək + landmark-ların biləyə nisbəti). */
+function signerPoints(fr, hand, wrist, flipDepth, scale) {
+  return hand.w.map((p) => {
+    const o = [0, 1, 2].map((k) => p[k] - hand.w[0][k]);
     if (flipDepth) o[2] = -o[2];
-    return new THREE.Vector3(fr.b[wrist][0] + o[0], fr.b[wrist][1] + o[1], fr.b[wrist][2] + o[2]);
-  };
-  const out = [];
-  for (const js of [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]]) {
-    const p = js.map(at);
-    out.push([p[0], p[1]], [p[1], p[2]], [p[2], p[3]]);
-  }
-  return out;
+    return new THREE.Vector3(fr.b[wrist][0] + o[0], fr.b[wrist][1] + o[1], fr.b[wrist][2] + o[2])
+      .multiplyScalar(scale);
+  });
 }
 
 /**
- * Siqnalçının iki əlinin sümük oxları arasındakı ən kiçik məsafə. Mütləq hədd yanlış
- * meyardır: bir çox işarədə əllər həqiqətən toxunur (datada 1-2 mm), bəzilərində isə
- * 15 sm aralıdır. Avatarın aralığı bu ölçüyə görə qiymətləndirilir.
+ * Siqnalçının iki əli arasındakı ən kiçik səth məsafəsi, avatarın əl ölçüsünə miqyaslanıb və
+ * avatarın öz kapsulları ilə — avatarın aralığı ilə birbaşa müqayisə olunur. Mütləq hədd yanlış
+ * meyardır: bir çox işarədə əllər həqiqətən toxunur (datada 1-2 mm), bəzilərində isə 15 sm
+ * aralıdır. Datada əllərin nisbi dərinliyi pozanın biləklərindən gəlir və səs-küylüdür:
+ * toxunan əllər datada 1-3 sm bir-birinin içində görünə bilir (ölçülüb), ona görə mənfi
+ * qiymət "toxunur" deməkdir, "girməlidir" yox.
  */
-function signerBoneGap(fr, flipL, flipR) {
+function signerGap(fr, flipL, flipR, shape, scale) {
   const parts = (hand, wi, flip, elbow) => {
-    const o = signerSegments(fr, hand, wi, flip).map((p) => [p[0], p[1], R_FINGER]);
+    const o = handCapsules(signerPoints(fr, hand, wi, flip, scale), shape);
     const e = fr.b[elbow], w = fr.b[wi];
-    if (e && w) o.push([new THREE.Vector3(...e), new THREE.Vector3(...w), R_FOREARM]);
+    if (e && w) {
+      o.push([new THREE.Vector3(...e).multiplyScalar(scale), new THREE.Vector3(...w).multiplyScalar(scale),
+              shape.radius.forearm, 'said']);
+    }
     return o;
   };
   const L = parts(fr.L, 5, flipL, 3), R = parts(fr.R, 6, flipR, 4);
+  const pa = new THREE.Vector3(), pb = new THREE.Vector3();
   let gap = Infinity;
   for (const a of L) for (const b of R) {
-    gap = Math.min(gap, segmentDistance(a[0], a[1], b[0], b[1])[0] - a[2] - b[2]);
+    gap = Math.min(gap, segmentClosest(a[0], a[1], b[0], b[1], pa, pb) - a[2] - b[2]);
   }
   return gap;
 }
@@ -178,6 +226,8 @@ export class VrmAvatar {
   #solved = new WeakMap();       // landmark kadrı → {left, right} həll (poza datası dəyişmir)
   #spikes = new WeakMap();       // dinamik poza → {left, right} kadr xəritəsi
   #words = new WeakMap();        // söz → kadrlar üzrə {left, right} həll
+  #guard = null;                 // oynatma qoruyucusunun təkrar istifadə olunan vektorları
+  #guardOff = null;              // qoruyucunun hər qol üçün saxlanan düzəlişi
   #euler = new THREE.Euler();
   #v = new THREE.Vector3();
   #q = new THREE.Quaternion();
@@ -193,6 +243,7 @@ export class VrmAvatar {
     this.idle = 0;
     this.time = 0;
     this.life = true;              // false → nəfəs/baş/göz qırpma söndürülür (ölçmə üçün)
+    this.guard = true;             // false → oynatmada əllər arası qoruyucu söndürülür (ölçmə üçün)
     this.blink = { next: 1.5 + Math.random() * 2, t: -1 };
     this.lastPose = null;
     this.last = null;              // son həll (sazlama və ölçmə üçün)
@@ -262,6 +313,9 @@ export class VrmAvatar {
 
     this.solid = this.#measureSolid();
     this.body = this.#measureBody(vrm.humanoid);
+    this.handShape = this.#measureHands(vrm.humanoid);
+    this.#guard = null;                // qoruyucu bədən ölçülərini yeni avatardan götürsün
+    this.#guardOff = null;
 
     this.#initSprings();
     for (const side of SIDES) this.#toRest(side);
@@ -534,6 +588,10 @@ export class VrmAvatar {
     // əsaslanır. Yenidən həll bədəni nəzərə alır, ona görə qol bədənə qaytarılmır.
     this.#fixSpikes(word, sol, avoid);
     this.#fixSpikes(word, sol, avoid);
+    // Əllər bir də ayrılır: bədən düzəlişi və hamarlama qolları bir-bir yenidən həll edir və
+    // qarşı əli görmür — artıq ayrılmış əllər yenidən bir-birinə girirdi (ölçülüb: "gədə"-nin
+    // 5-ci kadrı +1.2 sm-dən −2.3 sm-ə). Nisbi həndəsə burada təkrar köçürülmür, yalnız ayrılır.
+    this.#fixTwoHanded(word, sol, places, scale, { relative: false });
     this.#words.set(word, sol);
     return sol;
   }
@@ -548,8 +606,9 @@ export class VrmAvatar {
    *      həll olunur. Hədəf datadan gəlir: siqnalçıda əllər toxunursa yalnız səthlər
    *      ayrılır, aralıdırsa tam aralıq bərpa olunur.
    * Hər addımda ölçülür və yalnız ən yaxşı nəticə saxlanılır — düzəlmirsə ilkin poza qalır.
+   * `relative: false` — yalnız ayırma (son keçid: yerləşmə artıq bədənə görə düzəldilib).
    */
-  #fixTwoHanded(word, sol, places, scale) {
+  #fixTwoHanded(word, sol, places, scale, { relative = true } = {}) {
     const touched = new Set();
     const NEAR = 0.16;        // m — siqnalçıda bundan yaxın əllər "toxunan" sayılır
     const MESH = 0.002;       // m — səthlər toxunur, amma bir-birinin içinə girmir
@@ -562,7 +621,7 @@ export class VrmAvatar {
 
       // 1. Nisbi həndəsə: siqnalçının ovucları arasındakı vektor əl ölçüsünə görə köçürülür
       const sg = handGap(fr);
-      if (sg < NEAR) {
+      if (relative && sg < NEAR) {
         const pl = signerPoint(fr.b[5], fr.L.w, 'palm', L.flip);
         const pr = signerPoint(fr.b[6], fr.R.w, 'palm', R.flip);
         const rel = place.dir(pr.map((v, k) => v - pl[k])).multiplyScalar(scale);
@@ -583,11 +642,24 @@ export class VrmAvatar {
       //      həllin içində nəzərə almaq sonradan kənardan itələməkdən qat-qat effektivdir,
       //      çünki bilək həddi (hard) həlli yerində kilidləyir və itələmə onu tərpədə bilmir.
       const bodyAvoid = this.#avoidBody();
+      // Əlləri ayırmaq naminə qolu bədənə salmaq olmaz: hər dəyişiklikdən sonra bədən aralığı
+      // da ölçülür və əvvəlkindən dərinə girən variant rədd olunur. Son keçiddən sonra bədən
+      // düzəlişi yoxdur, ona görə bu yoxlanış olmasa ayrılan əl sinəyə, said gövdəyə girirdi
+      // (ölçülüb: 2 sm-ə qədər).
+      let bodyFloor = null;                           // {left, right}: bədən aralığının alt həddi
+      const bodyOk = () => {
+        bodyFloor ??= {
+          left: Math.min(this.#bodyGap('left', L).gap, 0) - 0.003,
+          right: Math.min(this.#bodyGap('right', R).gap, 0) - 0.003,
+        };
+        return this.#bodyGap('left', L).gap >= bodyFloor.left && this.#bodyGap('right', R).gap >= bodyFloor.right;
+      };
       const probe0 = this.#probeGap(L, R);
       if (probe0 && probe0.gap < 0) {
+        bodyOk();                                     // başlanğıc bədən aralığı yadda saxlanır
         for (const [side, c, oside, other] of [['left', L, 'right', R], ['right', R, 'left', L]]) {
           const caps = prepareCapsules(
-            this.#withPose([[oside, other]], () => this.#collisionParts(oside)), 0.012);
+            this.#withPose([[oside, other]], () => this.#contactParts(oside)), 0.012);
           const avoid = bodyAvoid
             ? (p) => Math.max(bodyAvoid(p), capsuleDepth(caps, p))
             : (p) => capsuleDepth(caps, p);
@@ -598,7 +670,7 @@ export class VrmAvatar {
           const keep = c.arm;
           c.arm = arm;
           const after = this.#probeGap(L, R)?.gap ?? -9;
-          if (after <= before + 0.001) c.arm = keep;
+          if (after <= before + 0.001 || !bodyOk()) c.arm = keep;
           else touched.add(f);
         }
       }
@@ -607,59 +679,74 @@ export class VrmAvatar {
       //    toxunan işarədə yalnız həndəsənin tələb etdiyi qədər (barmaq üst-üstə düşməsin),
       //    datada aralı olan işarədə tam aralıq. Ayırma oxu iki ovucun arasıdır: ən yaxın
       //    nöqtələrin oxu əli bədənə və ya arxaya itələyə bilər.
-      const sb = signerBoneGap(fr, L.flip, R.flip) * scale;
+      const sb = signerGap(fr, L.flip, R.flip, this.handShape, scale);
       const want = THREE.MathUtils.clamp(sb, MESH, FULL);
       const palmAxis = R.anchor.clone().sub(L.anchor);
       if (palmAxis.lengthSq() < 1e-8) continue;
       palmAxis.normalize();
       const first = this.#probeGap(L, R);
       if (!first) continue;
+      if (first.gap < want) bodyOk();
       // Büdcə girmənin dərinliyinə görə: əl saidin içinə 4 sm girəndə 2.5 sm kifayət etmir
       const budget = THREE.MathUtils.clamp(want - first.gap + 0.02, 0.025, 0.08);
       const snap = () => ({ la: L.anchor.clone(), lm: L.arm, ra: R.anchor.clone(), rm: R.arm });
       const restore = (k) => { L.anchor = k.la; L.arm = k.lm; R.anchor = k.ra; R.arm = k.rm; };
       let best = { gap: first.gap, ...snap() };
       let moved = 0, boost = 1, stuck = 0, sepDir = null;
-      for (let iter = 0; iter < 8 && moved < budget; iter++) {
+      // Namizəd istiqamətlər: toqquşma oxu (və ya ovuc oxu), sonra ovuc oxu, önə/arxaya,
+      // yuxarı/aşağı. Əllər bir-birinin önündə olanda ovuc oxu arxadakı əli sinəyə itələyir:
+      // bədən yoxlanışı onu saxlayır və nisbi məsafəni öndəki əl təkbaşına açır.
+      const dirs = [palmAxis, new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
+                    new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0)];
+      const nextDir = () => {
+        const d = dirs.shift();
+        if (!d) return false;
+        restore(best);                                // yeni istiqamət ən yaxşı vəziyyətdən başlayır
+        sepDir = d; moved = 0; boost = 1; stuck = 0;
+        return true;
+      };
+      const floor = bodyFloor ?? {};
+      for (let iter = 0; iter < 14 && moved < budget; iter++) {
         const probe = this.#probeGap(L, R);
         if (!probe || probe.gap >= want) break;
         // Toqquşma qarşı tərəfin saidi ilədirsə, əvvəlcə dirsək fırladılır: bilək və əlin
         // forması olduğu yerdə qalır, yalnız qol kənara çıxır — işarə heç dəyişmir.
         if (this.#armAside(L, R, probe)) {
           const aside = this.#probeGap(L, R);
-          if (aside && aside.gap > best.gap + 0.0005) best = { gap: aside.gap, ...snap() };
+          if (aside && aside.gap > best.gap + 0.0005 && bodyOk()) best = { gap: aside.gap, ...snap() };
           if (aside && aside.gap >= want) break;
           continue;
         }
-        // İstiqamət kadr üçün bir dəfə seçilir və sabit qalır. Hər addımda ən dərin
-        // toqquşmanın oxunu götürmək təsadüfi gəzintiyə çevrilirdi: əllər 36 mm tərpənir,
-        // amma oxlar bir-birini kompensasiya etdiyi üçün aralıq açılmırdı (ölçülüb).
-        // İki addım irəliləyiş olmasa ovuc oxuna keçilir və o da sabit qalır.
-        if (!sepDir || (stuck >= 2 && sepDir !== palmAxis)) {
-          sepDir = stuck >= 2 || probe.axis.dot(palmAxis) < -0.5 ? palmAxis : probe.axis.clone();
-          stuck = 0;
+        // İstiqamət sabit qalır, növbətiyə yalnız iki addım irəliləyiş olmayanda keçilir. Hər
+        // addımda ən dərin toqquşmanın oxunu götürmək təsadüfi gəzintiyə çevrilirdi: əllər
+        // 36 mm tərpənir, amma oxlar bir-birini kompensasiya etdiyi üçün aralıq açılmırdı (ölçülüb).
+        if (!sepDir) {
+          sepDir = probe.axis.dot(palmAxis) < -0.5 ? dirs.shift() : probe.axis.clone();
+        } else if (stuck >= 2 && !nextDir()) {
+          break;
         }
         const dir = sepDir;
         const push = Math.min(((want - probe.gap) / 2 + 0.003) * boost, budget - moved);
         // Əllər bir-birinin içindədirsə, biləyin həddinə bir az güzəşt etmək iki əlin
         // üst-üstə düşməsindən yaxşıdır (həddi aşan hissə solveArm-da onsuz da kəsilir).
         const slack = probe.gap < -0.01 ? 0.05 : probe.gap < 0 ? 0.03 : 0.01;
-        const okL = this.#reanchor(L, 'left', L.anchor.clone().addScaledVector(dir, -push), 8000, slack);
-        const okR = this.#reanchor(R, 'right', R.anchor.clone().addScaledVector(dir, push), 8000, slack);
-        // Bir tərəf tərpənə bilmirsə, nisbi məsafəni digər tərəf iki qat gedərək qapayır
+        const okL = this.#reanchor(L, 'left', L.anchor.clone().addScaledVector(dir, -push), 8000, slack, floor.left);
+        const okR = this.#reanchor(R, 'right', R.anchor.clone().addScaledVector(dir, push), 8000, slack, floor.right);
+        // Bir tərəf tərpənə bilmirsə (bilək həddi və ya bədən), nisbi məsafəni digər tərəf
+        // iki qat gedərək qapayır
         if (okL !== okR) {
           const c = okL ? L : R, side = okL ? 'left' : 'right', sgn = okL ? -1 : 1;
-          this.#reanchor(c, side, c.anchor.clone().addScaledVector(dir, sgn * push), 8000, slack);
+          this.#reanchor(c, side, c.anchor.clone().addScaledVector(dir, sgn * push), 8000, slack, floor[side]);
         }
         if (!okL && !okR) {
-          // Toqquşma oxu boyunca getmək bileyi həddindən çıxarır (ölçülüb: hard 0.005 →
-          // 0.13). Belə kadrlarda ovuc oxu sınanır — çox vaxt o, biləyi məcbur etmir.
-          if (sepDir !== palmAxis) { sepDir = palmAxis; boost = 1; stuck = 0; continue; }
+          // Bu istiqamət bileyi həddindən çıxarır (ölçülüb: hard 0.005 → 0.13) və ya əli
+          // bədənə salır — növbəti namizəd sınanır
+          if (nextDir()) continue;
           break;                                      // qol daha yaxşı həll tapmır
         }
         moved += push;
         const after = this.#probeGap(L, R);
-        if (after && after.gap > best.gap + 0.0005) {
+        if (after && after.gap > best.gap + 0.0005 && bodyOk()) {
           best = { gap: after.gap, ...snap() };
           boost = 1;
           stuck = 0;
@@ -881,13 +968,20 @@ export class VrmAvatar {
    * əvvəlkindən nəzərəçarpacaq dərəcədə pisdirsə, köhnə poza saxlanılır: əlləri ayırmaq
    * naminə qolu qeyri-təbii vəziyyətə salmaq daha pis nəticədir.
    */
-  #reanchor(c, side, anchor, shiftCost = 1500, slack = 0.01) {
+  #reanchor(c, side, anchor, shiftCost = 1500, slack = 0.01, bodyFloor = null) {
     const next = this.#keepOut(anchor);
-    const arm = solveArm(this.rigs[side], c.target.R, next, null, { elbow: c.elbow, shiftCost, avoid: this.#avoidBody() });
+    // Bədən yoxlanışı ilə çağırılanda (əlləri ayırmaq) dirsək olduğu yerdə saxlanılır: siqnalçının
+    // dirsəyinə qayıtmaq #fixBody-nin bədəndən çıxardığı qolu yenidən gövdəyə salırdı və hər
+    // addım rədd olunurdu (ölçülüb: "çəkmək", "tərcümə")
+    const elbow = bodyFloor != null ? c.arm.info.E : c.elbow;
+    const arm = solveArm(this.rigs[side], c.target.R, next, null, { elbow, shiftCost, avoid: this.#avoidBody() });
     // Güzəştin mütləq tavanı var: biləyi həddindən ~10°-dən çox çıxarmaq əlləri ayırmaqdan
     // pisdir — istifadəçi onu "anormal əl" kimi görür.
     const cap = Math.min(HARD_CEIL, Math.max(slack * 2, c.arm.info.hard + slack));
     if (!arm || arm.info.hard > cap) return false;
+    // `bodyFloor` verilibsə, qol bədənə ondan dərin girməməlidir (bütün qol ölçülür:
+    // IK-nın maneə qiyməti yalnız beş nöqtəyə baxır)
+    if (bodyFloor != null && this.#bodyGap(side, { ...c, arm }).gap < bodyFloor) return false;
     c.anchor = next;
     c.arm = arm;
     return true;
@@ -919,25 +1013,257 @@ export class VrmAvatar {
 
   #probeGap(L, R) {
     const [pl, pr] = this.#withPose([['left', L], ['right', R]],
-      () => [this.#collisionParts('left'), this.#collisionParts('right')]);
-    let gap = Infinity, axis = null, pair = null;
-    for (const a of pl) for (const b of pr) {
-      const [dist, pa, pb] = segmentDistance(a[0], a[1], b[0], b[1]);
-      const d = dist - a[2] - b[2];          // səthlər arası məsafə (mənfi = içəri girib)
-      if (d < gap) {
-        gap = d;
-        pair = `${a[3]}/${b[3]}`;
-        axis = pb.clone().sub(pa);
-        // Parçalar kəsişirsə ən yaxın nöqtələr üst-üstə düşür və istiqamət itir:
-        // onda toqquşan iki sümüyün mərkəzləri arasındakı ox götürülür.
-        if (axis.lengthSq() < 1e-8) {
-          axis = b[0].clone().add(b[1]).sub(a[0]).sub(a[1]).multiplyScalar(0.5);
-        }
-      }
+      () => [this.#contactParts('left'), this.#contactParts('right')]);
+    return closestParts(pl, pr);
+  }
+
+  /**
+   * İki əl toqquşması üçün bir tərəfin hissələri: mesh-dən ölçülmüş əl kapsulları (barmaq
+   * ucları daxil), said və bazunun dirsəyə yaxın yarısı. Bədənlə toqquşma köhnə, nazik
+   * modellə qalır (#collisionParts): orada barmaq ucunun çənəyə, sinəyə toxunması işarənin
+   * özüdür və onu "bədənə girmə" saymaq olmaz.
+   */
+  #contactParts(side, points = null) {
+    if (!this.handShape) return this.#collisionParts(side);
+    const parts = handCapsules(points ?? this.#handPoints(side), this.handShape);
+    const at = (b) => this.bone(side + b)?.getWorldPosition(new THREE.Vector3());
+    const upper = at('UpperArm'), lower = at('LowerArm'), hand = at('Hand');
+    parts.push([lower, hand, this.handShape.radius.forearm, 'said']);
+    parts.push([upper.clone().lerp(lower, 0.5), lower, R_UPPERARM, 'çiyin']);
+    return parts;
+  }
+
+  /** Avatarın əlinin 21 nöqtəsi (MediaPipe sırası) — skeletin dünya matrisləri yenilənmiş olmalıdır. */
+  #handPoints(side) {
+    const at = (b) => this.bone(side + b).getWorldPosition(new THREE.Vector3());
+    const P = [at('Hand')];
+    for (const [name, bones] of Object.entries(FINGER_BONE_NAMES)) {
+      for (const b of bones) P.push(at(name + b));
+      P.push(this.bone(side + name + bones[2]).localToWorld(this.handShape.tips[side][name].clone()));
     }
-    if (!axis) return null;
-    if (axis.lengthSq() < 1e-8) axis.set(1, 0, 0);
-    return { gap, pair, axis: axis.normalize() };
+    return P;
+  }
+
+  /**
+   * Əlin toqquşma forması mesh-dən (T-pozada, yükləmədə bir dəfə): hər barmaq sümüyünün
+   * kapsul radiusu ona bağlı vertex-lərin oxdan median məsafəsidir; barmağın son sümüyü
+   * modelin uc sümüyünə qədər uzanır (uc sümüyü yoxdursa — vertex-lərin ən uzaq proyeksiyasına);
+   * ovucun radiusu ovucun ortasındakı yarım qalınlığıdır. Əvvəlki sabit model (8/10 mm,
+   * uc sümüyü yox) barmağın son 2-3 sm-ini və ovucun yarısını görmürdü: həll əlləri "ayrı"
+   * sayırdı, halbuki onlar 1-2 sm bir-birinin içində idi (ölçülüb).
+   */
+  #measureHands(humanoid) {
+    const raw = (n) => humanoid.getRawBoneNode(n);
+    const W = (o) => o.getWorldPosition(new THREE.Vector3());
+    const verts = new Map();
+    const want = new Set();
+    for (const side of SIDES) {
+      want.add(raw(side + 'Hand')).add(raw(side + 'LowerArm'));
+      for (const [name, bones] of Object.entries(FINGER_BONE_NAMES)) for (const b of bones) want.add(raw(side + name + b));
+    }
+    const v = new THREE.Vector3();
+    this.vrm.scene.traverse((m) => {
+      if (!m.isSkinnedMesh) return;
+      const pos = m.geometry.attributes.position;
+      const si = m.geometry.attributes.skinIndex, sw = m.geometry.attributes.skinWeight;
+      if (!pos || !si || !sw) return;
+      for (let i = 0; i < pos.count; i++) {
+        let bi = -1, best = 0;
+        for (let k = 0; k < 4; k++) {
+          const w = sw.getComponent(i, k);
+          if (w > best) { best = w; bi = si.getComponent(i, k); }
+        }
+        const bone = m.skeleton.bones[bi];
+        if (best < 0.5 || !want.has(bone)) continue;
+        v.fromBufferAttribute(pos, i);
+        m.applyBoneTransform(i, v);
+        v.applyMatrix4(m.matrixWorld);
+        if (!verts.has(bone)) verts.set(bone, []);
+        verts.get(bone).push(v.clone());
+      }
+    });
+    const median = (arr) => {
+      const s = arr.filter(Number.isFinite).sort((a, b) => a - b);
+      return s.length ? s[s.length >> 1] : NaN;
+    };
+    const radiusOf = (bone, a, b) => {
+      const ab = b.clone().sub(a);
+      return median((verts.get(bone) ?? []).map((p) => {
+        const t = THREE.MathUtils.clamp(p.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
+        return p.distanceTo(a.clone().addScaledVector(ab, t));
+      }));
+    };
+    // Mesh-də bir hissə tapılmasa köhnə sabitlər qalır
+    const FALLBACK = [R_FINGER, R_FINGER, R_FINGER * 0.75];
+    const acc = { palm: [], forearm: [] };
+    const tips = {};
+    for (const side of SIDES) {
+      tips[side] = {};
+      for (const [name, bones] of Object.entries(FINGER_BONE_NAMES)) {
+        const r = bones.map((b) => raw(side + name + b));
+        const P = r.map(W);
+        const end = r[2].children.find((c) => c.isBone);
+        let tip = end ? W(end) : null;
+        if (!tip || tip.distanceTo(P[2]) < 0.005) {
+          const dir = P[2].clone().sub(P[1]).normalize();
+          const far = Math.max(0.012, ...(verts.get(r[2]) ?? []).map((p) => p.clone().sub(P[2]).dot(dir)));
+          tip = P[2].clone().addScaledVector(dir, far - 0.004);
+        }
+        const norm = this.bone(side + name + bones[2]);
+        tips[side][name] = norm.worldToLocal(tip.clone());
+        const chain = [...P, tip];
+        (acc[name] ??= [[], [], []]).forEach((list, k) => list.push(radiusOf(r[k], chain[k], chain[k + 1])));
+      }
+      const hand = raw(side + 'Hand'), w0 = W(hand);
+      const mid = W(raw(side + 'MiddleProximal')), idx = W(raw(side + 'IndexProximal'));
+      const lit = W(raw(side + 'LittleProximal'));
+      const d = mid.clone().sub(w0), len = d.length();
+      d.normalize();
+      const n = d.clone().cross(idx.clone().sub(lit)).normalize();
+      const band = (verts.get(hand) ?? []).filter((p) => {
+        const t = p.clone().sub(w0).dot(d) / len;
+        return t > 0.45 && t < 0.9;
+      });
+      acc.palm.push(median(band.map((p) => Math.abs(p.clone().sub(w0).dot(n)))));
+      const lower = raw(side + 'LowerArm');
+      acc.forearm.push(radiusOf(lower, W(lower), w0));
+    }
+    const avg = (list, fallback) => {
+      const ok = list.filter(Number.isFinite);
+      return ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : fallback;
+    };
+    const radius = { palm: avg(acc.palm, R_PALM), forearm: avg(acc.forearm, R_FOREARM) };
+    for (const name of Object.keys(FINGER_BONE_NAMES)) radius[name] = acc[name].map((l, k) => avg(l, FALLBACK[k]));
+    return { tips, radius };
+  }
+
+  /**
+   * Oynatmada iki əl bir-birinin içindən keçməsin. Kadrlar həll olunanda ayrılır, amma yaylar
+   * kadrlar arasında (və qol istirahətdən qalxanda) hər qolu müstəqil fırladır: hər iki kadrda
+   * aralı olan əllər yolda bir-birinin içindən keçə bilir (ölçülüb: "lazım"-da kadrlarda əllər
+   * ən azı 12 sm aralıdır, qollar qalxarkən 1.4 sm bir-birinə girirdi). Yaylardan sonra
+   * göstərilən poza ölçülür; girmə varsa hər bazu çiyin ətrafında azca döndərilir və əllər
+   * aralanır — əlin forması və biləyi dəyişmir, qol bədənə əvvəlkindən dərin girmir. Düzəliş
+   * yayların vəziyyətinə yazılmır: hər qol üçün ayrıca saxlanır, kadrdan kadra sönür və
+   * toqquşma bitəndə öz-özünə yox olur. `fresh` — əvvəlki düzəliş atılır (snap).
+   */
+  #guardHands(dt = 0, fresh = false) {
+    if (!this.guard || !this.handShape || !this.rigs) return;
+    this.vrm.humanoid.normalizedHumanBonesRoot.updateWorldMatrix(true, true);
+    const g = this.#guard ??= {
+      q: new THREE.Quaternion(), pq: new THREE.Quaternion(), p: new THREE.Vector3(), one: new THREE.Quaternion(),
+      avoid: this.#avoidBody() ?? (() => -Infinity),
+      dirs: [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
+        .map((v) => new THREE.Vector3(...v)),
+    };
+    const palm = (P) => P[0].clone().add(P[5]).add(P[9]).add(P[17]).multiplyScalar(0.25);
+    const shoulder = { left: this.bone('leftUpperArm'), right: this.bone('rightUpperArm') };
+    // Yalnız əlin iştirak etdiyi toqquşmalar: çarpazlaşan qollar (said/bazu cütləri) bəzi
+    // işarələrin özüdür, onları çiyindən itələmək saidi gövdəyə salırdı (ölçülüb)
+    const isArm = (x) => x[3] === 'said' || x[3] === 'çiyin';
+    const armOnly = (a, b) => isArm(a) && isArm(b);
+    // Hər qolun düzəlişi (çiyin ətrafında dünya fırlanması) kadrdan kadra saxlanır və tədricən
+    // sönür. Hər kadr sıfırdan başlayanda qoruyucu bəzi kadrlarda istiqamət tapmırdı və düzəliş
+    // birdən itirdi — əllər titrəyirdi (ölçülüb: "yeni"-nin son pozasında aralıq kadrdan kadra
+    // −0.2 → −2.0 → +0.2 sm). İndi yalnız çatmayan hissə əlavə olunur, toqquşma bitəndə
+    // düzəliş ~0.3 s-də yox olur.
+    const off = this.#guardOff ??= { left: new THREE.Quaternion(), right: new THREE.Quaternion() };
+    const turn = (side, q) => {
+      const upper = shoulder[side];
+      upper.parent.getWorldQuaternion(g.pq);
+      // Dünya fırlanması lokala: q_lokal' = P⁻¹ · Δ · P · q_lokal
+      upper.quaternion.premultiply(g.pq.clone().invert().multiply(q).multiply(g.pq));
+      upper.updateWorldMatrix(false, true);
+    };
+    for (const side of SIDES) {
+      if (fresh) off[side].identity();
+      else if (dt > 0) off[side].slerp(g.one, 1 - Math.exp(-dt / 0.12));
+      if (1 - Math.abs(off[side].w) > 1e-9) turn(side, off[side]);
+    }
+    for (let iter = 0; iter < 4; iter++) {
+      const PL = this.#handPoints('left'), PR = this.#handPoints('right');
+      const parts = { left: this.#contactParts('left', PL), right: this.#contactParts('right', PR) };
+      const hit = closestParts(parts.left, parts.right, armOnly);
+      // Toxunmaq olar (aralıq ≈ 0 — toxunan işarələr belə qalır), bir-birinə keçmək olmaz
+      if (!hit || hit.gap >= -GUARD_SLACK) return;
+      // Bir addımda ən çoxu 2 sm (üç qatı 6 sm): daha böyük girmə yayın deyil, həllin səhvidir
+      const need = Math.min(-GUARD_SLACK - hit.gap + 0.001, 0.02);
+      const S = { left: shoulder.left.getWorldPosition(new THREE.Vector3()),
+                  right: shoulder.right.getWorldPosition(new THREE.Vector3()) };
+      const contact = { left: hit.pa, right: hit.pb };
+      // Hər əlin real yerdəyişməsi: çiyin fırlanması δ-nin yalnız r-ə perpendikulyar hissəsini verir
+      const reach = (side, dir, amount) => {
+        const r = contact[side].clone().sub(S[side]);
+        const d = dir.clone().multiplyScalar(amount);
+        return d.addScaledVector(r, -d.dot(r) / Math.max(r.lengthSq(), 1e-4));
+      };
+      // Ayırma istiqaməti sınaqla seçilir. Ən yaxın nöqtələrin oxu barmaqlar bir-birinə
+      // keçəndə hər addımda əks tərəfə dönür və itələmələr bir-birini sıfırlayır, ovucların
+      // oxu isə əllər bir-birinin önündə olanda yavaş açır (ölçülüb). Namizədlər — ovuc oxu,
+      // toqquşma oxu və bədənin üç oxu — hissələri sürüşdürməklə yoxlanılır. Barmaqlar bir-
+      // birinə keçəndə kiçik addım heç bir istiqamətdə aralığı açmır (yeni cüt ən yaxın olur),
+      // ona görə istiqamət üç qat addımla seçilir, addımın özü isə ən kiçik kifayət edəndir.
+      const shift = (list, d) => list.map(([a, b, r, n]) => [a.clone().add(d), b.clone().add(d), r, n]);
+      // Əl bədənə doğru itələnməsin: ovuc, barmaq ucları və saidin ortası bədənə əvvəlkindən
+      // dərin girən istiqamət rədd olunur (bədən qolun öz IK-sında da maneədir, bura onu pozmasın)
+      const P = { left: PL, right: PR };
+      const depth = (side, d) => {
+        let worst = -Infinity;
+        for (const j of [0, 4, 8, 12, 16, 20, 5, 17]) worst = Math.max(worst, g.avoid(g.p.copy(P[side][j]).add(d)));
+        const said = parts[side].find((x) => x[3] === 'said');
+        if (said) worst = Math.max(worst, g.avoid(g.p.copy(said[0]).lerp(said[1], 0.5).addScaledVector(d, 0.5)));
+        return worst;
+      };
+      const zero = new THREE.Vector3();
+      // Qolun real pozasında bədənə girmə: dirsək, saidin üç nöqtəsi, bilək və barmaq ucları
+      const bodyNow = (side) => {
+        const e = this.bone(side + 'LowerArm').getWorldPosition(new THREE.Vector3());
+        const h = this.bone(side + 'Hand').getWorldPosition(new THREE.Vector3());
+        let worst = -Infinity;
+        for (const t of [0, 0.33, 0.66, 1]) worst = Math.max(worst, g.avoid(g.p.copy(e).lerp(h, t)));
+        const Pn = this.#handPoints(side);
+        for (const j of [4, 8, 12, 16, 20, 5, 17]) worst = Math.max(worst, g.avoid(Pn[j]));
+        return worst;
+      };
+      const limit = { left: Math.max(depth('left', zero), 0) + 0.003, right: Math.max(depth('right', zero), 0) + 0.003 };
+      const trial = (dir, k) => {
+        const dl = reach('left', dir, (-need * k) / 2), dr = reach('right', dir, (need * k) / 2);
+        if (depth('left', dl) > limit.left || depth('right', dr) > limit.right) return { gap: -Infinity, dl, dr };
+        return { gap: closestParts(shift(parts.left, dl), shift(parts.right, dr), armOnly)?.gap ?? -Infinity, dl, dr };
+      };
+      let dir = null, far = -Infinity;
+      for (const d of [palm(PR).sub(palm(PL)).normalize(), hit.axis, ...g.dirs]) {
+        const t = trial(d, 3);
+        if (t.gap > far) { far = t.gap; dir = d; }
+      }
+      if (!dir) return;                                            // hər istiqamət bədənə aparır
+      let best = null;
+      for (const k of [1, 2, 3]) {
+        best = trial(dir, k);
+        if (best.gap >= -GUARD_SLACK) break;
+      }
+      if (best.gap <= hit.gap + 0.0005) return;                   // heç bir istiqamət açmır
+      let moved = false;
+      for (const side of SIDES) {
+        const r = contact[side].clone().sub(S[side]);
+        // Kiçik dönmə ω: nöqtə ω × r qədər yerini dəyişir, ω = r × δ / |r|²
+        const w = r.clone().cross(side === 'left' ? best.dl : best.dr).divideScalar(Math.max(r.lengthSq(), 0.01));
+        const ang = Math.min(w.length(), 10 * DEG);
+        if (ang < 1e-6) continue;
+        g.q.setFromAxisAngle(w.normalize(), ang);
+        const was = bodyNow(side);
+        turn(side, g.q);
+        // Sınaq əlin yerdəyişməsinə baxır, çiyin fırlanması isə dirsəyi başqa tərəfə apara bilər:
+        // qol bədənə əvvəlkindən dərin girirsə bu tərəfin dönməsi geri alınır (ölçülüb: "ünvan")
+        if (bodyNow(side) > Math.max(was, 0) + 0.003) {
+          turn(side, g.q.clone().invert());
+          continue;
+        }
+        off[side].premultiply(g.q);
+        moved = true;
+      }
+      if (!moved) return;
+    }
   }
 
   /**
@@ -1260,6 +1586,7 @@ export class VrmAvatar {
       s.w.set(0, 0, 0);
       s.node.quaternion.copy(s.q);
     }
+    this.#guardHands(0, true);
     if (this.camGoal) {
       this.camera.position.copy(this.camGoal.pos);
       this.camTarget.copy(this.camGoal.target);
@@ -1359,6 +1686,7 @@ export class VrmAvatar {
     }
     this.#animateLife(dt);
     this.#stepSprings(dt);
+    this.#guardHands(dt);
     this.vrm.update(dt);
     if (this.camGoal) {
       const k = 1 - Math.exp(-4 * dt);

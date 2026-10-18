@@ -18,11 +18,16 @@
  *   axis     — eyni, radiussuz: sümük oxları arasındakı ən kiçik məsafə
  *   arm      — əl ilə qarşı tərəfin saidi arasında səth məsafəsi
  *   signer   — siqnalçının datasında `gap` (avatarın əl ölçüsünə miqyaslanıb, eyni radiuslar)
- *   skel     — cyber skeleton-un göstərdiyi nöqtələrdə ox məsafəsi (siqnalçının metri)
+ *   skel     — cyber skeleton-un göstərdiyi nöqtələrdə ox məsafəsi (siqnalçının metri);
+ *              skelRaw — t2s.js əlləri ayırmazdan əvvəlki data
+ * Oynatmada (yaylarla, 60 Hz, istirahətdən başlayaraq) hər yeniləmədə `gap` və ovucun bir
+ * yeniləmədəki yerdəyişməsi (`step`, qoruyucu əlləri sıçratmasın). `guard: false` — vrm.js-in
+ * oynatma qoruyucusu söndürülür, yalnız həllin özü ölçülür.
  * Mövcud keyfiyyət ölçüləri də yığılır: ovucun hədəfə məsafəsi, bədənə girmə, kadrdan çıxma,
  * bilək həddinin aşılması.
  */
 import * as THREE from 'three';
+import * as T2S from '../src/tercume/t2s.js';
 
 const SIDES = ['left', 'right'];
 const FINGERS = {
@@ -245,12 +250,13 @@ function frameOut(avatar, cam, pts) {
 }
 
 /** Ölçmə üçün avatarı hazırlayır: canlılıq söndürülür, zaman addımı xaricdən verilir. */
-function takeOver(avatar) {
-  const keep = { paused: avatar.paused, life: avatar.life };
+function takeOver(avatar, guard) {
+  const keep = { paused: avatar.paused, life: avatar.life, guard: avatar.guard };
   avatar.paused = true;
   avatar.life = false;
+  if (guard != null) avatar.guard = guard;   // oynatma qoruyucusu (vrm.js) — müqayisə üçün söndürülə bilər
   avatar.update(0);                   // canlılıq ofsetləri sıfırlansın
-  return () => { avatar.paused = keep.paused; avatar.life = keep.life; };
+  return () => Object.assign(avatar, keep);
 }
 
 function toRest(avatar) {
@@ -298,9 +304,14 @@ export function measureWord(avatar, model, word, { playback = true } = {}) {
         const sg = handGap(sc(sL), sc(sR), radius);
         row.signer = sg.gap;
         row.signerPair = sg.pair;
-        // Skeleton: eyni nöqtələr, dərinlik 0.8 ilə sıxılır (skeleton.js)
-        const kL = signerHand(fl, 'L', 5, sol.left.flip, 0.8), kR = signerHand(frr, 'R', 6, sol.right.flip, 0.8);
-        row.skel = handGap(kL, kR, Object.fromEntries(Object.keys(radius).map((k) => [k, 0]))).axis;
+        // Skeleton: t2s.js-in göndərdiyi nöqtələr (əllər ayrıldıqdan sonra), dərinlik 0.8 ilə
+        // sıxılır (skeleton.js). skelRaw — ayırmadan əvvəlki data.
+        const zero = Object.fromEntries(Object.keys(radius).map((k) => [k, 0]));
+        const sk = [...sL, ...sR].map(([x, y, z]) => ({ x, y, z }));
+        T2S.separateHands?.(sk);
+        const z8 = (P) => P.map((p) => [p.x, p.y, p.z * 0.8]);
+        row.skel = handGap(z8(sk.slice(0, 21)), z8(sk.slice(21)), zero).axis;
+        row.skelRaw = handGap(sL.map(([x, y, z]) => [x, y, z * 0.8]), sR.map(([x, y, z]) => [x, y, z * 0.8]), zero).axis;
       }
     }
     // Mövcud keyfiyyət ölçüləri (hər iki əl üçün)
@@ -332,12 +343,19 @@ export function measureWord(avatar, model, word, { playback = true } = {}) {
     const dt = 1 / word.fps;
     const hold = (0.15 + 0.12);
     const total = word.frames.length;
+    // Hamarlıq: ovuc mərkəzinin bir yeniləmədə (1/60 s) ən böyük yerdəyişməsi — qoruyucu
+    // əlləri sıçratmamalıdır
+    let prev = null;
+    const palmOf = (P) => [0, 1, 2].map((k) => (P[0][k] + P[5][k] + P[9][k] + P[17][k]) / 4);
     const run = (f, dur) => {
       const n = Math.max(1, Math.round(dur * 60));
       for (let i = 0; i < n; i++) {
         avatar.update(dur / n);
         const { L, R } = measureNow();
-        if (L && R) play.push({ f, ...handGap(L, R, radius) });
+        const now = [L, R].map((P) => P && palmOf(P));
+        const step = prev ? Math.max(0, ...now.map((p, k) => (p && prev[k] ? Math.hypot(...p.map((v, j) => v - prev[k][j])) : 0))) : 0;
+        prev = now;
+        if (L && R) play.push({ f, step, ...handGap(L, R, radius) });
       }
     };
     for (let f = 0; f < total; f++) {
@@ -365,9 +383,11 @@ export function summarize(id, text, res) {
     axis: worst?.axis ?? null,
     signer: worst?.signer ?? null,
     skel: two.length ? Math.min(...two.map((r) => r.skel ?? Infinity)) : null,
+    skelRaw: two.length ? Math.min(...two.map((r) => r.skelRaw ?? Infinity)) : null,
     deep: two.filter((r) => r.gap < -0.005).length,           // >5 mm girmə olan kadrlar
     armGap: two.length ? Math.min(...two.map((r) => r.arm)) : null,
     playGap: res.play.length ? Math.min(...res.play.map((r) => r.gap)) : null,
+    playStep: res.play.length ? Math.max(...res.play.map((r) => r.step)) : null,
     reach: sides.map((s) => s.reach),
     place: sides.map((s) => s.place).filter((v) => v != null),
     bodyHand: max(sides.map((s) => s.hand)),
@@ -378,10 +398,10 @@ export function summarize(id, text, res) {
 }
 
 /** Bütün lüğət (və ya `ids`): söz-söz xülasə + ümumi göstəricilər. */
-export async function measureWords(state, { ids = null, playback = true, keepFrames = [] } = {}) {
+export async function measureWords(state, { ids = null, playback = true, keepFrames = [], guard = null } = {}) {
   const avatar = state.avatar;
   const model = handModel(avatar);
-  const release = takeOver(avatar);
+  const release = takeOver(avatar, guard);
   const rows = [], detail = {};
   const t0 = performance.now();
   try {
@@ -410,7 +430,10 @@ export function totals(rows) {
     handInHand10: count((r) => r.gap != null && r.gap < -0.010),        // >1 sm
     handInHandPlay: count((r) => r.playGap != null && r.playGap < -0.005),
     deepFrames: rows.reduce((a, r) => a + r.deep, 0),
+    playStepMaxCm: cm(Math.max(...rows.map((r) => r.playStep ?? 0))),
+    playStepP90Cm: cm(q(rows.filter((r) => r.playStep != null).map((r) => r.playStep), 0.9)),
     handInArm: count((r) => r.armGap != null && r.armGap < -0.005),
+    skelCrossing: count((r) => r.skel != null && r.skel < 0.01),       // skeletdə sümük oxları <1 sm
     worstGapCm: cm(Math.min(...two.map((r) => r.gap))),
     reachMedianCm: cm(q(reach, 0.5)), reachP90Cm: cm(q(reach, 0.9)),
     placeMedianCm: cm(q(place, 0.5)), placeP90Cm: cm(q(place, 0.9)),
@@ -419,7 +442,8 @@ export function totals(rows) {
     bodyArmMaxCm: cm(Math.max(...rows.map((r) => r.bodyArm ?? -1))),
     bodyArmWords: count((r) => r.bodyArm > 0.005),
     outOfFrame: count((r) => r.out > 1),
-    wristWords: count((r) => r.wrist > 1),
+    wristWords: count((r) => r.wrist > 5),                             // biləyin həddini >5° aşan
+    wristCeil: count((r) => r.wrist > 10.7),                           // vrm.js HARD_CEIL-dən çox
     wristMaxDeg: Math.round(Math.max(...rows.map((r) => r.wrist ?? 0)) * 10) / 10,
   };
 }

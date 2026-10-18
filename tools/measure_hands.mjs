@@ -7,6 +7,7 @@
  *   node tools/measure_hands.mjs                      # bütün sözlər, xülasə konsola
  *   node tools/measure_hands.mjs --out hands.json     # tam hesabat faylda
  *   node tools/measure_hands.mjs --words ad-gunu,agirdir --frames
+ *   node tools/measure_hands.mjs --no-guard           # oynatma qoruyucusu olmadan (yalnız həll)
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'vite';
@@ -46,10 +47,10 @@ try {
   await page.waitForFunction(() => window.__chevir?.lexicon, { timeout: 120000 });
   await page.click('.tab[data-tab="t2s"]');
   await page.waitForFunction(() => window.__chevir?.avatar?.vrm, { timeout: 180000 });
-  const rep = await page.evaluate(async (ids, keep) => {
+  const rep = await page.evaluate(async (ids, keep, guard) => {
     const m = await import('/tools/measure_hands.js');
-    return m.measureWords(window.__chevir, { ids, keepFrames: keep });
-  }, ids, args.includes('--frames') ? (ids ?? []) : []);
+    return m.measureWords(window.__chevir, { ids, keepFrames: keep, guard });
+  }, ids, args.includes('--frames') ? (ids ?? []) : [], args.includes('--no-guard') ? false : null);
 
   if (out) writeFileSync(out, JSON.stringify(rep, null, 1));
   const cm = (v) => (v == null ? '   -  ' : (v * 100).toFixed(1).padStart(6));

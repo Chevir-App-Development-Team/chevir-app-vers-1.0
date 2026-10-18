@@ -93,6 +93,7 @@ export class TextToSign {
         pts.push(base ? { x: base[0] + o[0], y: base[1] + o[1], z: base[2] + o[2] } : { x: o[0], y: o[1], z: o[2] });
       }
     }
+    if (pts.length === 42) separateHands(pts);
     for (const t of this.targets) {
       if (typeof t.setWordPose === 'function') t.setWordPose(word, f);
       else if (typeof t.setPose === 'function') t.setPose(pts.length ? pts : null);
@@ -204,6 +205,56 @@ export class TextToSign {
     while (performance.now() < end || this.paused) {
       if (this._abort !== token) return;
       await new Promise((r) => setTimeout(r, 16));
+    }
+  }
+}
+
+// Əlin sümükləri (MediaPipe indeksləri): barmaq zəncirləri və ovucun kənarları
+const HAND_BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10],
+  [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]];
+
+/** İki parça arasındakı ən kiçik məsafə ({x,y,z} nöqtələr). */
+function segDist(p1, p2, p3, p4) {
+  const ux = p2.x - p1.x, uy = p2.y - p1.y, uz = p2.z - p1.z;
+  const vx = p4.x - p3.x, vy = p4.y - p3.y, vz = p4.z - p3.z;
+  const wx = p1.x - p3.x, wy = p1.y - p3.y, wz = p1.z - p3.z;
+  const a = ux * ux + uy * uy + uz * uz, b = ux * vx + uy * vy + uz * vz, c = vx * vx + vy * vy + vz * vz;
+  const d = ux * wx + uy * wy + uz * wz, e = vx * wx + vy * wy + vz * wz;
+  const den = a * c - b * b;
+  const cl = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+  let s = den > 1e-12 ? cl((b * e - c * d) / den) : 0;
+  let t = c > 1e-12 ? (b * s + e) / c : 0;
+  if (t < 0) { t = 0; s = a > 1e-12 ? cl(-d / a) : 0; } else if (t > 1) { t = 1; s = a > 1e-12 ? cl((b - d) / a) : 0; }
+  return Math.hypot(wx + s * ux - t * vx, wy + s * uy - t * vy, wz + s * uz - t * vz);
+}
+
+/**
+ * Skeleton üçün iki əl (42 nöqtə, metr) bir-birinin içindən keçməsin. Datada əllərin nisbi
+ * dərinliyi pozanın biləklərindən gəlir və səs-küylüdür: toxunan əllər datada 1-3 sm bir-birinin
+ * içində görünür, skeletdə sümüklər bir-birini kəsirdi (ölçülüb: tools/measure_hands.js). Əllər
+ * ovuclarını birləşdirən ox boyunca aralanır ki, sümük oxları arasında ən azı `min` qalsın —
+ * təsvirdəki oynaq kürəsinin diametri qədər: toxunan əllər toxunan qalır. Nöqtələr yerində dəyişir.
+ */
+export function separateHands(pts, min = 0.02) {
+  const gap = () => {
+    let g = Infinity;
+    for (const [a, b] of HAND_BONES) for (const [c, e] of HAND_BONES) g = Math.min(g, segDist(pts[a], pts[b], pts[21 + c], pts[21 + e]));
+    return g;
+  };
+  const centre = (o) => ['x', 'y', 'z'].map((k) => [0, 5, 9, 17].reduce((s, j) => s + pts[o + j][k], 0) / 4);
+  for (let i = 0; i < 6; i++) {
+    const g = gap();
+    if (g >= min) return;
+    // Ox ən yaxın sümüklərdən yox, ovuclardan götürülür: barmaqlar bir-birinə keçəndə ən yaxın
+    // cütün oxu hər addımda başqa tərəfə baxır
+    const [l, r] = [centre(0), centre(21)];
+    let ax = r.map((v, k) => v - l[k]);
+    const len = Math.hypot(...ax);
+    ax = len > 1e-6 ? ax.map((v) => v / len) : [1, 0, 0];
+    const step = (min - g) / 2 + 0.002;
+    for (let k = 0; k < 21; k++) {
+      pts[k].x -= ax[0] * step; pts[k].y -= ax[1] * step; pts[k].z -= ax[2] * step;
+      pts[21 + k].x += ax[0] * step; pts[21 + k].y += ax[1] * step; pts[21 + k].z += ax[2] * step;
     }
   }
 }
