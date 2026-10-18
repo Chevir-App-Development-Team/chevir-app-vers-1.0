@@ -368,6 +368,9 @@ function initT2S() {
     t2s.opts.holdMs = +e.target.value;
     $('#hold-val').textContent = e.target.value + 'ms';
   });
+  $('#speed').addEventListener('change', (e) => {
+    t2s.opts.speed = +e.target.value;    // 0.25× — dörd dəfə yavaş, 2× — iki dəfə sürətli
+  });
   $('#hand').addEventListener('change', (e) => {
     state.avatar?.setHand(e.target.value);
   });
