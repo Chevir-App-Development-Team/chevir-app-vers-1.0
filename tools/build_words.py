@@ -45,8 +45,16 @@ ALIAS = {
     'GUN': 'gün', 'IKI': 'iki', 'İŞİGİ': 'işığı', 'SÖNDURƏ': 'söndürə', 'ÜNVANLİ': 'ünvanlı',
     'XİRDA': 'xırda', 'RƏSİM': 'rəsm', 'EŞİTMƏ MƏHDÜDİYYƏTLİ': 'eşitmə məhdudiyyətli',
     'COX': 'çox', 'DOVLƏT': 'dövlət', 'SAGLAM': 'sağlam', 'IL': 'il', 'PENİSYA': 'pensiya',
-    'QARABAQ': 'qarabağ', 'KECİR': 'keçir', 'AGIRDI': 'ağırdı', 'YAZA': 'yaza',
+    'QARABAQ': 'Qarabağ', 'KECİR': 'keçir', 'YAZA': 'yaza', 'EDE': 'edə', 'YARDIM': 'yardım',
+    'YARDIMI': 'yardımı', 'VALİDEYİN': 'valideyn', 'RAZ': 'razı', 'KİM?': 'kim',
+    'OLMUSUZ': 'olmusunuz', 'AGIRDI': 'ağırdır', 'ABŞERON RAYON': 'Abşeron rayonu',
+    # Xüsusi adlar böyük hərflə, danışıq formaları ədəbi yazılışla
+    'AZƏRBAYCAN': 'Azərbaycan', 'BAKI': 'Bakı', 'QARABAĞ': 'Qarabağ', 'COVİD': 'Covid',
+    'BURDA': 'burada', 'ORDA': 'orada', 'HARDA': 'harada',
 }
+
+# Ədəbi yazılışdan başqa, mətndə rast gəlinə bilən variantlar (axtarış üçün)
+ALT = {'burada': ['burda'], 'orada': ['orda'], 'harada': ['harda']}
 
 TRANSLIT = str.maketrans({'ə': 'e', 'ı': 'i', 'ö': 'o', 'ü': 'u', 'ş': 's', 'ç': 'c', 'ğ': 'g', ' ': '-'})
 
@@ -231,9 +239,14 @@ def main():
                 continue
             wid = word_id(text, {w['id'] for w in index})
             data = {'id': wid, 'text': text, 'label': label, **rec}
+            if text in ALT:
+                data['alt'] = ALT[text]
             (out_dir / f'{wid}.json').write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')),
                                                  encoding='utf8')
-            index.append({'id': wid, 'text': text, 'hands': rec['hands'], 'frames': len(rec['frames'])})
+            entry = {'id': wid, 'text': text, 'hands': rec['hands'], 'frames': len(rec['frames'])}
+            if text in ALT:
+                entry['alt'] = ALT[text]
+            index.append(entry)
             print(f'  ✓ {text:<22} {rec["hands"]:<2} {len(rec["frames"]):>3} kadr  keyfiyyət {score:.2f}  ({rec["video"]})',
                   flush=True)
 
