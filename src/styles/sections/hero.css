@@ -190,6 +190,13 @@
   }
 }
 
+/* Mobil alt CTA-lar (bax aşağı @media max-width:600px) - masaüstündə həmişə
+   gizli, komanda yoldaşının .hero__nsosyal-btn-i ilə eyni konteynerdə,
+   TOXUNULMADAN yanaşı saxlanılır (≤600px-də o ayrıca gizlədilir, bax aşağı). */
+.hero__mobile-actions {
+  display: none;
+}
+
 /* ---------- Qat 3: 3D əl (statik loqo yalnız fallback) ---------- */
 
 .hero__logo-slot {
@@ -213,4 +220,68 @@
    mərkəzində "yanıb-sönən" loqo effekti yaranmasın deyə). */
 .hero__logo-slot.is-fallback .brand-logo {
   opacity: 1;
+}
+
+/* ---------- Mobil hero (≤600px) ---------- */
+/* Yalnız bu blokdakı qaydalar mobildir, ≥601px-ə heç biri toxunmur.
+   `.hero__scene`/`.hero__logo-slot` (canvas, 3D əlin yeri/ölçüsü) BURDA
+   override OLUNMUR - əllərin mobildəki mövqeyi/ölçüsü dəyişməz qalır. */
+@media (max-width: 600px) {
+  .hero__tagline-line {
+    font-size: 9.5vw;
+  }
+
+  .hero__nsosyal-btn {
+    display: none;
+  }
+
+  /* "chevir" tam görünsün - en təxminən 100vw-ü doldurur, mərkəzləndirilib
+     cüzi (~2.5%) daşır hər iki tərəfdən (c solda/r sağda çox az kəsilə bilər),
+     "ir" tam ekrandan çıxmır - rəng/blur/opacity dəyişmir, yalnız ölçü/mövqe. */
+  .hero__wordmark {
+    width: 105vw;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 58%;
+    transform: translateX(-50%);
+  }
+
+  .hero__mobile-actions {
+    display: flex;
+    position: absolute;
+    left: var(--hero-pad-x);
+    right: var(--hero-pad-x);
+    bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+    z-index: 5;
+    gap: 0.7rem;
+    pointer-events: auto;
+  }
+
+  .hero__mobile-cta,
+  .hero__mobile-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 54px;
+    border-radius: 999px;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    text-decoration: none;
+    text-align: center;
+  }
+
+  .hero__mobile-cta {
+    flex: 3;
+    background: var(--brand-gradient);
+    color: #ffffff;
+    box-shadow: 0 12px 24px rgba(0, 113, 239, 0.28);
+  }
+
+  .hero__mobile-secondary {
+    flex: 2;
+    background: #ffffff;
+    border: 1px solid rgba(0, 113, 239, 0.22);
+    color: var(--bridge-blue);
+  }
 }

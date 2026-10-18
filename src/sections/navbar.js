@@ -30,7 +30,7 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
     .join('\n    ')
   const cls = `${home ? '' : ' is-revealed is-scrolled'}${light ? ' is-light' : ''}`
   return `
-<header class="navbar${cls}" data-navbar>
+<header class="navbar${cls}" data-navbar data-page="${page}">
   <a class="navbar__brand" href="${home ? '#top' : BASE}">
     <span class="navbar__logo" aria-hidden="true">
       <svg class="navbar__logo-svg navbar__logo-svg--dark" viewBox="${BRAND_LOGO_VIEWBOX}">${BRAND_LOGO_MARKUP_WHITE}</svg>
@@ -38,10 +38,48 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
     </span>
     <span class="navbar__name">Chevir</span>
   </a>
-  <nav class="navbar__links" aria-label="Əsas keçidlər">
+  <nav class="navbar__links" id="navbar-links" aria-label="Əsas keçidlər">
     ${links}
   </nav>
   <a class="navbar__cta" href="${home ? '' : BASE}#pilot">Pilot tərəfdaş olun</a>
+  <button class="navbar__toggle" type="button" aria-expanded="false" aria-controls="navbar-links" aria-label="Menyu">
+    <span class="navbar__toggle-bar"></span>
+    <span class="navbar__toggle-bar"></span>
+  </button>
 </header>
 `
 }
+
+// Mobil hamburger menyusu (yalnız data-page="home" + ≤600px-də görünür, bax
+// navbar.css) - tək, modul-səviyyəli delegated listener (navbar.js hər üç
+// səhifənin main.js-i tərəfindən import olunur, ona görə buraya yazılan kod
+// hər yerdə bir dəfə qoşulur; /tercume və /nsosyal-da düymə display:none
+// qaldığı üçün bu kod orda effektsizdir, həmin səhifələrin öz kodu TOXUNULMUR).
+function closeNavbarMenu(navbarEl) {
+  navbarEl.classList.remove('is-menu-open')
+  navbarEl.querySelector('.navbar__toggle')?.setAttribute('aria-expanded', 'false')
+}
+
+document.addEventListener('click', (event) => {
+  const toggle = event.target.closest('.navbar__toggle')
+  if (toggle) {
+    const navbarEl = toggle.closest('[data-navbar]')
+    if (!navbarEl) return
+    const isOpen = navbarEl.classList.toggle('is-menu-open')
+    toggle.setAttribute('aria-expanded', String(isOpen))
+    return
+  }
+
+  const openNavbar = document.querySelector('.navbar.is-menu-open')
+  if (openNavbar && !event.target.closest('.navbar__links')) {
+    closeNavbarMenu(openNavbar)
+  }
+})
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return
+  const openNavbar = document.querySelector('.navbar.is-menu-open')
+  if (!openNavbar) return
+  closeNavbarMenu(openNavbar)
+  openNavbar.querySelector('.navbar__toggle')?.focus()
+})

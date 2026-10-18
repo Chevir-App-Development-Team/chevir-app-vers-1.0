@@ -213,6 +213,113 @@
   transform: translateY(-2px);
 }
 
+/* ---------- Mobil hamburger menyusu (yalnız data-page="home", ≤600px) ---------- */
+/* Masaüstü/tablet və /tercume, /nsosyal-da HƏR ZAMAN gizli - yalnız home-un
+   ≤600px görünüşündə aşağıdakı media query onu açır (bax navbar.js
+   data-page). İkon klikdə iki xəttdən X-ə dönür, .navbar__links eyni
+   elementi (artıq mövcud linklər) ağ dropdown kartı kimi göstərir. */
+.navbar__toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(243, 247, 252, 0.35);
+  background: rgba(243, 247, 252, 0.14);
+  cursor: pointer;
+  transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+
+.navbar__toggle-bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink-on-dark);
+  transition: transform 0.2s ease, background-color 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar__toggle-bar {
+    transition: background-color 0.4s ease;
+  }
+}
+
+@media (max-width: 600px) {
+  .navbar[data-page='home'] .navbar__links {
+    display: none;
+  }
+
+  .navbar[data-page='home'] .navbar__cta {
+    display: none;
+  }
+
+  .navbar[data-page='home'] .navbar__toggle {
+    display: inline-flex;
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .navbar[data-page='home'].is-revealed .navbar__toggle {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .navbar[data-page='home'].is-menu-open .navbar__toggle-bar:first-child {
+    transform: translateY(4px) rotate(45deg);
+  }
+
+  .navbar[data-page='home'].is-menu-open .navbar__toggle-bar:last-child {
+    transform: translateY(-4px) rotate(-45deg);
+  }
+
+  .navbar[data-page='home'].is-menu-open .navbar__links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    right: clamp(1.25rem, 5vw, 4rem);
+    min-width: 170px;
+    padding: 0.6rem;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 113, 239, 0.16);
+    box-shadow: 0 16px 32px rgba(9, 22, 56, 0.14);
+    z-index: 60;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
+
+  .navbar[data-page='home'].is-menu-open .navbar__link {
+    color: var(--bridge-blue);
+    opacity: 1;
+    font-weight: 400;
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    transform: none;
+  }
+
+  .navbar[data-page='home'].is-menu-open .navbar__link--extra {
+    display: inline-flex;
+  }
+
+  .navbar[data-page='home'].is-menu-open .navbar__link:hover,
+  .navbar[data-page='home'].is-menu-open .navbar__link:focus-visible {
+    background: rgba(0, 113, 239, 0.08);
+    transform: none;
+  }
+}
+
 /* Dar ekranda üçüncü keçid gizlənir (loqo + keçid + CTA bir sətrə sığsın). */
 @media (max-width: 640px) {
   .navbar__link--extra {
@@ -276,4 +383,16 @@
 .navbar.is-light.is-over-hero .navbar__cta {
   background: var(--brand-gradient);
   color: #ffffff;
+}
+
+/* Hamburger: açıq bölmədə ağ dairə + incə mavi kontur, xətlər Bridge Blue
+   (bax yuxarıda ---------- Mobil hamburger menyusu ----------, default tünd
+   fon üçün rənglər orda). */
+.navbar.is-light .navbar__toggle {
+  background: var(--cloud);
+  border-color: rgba(0, 113, 239, 0.22);
+}
+
+.navbar.is-light .navbar__toggle-bar {
+  background: var(--bridge-blue);
 }

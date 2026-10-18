@@ -46,6 +46,11 @@ export const heroMarkup = `
     <div class="hero__logo-slot" aria-hidden="true">
       <svg class="brand-logo" viewBox="${BRAND_LOGO_VIEWBOX}">${HERO_LOGO_MARKUP_BLUE}</svg>
     </div>
+
+    <div class="hero__mobile-actions">
+      <a class="hero__mobile-cta" href="${BASE}#pilot">Pilot tərəfdaş olun</a>
+      <a class="hero__mobile-secondary" href="${BASE}tercume/">Sistemi sına</a>
+    </div>
   </div>
 </section>
 `
