@@ -172,9 +172,17 @@
   opacity: 1;
 }
 
+/* CTA (indi .navbar__end-in içində, bax aşağı) özü artıq grid elementi
+   deyil, ona görə `justify-self` yoxdur - mövqeni sarğı təyin edir. */
+.navbar__end {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
 .navbar__cta {
   position: relative;
-  justify-self: end;
   display: inline-block;
   flex-shrink: 0;
   padding: 0.6rem 1.4rem;
@@ -213,16 +221,100 @@
   transform: translateY(-2px);
 }
 
-/* ---------- Mobil/planşet hamburger menyusu (yalnız data-page="home", ≤1023px) ---------- */
-/* Masaüstü (≥1024px) və /tercume, /nsosyal-da HƏR ZAMAN gizli - yalnız
-   home-un ≤1023px görünüşündə aşağıdakı media query-lər onu açır (bax
-   navbar.js data-page). Üç keçid (bax LINKS, navbar.js) 601-1023px
-   aralığında CTA ilə birgə sığmadığı üçün (ölçülüb: boşluq 0-2px) bu
-   aralıqda da linklər dropdown-a köçür, YALNIZ CTA görünən qalır (toggle
-   mərkəz sütunda). ≤600px-də isə CTA da gizlənir (hero-nun öz alt
-   düymələri onu əvəz edir, bax hero.css) - toggle sağ sütuna keçir (bax
-   aşağı, ayrıca ≤600px bloku). İkon klikdə iki xəttdən X-ə dönür,
-   .navbar__links eyni elementi (mövcud linklər) ağ dropdown kartı kimi
+/* ---------- AZ | EN dil keçidi ---------- */
+/* İki nüsxə: `.navbar__lang` (masaüstü, CTA-nın yanında, `.navbar__end`
+   daxilində) və `.navbar__lang--menu` (hamburger dropdown-unun sonunda,
+   bax aşağı ≤1023px bloku - yalnız `[data-nav-menu]` olan səhifələrdə
+   render olunur, navbar.js). Hover/fokus `.navbar__link` ilə EYNİ (yalnız
+   böyümə). */
+.navbar__lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 15px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.4s ease;
+}
+
+.navbar.is-revealed .navbar__lang {
+  opacity: 1;
+  visibility: visible;
+}
+
+.navbar__lang-link {
+  position: relative;
+  color: var(--ink-on-dark);
+  font-size: var(--fs-small);
+  font-weight: 400;
+  text-decoration: none;
+  opacity: 0.82;
+  transform-origin: center;
+  transition: opacity 0.3s ease, color 0.4s ease, transform 0.2s ease;
+}
+
+/* Vizual ölçünü böyütmədən toxunma hədəfini 44px minimuma çatdırır. */
+.navbar__lang-link::before {
+  content: '';
+  position: absolute;
+  inset: -12px -6px;
+}
+
+.navbar__lang-link:hover,
+.navbar__lang-link:focus-visible {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar__lang-link:hover,
+  .navbar__lang-link:focus-visible {
+    transform: none;
+  }
+}
+
+/* Aktiv dil: qalın + kanal-B vurğu rəngi. Tünd fonda Bridge Blue AA-nı
+   keçmir (kontrast 1.66, bax CLAUDE.md "Kanal məntiqi") - ona görə
+   `--accent-b-on-dark` (kontrast 7.95), açıq fonda (`.is-light`) isə
+   birbaşa Bridge Blue (kontrast 9.91, `.navbar__link`-lə EYNİ qayda). */
+.navbar__lang-link.is-active {
+  color: var(--accent-b-on-dark);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.navbar.is-light .navbar__lang-link {
+  color: var(--bridge-blue);
+  opacity: 0.82;
+}
+
+.navbar.is-light .navbar__lang-link.is-active {
+  color: var(--bridge-blue);
+  font-weight: 600;
+  opacity: 1;
+}
+
+/* Hamburger-dropdown nüsxəsi (`--menu`) və onun ayırıcı xətti default GİZLİ
+   - yalnız açıq dropdown daxilində görünür (bax ≤1023px bloku aşağıda),
+   əks halda masaüstü sətirində (`.navbar__links` həmişə DOM-da olan ikinci
+   nüsxə kimi) təkrar görünərdi. */
+.navbar__lang-divider,
+.navbar__lang--menu {
+  display: none;
+}
+
+/* ---------- Mobil/planşet hamburger menyusu (yalnız [data-nav-menu], ≤1023px) ---------- */
+/* `data-nav-menu` navbar.js-dəki MENU_ENABLED_PAGES siyahısından gəlir
+   (hazırda yalnız "home") - CSS səhifə ADI yox, bu boolean atributa bağlıdır,
+   ona görə gələcəkdə başqa səhifəyə hamburger lazım olsa, CSS-ə TOXUNULMADAN
+   yalnız həmin siyahıya səhifə əlavə etmək kifayətdir. Masaüstü (≥1024px)
+   və bu atributu olmayan səhifələrdə (/tercume, /nsosyal) HƏR ZAMAN gizli.
+   Üç keçid (bax LINKS, navbar.js) 601-1023px aralığında CTA ilə birgə
+   sığmadığı üçün (ölçülüb: boşluq 0-2px) bu aralıqda da linklər dropdown-a
+   köçür, CTA görünən qalır (toggle mərkəz sütunda, CTA-nın gizlənmə qaydası
+   DƏYİŞMİR - bax aşağı ≤600px bloku). ≤600px-də CTA da gizlənir (hero-nun
+   öz alt düymələri əvəz edir, bax hero.css) - toggle sağ sütuna keçir.
+   İkon klikdə iki xəttdən X-ə dönür, .navbar__links eyni elementi (mövcud
+   linklər + AZ|EN, bax navbar.js menuLangBlock) ağ dropdown kartı kimi
    göstərir. */
 .navbar__toggle {
   display: none;
@@ -256,11 +348,18 @@
 }
 
 @media (max-width: 1023px) {
-  .navbar[data-page='home'] .navbar__links {
+  .navbar[data-nav-menu] .navbar__links {
     display: none;
   }
 
-  .navbar[data-page='home'] .navbar__toggle {
+  /* Masaüstü AZ|EN nüsxəsi bu enlərdə gizlənir - dropdown-un öz sonundakı
+     `--menu` nüsxəsi (bax aşağı) onu əvəz edir. CTA-ya TOXUNULMUR (əvvəlki
+     qayda ilə eyni, yalnız ≤600px-də gizlənir). */
+  .navbar[data-nav-menu] .navbar__lang:not(.navbar__lang--menu) {
+    display: none;
+  }
+
+  .navbar[data-nav-menu] .navbar__toggle {
     display: inline-flex;
     grid-column: 2;
     grid-row: 1;
@@ -269,20 +368,20 @@
     visibility: hidden;
   }
 
-  .navbar[data-page='home'].is-revealed .navbar__toggle {
+  .navbar[data-nav-menu].is-revealed .navbar__toggle {
     opacity: 1;
     visibility: visible;
   }
 
-  .navbar[data-page='home'].is-menu-open .navbar__toggle-bar:first-child {
+  .navbar[data-nav-menu].is-menu-open .navbar__toggle-bar:first-child {
     transform: translateY(4px) rotate(45deg);
   }
 
-  .navbar[data-page='home'].is-menu-open .navbar__toggle-bar:last-child {
+  .navbar[data-nav-menu].is-menu-open .navbar__toggle-bar:last-child {
     transform: translateY(-4px) rotate(-45deg);
   }
 
-  .navbar[data-page='home'].is-menu-open .navbar__links {
+  .navbar[data-nav-menu].is-menu-open .navbar__links {
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -302,7 +401,7 @@
     visibility: visible;
   }
 
-  .navbar[data-page='home'].is-menu-open .navbar__link {
+  .navbar[data-nav-menu].is-menu-open .navbar__link {
     color: var(--bridge-blue);
     opacity: 1;
     font-weight: 400;
@@ -311,14 +410,32 @@
     transform: none;
   }
 
-  .navbar[data-page='home'].is-menu-open .navbar__link--extra {
+  .navbar[data-nav-menu].is-menu-open .navbar__link--extra {
     display: inline-flex;
   }
 
-  .navbar[data-page='home'].is-menu-open .navbar__link:hover,
-  .navbar[data-page='home'].is-menu-open .navbar__link:focus-visible {
+  .navbar[data-nav-menu].is-menu-open .navbar__link:hover,
+  .navbar[data-nav-menu].is-menu-open .navbar__link:focus-visible {
     background: rgba(0, 113, 239, 0.08);
     transform: none;
+  }
+
+  /* Dropdown-un sonunda AZ|EN - nazik ayırıcıdan sonra, ayrıca sətir. */
+  .navbar[data-nav-menu].is-menu-open .navbar__lang-divider {
+    display: block;
+    height: 1px;
+    margin: 0.35rem 0.75rem;
+    background: rgba(0, 113, 239, 0.14);
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__lang--menu {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    padding: 0.4rem 0.75rem 0.2rem;
+    opacity: 1;
+    visibility: visible;
   }
 }
 
@@ -326,16 +443,16 @@
    hero.css), toggle sağ sütuna keçir - yuxarıdakı ≤1023px blokundan SONRA
    gəldiyi üçün (eyni spesifiklik, source-order) bu dəyərlər üstələyir. */
 @media (max-width: 600px) {
-  .navbar[data-page='home'] .navbar__cta {
+  .navbar[data-nav-menu] .navbar__cta {
     display: none;
   }
 
-  .navbar[data-page='home'] .navbar__toggle {
+  .navbar[data-nav-menu] .navbar__toggle {
     grid-column: 3;
     justify-self: end;
   }
 
-  .navbar[data-page='home'].is-menu-open .navbar__links {
+  .navbar[data-nav-menu].is-menu-open .navbar__links {
     left: auto;
     right: clamp(1.25rem, 5vw, 4rem);
     transform: none;
@@ -357,6 +474,15 @@
 
   .navbar__cta {
     padding: 0.55rem 1rem;
+  }
+
+  /* `[data-nav-menu]` olmayan səhifələrdə (/tercume, /nsosyal) bu enlərdə
+     hamburger yoxdur, AZ|EN masaüstü nüsxəsi sətir-daxili qalırdı - mövcud
+     sıxlığı ARTIRMASIN deyə burda gizlədilir (`--menu` nüsxəsi onsuz da bu
+     səhifələrdə heç render olunmur, bax navbar.js menuLangBlock). Home-da
+     artıq ≤1023px-də hamburger aktivdir, bu qayda ora təsir etmir. */
+  .navbar__lang:not(.navbar__lang--menu) {
+    display: none;
   }
 }
 

@@ -1,6 +1,7 @@
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { BREAKPOINTS } from '../lib/gsapSetup.js'
+import { t } from '../lib/i18n.js'
 
 // public/ altındakı asset-lərə mütləq "/..." yolla deyil, BASE_URL ilə
 // istinad olunur (kök yolda "/" verir, amma alt qovluqda yayımlansa da işləyər).
@@ -9,10 +10,9 @@ const BASE_URL = import.meta.env.BASE_URL
 export const pipelineMarkup = `
 <section class="pipeline" id="how-it-works" aria-labelledby="pipeline-heading">
   <div class="pipeline__intro">
-    <h2 id="pipeline-heading" class="pipeline__heading">Necə işləyir</h2>
+    <h2 id="pipeline-heading" class="pipeline__heading">${t('home.pipeline.heading')}</h2>
     <p class="pipeline__lead">
-      İşarə dilində danışanlarla ünsiyyət hər iki istiqamətdə asanlaşır -
-      işarələr mətnə, mətn isə işarə dilinə tərcümə olunur.
+      ${t('home.pipeline.lead')}
     </p>
   </div>
   <div class="pipeline__grid">
@@ -21,11 +21,10 @@ export const pipelineMarkup = `
       <li class="pipeline__step" data-step="0" data-channel="signed">
         <span class="pipeline__number">01</span>
         <h3 class="pipeline__step-title" id="pipeline-step-title-0">
-          Görüntü və izləmə
+          ${t('home.pipeline.step.0.title')}
         </h3>
         <p class="pipeline__step-desc">
-          Kamera əl, barmaq və mimika hərəkətlərini real vaxtda izləyir və
-          AZİD (Azərbaycan İşarə Dili) işarələrinin ardıcıllığını qeyd edir.
+          ${t('home.pipeline.step.0.desc')}
         </p>
         <div class="pipeline__step-media">
           <video
@@ -43,16 +42,15 @@ export const pipelineMarkup = `
             <source src="${BASE_URL}media/track.mp4" type="video/mp4" />
           </video>
           <p class="visually-hidden" id="pipeline-step-video-desc-0">
-            Video: kamera əl və barmaq hərəkətlərini nöqtələrlə izləyir.
+            ${t('home.pipeline.step.0.videoDesc')}
           </p>
         </div>
       </li>
       <li class="pipeline__step" data-step="1" data-channel="signed">
         <span class="pipeline__number">02</span>
-        <h3 class="pipeline__step-title" id="pipeline-step-title-1">Tanıma</h3>
+        <h3 class="pipeline__step-title" id="pipeline-step-title-1">${t('home.pipeline.step.1.title')}</h3>
         <p class="pipeline__step-desc">
-          Model işarələri tanıyır; diqqət xəritəsi əl formasının hansı
-          nöqtələrinə əsaslandığını göstərir.
+          ${t('home.pipeline.step.1.desc')}
         </p>
         <div class="pipeline__step-media">
           <video
@@ -70,29 +68,26 @@ export const pipelineMarkup = `
             <source src="${BASE_URL}media/gradcam.mp4" type="video/mp4" />
           </video>
           <p class="visually-hidden" id="pipeline-step-video-desc-1">
-            Video: modelin diqqət xəritəsi əl formasının hansı nöqtələrini
-            əsas götürdüyünü rəngli overlay ilə göstərir.
+            ${t('home.pipeline.step.1.videoDesc')}
           </p>
         </div>
       </li>
       <li class="pipeline__step" data-step="2" data-channel="spoken">
         <span class="pipeline__number">03</span>
         <h3 class="pipeline__step-title" id="pipeline-step-title-2">
-          Tərcümə və səs
+          ${t('home.pipeline.step.2.title')}
         </h3>
         <p class="pipeline__step-desc">
-          Tanınan işarələr danışıq Azərbaycan dilinə çevrilir və səsli və ya
-          yazılı şəkildə ötürülür.
+          ${t('home.pipeline.step.2.desc')}
         </p>
       </li>
       <li class="pipeline__step" data-step="3" data-channel="spoken">
         <span class="pipeline__number">04</span>
         <h3 class="pipeline__step-title" id="pipeline-step-title-3">
-          Cavab jest dilində
+          ${t('home.pipeline.step.3.title')}
         </h3>
         <p class="pipeline__step-desc">
-          Eşidən tərəfin cavabı AZİD-ə çevrilir və avatar vasitəsilə jest
-          dilində göstərilir. Funksiya prototip mərhələsindədir.
+          ${t('home.pipeline.step.3.desc')}
         </p>
         <div class="pipeline__step-media">
           <video
@@ -110,7 +105,7 @@ export const pipelineMarkup = `
             <source src="${BASE_URL}media/demo.mp4" type="video/mp4" />
           </video>
           <p class="visually-hidden" id="pipeline-step-video-desc-3">
-            Video: avatar mətni işarə dilinə çevirib jest dilində göstərir.
+            ${t('home.pipeline.step.3.videoDesc')}
           </p>
         </div>
       </li>

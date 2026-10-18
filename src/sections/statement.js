@@ -1,17 +1,16 @@
+import { t } from '../lib/i18n.js'
+
 export const statementMarkup = `
-<section class="statement" id="statement" aria-label="Missiyamız">
+<section class="statement" id="statement" aria-label="${t('home.statement.ariaLabel')}">
   <div class="reveal statement__content">
     <p class="statement__line">
-      Chevir işarə dilini mətnə, mətni isə işarə dilinə çevirən süni
-      intellekt əsaslı proqram həllidir.
+      ${t('home.statement.line1')}
     </p>
     <p class="statement__line">
-      Azərbaycanda 13 000 nəfər eşitmə məhdudiyyətli şəxs olduğunu nəzərə
-      alaraq,
+      ${t('home.statement.line2')}
     </p>
     <p class="statement__line">
-      onların Azərbaycan İşarə dilində ünsiyyət qurmasını asanlaşdırmaq
-      məqsədilə yaradılıb.
+      ${t('home.statement.line3')}
     </p>
   </div>
 </section>
