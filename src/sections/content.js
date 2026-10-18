@@ -4,6 +4,7 @@ import { t } from '../lib/i18n.js'
 import { HAND_POSE_OPEN, HAND_CONNECTIONS } from '../lib/handPoses.js'
 import { initLineCarousel } from '../lib/lineCarousel.js'
 import { teknofestMarkup } from './teknofest.js'
+import { bakuidMarkup } from './bakuid.js'
 import {
   BRAND_LOGO_BLOB_A_D,
   BRAND_LOGO_BLOB_B_D,
@@ -246,6 +247,8 @@ export const contentMarkup = `
 </section>
 
 ${teknofestMarkup}
+
+${bakuidMarkup}
 
 <section class="impact" id="impact" aria-label="${t('home.impact.ariaLabel')}">
   <div class="line-carousel">
