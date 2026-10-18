@@ -546,4 +546,45 @@ Observations (held-out):
 - Treating each span as one word is precise (0.69) but finds only 13 % of the signs: in AzSLD
   sentences the hands rarely rest between words.
 
-**Open:** an "unknown sign" class (precision), live-camera speed.
+### With the unknown-sign class (notebook 05 v3, run 6 models)
+
+The three run 6 models (E3) went through the same held-out evaluation. To keep the run short, the grid
+was narrowed to the window set and rest line that won before (16/24/32 frames, 1.0), with a wider
+threshold range (p ≥ 0.2 … 0.9) and overlap 0 / 25 / 50 %. The model and the configuration were
+chosen on val; test was scored once.
+
+Best val F1 per model (over overlap), by threshold:
+
+| min p | 6a weight 1 | 6b weight 4 | 6c weight 8 |
+|---|---|---|---|
+| 0.3 | 0.704 | 0.710 | 0.729 |
+| 0.4 | 0.707 | 0.715 | 0.733 |
+| 0.5 | 0.713 | 0.720 | **0.736** |
+| 0.6 | 0.711 | 0.725 | 0.734 |
+| 0.7 | 0.693 | 0.726 | 0.729 |
+| 0.8 | 0.627 | 0.722 | 0.706 |
+| 0.9 | 0.540 | 0.542 | 0.562 |
+
+Chosen on val: **6c (weight 8), p ≥ 0.5, overlap ≤ 25 %**. Test, against the browser model so far:
+
+| Model + settings | Val F1 | Test P / R / F1 | Test WER | Test F1 merged | Test P, in-vocab. |
+|---|---|---|---|---|---|
+| 5a + v2 (p ≥ 0.8, no overlap), browser so far | 0.703 | 0.582 / 0.724 / 0.645 | 0.640 | 0.677 | 0.812 |
+| **6c + p ≥ 0.5, overlap ≤ 25 %** | **0.736** | **0.671 / 0.724 / 0.696** | **0.487** | **0.749** | 0.768 |
+| 6c + v2 (p ≥ 0.8, no overlap) | 0.671 | 0.762 / 0.520 / 0.618 | 0.540 | 0.638 | 0.870 |
+
+The oracle (annotated boundaries given) is lower for 6c than for 5a: test top-1 0.814 vs 0.870. That is
+the known-word cost seen in E3, and 2–5 % of known signs are now rejected.
+
+Observations:
+- **The unknown class improves word mode on unseen signers**: test F1 0.645 → 0.696 and WER 0.640 →
+  0.487 at the same recall (0.724). Precision rises from 0.58 to 0.67 because fewer
+  out-of-vocabulary signs are shown as words.
+- **The best threshold depends on the model.** With an unknown class, windows over unknown signs are
+  already absorbed by `<unk>`, so a lower threshold (0.5) keeps more real words. The v2 threshold (0.8)
+  costs 6c a fifth of its recall. So the word-mode settings now travel with the model: `manifest.json`
+  → `segment` (written by `make_manifest.py --segment`), and the browser applies them.
+- 6c was trained with run 6's checkpoint rule (val Words_200 macro-F1), which saved an early
+  checkpoint. Run 7 chooses on open-set accuracy instead.
+
+**Open:** run 7 (checkpoint on open-set accuracy), live-camera speed.

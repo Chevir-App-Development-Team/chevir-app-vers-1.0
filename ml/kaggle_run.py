@@ -11,8 +11,10 @@ Python's protobuf 4.25 breaks it.
     python ml/kaggle_run.py splits                 # 03's splits/ → ml/splits/ (a few MB)
     python ml/kaggle_run.py results --to run4      # 04's summary/history/metrics/predictions → ml/results/run4/
                                                    # (--models adds best.pt + model.onnx,
-                                                   #  --run no_face fetches only that run)
-    python ml/kaggle_run.py eval --to wordmode1    # 05's eval/ (summary, val grid, test detections)
+                                                   #  --run no_face fetches only that run,
+                                                   #  --version 6 an older version of the notebook)
+    python ml/kaggle_run.py eval --to wordmode1    # 05's eval/ (summary, val grid, test detections;
+                                                   #  --models adds the chosen model's files)
 
 Each push creates a new version of the notebook on Kaggle and starts running it. All notebooks
 are private, CPU-only; 01/02 have internet on (they read Zenodo), 03 reads 01+02 outputs.
@@ -118,6 +120,8 @@ def main():
     ap.add_argument('--to', help='results: folder name under ml/results/ (default: latest)')
     ap.add_argument('--models', action='store_true', help='results: also best.pt + model.onnx (bigger downloads)')
     ap.add_argument('--run', help='results: only this run of the batch (e.g. no_face), to save bandwidth')
+    ap.add_argument('--version', type=int, help='results/eval: an older notebook version (default: the latest, '
+                                               'which has no output while a newer version is queued or running)')
     a = ap.parse_args()
     user = a.user or (None if a.cmd == 'stage' else username())
 
@@ -163,7 +167,7 @@ def main():
         shutil.rmtree(tmp, ignore_errors=True)
         print('wrote', dst, os.listdir(dst))
     elif a.cmd == 'results':
-        ref = f'{user}/{NOTEBOOKS["04"][1]}'
+        ref = f'{user}/{NOTEBOOKS["04"][1]}' + (f'/{a.version}' if a.version else '')
         tmp = tempfile.mkdtemp(prefix='kaggle_results_')
         small = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|per_class_test_words\.csv|predictions\.npz'
         files = small + (r'|model\.onnx|best\.pt' if a.models else '')
@@ -180,9 +184,10 @@ def main():
         print('wrote', dst, os.listdir(dst))
 
     elif a.cmd == 'eval':
-        ref = f'{user}/{NOTEBOOKS["05"][1]}'
+        ref = f'{user}/{NOTEBOOKS["05"][1]}' + (f'/{a.version}' if a.version else '')
         tmp = tempfile.mkdtemp(prefix='kaggle_eval_')
-        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', r'^eval/[^/]+$', '-q', check=False)
+        pattern = r'^eval/([^/]+|model/[^/]+/[^/]+)$' if a.models else r'^eval/[^/]+$'   # --models: the chosen model too
+        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', pattern, '-q', check=False)
         src = os.path.join(tmp, 'eval')
         if not os.path.isdir(src):
             sys.exit(f'no eval/ in the output of {ref} yet')

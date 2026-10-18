@@ -397,7 +397,8 @@ window set and rest line that won in version 1, with a wider range of thresholds
 
 **Inputs:** the four 02 shards, 03 (splits) and 04 (trained models: `train/<run>/best.pt`).
 **Kaggle settings:** CPU (scoring is ~2 ms per window; the GPU queue is not worth it), Internet off.
-**Writes** `eval/`: `grid_val.csv`, `summary.json`, `detections_test.csv`.
+**Writes** `eval/`: `grid_val.csv`, `summary.json`, `detections_test.csv`, and `model/<run>/` (the
+chosen model's `best.pt`, `model.onnx`, `manifest.json`).
 """),
         code(f"""
 SMOKE = False                  # True: 30 recordings per split, to check the setup
@@ -497,6 +498,14 @@ with open(os.path.join(OUT, 'eval', 'summary.json'), 'w', encoding='utf-8') as f
     json.dump(summary, f, ensure_ascii=False, indent=1, default=float)
 pd.DataFrame(kept, columns=['rec_id', 'start0', 'end0', 'word']).to_csv(
     os.path.join(OUT, 'eval', 'detections_test.csv'), index=False)
+# the chosen model travels with its evaluation (04's output is replaced by its next version)
+import shutil
+src = os.path.dirname(glob.glob(os.path.join(INPUT, '**', 'train', best_model, 'best.pt'), recursive=True)[0])
+dst = os.path.join(OUT, 'eval', 'model', best_model)
+os.makedirs(dst, exist_ok=True)
+for f in ('best.pt', 'model.onnx', 'manifest.json', 'metrics.json', 'vocab.json'):
+    if os.path.exists(os.path.join(src, f)):
+        shutil.copy2(os.path.join(src, f), dst)
 cols = ['precision', 'recall', 'f1', 'precision_inv', 'wer', 'wer_inv', 'f1_merged', 'wer_merged',
         'start_err_frames', 'end_err_frames', 'detections']
 pd.DataFrame({f'{name} | test': {c: round(summary['configs'][name]['test'][c], 4) for c in cols} for name in chosen}).T

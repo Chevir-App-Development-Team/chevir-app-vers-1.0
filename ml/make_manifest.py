@@ -87,6 +87,28 @@ def reference(net, manifest):
     return cases
 
 
+def add_segment(path, manifest, summary_path):
+    """Word-mode settings depend on the model (with an unknown class a lower threshold wins), so the
+    val choice of notebook 05 travels in the manifest; the browser applies it if the version matches."""
+    from azsl import segment as SG
+    with open(summary_path, encoding='utf-8') as f:
+        s = json.load(f)
+    chosen = s.get('chosen_model', s.get('model'))
+    if chosen != manifest['run']:
+        sys.exit(f'{summary_path} chose {chosen}, not {manifest["run"]}')
+    c = s['configs']['chosen on val (F1)']
+    keep = ('precision', 'recall', 'f1', 'wer', 'f1_merged')
+    manifest['segment'] = {'version': s['segment_version'], 'params': c['params'],
+                           'chosen_on': 'val sentence recordings (notebook 05)',
+                           'val': {k: round(c['val'][k], 4) for k in keep},
+                           'test': {k: round(c['test'][k], 4) for k in keep}}
+    assert s['segment_version'] == SG.SEGMENT_VERSION, 'settings from another segmentation version'
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=1)
+    print(f'segment settings from {summary_path}: {c["params"]["lens"]}, min_p {c["params"]["min_p"]}, '
+          f'max_overlap {c["params"]["max_overlap"]} (test F1 {c["test"]["f1"]:.3f})')
+
+
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     ap = argparse.ArgumentParser()
@@ -94,6 +116,8 @@ def main():
     ap.add_argument('--export', action='store_true',
                     help='re-export model.onnx from best.pt (runs 1–5: exported before T was dynamic)')
     ap.add_argument('--install', action='store_true', help=f'copy model + manifest to {ASSETS}')
+    ap.add_argument('--segment', help="notebook 05 summary.json: the word-mode settings chosen on val for "
+                                      "this model go into the manifest (the browser uses them)")
     a = ap.parse_args()
 
     path = os.path.join(a.run_dir, 'manifest.json')
@@ -121,6 +145,8 @@ def main():
             manifest['model_file'] = 'model.onnx'
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(manifest, f, ensure_ascii=False, indent=1)
+    if a.segment:
+        add_segment(path, manifest, a.segment)
     ref = {'run': manifest['run'], 'model_md5': md5(onnx), 'feature_version': FT.FEATURE_VERSION,
            'tolerance': 1e-3, 'cases': reference(net, manifest)}
     with open(REF, 'w', encoding='utf-8') as f:

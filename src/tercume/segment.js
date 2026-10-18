@@ -19,6 +19,19 @@ export const SEGMENT = {
   lens: [16, 24, 32], stride: 3, minP: 0.8, maxOverlap: 0.0,
 };
 
+/**
+ * Model manifest-indəki söz rejimi parametrləri (notebook 05 val-da seçib, Python adları ilə) →
+ * SEGMENT açarları. Versiya fərqlidirsə (başqa qaydalar üçün seçilib) heç nə götürülmür.
+ */
+export function segmentFromManifest(seg) {
+  if (!seg?.params || seg.version !== SEGMENT_VERSION) return {};
+  const names = { rest_line: 'restLine', min_on: 'minOn', min_off: 'minOff', margin: 'margin', min_span: 'minSpan',
+    max_span: 'maxSpan', lens: 'lens', stride: 'stride', min_p: 'minP', max_overlap: 'maxOverlap' };
+  const out = {};
+  for (const [k, v] of Object.entries(seg.params)) if (names[k]) out[names[k]] = v;
+  return out;
+}
+
 /** Bir kadr (landmarks.js frame: hand 126, pose 27) aktivdirmi? */
 export function frameActive(frame, aspect, restLine = SEGMENT.restLine) {
   const { hand, pose } = frame;
