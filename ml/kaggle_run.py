@@ -11,8 +11,10 @@ Python's protobuf 4.25 breaks it.
     python ml/kaggle_run.py splits                 # 03's splits/ → ml/splits/ (a few MB)
     python ml/kaggle_run.py results --to run4      # 04's summary/history/metrics/predictions → ml/results/run4/
                                                    # (--models adds best.pt + model.onnx,
-                                                   #  --run no_face fetches only that run)
-    python ml/kaggle_run.py eval --to wordmode1    # 05's eval/ (summary, val grid, test detections)
+                                                   #  --run no_face fetches only that run; only the
+                                                   #  latest version, and nothing while one is queued)
+    python ml/kaggle_run.py eval --to wordmode1    # 05's eval/ (summary, val grid, test detections;
+                                                   #  --models adds the chosen model's files)
 
 Each push creates a new version of the notebook on Kaggle and starts running it. All notebooks
 are private, CPU-only; 01/02 have internet on (they read Zenodo), 03 reads 01+02 outputs.
@@ -163,7 +165,7 @@ def main():
         shutil.rmtree(tmp, ignore_errors=True)
         print('wrote', dst, os.listdir(dst))
     elif a.cmd == 'results':
-        ref = f'{user}/{NOTEBOOKS["04"][1]}'
+        ref = f'{user}/{NOTEBOOKS["04"][1]}'   # always the latest version: the CLI ignores a /<version> suffix
         tmp = tempfile.mkdtemp(prefix='kaggle_results_')
         small = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|per_class_test_words\.csv|predictions\.npz'
         files = small + (r'|model\.onnx|best\.pt' if a.models else '')
@@ -182,7 +184,8 @@ def main():
     elif a.cmd == 'eval':
         ref = f'{user}/{NOTEBOOKS["05"][1]}'
         tmp = tempfile.mkdtemp(prefix='kaggle_eval_')
-        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', r'^eval/[^/]+$', '-q', check=False)
+        pattern = r'^eval/([^/]+|model/[^/]+/[^/]+)$' if a.models else r'^eval/[^/]+$'   # --models: the chosen model too
+        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', pattern, '-q', check=False)
         src = os.path.join(tmp, 'eval')
         if not os.path.isdir(src):
             sys.exit(f'no eval/ in the output of {ref} yet')

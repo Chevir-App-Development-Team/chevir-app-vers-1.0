@@ -39,6 +39,7 @@ DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label
                 head_drop=0.4, margin=8, workers=4, seed=0, groups=None,
                 face_drop=0.0,          # P(train clip loses face + blendshapes): one model for both privacy modes
                 unknown=0.0,            # sampling weight of the UNKNOWN class (0 = known words only)
+                select='words',         # checkpoint on val Words_200 macro-F1; 'open': val open-set accuracy
                 fold=None, split_id=None)
 
 
@@ -382,6 +383,8 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         row.pop('_val_signs_correct', None)
         row['sec'] = time.time() - t0
         key = 'val_words_macro_f1' if 'val_words' in evals else 'val_signs_macro_f1'
+        if cfg['select'] == 'open' and 'val_open_acc' in row:     # unknown class: rejection counts too
+            key = 'val_open_acc'
         row['best'] = row.get(key, 0) > best
         if row['best']:
             best, best_ep = row[key], ep

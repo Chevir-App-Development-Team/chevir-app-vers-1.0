@@ -315,6 +315,74 @@ Observations (run 5):
 - **Browser model = 5a, picked on validation** (highest val macro-F1, 0.873), not on test. 4d has the
   best test score, but choosing it by that would make the test number optimistic.
 
+
+### Run 6: an "unknown sign" class (split v6)
+
+Word mode on held-out sentences (E6) mostly fails on signs outside the 200 words: the model names them
+as a known word. Run 6 adds one class, `<unk>`, made of the out-of-vocabulary sentence signs of the
+train signers: 12,031 signs of 584 glosses. Another 59 glosses (1,030 signs) are left out because they
+share their first 4 letters with a vocabulary word (ALMALIYAM, DEYİLƏM, QARABAQ, …), so they are
+probably the same sign. The setup is otherwise run 5a (no face, seed 1). The variable is the
+`<unk>` class's sampling weight: the usual n^-0.5, times 1, 4 or 8. The checkpoint is still chosen
+on val Words_200 macro-F1, as in every run.
+
+Out-of-vocabulary sentence signs of the val / test signers (2,067 / 2,652) are kept apart, so the
+word and sign scores stay comparable with run 5a:
+- **Unknown rejected:** the share of them predicted `<unk>`.
+- **Known rejected:** the share of in-vocabulary sentence signs wrongly predicted `<unk>`.
+- **Open-set accuracy:** over all sentence signs, known signs named right plus unknown ones rejected.
+- **Known-only macro-F1:** the `<unk>` output is ignored.
+
+| Run | Best epoch | Val W macro-F1 | Test W top-1 / macro-F1 | Test W macro-F1, known only | Test S top-1 | Unknown rejected, val / test | Known rejected, test S | Open-set accuracy, val / test |
+|---|---|---|---|---|---|---|---|---|
+| 5a (no `<unk>`) | 55 | 0.873 | 0.854 / 0.849 | | 0.870 | | | |
+| 6a, weight 1 | 22 | 0.862 | 0.854 / 0.815 | 0.817 | 0.850 | 0.672 / 0.685 | 2.1 % | 0.809 / 0.790 |
+| 6b, weight 4 | 24 | 0.850 | 0.793 / 0.812 | 0.820 | 0.822 | 0.820 / 0.830 | 3.9 % | 0.840 / 0.825 |
+| 6c, weight 8 | 32 | 0.838 | 0.819 / 0.796 | 0.819 | 0.815 | 0.872 / 0.887 | 5.1 % | 0.855 / 0.841 |
+
+Validation per epoch (Words_200 macro-F1 / unknown rejected / open-set accuracy):
+
+| Epoch | 6a weight 1 | 6b weight 4 | 6c weight 8 | 5a (W macro-F1) |
+|---|---|---|---|---|
+| 10 | 0.823 / 0.610 / 0.777 | 0.798 / 0.725 / 0.803 | 0.768 / 0.835 / 0.804 | 0.803 |
+| 20 | 0.842 / 0.678 / 0.802 | 0.805 / 0.830 / 0.843 | 0.803 / 0.861 / 0.841 | 0.825 |
+| 30 | 0.850 / 0.715 / 0.826 | 0.839 / 0.870 / 0.863 | 0.807 / 0.867 / 0.849 | 0.846 |
+| 40 | 0.850 / 0.818 / 0.840 | 0.825 / 0.878 / 0.864 | 0.817 / 0.886 / 0.867 | 0.869 |
+| 50 | 0.844 / 0.849 / 0.868 | 0.819 / 0.896 / 0.878 | 0.816 / 0.913 / 0.864 | 0.863 |
+| 60 | 0.842 / 0.855 / 0.859 | 0.824 / 0.902 / 0.875 | 0.809 / 0.914 / 0.872 | 0.861 |
+
+Observations (run 6):
+- **The `<unk>` class works:** 69–89 % of unknown signs on test are rejected, while 2–5 % of known
+  signs are wrongly rejected. The weight moves along that trade-off.
+- **It costs known-word accuracy:** test Words_200 macro-F1 drops from 0.849 to 0.796–0.815, also when
+  the `<unk>` output is ignored (0.817–0.820). So it is not only false rejections: the shared layers
+  fit the known words a little less well.
+- **The checkpoint rule now works against the new class.** Rejection keeps improving until the end
+  (weight 1: 0.672 at the chosen epoch 22, 0.855 at epoch 60), while Words_200 macro-F1 peaks early.
+  So the saved models are early ones with weaker rejection. Next run: choose the checkpoint on val
+  open-set accuracy.
+- Which model is better for word mode is decided on the val sentences (E6, notebook 05 v3).
+
+### Run 7: unknown class, checkpoint on open-set accuracy (split v6)
+
+Run 6 with one change: the checkpoint is the epoch with the best val open-set accuracy
+(`select='open'`), not the best val Words_200 macro-F1. Weights 1 and 4. Notebook 04 v7, 2 × ~42 min.
+
+| Run | Checkpoint rule | Best epoch | Val W macro-F1 | Val unknown rejected | Val open-set acc. | Test W macro-F1 | Test W macro-F1, known only | Test unknown rejected | Known rejected, test S | Test open-set acc. |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 6a, weight 1 | W macro-F1 | 22 | 0.862 | 0.672 | 0.809 | 0.815 | 0.817 | 0.685 | 2.1 % | 0.790 |
+| 6b, weight 4 | W macro-F1 | 24 | 0.850 | 0.820 | 0.840 | 0.812 | 0.820 | 0.830 | 3.9 % | 0.825 |
+| 6c, weight 8 | W macro-F1 | 32 | 0.838 | 0.872 | 0.855 | 0.796 | 0.819 | 0.887 | 5.1 % | 0.841 |
+| **7a, weight 1** | open-set acc. | 54 | 0.853 | 0.848 | 0.869 | 0.827 | **0.847** | 0.863 | 3.1 % | 0.854 |
+| **7b, weight 4** | open-set acc. | 53 | 0.812 | 0.896 | **0.875** | 0.813 | 0.846 | **0.911** | 5.0 % | **0.864** |
+
+Observations (run 7):
+- **The later checkpoints reject unknown signs much better at no cost to the known words.** At
+  weight 1, rejection rises from 0.685 to 0.863 on test, and the known-only Words_200 macro-F1 goes
+  back up to 0.847, against 0.849 for 5a, which has no unknown class.
+- Run 6's checkpoints cannot be fetched any more: the Kaggle CLI serves only the latest version of a
+  notebook's output and ignores a version suffix. Notebook 05 now saves the model it picks.
+
 ---
 
 ## E4 — Browser landmarks vs the training pipeline
@@ -348,9 +416,14 @@ with 0.10.35; both use the same models.
 Model: run 4d (no face, 400 features, test Words_200 macro-F1 0.863), re-exported from `best.pt`
 (6.6 MB ONNX, opset 17), in `public/tercume/assets/word_model/` with its `manifest.json`.
 Runtime: `src/tercume/recognizer.js`, onnxruntime-web 1.30.0, WASM, one thread.
-**Since run 5 the installed model is 5a** (no face, seed 1, picked on validation; test Words_200
-macro-F1 0.849, merged 0.892). Its check: max logit difference 4.5e-6, same top-5 on all 8 cases.
-The tables below are for 4d; E6 has 5a on the same recording.
+Installed models since then:
+- **5a** after run 5 (no face, seed 1, picked on validation; test Words_200 macro-F1 0.849, merged
+  0.892). Check: max logit difference 4.5e-6, same top-5 on all 8 cases.
+- **7b** after run 7: unknown class, weight 4, checkpoint on open-set accuracy. It was picked for word
+  mode on the val sentences (E6), and its word-mode settings are in its manifest. Check: max logit
+  difference 2.9e-6, same top-5 on all 8 cases. All 8 synthetic cases come out as `<unk>`.
+
+The tables below are for 4d; E6 has 5a and 7b on the same recording.
 
 **Same input → same output as PyTorch** (`node tools/verify_recognizer.mjs`): the synthetic fixture
 cases go through features.js and onnxruntime-web, against `best.pt` on the training forward pass
@@ -498,4 +571,75 @@ Observations (held-out):
 - Treating each span as one word is precise (0.69) but finds only 13 % of the signs: in AzSLD
   sentences the hands rarely rest between words.
 
-**Open:** an "unknown sign" class (precision), live-camera speed.
+### With the unknown-sign class (notebook 05 v3, run 6 models)
+
+The three run 6 models (E3) went through the same held-out evaluation. To keep the run short, the grid
+was narrowed to the window set and rest line that won before (16/24/32 frames, 1.0), with a wider
+threshold range (p ≥ 0.2 … 0.9) and overlap 0 / 25 / 50 %. The model and the configuration were
+chosen on val; test was scored once.
+
+Best val F1 per model (over overlap), by threshold:
+
+| min p | 6a weight 1 | 6b weight 4 | 6c weight 8 |
+|---|---|---|---|
+| 0.3 | 0.704 | 0.710 | 0.729 |
+| 0.4 | 0.707 | 0.715 | 0.733 |
+| 0.5 | 0.713 | 0.720 | **0.736** |
+| 0.6 | 0.711 | 0.725 | 0.734 |
+| 0.7 | 0.693 | 0.726 | 0.729 |
+| 0.8 | 0.627 | 0.722 | 0.706 |
+| 0.9 | 0.540 | 0.542 | 0.562 |
+
+Chosen on val: **6c (weight 8), p ≥ 0.5, overlap ≤ 25 %**. Test, against the browser model so far:
+
+| Model + settings | Val F1 | Test P / R / F1 | Test WER | Test F1 merged | Test P, in-vocab. |
+|---|---|---|---|---|---|
+| 5a + v2 (p ≥ 0.8, no overlap), browser so far | 0.703 | 0.582 / 0.724 / 0.645 | 0.640 | 0.677 | 0.812 |
+| **6c + p ≥ 0.5, overlap ≤ 25 %** | **0.736** | **0.671 / 0.724 / 0.696** | **0.487** | **0.749** | 0.768 |
+| 6c + v2 (p ≥ 0.8, no overlap) | 0.671 | 0.762 / 0.520 / 0.618 | 0.540 | 0.638 | 0.870 |
+
+The oracle (annotated boundaries given) is lower for 6c than for 5a: test top-1 0.814 vs 0.870. That is
+the known-word cost seen in E3, and 2–5 % of known signs are now rejected.
+
+Observations:
+- **The unknown class improves word mode on unseen signers**: test F1 0.645 → 0.696 and WER 0.640 →
+  0.487 at the same recall (0.724). Precision rises from 0.58 to 0.67 because fewer
+  out-of-vocabulary signs are shown as words.
+- **The best threshold depends on the model.** With an unknown class, windows over unknown signs are
+  already absorbed by `<unk>`, so a lower threshold (0.5) keeps more real words. The v2 threshold (0.8)
+  costs 6c a fifth of its recall. So the word-mode settings now travel with the model: `manifest.json`
+  → `segment` (written by `make_manifest.py --segment`), and the browser applies them.
+- 6c was trained with run 6's checkpoint rule (val Words_200 macro-F1), which saved an early
+  checkpoint. Run 7 chooses on open-set accuracy instead.
+
+### Run 7 models in word mode (notebook 05 v4)
+
+The same narrowed grid as v3, so val F1 can be compared with the run 6 models directly.
+
+| min p | 7a weight 1 | 7b weight 4 |
+|---|---|---|
+| 0.3 | 0.755 | 0.766 |
+| 0.5 | 0.762 | 0.775 |
+| 0.6 | 0.764 | 0.779 |
+| 0.7 | 0.767 | **0.782** |
+| 0.8 | 0.765 | 0.772 |
+| 0.9 | 0.698 | 0.670 |
+
+Chosen on val: **7b, p ≥ 0.7, overlap ≤ 50 %** (val F1 0.782; best run 6 model 0.736, 5a 0.703). Test,
+scored once:
+
+| Model + settings | Val F1 | Test P / R / F1 | Test WER (in-vocab.) | Test F1 merged | Test P, in-vocab. | Oracle top-1, test |
+|---|---|---|---|---|---|---|
+| 5a + v2, browser until now | 0.703 | 0.582 / 0.724 / 0.645 | 0.640 (0.33) | 0.677 | 0.812 | 0.870 |
+| 6c + p ≥ 0.5, overlap ≤ 25 % | 0.736 | 0.671 / 0.724 / 0.696 | 0.487 | 0.749 | 0.768 | 0.814 |
+| **7b + p ≥ 0.7, overlap ≤ 50 %** | **0.782** | **0.709 / 0.763 / 0.735** | **0.445 (0.33)** | **0.765** | 0.807 | 0.838 |
+| 7b + v2 (p ≥ 0.8, no overlap) | 0.723 | 0.768 / 0.611 / 0.680 | 0.465 | 0.710 | 0.860 | |
+
+- **On unseen signers, word mode improves from F1 0.645 to 0.735** (WER 0.640 → 0.445). Precision
+  and recall both rise: precision because unknown signs are rejected, recall because the later
+  checkpoint names the known words better (oracle 0.814 → 0.838).
+- **7b is the browser model now**, with its val settings in `manifest.json` → `segment`. In the app
+  it reads the E4 recording as SİZ 0.93, AD 0.91, NƏDİR 0.93 (train split, mechanism check). A span
+  whose best window is `<unk>` shows a "naməlum" chip.
+
+**Open:** live-camera speed; a second seed for 7b.

@@ -8,7 +8,7 @@
  */
 import { createLandmarkers, detectFrame, LandmarkClip, FRAME_SIZES } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
-import { SEGMENT, SignSegmenter, frameActive, segmentSpan } from './segment.js';
+import { SEGMENT, SignSegmenter, frameActive, segmentFromManifest, segmentSpan } from './segment.js';
 
 /**
  * Üz izləyicisi lazımdırmı? Model üzsüz işləməyə öyrədilibsə yox; əks halda manifest-dəki
@@ -38,6 +38,7 @@ export class SignToWords {
     this.onFrame = onFrame;
     this.onSigns = onSigns;
     this.onStatus = onStatus;
+    this.userSegment = segment;
     this.p = { ...SEGMENT, ...segment };
     this.rec = null;
     this.lms = null;
@@ -50,6 +51,9 @@ export class SignToWords {
   async init() {
     this.onStatus?.({ stage: 'landmarker', message: 'Söz modeli yüklənir…' });
     this.rec = await LocalRecognizer.load();
+    // modelin öz söz rejimi parametrləri (manifest.segment), sonra əl ilə verilənlər
+    this.p = { ...SEGMENT, ...segmentFromManifest(this.rec.manifest.segment), ...this.userSegment };
+    this.#reset();
     this.face = needsFace(this.rec.manifest);
     this.onStatus?.({ stage: 'landmarker', message: `MediaPipe yüklənir (əllər, bədən${this.face ? ', üz' : ''})…` });
     this.lms = await createLandmarkers({ face: this.face });
