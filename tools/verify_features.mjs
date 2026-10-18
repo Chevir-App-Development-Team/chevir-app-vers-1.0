@@ -1,7 +1,8 @@
-// JS ön emalını (src/tercume/features.js) Python-un preprocess()-i ilə tutuşdurur:
+// JS ön emalını (src/tercume/features.js) və əl slotlarını (landmarks.js) Python ilə tutuşdurur:
 // ml/fixtures/features_v<N>.{json,bin} — sintetik hallar və Python-un gözlənilən çıxışı.
 import { readFileSync } from 'node:fs';
 import * as FT from '../src/tercume/features.js';
+import { assignHands } from '../src/tercume/landmarks.js';
 
 const F = new URL(`../ml/fixtures/features_v${FT.FEATURE_VERSION}`, import.meta.url);
 const meta = JSON.parse(readFileSync(new URL(`${F.href}.json`), 'utf8'));
@@ -43,6 +44,19 @@ for (const cs of meta.cases) {
     (pass ? '' : `  (sətir ${Math.floor(worst / eF)}, sütun ${worst % eF}: JS ${got.data[worst]}, Python ${exp[worst]})`));
   if (!pass) ok = false;
 }
+
+// 3. sağ/sol əl slotları (landmarks.js assignHands ↔ Python assign_hands)
+let slotFails = 0;
+for (const h of meta.hand_slots) {
+  const got = assignHands(h.wrists, h.pose_wrists, h.aspect);
+  if (JSON.stringify(got) !== JSON.stringify(h.slots)) {
+    if (!slotFails) console.log('❌ ilk fərq:', JSON.stringify(h), '→ JS', JSON.stringify(got));
+    slotFails++;
+  }
+}
+console.log(`${slotFails ? '❌' : '✅'} əl slotları (assignHands)              ` +
+  `${meta.hand_slots.length - slotFails}/${meta.hand_slots.length} eyni`);
+if (slotFails) ok = false;
 
 console.log(ok ? `\n✅ UYĞUNDUR — JS ön emalı Python preprocess() ilə eynidir (feature_version ${FT.FEATURE_VERSION})`
                : '\n❌ UYĞUN DEYİL');

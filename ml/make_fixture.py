@@ -16,6 +16,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from azsl import features as FT  # noqa: E402
+from azsl.landmarks import assign_hands  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures')
 KEYS = ('hand', 'hand_world', 'pose', 'face', 'blend')
@@ -60,6 +61,21 @@ def cases():
     ]
 
 
+def hand_slot_cases(n=300):
+    """Random hand/pose layouts → which detection goes to the right / left slot (assign_hands)."""
+    rng = np.random.default_rng(7)
+    out = []
+    for _ in range(n):
+        k = int(rng.integers(0, 3))
+        wrists = [[float(np.float32(v)) for v in rng.uniform(0.15, 0.85, 2)] for _ in range(k)]
+        pose = None if rng.random() < 0.2 else [[float(np.float32(v)) for v in rng.uniform(0.2, 0.8, 2)]
+                                                 for _ in range(2)]
+        aspect = float(rng.choice([16 / 9, 4 / 3, 1.0]))
+        out.append({'wrists': wrists, 'pose_wrists': pose, 'aspect': aspect,
+                    'slots': assign_hands(wrists, pose, aspect)})
+    return out
+
+
 def build():
     blobs, meta, off = [], [], 0
     for c in cases():
@@ -76,7 +92,7 @@ def build():
         off += exp.size
         meta.append(entry)
     return {'feature_version': FT.FEATURE_VERSION, 'dtype': 'float32-le', 'tolerance': 1e-5,
-            'contract': FT.spec(), 'cases': meta}, np.concatenate(blobs).astype('<f4')
+            'contract': FT.spec(), 'cases': meta, 'hand_slots': hand_slot_cases()},         np.concatenate(blobs).astype('<f4')
 
 
 def main():

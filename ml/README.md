@@ -172,6 +172,10 @@ models. The server is not built yet. These pieces keep both paths identical:
   bit for bit (the no-pose fallback within 3e-6):
   `node tools/verify_features.mjs`. `python ml/make_fixture.py --check` fails if the Python features
   change without a version bump. After a bump, update features.js to match and regenerate the fixture.
+- **Browser landmarks:** `src/tercume/landmarks.js` runs the same three `.task` models with the same
+  settings (`public/tercume/assets/`, md5 as in `azsl/landmarks.py`). It assigns hand slots with a port
+  of `assign_hands` (300 / 300 golden cases equal) and buffers frames for `features.js`. On a real AzSLD
+  recording it agrees with the Python pipeline, see `EXPERIMENTS.md` (E4).
 - **`FEATURE_VERSION`** (in `features.py`) is written into every checkpoint, manifest and fixture. The
   browser and the server must refuse a model whose version differs from their preprocessing.
 - **Input:** raw compact landmarks per frame (`features.spec()['raw']`: hands, hand world, 9 pose points,

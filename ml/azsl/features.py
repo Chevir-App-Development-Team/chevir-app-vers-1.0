@@ -3,7 +3,7 @@
 Raw (from the extraction, see landmarks.py), reduced to what the model reads:
   hand        T×2×21×3   image coords (slot 0 = signer's right hand)
   hand_world  T×2×21×3   metric hand shape
-  pose        T×9×3      POSE_IDX: nose, shoulders, elbows, wrists, hips (x, y, visibility)
+  pose        T×9×3      POSE_IDX: nose, shoulders, elbows, wrists, hips (x, y, z — only x, y are used)
   face        T×102×2    landmarks.FACE_IDX, x, y
   blend       T×52       face blendshapes
 
@@ -238,7 +238,7 @@ def spec() -> dict:
                 'face': [len(FACE_IDX), 2], 'blend': [len(BLEND_NAMES)]},
         'raw_notes': ('per frame; image coords x, y in [0, 1] of the frame (x NOT pre-multiplied by '
                       'width/height), hand slot 0 = signer\'s right hand (pose wrists decide), '
-                      'pose = MediaPipe pose landmarks POSE_IDX with (x, y, visibility), '
+                      'pose = MediaPipe pose landmarks POSE_IDX with (x, y, z; only x, y are used), '
                       'face = face-mesh FACE_IDX (x, y), blend = face blendshapes in BLEND_NAMES order, '
                       'NaN = not detected'),
         'pose_idx': POSE_IDX, 'face_idx': list(FACE_IDX), 'blend_names': BLEND_NAMES,

@@ -173,3 +173,28 @@ From the next batch on, every run also writes `manifest.json` (feature_version 1
 seed / split_id, metrics) and reports test scores **without face points** (`*_noface`, privacy mode).
 `face_drop` (training with the face randomly removed) is a new experiment variable. Runs 1–4 predate
 this, so they have no manifests and no no-face scores.
+
+---
+
+## E4 — Browser landmarks vs the training pipeline
+
+Same recording (`AzSLD_Sentences/1/Cam2/2022-05-31 15-58-30.mp4`, 148 frames, 1280×960). Reference:
+the Python pipeline (`azsl.landmarks.Extractor`, MediaPipe 1.0.1, CPU). Browser: `src/tercume/landmarks.js`
+(@mediapipe/tasks-vision 0.10.14, GPU, in-app Chromium), with the same `.task` files, settings and
+frame timestamps.
+
+| | Browser vs Python |
+|---|---|
+| Hand present in the same slot and frame | 288 / 296 (97.3%); 3 frames only in Python, 5 only in the browser |
+| Right/left slot swaps | 0 |
+| Hand image x, y, mean / max abs difference | 0.0027 / 0.173 (fraction of frame; ≈ 3.4 px mean at 1280 px) |
+| Hand world (metric) | 0.0019 / 0.091 |
+| Pose x, y | 0.0037 / 0.031 |
+| Face x, y | 0.0002 / 0.005 |
+| Blendshapes | 0.0022 / 0.158 |
+| Model input after `preprocess` (656 features), mean abs | 0.0107 (groups 0.002–0.013; max 1 = presence flags in the 8 frames above) |
+| Speed, three models | 88 ms per frame (≈ 11 fps), load 0.43 s. Measured in the app's browser pane, so live-camera speed needs its own check |
+
+The differences are far below the training augmentation (±10° rotation, ±15% scale, 0.003 jitter), and
+the slot rule never disagrees. The reference used MediaPipe 1.0.1, while the training data was extracted
+with 0.10.35; both use the same models.

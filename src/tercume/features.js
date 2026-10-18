@@ -14,7 +14,7 @@
  *   hand        T×2×21×3   şəkil koordinatları x, y ∈ [0,1] (x en/hündürlüyə vurulMAMIŞ), z;
  *                          slot 0 = siqnalçının SAĞ əli (pozanın biləkləri qərar verir)
  *   hand_world  T×2×21×3   əlin metrik 3D forması (MediaPipe world landmarks)
- *   pose        T×9×3      POSE_IDX nöqtələri: x, y, visibility
+ *   pose        T×9×3      POSE_IDX nöqtələri: x, y, z (yalnız x, y işlədilir)
  *   face        T×102×2    FACE_IDX nöqtələri: x, y
  *   blend       T×52       üz blendshape-ləri, BLEND_NAMES sırası ilə
  * Çıxış: { T, F, data } — T ≤ MAX_LEN kadr, F = sütun sayı, data = T×F Float32Array.

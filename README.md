@@ -72,6 +72,7 @@ src/
     main.js              sistem girişi: saytın naviqasiyası + sistem
     model.js             Keras MLP-nin JS irəli keçidi (TensorFlow.js YOX — 4 matmul)
     features.js          landmark-lar → söz modelinin girişi (ml/azsl/features.py preprocess()-in portu)
+    landmarks.js         söz modeli üçün iki əl + poza + üz landmark-ları, sağ/sol əl slotları (ml/azsl/landmarks.py-ın əkizi)
     decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
     hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
     s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
@@ -85,7 +86,7 @@ src/
     nsosyal.css          açıq axın, tünd avatar paneli
 public/
   media/, *.svg, og-image.png   sayt faylları
-  tercume/assets/        model.bin, lm.json, vocab.json, poses.json, hand_landmarker.task
+  tercume/assets/        model.bin, lm.json, vocab.json, poses.json, hand/pose/face_landmarker .task faylları
   tercume/words/         söz işarələri: index.json + hər söz üçün <id>.json
   tercume/wasm/          MediaPipe wasm — @mediapipe/tasks-vision 0.10.14 ilə eyni olmalıdır
 tools/
