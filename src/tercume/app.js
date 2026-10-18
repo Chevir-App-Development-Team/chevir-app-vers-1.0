@@ -17,6 +17,9 @@ import { HAND_CONNECTIONS } from './hands.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
+// Söz rejimində halqanın yazısı (bax s2w.js)
+const WORD_STATE_LABEL = { rest: 'istirahət', signing: 'jest', recognizing: 'tanınır' };
+
 // Kamera halqasının altındakı vəziyyət yazısı (bax s2t.js — hərf yazma şərtləri)
 const GATE_LABEL = {
   idle: '—',
@@ -29,7 +32,7 @@ const GATE_LABEL = {
 
 const state = {
   model: null, decoder: null, poses: null, eval: null, lexicon: null,
-  s2t: null, t2s: null,
+  s2t: null, s2w: null, kind: 'letters', t2s: null,
   skelS2T: null, skelT2S: null, avatar: null,
   booted: { s2t: false, t2s: false, about: false },
 };
@@ -103,7 +106,7 @@ function initS2T() {
     model: state.model, decoder: state.decoder, video,
     onStatus: ({ message, stage }) => setStatus(message, stage),
     onFrame: ({ landmarks, progress, state: gate }) => {
-      drawOverlay(ctx, canvas, video, landmarks);
+      drawOverlay(ctx, canvas, video, landmarks ? [landmarks] : []);
       state.skelS2T?.setPose(landmarks ?? null);
       const ring = $('#ring');
       if (ring) ring.style.strokeDashoffset = String(106.8 * (1 - progress));
@@ -117,10 +120,59 @@ function initS2T() {
   });
   state.s2t = s2t;
 
+  // Söz rejimi: model, onnxruntime və üç izləyici yalnız ilk dəfə seçiləndə yüklənir
+  let s2wLoading = null;
+  const ensureS2W = () => {
+    s2wLoading ??= (async () => {
+      const { SignToWords } = await import('./s2w.js');
+      const s2w = new SignToWords({
+        video,
+        onStatus: ({ message, stage }) => setStatus(message, stage),
+        onFrame: ({ frame, state: st }) => {
+          const hands = [0, 1].map((s) => slotLandmarks(frame.hand, s)).filter(Boolean);
+          drawOverlay(ctx, canvas, video, hands);
+          state.skelS2T?.setPose(hands[0] ?? null);
+          const ring = $('#ring');
+          if (ring) ring.style.strokeDashoffset = String(106.8 * (st === 'rest' ? 1 : 0));
+          $('#ring-label').textContent = WORD_STATE_LABEL[st] ?? '';
+        },
+        onSigns: ({ signs, added, ms }) => {
+          renderSigns(signs, added.length);
+          const last = added[added.length - 1];
+          const unk = s2w.rec.manifest.unknown_label;
+          if (last) renderPredictions(last.top.map((t) => (t.label === unk ? { ...t, label: 'naməlum' } : t)));
+          $('#signs-info').textContent = added.length
+            ? `+${added.length} · ${Math.round(ms)} ms` : signs.length ? `${signs.length} söz` : '—';
+          $('#pred-quality').textContent = !last ? '—'
+            : last.unsure ? `əmin deyil · ${Math.round(last.p * 100)}%` : `əmin ${Math.round(last.p * 100)}%`;
+        },
+      });
+      await s2w.init();
+      const f1 = s2w.rec.manifest.metrics?.test_words?.macro_f1;
+      if (f1) $('#words-f1').textContent = f1.toFixed(2);
+      state.s2w = s2w;
+      return s2w;
+    })();
+    s2wLoading.catch(() => { s2wLoading = null; });     // xətadan sonra yenidən cəhd etmək olar
+    return s2wLoading;
+  };
+  const current = () => (state.kind === 'words' ? state.s2w : s2t);
+
+  $('#s2t-kind').addEventListener('change', (e) => {
+    if (!$('#btn-stop').disabled) $('#btn-stop').click();     // rejim dəyişəndə kamera dayanır
+    state.kind = e.target.value;
+    $$('#tab-s2t [data-kind]').forEach((el) => { el.hidden = el.dataset.kind !== state.kind; });
+    $('#pred-grid').classList.toggle('is-words', state.kind === 'words');
+    $('#ring-label').textContent = state.kind === 'words' ? WORD_STATE_LABEL.rest : GATE_LABEL.idle;
+    $('#pred-quality').textContent = '—';
+    renderPredictions([]);
+    if (state.kind === 'words') ensureS2W().catch((err) => setStatus('Söz modeli yüklənmədi: ' + err.message, 'error'));
+  });
+
   $('#btn-start').addEventListener('click', async () => {
     $('#btn-start').disabled = true;
     try {
-      await s2t.start();
+      await (state.kind === 'words' ? await ensureS2W() : s2t).start();
       $('#btn-stop').disabled = false;
     } catch (err) {
       setStatus('Kamera açılmadı: ' + err.message, 'error');
@@ -128,21 +180,21 @@ function initS2T() {
     }
   });
   $('#btn-stop').addEventListener('click', () => {
-    s2t.stop();
+    current()?.stop();
     $('#btn-start').disabled = false;
     $('#btn-stop').disabled = true;
     state.skelS2T?.clearPose();
   });
   $('#btn-finish').addEventListener('click', () => s2t.finish());
   $('#btn-clear').addEventListener('click', () => {
-    s2t.clear();
+    current()?.clear();
     renderPredictions([]);
   });
   $('#mode').addEventListener('change', (e) => { s2t.decodeOpts.mode = e.target.value; });
 
   // Kamerasız sınaq üçün klaviatura girişi
   addEventListener('keydown', (e) => {
-    if (!$('#tab-s2t').classList.contains('is-active')) return;
+    if (!$('#tab-s2t').classList.contains('is-active') || state.kind !== 'letters') return;
     if (e.target.matches('input,textarea,select')) return;
     if (e.key === 'Enter') { e.preventDefault(); s2t.finish(); return; }
     if (e.key === 'Backspace') { e.preventDefault(); s2t.undo(); return; }
@@ -154,13 +206,25 @@ function initS2T() {
   });
 }
 
-function drawOverlay(ctx, canvas, video, landmarks) {
+/** landmarks.js kadrının əl slotu (126 ədəd, slot başına 63) → 21 nöqtə, əl yoxdursa null. */
+function slotLandmarks(hand, s) {
+  if (!Number.isFinite(hand[s * 63])) return null;
+  return Array.from({ length: 21 }, (_, j) => {
+    const o = s * 63 + j * 3;
+    return { x: hand[o], y: hand[o + 1], z: hand[o + 2] };
+  });
+}
+
+/** Kadrın üstünə əl skeletləri (bir və ya iki əl). */
+function drawOverlay(ctx, canvas, video, hands) {
   const w = video.videoWidth, h = video.videoHeight;
   if (!w || !h) return;
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   ctx.clearRect(0, 0, w, h);
-  if (!landmarks) return;
+  for (const landmarks of hands) drawHand(ctx, w, h, landmarks);
+}
 
+function drawHand(ctx, w, h, landmarks) {
   ctx.lineWidth = Math.max(2, w / 420);
   ctx.strokeStyle = 'rgba(63,193,232,.9)';
   ctx.shadowColor = 'rgba(63,193,232,.8)';
@@ -193,6 +257,18 @@ function renderPredictions(top) {
       <div class="pred-p">${(t.p * 100).toFixed(1)}%</div>
     </div>`;
   }).join('');
+}
+
+function renderSigns(signs, nNew = 0) {
+  $('#signs').innerHTML = signs.length
+    ? signs.map((s, i) => {
+      const unk = state.s2w?.rec.manifest.unknown_label;
+      const alt = s.top.map((t) => `${t.label === unk ? 'naməlum' : t.label} ${(t.p * 100).toFixed(0)}%`).join(' · ');
+      const cls = ['s', i >= signs.length - nNew && 'new', s.unsure && 'unsure'].filter(Boolean).join(' ');
+      const label = s.unknown ? 'naməlum' : s.unsure ? `${s.label}?` : s.label;
+      return `<span class="${cls}" title="${escapeHtml(alt)}">${escapeHtml(label)}<em>${Math.round(s.p * 100)}%</em></span>`;
+    }).join('')
+    : '<span class="muted">boş</span>';
 }
 
 function renderDecode({ candidates, best, verified, suggestions, letters }) {

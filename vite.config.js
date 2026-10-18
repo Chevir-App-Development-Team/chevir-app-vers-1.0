@@ -30,6 +30,9 @@ export default defineConfig({
     },
     i18nHtmlPlugin(import.meta.dirname),
   ],
+  // onnxruntime-web öz .wasm faylını import.meta.url ilə tapır: əvvəlcədən paketlənsə (dev) yol
+  // pozulur, build isə faylı assets/-ə özü çıxarır — public/-də ayrıca nüsxə lazım deyil
+  optimizeDeps: { exclude: ['onnxruntime-web'] },
   build: {
     rollupOptions: {
       input: {

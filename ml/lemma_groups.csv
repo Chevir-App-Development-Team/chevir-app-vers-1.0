@@ -1,0 +1,31 @@
+group,gloss,confirmed,note
+MƏN,MƏN,yes,I
+MƏN,MƏNİM,yes,"my: main test confusion (MƏNİM → MƏN, recall 3/33)"
+MƏN,MƏNƏ,yes,to me
+SİZ,SİZ,yes,you (pl./polite)
+SİZ,SİZİN,yes,your
+O,O,yes,he/she/it
+O,ONUN,yes,his/her
+İSTƏMƏK,İSTƏMƏK,yes,to want
+İSTƏMƏK,İSTƏYİRƏM,yes,"I want: run 2 recall 0/5, all read as İSTƏMƏK"
+GETMƏK,GETMƏK,yes,to go
+GETMƏK,GEDƏ,yes,(that) goes
+OLMAQ,OLMAQ,yes,to be
+OLMAQ,OLMUSUZ,yes,you have been
+OLMAQ,OLUR,yes,happens / is
+OLMAQ,OLACAQ,yes,will be
+ETMƏK,ETMƏK,yes,to do
+ETMƏK,EDİR,yes,does
+BİLMƏK,BİLMƏK,yes,to know / can
+BİLMƏK,BİLƏR,yes,can / knows
+İŞLƏMƏK,İŞLƏMƏK,yes,to work
+İŞLƏMƏK,İŞLƏMİR,yes,does not work
+İŞLƏMƏK,İŞSİZ,yes,"unemployed: run 2 recall 0/5, read as İŞLƏMƏK"
+YOX,YOX,yes,no
+YOX,YOXDUR,yes,there is not
+UŞAQ,UŞAQ,yes,child
+UŞAQ,UŞAQLAR,yes,children
+ORA,ORA,yes,there
+ORA,ORDA,yes,over there (locative)
+BURA,BURA,yes,here
+BURA,BURDA,yes,in here (locative)
