@@ -54,17 +54,23 @@ def main():
     vocab = {g: i for i, g in enumerate(vocab_list)}
     signs = T.load_sentence_signs([sdir], t[t.in_w200], vocab, margin=8)
     words = T.load_words200([wdir], w, vocab)
-    res = T.fit(dict(epochs=2, batch=8, dim=64, workers=0), signs, words, vocab_list, os.path.join(out, 'train'))
-    h = pd.read_csv(os.path.join(out, 'train', 'history.csv'))
-    print(h.to_string())
-    assert len(h) == 2 and 'test_words' in res, res.keys()
+    base = dict(epochs=2, batch=8, dim=64, workers=0)
+    hands = ['hands', 'hand_shape', 'hand_vel', 'flags']
+    rows = T.fit_many({'full': base, 'hands_only': {**base, 'groups': hands}}, signs, words, vocab_list,
+                      os.path.join(out, 'train'))
+    print(pd.DataFrame(rows).to_string())
+    assert len(rows) == 2 and all('error' not in r for r in rows), rows
+    assert rows[1]['n_features'] == len(T.FT.columns(hands)) < T.FT.N_FEAT
+    pz = np.load(os.path.join(out, 'train', 'hands_only', 'predictions.npz'))
+    assert pz['test_words_probs'].shape == (len(words['test']), len(vocab_list)), pz['test_words_probs'].shape
+    res = json.load(open(os.path.join(out, 'train', 'full', 'metrics.json'), encoding='utf-8'))
 
-    onnx_path = os.path.join(out, 'train', 'model.onnx')
+    onnx_path = os.path.join(out, 'train', 'full', 'model.onnx')
     if os.path.exists(onnx_path):
         try:
             import onnxruntime as ort
             import torch
-            ck = torch.load(os.path.join(out, 'train', 'best.pt'), map_location='cpu')
+            ck = torch.load(os.path.join(out, 'train', 'full', 'best.pt'), map_location='cpu')
             cfg = ck['cfg']
             net = T.Net(T.FT.N_FEAT, len(vocab_list), cfg['dim'], cfg['stages'], cfg['convs'], cfg['kernel'],
                         cfg['heads'], cfg['drop'], cfg['head_drop'])

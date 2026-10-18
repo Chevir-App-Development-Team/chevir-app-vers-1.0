@@ -25,6 +25,17 @@ POSE_IDX = [0, 11, 12, 13, 14, 15, 16, 23, 24]
 POSE_FLIP = [0, 2, 1, 4, 3, 6, 5, 8, 7]
 N_FEAT = 126 * 3 + 18 + 204 + 52 + 4
 MAX_LEN = 64
+# column ranges of features(), for ablations (train cfg 'groups')
+GROUPS = {'hands': (0, 126), 'hand_shape': (126, 252), 'hand_vel': (252, 378), 'pose': (378, 396),
+          'face': (396, 600), 'blend': (600, 652), 'flags': (652, 656)}
+assert GROUPS['flags'][1] == N_FEAT
+
+
+def columns(groups=None) -> np.ndarray:
+    """Feature columns of the named groups (None = all)."""
+    if not groups:
+        return np.arange(N_FEAT)
+    return np.concatenate([np.arange(*GROUPS[g]) for g in groups])
 
 BLEND_NAMES = [
     '_neutral', 'browDownLeft', 'browDownRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight',

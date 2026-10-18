@@ -138,6 +138,9 @@ while the median gloss has 21.
 - **Val, every epoch:** Words_200 clips of val signers (`W_*`, the benchmark) and sentence-cut
   signs of val signers (`S_*`).
 - **Test, once:** the best-on-val (macro-F1) checkpoint, plain and with mirror test-time augmentation.
+- **Several experiments per session:** `RUNS` in the notebook (e.g. seeds, feature-group ablations via
+  `groups`, longer schedules) share the loaded data; each writes `train/<name>/` plus a line in
+  `train/summary.csv`, and keeps its per-sample `predictions.npz` for later analyses.
 
 The features (`azsl/features.py`, 656 per frame) are body-relative: hand positions, metric hand
 shape, hand velocity, upper-body pose, lips/eyes/brows and the 52 face blendshapes. They are
@@ -153,7 +156,7 @@ ONNX (`train/model.onnx`, checked against PyTorch with onnxruntime).
 ```bash
 python ml/kaggle_run.py push 04      # start a run (CLI setup: see kaggle_run.py)
 python ml/kaggle_run.py log 04       # per-epoch lines so far
-python ml/kaggle_run.py results      # history.csv, metrics.json, model.onnx, best.pt → ml/results/
+python ml/kaggle_run.py results --to run4   # summary, history, metrics, predictions → ml/results/run4/ (--models: + ONNX, best.pt)
 python ml/smoke_train.py             # local check: a few real recordings, 2 epochs on CPU
 ```
 

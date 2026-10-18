@@ -284,6 +284,16 @@ Columns per epoch: `W_*` = Words_200 val clips (the benchmark), `S_*` = sentence
         code("""
 SMOKE = False          # True: 2 epochs on a sample, to check the setup
 CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4, seed=0)
+# Each entry = one experiment: CFG with these changes. All share the loaded data; results go to
+# train/<name>/ and train/summary.csv. Run 3 (split v6, seed 0, all features) is the reference.
+HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
+RUNS = {
+    'seed1': dict(seed=1),
+    'seed2': dict(seed=2),
+    'hands_only': dict(groups=HANDS),
+    'no_face': dict(groups=HANDS + ['pose']),
+    'epochs100': dict(epochs=100),
+}
 """),
         code(SETUP),
         code("""
@@ -321,32 +331,32 @@ if SMOKE:
     tags = tags.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 1500), random_state=0))
     wsplit = wsplit.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 300), random_state=0))
     CFG.update(epochs=2)
+    RUNS = dict(list(RUNS.items())[:2])
 signs = T.load_sentence_signs(sentence_dirs, tags, vocab, margin=CFG['margin'])
 words = T.load_words200(words_dirs, wsplit, vocab)
 """),
-        md('### Training — one line per epoch (`*` = new best on val macro-F1)'),
+        md('### Training — one line per epoch per run (`*` = new best on val macro-F1)'),
         code("""
-result = T.fit(CFG, signs, words, vocab_list, os.path.join(OUT, 'train'))
+summary = T.fit_many({name: {**CFG, **change} for name, change in RUNS.items()},
+                     signs, words, vocab_list, os.path.join(OUT, 'train'))
 """),
-        md('### Test (scored once, best-on-val checkpoint)'),
+        md('### Test (scored once per run, best-on-val checkpoint)'),
         code("""
 import matplotlib.pyplot as plt
-h = pd.read_csv(os.path.join(OUT, 'train', 'history.csv'))
-for name in ('test_words', 'test_signs'):
-    if name in result:
-        r, t = result[name], result[name + '_tta']
-        print(f"{name}: top1 {r['top1']:.3f}  top5 {r['top5']:.3f}  macro-F1 {r['macro_f1']:.3f}  "
-              f"balanced {r['balanced_acc']:.3f}  (majority {r['majority_acc']:.3f}; with mirror-TTA top1 {t['top1']:.3f})")
-print('best epoch', result['best_epoch'])
-fig, ax = plt.subplots(1, 2, figsize=(12, 4))
-ax[0].plot(h.epoch, h.train_loss, label='train loss'); ax[0].legend()
-for c in ('val_words_top1', 'val_words_macro_f1', 'val_signs_top1', 'val_signs_macro_f1'):
-    if c in h:
-        ax[1].plot(h.epoch, h[c], label=c)
-if 'test_words' in result:
-    ax[1].axhline(result['test_words']['majority_acc'], ls='--', c='gray', label='majority class')
-ax[1].legend(); plt.show()
-pd.read_csv(os.path.join(OUT, 'train', 'per_class_test_words.csv')).head(25)
+summ = pd.read_csv(os.path.join(OUT, 'train', 'summary.csv'))
+cols = [c for c in ('run', 'best_epoch', 'n_features', 'params', 'minutes', 'val_words_top1', 'test_words_top1',
+                    'test_words_top5', 'test_words_macro_f1', 'test_words_balanced_acc', 'test_signs_top1',
+                    'test_signs_macro_f1', 'test_words_majority', 'error') if c in summ]
+display(summ[cols])
+fig, ax = plt.subplots(1, 2, figsize=(13, 4))
+for name in RUNS:
+    path = os.path.join(OUT, 'train', name, 'history.csv')
+    if os.path.exists(path):
+        h = pd.read_csv(path)
+        ax[0].plot(h.epoch, h.val_words_top1, label=name)
+        ax[1].plot(h.epoch, h.val_words_macro_f1, label=name)
+ax[0].set_title('val Words_200 top-1'); ax[1].set_title('val Words_200 macro-F1')
+ax[0].legend(); plt.show()
 """),
     ])
 

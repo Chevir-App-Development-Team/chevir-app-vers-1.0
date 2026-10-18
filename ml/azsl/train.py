@@ -29,7 +29,7 @@ from .store import LandmarkStore
 KEYS = ('hand', 'hand_world', 'pose', 'face', 'blend')
 DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label_smoothing=0.1,
                 balance_power=0.5, dim=192, stages=2, convs=3, kernel=17, heads=4, drop=0.2,
-                head_drop=0.4, margin=8, workers=4, seed=0)
+                head_drop=0.4, margin=8, workers=4, seed=0, groups=None)
 
 
 # ---------------------------------------------------------------- data
@@ -109,8 +109,8 @@ def load_words200(words_dirs, wsplit, vocab, log=print):
 
 
 class SignDataset(torch.utils.data.Dataset):
-    def __init__(self, bank, train=False, flip=False):
-        self.bank, self.train, self.flip = bank, train, flip
+    def __init__(self, bank, train=False, flip=False, cols=None):
+        self.bank, self.train, self.flip, self.cols = bank, train, flip, cols
 
     def __len__(self):
         return len(self.bank)
@@ -125,12 +125,13 @@ class SignDataset(torch.utils.data.Dataset):
             d = {k: v[lo:hi] for k, v in sq.items()}
             if self.flip:
                 d = FT.flip(d, aspect)
-        return torch.from_numpy(FT.features(d)), label
+        x = FT.features(d)
+        return torch.from_numpy(x if self.cols is None else x[:, self.cols]), label
 
 
 def collate(batch):
     T = max(x.shape[0] for x, _ in batch)
-    X = torch.zeros(len(batch), T, FT.N_FEAT)
+    X = torch.zeros(len(batch), T, batch[0][0].shape[1])
     M = torch.zeros(len(batch), T, dtype=torch.bool)
     for i, (x, _) in enumerate(batch):
         X[i, :len(x)] = x
@@ -233,11 +234,11 @@ def scores(logits: np.ndarray, y: np.ndarray) -> dict:
 
 
 @torch.no_grad()
-def predict(model, bank, device, batch=128, workers=2, tta=False):
+def predict(model, bank, device, batch=128, workers=2, tta=False, cols=None):
     model.eval()
     outs = []
     for flip in ([False, True] if tta else [False]):
-        dl = torch.utils.data.DataLoader(SignDataset(bank, flip=flip), batch_size=batch, shuffle=False,
+        dl = torch.utils.data.DataLoader(SignDataset(bank, flip=flip, cols=cols), batch_size=batch, shuffle=False,
                                          num_workers=workers, collate_fn=collate)
         logits = []
         for x, m, _ in dl:
@@ -261,13 +262,14 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     counts = np.bincount(tr.labels, minlength=C)
     weights = counts[tr.labels].astype(np.float64) ** -cfg['balance_power']
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights), num_samples=len(tr), replacement=True)
-    dl = torch.utils.data.DataLoader(SignDataset(tr, train=True), batch_size=cfg['batch'], sampler=sampler,
+    cols = FT.columns(cfg['groups'])
+    dl = torch.utils.data.DataLoader(SignDataset(tr, train=True, cols=cols), batch_size=cfg['batch'], sampler=sampler,
                                      num_workers=cfg['workers'], collate_fn=collate, drop_last=True,
                                      persistent_workers=cfg['workers'] > 0, pin_memory=device.type == 'cuda')
     evals = {k: b for k, b in (('val_words', words.get('val')), ('val_signs', signs.get('val'))) if b is not None and len(b)}
     major = int(np.bincount(tr.labels, minlength=C).argmax())
 
-    model = Net(FT.N_FEAT, C, cfg['dim'], cfg['stages'], cfg['convs'], cfg['kernel'], cfg['heads'],
+    model = Net(len(cols), C, cfg['dim'], cfg['stages'], cfg['convs'], cfg['kernel'], cfg['heads'],
                 cfg['drop'], cfg['head_drop']).to(device)
     n_params = sum(p.numel() for p in model.parameters())
     opt = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
@@ -276,7 +278,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         1 + math.cos(math.pi * min(1.0, max(0, s - warm) / max(1, steps - warm)))))
     scaler = torch.amp.GradScaler(enabled=device.type == 'cuda')
 
-    log(f'{device} | {n_params / 1e6:.2f} M params | {len(tr)} train signs | {C} classes | '
+    log(f'{device} | {n_params / 1e6:.2f} M params | {len(cols)} features | {len(tr)} train signs | {C} classes | '
         f'{len(dl)} steps/epoch | majority class "{vocab_list[major]}"')
     for k, b in evals.items():
         log(f'  {k}: {len(b)} samples, majority-class accuracy {(b.labels == major).mean():.3f}')
@@ -300,7 +302,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
             tl, tc, tn = tl + loss.item() * len(y), tc + int((logits.argmax(1) == y).sum()), tn + len(y)
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / tn, 'train_acc': tc / tn}
         for k, b in evals.items():
-            s = scores(predict(model, b, device, workers=min(2, cfg['workers'])), b.labels)
+            s = scores(predict(model, b, device, workers=min(2, cfg['workers']), cols=cols), b.labels)
             row.update({f'{k}_{m}': v for m, v in s.items() if m != 'n'})
         row['sec'] = time.time() - t0
         key = 'val_words_macro_f1' if 'val_words' in evals else 'val_signs_macro_f1'
@@ -318,24 +320,57 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     # test once, with the best-on-val weights (plain and with mirror TTA)
     ck = torch.load(os.path.join(out_dir, 'best.pt'), map_location=device)
     model.load_state_dict(ck['model'])
-    result = {'best_epoch': best_ep, 'params': n_params, 'cfg': cfg, 'majority_class': vocab_list[major]}
+    result = {'best_epoch': best_ep, 'params': n_params, 'n_features': int(len(cols)), 'cfg': cfg,
+              'majority_class': vocab_list[major]}
+    preds = {}
     for name, bank in (('test_words', words.get('test')), ('test_signs', signs.get('test')),
                        ('val_words', words.get('val')), ('val_signs', signs.get('val'))):
         if bank is None or not len(bank):
             continue
         nw = min(2, cfg['workers'])
-        p = predict(model, bank, device, workers=nw)
+        p = predict(model, bank, device, workers=nw, cols=cols)
+        preds.update({f'{name}_probs': p.astype(np.float16), f'{name}_labels': bank.labels,
+                      f'{name}_ids': np.array(bank.ids)})
         result[name] = scores(p, bank.labels)
         result[name]['majority_acc'] = float((bank.labels == major).mean())
-        result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True), bank.labels)
+        result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True, cols=cols), bank.labels)
         if name == 'test_words':
             _per_class(p, bank.labels, vocab_list, out_dir)
     with open(os.path.join(out_dir, 'metrics.json'), 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
     with open(os.path.join(out_dir, 'vocab.json'), 'w', encoding='utf-8') as f:
         json.dump(vocab_list, f, ensure_ascii=False)
-    export_onnx(model, os.path.join(out_dir, 'model.onnx'), log)
+    # per-sample probabilities, for analyses without retraining (e.g. merging inflected word forms)
+    np.savez_compressed(os.path.join(out_dir, 'predictions.npz'), **preds)
+    export_onnx(model, os.path.join(out_dir, 'model.onnx'), log, n_in=len(cols))
     return result
+
+
+def fit_many(runs: dict, signs, words, vocab_list, out_root, log=print):
+    """Several configurations on the same loaded data, one after another → out_root/<name>/ +
+    summary.csv. A failing configuration is logged and skipped, the others still run."""
+    rows = []
+    for name, cfg in runs.items():
+        log(f'\n===== {name}: {cfg}')
+        t0 = time.time()
+        try:
+            r = fit(cfg, signs, words, vocab_list, os.path.join(out_root, name), log)
+        except Exception as e:  # noqa: BLE001
+            log(f'{name} FAILED: {e!r}')
+            rows.append({'run': name, 'error': repr(e)[:200]})
+            continue
+        row = {'run': name, 'cfg': json.dumps(cfg), 'best_epoch': r['best_epoch'], 'params': r['params'],
+               'n_features': r['n_features'], 'minutes': round((time.time() - t0) / 60, 1)}
+        for k in ('test_words', 'test_signs', 'val_words'):
+            if k in r:
+                row.update({f'{k}_{m}': round(r[k][m], 4) for m in ('top1', 'top5', 'macro_f1', 'balanced_acc')})
+        row['test_words_majority'] = round(r['test_words']['majority_acc'], 4) if 'test_words' in r else None
+        rows.append(row)
+        with open(os.path.join(out_root, 'summary.csv'), 'w', newline='', encoding='utf-8') as f:
+            w = csv.DictWriter(f, fieldnames=sorted({k for rr in rows for k in rr}, key=lambda k: (k != 'run', k)))
+            w.writeheader()
+            w.writerows(rows)
+    return rows
 
 
 def _line(row, header):
@@ -363,10 +398,10 @@ def _per_class(p, y, vocab, out_dir):
         w.writerows(sorted(rows, key=lambda r: r['recall']))
 
 
-def export_onnx(model, path, log=print):
+def export_onnx(model, path, log=print, n_in=FT.N_FEAT):
     try:
         model = model.float().eval().cpu()
-        dummy = torch.zeros(1, 32, FT.N_FEAT)
+        dummy = torch.zeros(1, 32, n_in)
         kw = dict(input_names=['x'], output_names=['logits'], dynamic_axes={'x': {1: 'T'}}, opset_version=17)
         try:
             torch.onnx.export(Exportable(model), (dummy,), path, dynamo=False, **kw)
@@ -377,7 +412,7 @@ def export_onnx(model, path, log=print):
             import onnxruntime as ort
             sess = ort.InferenceSession(path)
             for T_ in (12, 64):
-                x = torch.randn(1, T_, FT.N_FEAT)
+                x = torch.randn(1, T_, n_in)
                 ref = Exportable(model)(x).detach().numpy()
                 got = sess.run(None, {'x': x.numpy()})[0]
                 log(f'  onnxruntime vs torch, T={T_}: max abs diff {float(np.abs(ref - got).max()):.2e}')

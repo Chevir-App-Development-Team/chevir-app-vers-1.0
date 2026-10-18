@@ -87,6 +87,7 @@ scored once with it. `W` = Words_200 clips (the benchmark); `S` = sentence-cut s
 | 1 | v4 | crashed while loading data | — | — | — | — | — | 7 annotations without a frame range (fixed) |
 | 2 | v5 | done, 60 epochs × 26 s on T4 | 60 | 0.834 / 0.855 (top-1 peaked at 0.875, epoch 35) | 0.853 / 0.988 / 0.859 / 0.871 · mirror-TTA 0.859 / 0.988 / 0.869 / 0.882 | 0.872 / 0.874 (majority 0.179) | 0.294 | v5 later rejected for mixed rows, so this checks the setup; the number may be slightly optimistic |
 | **3** | **v6** | done, 60 epochs × 26.6 s on T4 | 58 | 0.885 / 0.857 (top-1 peaked at 0.893, epoch 32) | **0.853 / 0.981 / 0.835 / 0.850** · mirror-TTA 0.851 / 0.981 / 0.832 / 0.848 | 0.858 / 0.853 (majority 0.162) | 0.309 | **headline**: clean split, same config as run 2 |
+| 4a–4e | v6 | *running*: notebook 04 v4, one session | | | | | | seed 1, seed 2, hands only (382 features), no face (400 features), 100 epochs |
 
 ### Run 2: per epoch (split v5)
 
