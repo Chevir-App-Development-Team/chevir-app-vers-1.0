@@ -2,7 +2,7 @@
 // ml/fixtures/features_v<N>.{json,bin} — sintetik hallar və Python-un gözlənilən çıxışı.
 import { readFileSync } from 'node:fs';
 import * as FT from '../src/tercume/features.js';
-import { assignHands } from '../src/tercume/landmarks.js';
+import { assignHands, frameFromResults, LandmarkClip, FRAME_SIZES, EXTRA_SIZES } from '../src/tercume/landmarks.js';
 
 const F = new URL(`../ml/fixtures/features_v${FT.FEATURE_VERSION}`, import.meta.url);
 const meta = JSON.parse(readFileSync(new URL(`${F.href}.json`), 'utf8'));
@@ -57,6 +57,36 @@ for (const h of meta.hand_slots) {
 console.log(`${slotFails ? '❌' : '✅'} əl slotları (assignHands)              ` +
   `${meta.hand_slots.length - slotFails}/${meta.hand_slots.length} eyni`);
 if (slotFails) ok = false;
+
+// 4. kadr quruluşu: saxta MediaPipe nəticəsi → frameFromResults → toRaw
+{
+  const pt = (x, y, z) => ({ x, y, z });
+  const pose = Array.from({ length: 33 }, (_, j) => pt(0.4 + j / 100, 0.3 + j / 200, -j / 1000));
+  const world = Array.from({ length: 33 }, (_, j) => pt(j / 10, -j / 20, j / 30));
+  const hand = (cx) => Array.from({ length: 21 }, (_, j) => pt(cx + j / 1000, 0.6, j / 500));
+  const hr = { landmarks: [hand(0.56), hand(0.30)], worldLandmarks: [hand(0.01), hand(0.02)] };
+  const pr = { landmarks: [pose], worldLandmarks: [world] };
+  const f = frameFromResults(hr, pr, null, 4 / 3);
+  const clip = new LandmarkClip();
+  clip.push(f);
+  clip.push(f);
+  const plain = clip.toRaw(), full = clip.toRaw(0, 2, { extra: true });
+  const checks = [
+    ['pose_world = worldLandmarks[POSE_IDX]', FT.POSE_IDX.every((j, k) => f.pose_world[k * 3] === Math.fround(j / 10)
+      && f.pose_world[k * 3 + 1] === Math.fround(-j / 20) && f.pose_world[k * 3 + 2] === Math.fround(j / 30))],
+    ['pose = landmarks[POSE_IDX] (x, y, z)', FT.POSE_IDX.every((j, k) => f.pose[k * 3] === Math.fround(0.4 + j / 100)
+      && f.pose[k * 3 + 2] === Math.fround(-j / 1000))],
+    ['üz yoxdursa face/blend NaN', f.face.every(Number.isNaN) && f.blend.every(Number.isNaN)],
+    ['toRaw() — yalnız müqavilə sahələri', same(Object.keys(plain).filter((k) => k !== 'T'), Object.keys(FRAME_SIZES))],
+    ['toRaw({ extra }) — pose_world da', full.pose_world?.length === 2 * EXTRA_SIZES.pose_world],
+    ['preprocess əlavə sahədən asılı deyil',
+      same(Array.from(FT.preprocess(plain, 4 / 3).data), Array.from(FT.preprocess(full, 4 / 3).data))],
+  ];
+  for (const [name, pass] of checks) {
+    console.log(`${pass ? '✅' : '❌'} kadr: ${name}`);
+    if (!pass) ok = false;
+  }
+}
 
 console.log(ok ? `\n✅ UYĞUNDUR — JS ön emalı Python preprocess() ilə eynidir (feature_version ${FT.FEATURE_VERSION})`
                : '\n❌ UYĞUN DEYİL');

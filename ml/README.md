@@ -175,7 +175,9 @@ models. The server is not built yet. These pieces keep both paths identical:
 - **Browser landmarks:** `src/tercume/landmarks.js` runs the same three `.task` models with the same
   settings (`public/tercume/assets/`, md5 as in `azsl/landmarks.py`). It assigns hand slots with a port
   of `assign_hands` (300 / 300 golden cases equal) and buffers frames for `features.js`. On a real AzSLD
-  recording it agrees with the Python pipeline, see `EXPERIMENTS.md` (E4).
+  recording it agrees with the Python pipeline, see `EXPERIMENTS.md` (E4). Frames also carry
+  `pose_world` (the 9 body points in metres, for the avatar). It is outside the recognizer contract:
+  `toRaw()` leaves it out unless `{ extra: true }` is passed, and the model input is identical either way.
 - **`FEATURE_VERSION`** (in `features.py`) is written into every checkpoint, manifest and fixture. The
   browser and the server must refuse a model whose version differs from their preprocessing.
 - **Input:** raw compact landmarks per frame (`features.spec()['raw']`: hands, hand world, 9 pose points,

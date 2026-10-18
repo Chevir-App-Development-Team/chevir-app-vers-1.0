@@ -192,6 +192,7 @@ frame timestamps.
 | Pose x, y | 0.0037 / 0.031 |
 | Face x, y | 0.0002 / 0.005 |
 | Blendshapes | 0.0022 / 0.158 |
+| Body world coordinates, 9 points (avatar field `pose_world`, not a model input) | 0.005 m / 0.053 m; all 148 frames; median shoulder width 0.33 m |
 | Model input after `preprocess` (656 features), mean abs | 0.0107 (groups 0.002–0.013; max 1 = presence flags in the 8 frames above) |
 | Speed, three models | 88 ms per frame (≈ 11 fps), load 0.43 s. Measured in the app's browser pane, so live-camera speed needs its own check |
 

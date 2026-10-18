@@ -8,6 +8,9 @@
  * Hər kadr features.js-in gözlədiyi formadadır (NaN = aşkarlanmayıb):
  *   hand 2×21×3 (slot 0 = siqnalçının SAĞ əli) · hand_world 2×21×3 · pose 9×3 (x, y, z) ·
  *   face 102×2 · blend 52 (BLEND_NAMES sırası)
+ * Əlavə olaraq, tanıma müqaviləsinə daxil OLMAYAN sahə (avatar / canlı güzgü üçün):
+ *   pose_world 9×3 — POSE_IDX nöqtələrinin metrik 3D koordinatları (metr, mərkəz — budlar arası),
+ *   tools/build_words.py-dakı BODY ilə eyni nöqtələr və sıra.
  * Sağ/sol əli pozanın biləkləri təyin edir (assignHands — Python-dakı qayda ilə eyni), ona görə
  * əllər çarpazlaşanda da slot dəyişmir. Üzü söndürmək (face: false) məxfilik rejimidir: üz
  * modeli yüklənmir, üz sahələri NaN qalır.
@@ -20,7 +23,10 @@ export const MODEL_FILES = {
   pose: 'pose_landmarker_lite.task',
   face: 'face_landmarker.task',
 };
+/** Tanıma müqaviləsi (features.js preprocess() bunları oxuyur) — dəyişdirilməməlidir. */
 export const FRAME_SIZES = { hand: 126, hand_world: 126, pose: 27, face: 204, blend: 52 };
+/** Müqaviləyə daxil olmayan əlavə sahələr (avatar). toRaw() bunları yalnız istəniləndə verir. */
+export const EXTRA_SIZES = { pose_world: 27 };
 
 const P_L_WR = 15, P_R_WR = 16;            // MediaPipe Pose: sol və sağ bilək
 const BLEND_INDEX = new Map(BLEND_NAMES.map((n, i) => [n, i]));
@@ -67,7 +73,7 @@ export function detectFrame(lms, image, ts) {
 
 export function emptyFrame() {
   const f = {};
-  for (const [k, n] of Object.entries(FRAME_SIZES)) f[k] = new Float32Array(n).fill(NaN);
+  for (const [k, n] of Object.entries({ ...FRAME_SIZES, ...EXTRA_SIZES })) f[k] = new Float32Array(n).fill(NaN);
   return f;
 }
 
@@ -81,6 +87,10 @@ export function frameFromResults(hr, pr, fr, aspect) {
       f.pose[k * 3] = pl[j].x; f.pose[k * 3 + 1] = pl[j].y; f.pose[k * 3 + 2] = pl[j].z;
     });
     wrists = [[pl[P_L_WR].x, pl[P_L_WR].y], [pl[P_R_WR].x, pl[P_R_WR].y]];
+    const pw = pr.worldLandmarks?.[0];
+    if (pw) POSE_IDX.forEach((j, k) => {
+      f.pose_world[k * 3] = pw[j].x; f.pose_world[k * 3 + 1] = pw[j].y; f.pose_world[k * 3 + 2] = pw[j].z;
+    });
   }
   const hands = hr?.landmarks ?? [];
   const slots = assignHands(hands.map((h) => [h[0].x, h[0].y]), wrists, aspect);
@@ -144,11 +154,14 @@ export class LandmarkClip {
 
   reset() { this.frames = []; }
 
-  /** [from, to) kadrları → { T, hand, hand_world, pose, face, blend } */
-  toRaw(from = 0, to = this.frames.length) {
+  /**
+   * [from, to) kadrları → { T, hand, hand_world, pose, face, blend } — tanıma müqaviləsi.
+   * `extra: true` əlavə sahələri də verir (pose_world — avatar üçün).
+   */
+  toRaw(from = 0, to = this.frames.length, { extra = false } = {}) {
     const fr = this.frames.slice(from, to);
     const raw = { T: fr.length };
-    for (const [k, n] of Object.entries(FRAME_SIZES)) {
+    for (const [k, n] of Object.entries(extra ? { ...FRAME_SIZES, ...EXTRA_SIZES } : FRAME_SIZES)) {
       const a = new Float32Array(fr.length * n);
       fr.forEach((f, t) => a.set(f[k], t * n));
       raw[k] = a;
