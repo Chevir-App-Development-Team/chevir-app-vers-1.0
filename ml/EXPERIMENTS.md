@@ -416,9 +416,14 @@ with 0.10.35; both use the same models.
 Model: run 4d (no face, 400 features, test Words_200 macro-F1 0.863), re-exported from `best.pt`
 (6.6 MB ONNX, opset 17), in `public/tercume/assets/word_model/` with its `manifest.json`.
 Runtime: `src/tercume/recognizer.js`, onnxruntime-web 1.30.0, WASM, one thread.
-**Since run 5 the installed model is 5a** (no face, seed 1, picked on validation; test Words_200
-macro-F1 0.849, merged 0.892). Its check: max logit difference 4.5e-6, same top-5 on all 8 cases.
-The tables below are for 4d; E6 has 5a on the same recording.
+Installed models since then:
+- **5a** after run 5 (no face, seed 1, picked on validation; test Words_200 macro-F1 0.849, merged
+  0.892). Check: max logit difference 4.5e-6, same top-5 on all 8 cases.
+- **7b** after run 7: unknown class, weight 4, checkpoint on open-set accuracy. It was picked for word
+  mode on the val sentences (E6), and its word-mode settings are in its manifest. Check: max logit
+  difference 2.9e-6, same top-5 on all 8 cases. All 8 synthetic cases come out as `<unk>`.
+
+The tables below are for 4d; E6 has 5a and 7b on the same recording.
 
 **Same input → same output as PyTorch** (`node tools/verify_recognizer.mjs`): the synthetic fixture
 cases go through features.js and onnxruntime-web, against `best.pt` on the training forward pass
@@ -607,4 +612,34 @@ Observations:
 - 6c was trained with run 6's checkpoint rule (val Words_200 macro-F1), which saved an early
   checkpoint. Run 7 chooses on open-set accuracy instead.
 
-**Open:** run 7 (checkpoint on open-set accuracy), live-camera speed.
+### Run 7 models in word mode (notebook 05 v4)
+
+The same narrowed grid as v3, so val F1 can be compared with the run 6 models directly.
+
+| min p | 7a weight 1 | 7b weight 4 |
+|---|---|---|
+| 0.3 | 0.755 | 0.766 |
+| 0.5 | 0.762 | 0.775 |
+| 0.6 | 0.764 | 0.779 |
+| 0.7 | 0.767 | **0.782** |
+| 0.8 | 0.765 | 0.772 |
+| 0.9 | 0.698 | 0.670 |
+
+Chosen on val: **7b, p ≥ 0.7, overlap ≤ 50 %** (val F1 0.782; best run 6 model 0.736, 5a 0.703). Test,
+scored once:
+
+| Model + settings | Val F1 | Test P / R / F1 | Test WER (in-vocab.) | Test F1 merged | Test P, in-vocab. | Oracle top-1, test |
+|---|---|---|---|---|---|---|
+| 5a + v2, browser until now | 0.703 | 0.582 / 0.724 / 0.645 | 0.640 (0.33) | 0.677 | 0.812 | 0.870 |
+| 6c + p ≥ 0.5, overlap ≤ 25 % | 0.736 | 0.671 / 0.724 / 0.696 | 0.487 | 0.749 | 0.768 | 0.814 |
+| **7b + p ≥ 0.7, overlap ≤ 50 %** | **0.782** | **0.709 / 0.763 / 0.735** | **0.445 (0.33)** | **0.765** | 0.807 | 0.838 |
+| 7b + v2 (p ≥ 0.8, no overlap) | 0.723 | 0.768 / 0.611 / 0.680 | 0.465 | 0.710 | 0.860 | |
+
+- **On unseen signers, word mode improves from F1 0.645 to 0.735** (WER 0.640 → 0.445). Precision
+  and recall both rise: precision because unknown signs are rejected, recall because the later
+  checkpoint names the known words better (oracle 0.814 → 0.838).
+- **7b is the browser model now**, with its val settings in `manifest.json` → `segment`. In the app
+  it reads the E4 recording as SİZ 0.93, AD 0.91, NƏDİR 0.93 (train split, mechanism check). A span
+  whose best window is `<unk>` shows a "naməlum" chip.
+
+**Open:** live-camera speed; a second seed for 7b.
