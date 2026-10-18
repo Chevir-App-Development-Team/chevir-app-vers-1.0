@@ -11,7 +11,7 @@ const BASE = import.meta.env.BASE_URL
 // buradadır (indi açıq fondur, bax hero.css). .trust bilərəkdən bu
 // siyahıda deyil (tünd qalır) - əks halda usecases-dən team-ə qədər 5
 // ardıcıl açıq bölmə yaranardı.
-const LIGHT_SECTION_SELECTOR = '.hero, .statement, .difference, .usecases, .results, .roadmap, .team'
+const LIGHT_SECTION_SELECTOR = '.hero, .statement, .difference, .usecases, .results, .roadmap, .team, .bakuid'
 
 // public/wordmark.svg-nin dəyişməz kopyası (currentColor - hero.css-də rəngi təyin olunur).
 const WORDMARK_MARKUP = `
