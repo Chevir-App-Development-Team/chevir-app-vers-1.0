@@ -12,6 +12,7 @@ Python's protobuf 4.25 breaks it.
     python ml/kaggle_run.py results --to run4      # 04's summary/history/metrics/predictions → ml/results/run4/
                                                    # (--models adds best.pt + model.onnx,
                                                    #  --run no_face fetches only that run)
+    python ml/kaggle_run.py eval --to wordmode1    # 05's eval/ (summary, val grid, test detections)
 
 Each push creates a new version of the notebook on Kaggle and starts running it. All notebooks
 are private, CPU-only; 01/02 have internet on (they read Zenodo), 03 reads 01+02 outputs.
@@ -35,12 +36,14 @@ NOTEBOOKS = {
     **{f'02-{k}': (f'02_sentences_shard{k}.ipynb', f'02-sentences-shard{k}') for k in range(SHARDS)},
     '03': ('03_split_benchmark.ipynb', '03-split-benchmark'),
     '04': ('04_train_words.ipynb', '04-train-words'),
+    '05': ('05_eval_word_mode.ipynb', '05-eval-word-mode'),
 }
 EXTRACTION = ['01'] + [f'02-{k}' for k in range(SHARDS)]
 # per notebook: GPU, internet, which earlier notebooks' outputs it reads (01/02 default: CPU + internet)
 SETTINGS = {
     '03': dict(gpu=False, internet=False, sources=EXTRACTION),
     '04': dict(gpu=True, internet=True, sources=EXTRACTION + ['03']),   # internet: pip onnx if missing
+    '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04']),   # CPU: ~2 ms/window
 }
 
 
@@ -108,7 +111,7 @@ def keys(arg):
 def main():
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # Windows console is cp1252; glosses aren't
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['whoami', 'push', 'stage', 'status', 'log', 'splits', 'results'])
+    ap.add_argument('cmd', choices=['whoami', 'push', 'stage', 'status', 'log', 'splits', 'results', 'eval'])
     ap.add_argument('which', nargs='?', default='all')
     ap.add_argument('--smoke', action='store_true', help='push with SMOKE = True (a few files, ~3 min)')
     ap.add_argument('--user', help='Kaggle username (else read from the CLI config)')
@@ -171,6 +174,19 @@ def main():
         if not os.path.isdir(src):
             sys.exit(f'no train/ in the output of {ref} yet')
         dst = os.path.join(HERE, 'results', a.to or 'latest')   # other runs' folders are left alone
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(src, dst)
+        shutil.rmtree(tmp, ignore_errors=True)
+        print('wrote', dst, os.listdir(dst))
+
+    elif a.cmd == 'eval':
+        ref = f'{user}/{NOTEBOOKS["05"][1]}'
+        tmp = tempfile.mkdtemp(prefix='kaggle_eval_')
+        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', r'^eval/[^/]+$', '-q', check=False)
+        src = os.path.join(tmp, 'eval')
+        if not os.path.isdir(src):
+            sys.exit(f'no eval/ in the output of {ref} yet')
+        dst = os.path.join(HERE, 'results', a.to or 'eval_latest')
         shutil.rmtree(dst, ignore_errors=True)
         shutil.copytree(src, dst)
         shutil.rmtree(tmp, ignore_errors=True)

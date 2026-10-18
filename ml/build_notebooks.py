@@ -4,7 +4,9 @@ Each notebook is self-contained: the package is written out with %%writefile cel
 nothing has to be uploaded to Kaggle besides the .ipynb itself. Edit azsl/*.py, then:
     python ml/build_notebooks.py
 """
+import json
 import os
+import sys
 
 import nbformat as nbf
 
@@ -365,12 +367,125 @@ ax[0].legend(); plt.show()
 """),
     ])
 
+def nb05():
+    sys.path.insert(0, HERE)
+    from analyze import load_groups                       # the confirmed word-form families
+    families = load_groups(os.path.join(HERE, 'lemma_groups.csv'))
+    return notebook([
+        md("""
+# AzSLD 05 — word mode on held-out sentences
+
+How well does the browser's word mode (`segment.py`, twin of `src/tercume/segment.js`) find the words
+of whole sentence recordings by signers it has never seen? Every val / test recording runs through
+word mode as in the browser (activity → spans → windows → the word model → non-maximum suppression)
+and the detected words are matched with the annotated glosses.
+
+**Parameters are chosen on val** (all configurations of `segment_eval.GRID`, best F1). **Test is
+scored once**, only with configurations fixed before: the val choice, the current defaults (v1), and
+the best "whole span = one word" baseline.
+
+**Inputs:** the four 02 shards, 03 (splits) and 04 (the trained model, run 5a = `no_face_seed1`).
+**Kaggle settings:** CPU (scoring is ~2 ms per window; the GPU queue is not worth it), Internet off.
+**Writes** `eval/`: `grid_val.csv`, `summary.json`, `detections_test.csv`.
+"""),
+        code(f"""
+SMOKE = False                  # True: 30 recordings per split, to check the setup
+MODEL_RUN = 'no_face_seed1'    # run 5a, the model the browser ships (picked on validation)
+FACE = False                   # the browser runs 5a without the face tracker (s2w.js needsFace)
+FAMILIES = {json.dumps(families, ensure_ascii=False)}   # ml/lemma_groups.csv, confirmed
+"""),
+        code(SETUP),
+        *package_cells(TRAIN_MODULES + ['segment', 'segment_eval']),
+        code("""
+import numpy as np, pandas as pd, torch
+from azsl import features as FT, segment as SG, segment_eval as E
+from azsl.store import LandmarkStore
+INPUT = '/kaggle/input' if ON_KAGGLE else OUT
+
+def find(pattern):
+    return sorted({os.path.dirname(p) for p in glob.glob(os.path.join(INPUT, '**', pattern), recursive=True)})
+
+splits_dir = find('splits/sentences_split.csv')[0]
+sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
+ckpt = glob.glob(os.path.join(INPUT, '**', 'train', MODEL_RUN, 'best.pt'), recursive=True)[0]
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+net, vocab, groups = E.load_net(ckpt, device)
+scorer = E.Scorer(net, groups, FACE, device)
+store = LandmarkStore(sentence_dirs)
+idx = store.index
+print('model:', ckpt, '| groups:', groups, '| device:', device, '| sentence shards:', len(sentence_dirs))
+"""),
+        code("""
+sents = pd.read_csv(os.path.join(splits_dir, 'sentences_split.csv'), dtype={'rec_id': str})
+tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
+tags = tags[tags.start.notna() & tags.end.notna()]
+in_vocab = set(vocab)
+anns = {rid: [(s, e, g, g in in_vocab) for s, e, g in zip(t.start, t.end, t.gloss)] for rid, t in tags.groupby('rec_id')}
+
+def recs(split):
+    r = sents[(sents.split == split) & sents.rec_id.isin(idx.index)].rec_id.tolist()
+    r = r[:30] if SMOKE else r
+    return [(rid, float(idx.at[rid, 'width']) / float(idx.at[rid, 'height'])) for rid in r]
+
+def load(rid):
+    return FT.reduce(store.get(rid, dtype=np.float32))
+
+counts = {s: {'recordings': len(recs(s)),
+              'annotated': int(tags[tags.split == s].shape[0]),
+              'annotated_in_vocab': int(tags[(tags.split == s) & tags.gloss.isin(in_vocab)].shape[0])}
+          for s in ('val', 'test')}
+counts
+"""),
+        md('### Val: every configuration'),
+        code("""
+val_t, val_oracle, _ = E.evaluate(load, recs('val'), anns, scorer, vocab, FAMILIES)
+rows = [{'rest_line': k[0], 'lens': ' '.join(map(str, k[1])) or 'whole span', 'min_p': k[2],
+         'max_overlap': k[3], **t.metrics()} for k, t in val_t.items()]
+grid = pd.DataFrame(rows).sort_values('f1', ascending=False)
+os.makedirs(os.path.join(OUT, 'eval'), exist_ok=True)
+grid.to_csv(os.path.join(OUT, 'eval', 'grid_val.csv'), index=False)
+print('oracle boundaries, val: top-1', round(val_oracle['top1'] / val_oracle['n'], 4), 'of', val_oracle['n'])
+grid.head(15)
+"""),
+        code("""
+def as_cfg(row):
+    lens = () if row['lens'] == 'whole span' else tuple(int(x) for x in str(row['lens']).split())
+    return {**SG.SEGMENT, 'rest_line': float(row['rest_line']), 'lens': lens,
+            'min_p': float(row['min_p']), 'max_overlap': float(row['max_overlap'])}
+
+chosen = {'chosen on val (F1)': as_cfg(grid.iloc[0]),
+          'segment.py v1 defaults': dict(SG.SEGMENT),
+          'whole span = one word, best on val': as_cfg(grid[grid.lens == 'whole span'].iloc[0])}
+{k: {kk: v[kk] for kk in ('rest_line', 'lens', 'min_p', 'max_overlap')} for k, v in chosen.items()}
+"""),
+        md('### Test: scored once, with the configurations fixed on val'),
+        code("""
+test_t, test_oracle, kept = E.evaluate(load, recs('test'), anns, scorer, vocab, FAMILIES,
+                                       cfgs=list(chosen.values()), keep=chosen['chosen on val (F1)'])
+summary = {'model': MODEL_RUN, 'face': FACE, 'segment_version': SG.SEGMENT_VERSION, 'counts': counts,
+           'oracle_top1': {'val': val_oracle['top1'] / val_oracle['n'], 'test': test_oracle['top1'] / test_oracle['n'],
+                           'val_merged': val_oracle['top1_m'] / val_oracle['n'],
+                           'test_merged': test_oracle['top1_m'] / test_oracle['n']},
+           'configs': {name: {'params': {k: list(v) if isinstance(v, tuple) else v for k, v in p.items()},
+                              'val': val_t[E.config_key(p)].metrics(), 'test': test_t[E.config_key(p)].metrics()}
+                       for name, p in chosen.items()}}
+with open(os.path.join(OUT, 'eval', 'summary.json'), 'w', encoding='utf-8') as f:
+    json.dump(summary, f, ensure_ascii=False, indent=1)
+pd.DataFrame(kept, columns=['rec_id', 'start0', 'end0', 'word']).to_csv(
+    os.path.join(OUT, 'eval', 'detections_test.csv'), index=False)
+cols = ['precision', 'recall', 'f1', 'precision_inv', 'wer', 'wer_inv', 'f1_merged', 'wer_merged',
+        'start_err_frames', 'end_err_frames', 'detections']
+pd.DataFrame({f'{name} | {split}': {c: round(summary['configs'][name][split][c], 4) for c in cols}
+              for name in chosen for split in ('val', 'test')}).T
+"""),
+    ])
+
 
 def main():
     out = os.path.join(HERE, 'notebooks')
     os.makedirs(out, exist_ok=True)
     books = {'01_index_words200_fingerspelling.ipynb': nb01(), '03_split_benchmark.ipynb': nb03(),
-             '04_train_words.ipynb': nb04()}
+             '04_train_words.ipynb': nb04(), '05_eval_word_mode.ipynb': nb05()}
     for k in range(NUM_SHARDS):
         books[f'02_sentences_shard{k}.ipynb'] = nb02(k)
     for name, nb in books.items():
