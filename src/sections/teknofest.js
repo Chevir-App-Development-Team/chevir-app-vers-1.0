@@ -13,6 +13,8 @@ const STAGE_IMG_W = 1600
 const STAGE_IMG_H = 992
 const TEAM_IMG_W = 1200
 const TEAM_IMG_H = 900
+const TEAM2_IMG_W = 1200
+const TEAM2_IMG_H = 800
 
 export const teknofestMarkup = `
 <section class="teknofest" aria-labelledby="teknofest-heading">
@@ -51,14 +53,25 @@ export const teknofestMarkup = `
         <span class="teknofest__stat-label">${t('home.teknofest.stat.3.label')}</span>
       </div>
     </div>
-    <div class="teknofest__card">
-      <img
-        src="${BASE_URL}img/teknofest/teknofest-team.webp"
-        alt="${t('home.teknofest.img.team.alt')}"
-        width="${TEAM_IMG_W}"
-        height="${TEAM_IMG_H}"
-        loading="lazy"
-      />
+    <div class="teknofest__cards">
+      <div class="teknofest__card teknofest__card--team2">
+        <img
+          src="${BASE_URL}img/teknofest/teknofest-team2.webp"
+          alt="${t('home.teknofest.img.team2.alt')}"
+          width="${TEAM2_IMG_W}"
+          height="${TEAM2_IMG_H}"
+          loading="lazy"
+        />
+      </div>
+      <div class="teknofest__card teknofest__card--team">
+        <img
+          src="${BASE_URL}img/teknofest/teknofest-team.webp"
+          alt="${t('home.teknofest.img.team.alt')}"
+          width="${TEAM_IMG_W}"
+          height="${TEAM_IMG_H}"
+          loading="lazy"
+        />
+      </div>
     </div>
     <p class="teknofest__date">${t('home.teknofest.date')}</p>
   </div>
