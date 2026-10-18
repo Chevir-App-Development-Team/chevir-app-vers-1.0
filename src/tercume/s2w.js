@@ -28,7 +28,8 @@ export class SignToWords {
    * @param {HTMLVideoElement} o.video
    * @param {(e: {frame, active, state, aspect, fileProgress?}) => void} [o.onFrame] hər kadr
    * @param {(e: {signs, added, span, ms}) => void} [o.onSigns] aralıq tanınanda (unsure: true —
-   *   heç bir söz əminlik həddini keçmədi, ən yaxşı təxmin)
+   *   heç bir söz əminlik həddini keçmədi, ən yaxşı təxmin; unknown: true — model bunu lüğətdən
+   *   kənar işarə sayır)
    * @param {(e: {stage, message}) => void} [o.onStatus]
    * @param {object} [o.segment] segment.js SEGMENT-in dəyişdirilən sahələri
    */
@@ -166,8 +167,12 @@ export class SignToWords {
         return { label: x.top[0].label, p: x.top[0].p, top: x.top };
       };
       const { signs, best } = await segmentSpan(span, raw, score, FRAME_SIZES, this.p);
+      // "naməlum" sinfi (manifest.unknown_label): seçimdə iştirak edir, amma söz kimi çıxmır
+      const unk = this.rec.manifest.unknown_label;
+      const words = signs.filter((s) => s.label !== unk);
       // heç bir söz kifayət qədər əmin deyilsə, ən yaxşı təxmin işarələnib göstərilir
-      const added = signs.length ? signs : best ? [{ ...best, unsure: true }] : [];
+      const added = words.length ? words
+        : best ? [{ ...best, unsure: true, unknown: best.label === unk }] : [];
       this.signs.push(...added);
       this.onSigns?.({ signs: this.signs, added, span, ms: performance.now() - t0 });
     }).catch((err) => {

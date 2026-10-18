@@ -139,7 +139,8 @@ function initS2T() {
         onSigns: ({ signs, added, ms }) => {
           renderSigns(signs, added.length);
           const last = added[added.length - 1];
-          if (last) renderPredictions(last.top);
+          const unk = s2w.rec.manifest.unknown_label;
+          if (last) renderPredictions(last.top.map((t) => (t.label === unk ? { ...t, label: 'naməlum' } : t)));
           $('#signs-info').textContent = added.length
             ? `+${added.length} · ${Math.round(ms)} ms` : signs.length ? `${signs.length} söz` : '—';
           $('#pred-quality').textContent = !last ? '—'
@@ -261,9 +262,10 @@ function renderPredictions(top) {
 function renderSigns(signs, nNew = 0) {
   $('#signs').innerHTML = signs.length
     ? signs.map((s, i) => {
-      const alt = s.top.map((t) => `${t.label} ${(t.p * 100).toFixed(0)}%`).join(' · ');
+      const unk = state.s2w?.rec.manifest.unknown_label;
+      const alt = s.top.map((t) => `${t.label === unk ? 'naməlum' : t.label} ${(t.p * 100).toFixed(0)}%`).join(' · ');
       const cls = ['s', i >= signs.length - nNew && 'new', s.unsure && 'unsure'].filter(Boolean).join(' ');
-      const label = s.unsure ? `${s.label}?` : s.label;
+      const label = s.unknown ? 'naməlum' : s.unsure ? `${s.label}?` : s.label;
       return `<span class="${cls}" title="${escapeHtml(alt)}">${escapeHtml(label)}<em>${Math.round(s.p * 100)}%</em></span>`;
     }).join('')
     : '<span class="muted">boş</span>';
