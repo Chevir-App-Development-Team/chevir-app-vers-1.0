@@ -46,12 +46,23 @@ def merged_scores(run_dir, groups, which='test_words'):
     return scores(p, y), len(fams)
 
 
+YES = ('yes', 'y', 'bəli', 'hə', 'he')
+NO = ('no', 'n', 'xeyr', 'yox')
+
+
 def load_groups(path, confirmed_only=True):
-    out = {}
+    """gloss → family. A form marked yes joins its family; the family's base form (gloss == group)
+    joins automatically unless it is marked no. Empty or no = the form stays its own class."""
     with open(path, newline='', encoding='utf-8') as f:
-        for r in csv.DictReader(f):
-            if not confirmed_only or r['confirmed'].strip().lower() in ('yes', 'y', 'bəli', 'hə'):
-                out[r['gloss'].strip()] = r['group'].strip()
+        rows = [{k: (v or '').strip() for k, v in r.items()} for r in csv.DictReader(f)]
+    out = {}
+    for r in rows:
+        if not confirmed_only or r['confirmed'].lower() in YES:
+            out[r['gloss']] = r['group']
+    if confirmed_only:
+        for r in rows:
+            if r['gloss'] == r['group'] and r['group'] in out.values() and r['confirmed'].lower() not in NO:
+                out[r['gloss']] = r['group']
     # a family needs at least two forms to merge anything
     sizes = {}
     for fam in out.values():

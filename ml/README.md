@@ -160,6 +160,24 @@ python ml/kaggle_run.py results --to run4   # summary, history, metrics, predict
 python ml/smoke_train.py             # local check: a few real recordings, 2 epochs on CPU
 ```
 
+## Analysing results (no GPU)
+
+```bash
+python ml/analyze.py ml/results/run4 --ref ml/results/run3_split_v6
+```
+
+This prints the runs of a batch, mean ± std over the seed runs, and test scores with inflected word
+forms merged, using `ml/lemma_groups.csv`. Whether two forms are one sign is decided by AzSL signers,
+in the `confirmed` column:
+
+- `yes` (also `bəli`, `hə`): the form is merged with its family. Predicting any form of the family
+  counts as correct. The family's base form (where `gloss` = `group`) joins automatically unless it
+  is marked `no`.
+- `no` or empty: the form stays its own class, and confusing it with the base form is an error.
+
+Merged scores are an extra evaluation with fewer classes; they never replace the plain scores.
+Scores using all candidate families are printed only as an upper bound, labelled as unconfirmed.
+
 ## Developing
 
 ```bash
