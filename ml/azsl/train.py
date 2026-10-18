@@ -29,7 +29,9 @@ from .store import LandmarkStore
 KEYS = ('hand', 'hand_world', 'pose', 'face', 'blend')
 DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label_smoothing=0.1,
                 balance_power=0.5, dim=192, stages=2, convs=3, kernel=17, heads=4, drop=0.2,
-                head_drop=0.4, margin=8, workers=4, seed=0, groups=None)
+                head_drop=0.4, margin=8, workers=4, seed=0, groups=None,
+                face_drop=0.0,          # P(train clip loses face + blendshapes): one model for both privacy modes
+                fold=None, split_id=None)
 
 
 # ---------------------------------------------------------------- data
@@ -109,22 +111,32 @@ def load_words200(words_dirs, wsplit, vocab, log=print):
 
 
 class SignDataset(torch.utils.data.Dataset):
-    def __init__(self, bank, train=False, flip=False, cols=None):
-        self.bank, self.train, self.flip, self.cols = bank, train, flip, cols
+    """Evaluation goes through features.preprocess() — the exact code the landmark server runs and the
+    browser port mirrors. Training adds augmentation (and face dropout) on the same functions."""
+
+    def __init__(self, bank, train=False, flip=False, groups=None, face=True, face_drop=0.0):
+        self.bank, self.train, self.flip, self.groups, self.face, self.face_drop = bank, train, flip, groups, face, face_drop
+        self.cols = FT.columns(groups) if groups else None
 
     def __len__(self):
         return len(self.bank)
 
     def __getitem__(self, i):
         raw, label, aspect, core = self.bank.raw(i)
+        lo, hi = core
+        if not self.train and not self.flip:
+            x = FT.preprocess({k: v[lo:hi] for k, v in raw.items()}, aspect, self.groups, self.face)
+            return torch.from_numpy(x), label
         sq = FT.to_square(raw, aspect)
         if self.train:
-            d = FT.augment(sq, np.random.default_rng(), aspect, core)
-        else:
-            lo, hi = core
-            d = {k: v[lo:hi] for k, v in sq.items()}
-            if self.flip:
-                d = FT.flip(d, aspect)
+            rng = np.random.default_rng()
+            d = FT.augment(sq, rng, aspect, core)
+            if self.face_drop and rng.random() < self.face_drop:
+                d = FT.drop_face(d)
+        else:                                     # mirror TTA
+            d = FT.flip({k: v[lo:hi] for k, v in sq.items()}, aspect)
+            if not self.face:
+                d = FT.drop_face(d)
         x = FT.features(d)
         return torch.from_numpy(x if self.cols is None else x[:, self.cols]), label
 
@@ -234,11 +246,11 @@ def scores(logits: np.ndarray, y: np.ndarray) -> dict:
 
 
 @torch.no_grad()
-def predict(model, bank, device, batch=128, workers=2, tta=False, cols=None):
+def predict(model, bank, device, batch=128, workers=2, tta=False, groups=None, face=True):
     model.eval()
     outs = []
     for flip in ([False, True] if tta else [False]):
-        dl = torch.utils.data.DataLoader(SignDataset(bank, flip=flip, cols=cols), batch_size=batch, shuffle=False,
+        dl = torch.utils.data.DataLoader(SignDataset(bank, flip=flip, groups=groups, face=face), batch_size=batch, shuffle=False,
                                          num_workers=workers, collate_fn=collate)
         logits = []
         for x, m, _ in dl:
@@ -262,8 +274,9 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     counts = np.bincount(tr.labels, minlength=C)
     weights = counts[tr.labels].astype(np.float64) ** -cfg['balance_power']
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights), num_samples=len(tr), replacement=True)
-    cols = FT.columns(cfg['groups'])
-    dl = torch.utils.data.DataLoader(SignDataset(tr, train=True, cols=cols), batch_size=cfg['batch'], sampler=sampler,
+    cols, groups = FT.columns(cfg['groups']), cfg['groups']
+    dl = torch.utils.data.DataLoader(SignDataset(tr, train=True, groups=groups, face_drop=cfg['face_drop']),
+                                     batch_size=cfg['batch'], sampler=sampler,
                                      num_workers=cfg['workers'], collate_fn=collate, drop_last=True,
                                      persistent_workers=cfg['workers'] > 0, pin_memory=device.type == 'cuda')
     evals = {k: b for k, b in (('val_words', words.get('val')), ('val_signs', signs.get('val'))) if b is not None and len(b)}
@@ -302,14 +315,15 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
             tl, tc, tn = tl + loss.item() * len(y), tc + int((logits.argmax(1) == y).sum()), tn + len(y)
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / tn, 'train_acc': tc / tn}
         for k, b in evals.items():
-            s = scores(predict(model, b, device, workers=min(2, cfg['workers']), cols=cols), b.labels)
+            s = scores(predict(model, b, device, workers=min(2, cfg['workers']), groups=groups), b.labels)
             row.update({f'{k}_{m}': v for m, v in s.items() if m != 'n'})
         row['sec'] = time.time() - t0
         key = 'val_words_macro_f1' if 'val_words' in evals else 'val_signs_macro_f1'
         row['best'] = row.get(key, 0) > best
         if row['best']:
             best, best_ep = row[key], ep
-            torch.save({'model': model.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep}, os.path.join(out_dir, 'best.pt'))
+            torch.save({'model': model.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep,
+                        'feature_version': FT.FEATURE_VERSION}, os.path.join(out_dir, 'best.pt'))
         history.append(row)
         with open(hist_path, 'w', newline='') as f:
             w = csv.DictWriter(f, fieldnames=list(row))
@@ -328,12 +342,15 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         if bank is None or not len(bank):
             continue
         nw = min(2, cfg['workers'])
-        p = predict(model, bank, device, workers=nw, cols=cols)
+        p = predict(model, bank, device, workers=nw, groups=groups)
         preds.update({f'{name}_probs': p.astype(np.float16), f'{name}_labels': bank.labels,
                       f'{name}_ids': np.array(bank.ids)})
         result[name] = scores(p, bank.labels)
         result[name]['majority_acc'] = float((bank.labels == major).mean())
-        result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True, cols=cols), bank.labels)
+        result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True, groups=groups), bank.labels)
+        if not groups or ('face' in groups or 'blend' in groups):   # privacy mode: same model, no face points
+            result[name + '_noface'] = scores(predict(model, bank, device, workers=nw, groups=groups, face=False),
+                                              bank.labels)
         if name == 'test_words':
             _per_class(p, bank.labels, vocab_list, out_dir)
     with open(os.path.join(out_dir, 'metrics.json'), 'w', encoding='utf-8') as f:
@@ -342,8 +359,33 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         json.dump(vocab_list, f, ensure_ascii=False)
     # per-sample probabilities, for analyses without retraining (e.g. merging inflected word forms)
     np.savez_compressed(os.path.join(out_dir, 'predictions.npz'), **preds)
-    export_onnx(model, os.path.join(out_dir, 'model.onnx'), log, n_in=len(cols))
+    ok = export_onnx(model, os.path.join(out_dir, 'model.onnx'), log, n_in=len(cols))
+    write_manifest(out_dir, cfg, vocab_list, result, n_in=len(cols), onnx_ok=ok)
     return result
+
+
+def write_manifest(out_dir, cfg, vocab_list, result, n_in, onnx_ok=True):
+    """manifest.json next to model.onnx: everything the browser or the landmark server needs to feed
+    the model and to refuse a mismatch (feature_version), plus where the model came from."""
+    m = {
+        'feature_version': FT.FEATURE_VERSION,
+        'model_file': 'model.onnx' if onnx_ok else None, 'opset': 17,
+        'labels': vocab_list,
+        'input': {'name': 'x', 'shape': [1, 'T', n_in], 'dtype': 'float32', 'n_features': n_in,
+                  'groups': cfg['groups'] or list(FT.GROUPS), 'max_len': FT.MAX_LEN,
+                  'padding': 'none — one clip per call (T frames, T <= max_len after preprocess)'},
+        'output': {'name': 'logits', 'shape': [1, len(vocab_list)], 'note': 'softmax not applied; '
+                   'ensembles average the softmax probabilities'},
+        'face_drop': cfg['face_drop'], 'works_without_face': bool(cfg['face_drop']) or (
+            bool(cfg['groups']) and 'face' not in cfg['groups'] and 'blend' not in cfg['groups']),
+        'contract': FT.spec(),
+        'run': os.path.basename(os.path.normpath(out_dir)), 'seed': cfg['seed'], 'fold': cfg.get('fold'),
+        'split_id': cfg.get('split_id'), 'best_epoch': result.get('best_epoch'), 'params': result.get('params'),
+        'metrics': {k: v for k, v in result.items() if k.startswith(('test_', 'val_'))},
+        'cfg': cfg,
+    }
+    with open(os.path.join(out_dir, 'manifest.json'), 'w', encoding='utf-8') as f:
+        json.dump(m, f, ensure_ascii=False, indent=1)
 
 
 def fit_many(runs: dict, signs, words, vocab_list, out_root, log=print):
@@ -361,7 +403,7 @@ def fit_many(runs: dict, signs, words, vocab_list, out_root, log=print):
             continue
         row = {'run': name, 'cfg': json.dumps(cfg), 'best_epoch': r['best_epoch'], 'params': r['params'],
                'n_features': r['n_features'], 'minutes': round((time.time() - t0) / 60, 1)}
-        for k in ('test_words', 'test_signs', 'val_words'):
+        for k in ('test_words', 'test_signs', 'val_words', 'test_words_noface', 'test_signs_noface'):
             if k in r:
                 row.update({f'{k}_{m}': round(r[k][m], 4) for m in ('top1', 'top5', 'macro_f1', 'balanced_acc')})
         row['test_words_majority'] = round(r['test_words']['majority_acc'], 4) if 'test_words' in r else None
@@ -408,6 +450,7 @@ def export_onnx(model, path, log=print, n_in=FT.N_FEAT):
         except TypeError:
             torch.onnx.export(Exportable(model), (dummy,), path, **kw)
         log(f'ONNX: {path} ({os.path.getsize(path) / 1e6:.1f} MB)')
+        ok = True
         try:                                     # same logits as torch, for a short and a long clip?
             import onnxruntime as ort
             sess = ort.InferenceSession(path)
@@ -418,5 +461,7 @@ def export_onnx(model, path, log=print, n_in=FT.N_FEAT):
                 log(f'  onnxruntime vs torch, T={T_}: max abs diff {float(np.abs(ref - got).max()):.2e}')
         except ImportError:
             log('  (onnxruntime not installed — not compared)')
+        return ok
     except Exception as e:  # noqa: BLE001 — the browser export must not lose a finished training run
         log(f'ONNX export failed (training results are saved): {e!r}')
+        return False

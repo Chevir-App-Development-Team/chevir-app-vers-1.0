@@ -56,10 +56,16 @@ def main():
     words = T.load_words200([wdir], w, vocab)
     base = dict(epochs=2, batch=8, dim=64, workers=0)
     hands = ['hands', 'hand_shape', 'hand_vel', 'flags']
-    rows = T.fit_many({'full': base, 'hands_only': {**base, 'groups': hands}}, signs, words, vocab_list,
+    rows = T.fit_many({'full': base, 'hands_only': {**base, 'groups': hands},
+                       'face_drop': {**base, 'face_drop': 0.5}}, signs, words, vocab_list,
                       os.path.join(out, 'train'))
     print(pd.DataFrame(rows).to_string())
-    assert len(rows) == 2 and all('error' not in r for r in rows), rows
+    assert len(rows) == 3 and all('error' not in r for r in rows), rows
+    man = json.load(open(os.path.join(out, 'train', 'face_drop', 'manifest.json'), encoding='utf-8'))
+    assert man['feature_version'] == T.FT.FEATURE_VERSION and man['works_without_face']
+    assert 'test_words_noface' in man['metrics'] and man['input']['n_features'] == T.FT.N_FEAT
+    assert 'test_words_noface' not in json.load(open(os.path.join(out, 'train', 'hands_only', 'metrics.json'),
+                                                     encoding='utf-8'))
     assert rows[1]['n_features'] == len(T.FT.columns(hands)) < T.FT.N_FEAT
     pz = np.load(os.path.join(out, 'train', 'hands_only', 'predictions.npz'))
     assert pz['test_words_probs'].shape == (len(words['test']), len(vocab_list)), pz['test_words_probs'].shape

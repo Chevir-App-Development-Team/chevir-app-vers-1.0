@@ -21,10 +21,15 @@ import numpy as np
 
 from .landmarks import FACE_IDX
 
+# Bump on ANY change to reduce(), to_square() or features(): models, the browser port and the
+# landmark server compare it and refuse a mismatch.
+FEATURE_VERSION = 1
+
 POSE_IDX = [0, 11, 12, 13, 14, 15, 16, 23, 24]
 POSE_FLIP = [0, 2, 1, 4, 3, 6, 5, 8, 7]
 N_FEAT = 126 * 3 + 18 + 204 + 52 + 4
 MAX_LEN = 64
+TRAIN_FPS = 30          # the training landmarks: every frame of 30 fps video (stride 1)
 # column ranges of features(), for ablations (train cfg 'groups')
 GROUPS = {'hands': (0, 126), 'hand_shape': (126, 252), 'hand_vel': (252, 378), 'pose': (378, 396),
           'face': (396, 600), 'blend': (600, 652), 'flags': (652, 656)}
@@ -197,3 +202,50 @@ def features(d: dict) -> np.ndarray:
                         pose.reshape(T, -1), face.reshape(T, -1), d['blend'].reshape(T, -1), flags], 1)
     x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
     return np.clip(x, -10, 10).astype(np.float32)
+
+
+# ---------------------------------------------------------------- the input contract
+
+def drop_face(d: dict) -> dict:
+    """Privacy mode / modality dropout: no face points, no blendshapes (the face flag becomes 0)."""
+    out = dict(d)
+    out['face'] = np.full_like(d['face'], np.nan)
+    out['blend'] = np.full_like(d['blend'], np.nan)
+    return out
+
+
+def preprocess(raw: dict, aspect: float, groups=None, face: bool = True) -> np.ndarray:
+    """THE entry point from landmarks to model input, the same for training evaluation, the browser
+    (ported to JS) and the landmark server.
+
+    raw:    compact dict (reduce() layout: hand, hand_world, pose, face, blend), float, NaN = missing.
+            Without face points (privacy mode) pass face=False, or NaN face/blend arrays.
+    aspect: frame width / height of the camera the landmarks come from.
+    → T'×F float32, T' = min(T, MAX_LEN), F = len(columns(groups)).
+    """
+    d = to_square(raw, aspect)
+    if not face:
+        d = drop_face(d)
+    x = features(d)
+    return x if not groups else x[:, columns(groups)]
+
+
+def spec() -> dict:
+    """Machine-readable description of the contract, written into every model manifest."""
+    return {
+        'feature_version': FEATURE_VERSION,
+        'raw': {'hand': [2, 21, 3], 'hand_world': [2, 21, 3], 'pose': [len(POSE_IDX), 3],
+                'face': [len(FACE_IDX), 2], 'blend': [len(BLEND_NAMES)]},
+        'raw_notes': ('per frame; image coords x, y in [0, 1] of the frame (x NOT pre-multiplied by '
+                      'width/height), hand slot 0 = signer\'s right hand (pose wrists decide), '
+                      'pose = MediaPipe pose landmarks POSE_IDX with (x, y, visibility), '
+                      'face = face-mesh FACE_IDX (x, y), blend = face blendshapes in BLEND_NAMES order, '
+                      'NaN = not detected'),
+        'pose_idx': POSE_IDX, 'face_idx': list(FACE_IDX), 'blend_names': BLEND_NAMES,
+        'n_features': N_FEAT, 'groups': {k: list(v) for k, v in GROUPS.items()},
+        'max_len': MAX_LEN, 'resample': 'clips longer than max_len are uniformly resampled to max_len frames',
+        'train_fps': TRAIN_FPS,
+        'normalization': ('x *= width/height; centre = median mid-shoulder, unit = median shoulder width '
+                          '(fallbacks: mean hand point, 0.3); hand xy, z, velocity, pose xy, face xy are '
+                          '(p - centre) / unit; hand_world * 10; NaN → 0; clip to ±10'),
+    }

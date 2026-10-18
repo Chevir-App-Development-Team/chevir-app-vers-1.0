@@ -166,3 +166,10 @@ AzSLD labels Azerbaijani word forms, so some classes are inflections of one sign
 families in `ml/lemma_groups.csv` (30 forms → 13 classes) were **all confirmed as the same sign by
 Nigar Alishzade on 2026-10-18**. Merged scores (`ml/analyze.py`) count a prediction of any form in a
 family as correct. They are reported next to the plain 200-class scores, not instead of them.
+
+### Deployment contract (from run 5 onward)
+
+From the next batch on, every run also writes `manifest.json` (feature_version 1, labels, input layout,
+seed / split_id, metrics) and reports test scores **without face points** (`*_noface`, privacy mode).
+`face_drop` (training with the face randomly removed) is a new experiment variable. Runs 1–4 predate
+this, so they have no manifests and no no-face scores.

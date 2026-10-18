@@ -324,6 +324,9 @@ with open(os.path.join(splits_dir, 'benchmark.json'), encoding='utf-8') as f:
         code("""
 wsplit = pd.read_csv(os.path.join(splits_dir, 'words200_split.csv'), dtype={'key': str, 'rec_id': str})
 tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
+import hashlib
+with open(os.path.join(splits_dir, 'words200_split.csv'), 'rb') as f:
+    CFG['split_id'] = hashlib.sha1(f.read()).hexdigest()[:10]     # recorded in every model manifest
 vocab_list = sorted(wsplit.gloss.unique())
 vocab = {g: i for i, g in enumerate(vocab_list)}
 tags = tags[tags.in_w200 & tags.has_landmarks & tags.split.notna()]

@@ -160,6 +160,27 @@ python ml/kaggle_run.py results --to run4   # summary, history, metrics, predict
 python ml/smoke_train.py             # local check: a few real recordings, 2 epochs on CPU
 ```
 
+## Deployment contract: browser and landmark server
+
+The recognizer is meant to run in two places: **in the browser** (the default and the fallback) and
+on a small **landmark server** that receives only landmark numbers, never video, and averages several
+models. The server is not built yet. These pieces keep both paths identical:
+
+- **One preprocessing:** `features.preprocess(raw, aspect, groups, face)` is the only way from landmarks
+  to model input. Training evaluation calls it, the server will import it, and the browser port must
+  reproduce `ml/fixtures/features_v<N>.{json,bin}` (synthetic cases; `python ml/make_fixture.py --check`
+  fails if the features change without a version bump).
+- **`FEATURE_VERSION`** (in `features.py`) is written into every checkpoint, manifest and fixture. The
+  browser and the server must refuse a model whose version differs from their preprocessing.
+- **Input:** raw compact landmarks per frame (`features.spec()['raw']`: hands, hand world, 9 pose points,
+  102 face points, 52 blendshapes; NaN = missing) plus the frame's width/height → logits over the same
+  vocabulary. Without face points (privacy mode), send NaN or pass `face=False`.
+- **`manifest.json` next to every `model.onnx`:** feature_version, labels, input layout (1 × T × F,
+  max_len, groups), the full `spec()`, seed / fold / split_id, val and test metrics (including `*_noface`).
+  Every run keeps its own model, so seeds and folds can be ensembled: average the softmax probabilities.
+- **Privacy mode:** train with `face_drop` (probability that a clip loses its face and blendshapes) so one
+  model serves both modes. Every run reports scores with and without face.
+
 ## Analysing results (no GPU)
 
 ```bash
