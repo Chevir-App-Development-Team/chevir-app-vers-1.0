@@ -48,8 +48,11 @@ def cases():
     b = synthetic(70, rng)                          # > MAX_LEN → uniform resampling
     b['face'][:, :] = np.nan                        # face not detected at all
     b['blend'][:, :] = np.nan
+    c = synthetic(20, rng)
+    c['pose'][:, :, :] = np.nan                     # no body found → centre from hands, unit 0.3
     return [
         {'name': 'short_missing_hand', 'raw': a, 'aspect': 16 / 9, 'face': True, 'groups': None},
+        {'name': 'no_pose_fallback', 'raw': c, 'aspect': 16 / 9, 'face': True, 'groups': None},
         {'name': 'long_resampled_no_face_detected', 'raw': b, 'aspect': 4 / 3, 'face': True, 'groups': None},
         {'name': 'privacy_mode', 'raw': a, 'aspect': 16 / 9, 'face': False, 'groups': None},
         {'name': 'hands_only_groups', 'raw': a, 'aspect': 16 / 9, 'face': True,
@@ -60,7 +63,7 @@ def cases():
 def build():
     blobs, meta, off = [], [], 0
     for c in cases():
-        entry = {k: c[k] for k in ('name', 'aspect', 'face', 'groups')}
+        entry = {'name': c['name'], 'aspect': c['aspect'], 'use_face': c['face'], 'groups': c['groups']}
         entry['T'] = int(c['raw']['hand'].shape[0])
         for k in KEYS:
             arr = np.asarray(c['raw'][k], np.float32)

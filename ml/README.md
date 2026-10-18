@@ -167,9 +167,11 @@ on a small **landmark server** that receives only landmark numbers, never video,
 models. The server is not built yet. These pieces keep both paths identical:
 
 - **One preprocessing:** `features.preprocess(raw, aspect, groups, face)` is the only way from landmarks
-  to model input. Training evaluation calls it, the server will import it, and the browser port must
-  reproduce `ml/fixtures/features_v<N>.{json,bin}` (synthetic cases; `python ml/make_fixture.py --check`
-  fails if the features change without a version bump).
+  to model input. Training evaluation calls it, and the server will import it. The browser port is
+  `src/tercume/features.js`. It reproduces the golden cases in `ml/fixtures/features_v<N>.{json,bin}`
+  bit for bit (the no-pose fallback within 3e-6):
+  `node tools/verify_features.mjs`. `python ml/make_fixture.py --check` fails if the Python features
+  change without a version bump. After a bump, update features.js to match and regenerate the fixture.
 - **`FEATURE_VERSION`** (in `features.py`) is written into every checkpoint, manifest and fixture. The
   browser and the server must refuse a model whose version differs from their preprocessing.
 - **Input:** raw compact landmarks per frame (`features.spec()['raw']`: hands, hand world, 9 pose points,

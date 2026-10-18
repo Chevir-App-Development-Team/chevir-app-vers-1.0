@@ -71,6 +71,7 @@ src/
   tercume/
     main.js              sistem girişi: saytın naviqasiyası + sistem
     model.js             Keras MLP-nin JS irəli keçidi (TensorFlow.js YOX — 4 matmul)
+    features.js          landmark-lar → söz modelinin girişi (ml/azsl/features.py preprocess()-in portu)
     decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
     hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
     s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
@@ -92,7 +93,7 @@ tools/
   build_lexicon.py       model/lexicon.txt → bigram DM + lüğət + prefikslər
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
   build_words.py         AzSLD Words 200 videoları → public/tercume/words/ (poza + iki əl)
-  verify_*.mjs/py        reqressiya yoxlamaları
+  verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/)
 ml/                      yeni model üçün Kaggle boru xətti: AzSLD → landmark-lar → signer-independent
                          split (bax ml/README.md)
 model/

@@ -237,14 +237,7 @@
   {
    "name": "short_missing_hand",
    "aspect": 1.7777777777777777,
-   "face": {
-    "offset": 3348,
-    "shape": [
-     12,
-     102,
-     2
-    ]
-   },
+   "use_face": true,
    "groups": null,
    "T": 12,
    "hand": {
@@ -273,6 +266,14 @@
      3
     ]
    },
+   "face": {
+    "offset": 3348,
+    "shape": [
+     12,
+     102,
+     2
+    ]
+   },
    "blend": {
     "offset": 5796,
     "shape": [
@@ -289,20 +290,68 @@
    }
   },
   {
-   "name": "long_resampled_no_face_detected",
-   "aspect": 1.3333333333333333,
-   "face": {
-    "offset": 33822,
+   "name": "no_pose_fallback",
+   "aspect": 1.7777777777777777,
+   "use_face": true,
+   "groups": null,
+   "T": 20,
+   "hand": {
+    "offset": 14292,
     "shape": [
-     70,
+     20,
+     2,
+     21,
+     3
+    ]
+   },
+   "hand_world": {
+    "offset": 16812,
+    "shape": [
+     20,
+     2,
+     21,
+     3
+    ]
+   },
+   "pose": {
+    "offset": 19332,
+    "shape": [
+     20,
+     9,
+     3
+    ]
+   },
+   "face": {
+    "offset": 19872,
+    "shape": [
+     20,
      102,
      2
     ]
    },
+   "blend": {
+    "offset": 23952,
+    "shape": [
+     20,
+     52
+    ]
+   },
+   "expected": {
+    "offset": 24992,
+    "shape": [
+     20,
+     656
+    ]
+   }
+  },
+  {
+   "name": "long_resampled_no_face_detected",
+   "aspect": 1.3333333333333333,
+   "use_face": true,
    "groups": null,
    "T": 70,
    "hand": {
-    "offset": 14292,
+    "offset": 38112,
     "shape": [
      70,
      2,
@@ -311,7 +360,7 @@
     ]
    },
    "hand_world": {
-    "offset": 23112,
+    "offset": 46932,
     "shape": [
      70,
      2,
@@ -320,22 +369,30 @@
     ]
    },
    "pose": {
-    "offset": 31932,
+    "offset": 55752,
     "shape": [
      70,
      9,
      3
     ]
    },
+   "face": {
+    "offset": 57642,
+    "shape": [
+     70,
+     102,
+     2
+    ]
+   },
    "blend": {
-    "offset": 48102,
+    "offset": 71922,
     "shape": [
      70,
      52
     ]
    },
    "expected": {
-    "offset": 51742,
+    "offset": 75562,
     "shape": [
      64,
      656
@@ -345,18 +402,11 @@
   {
    "name": "privacy_mode",
    "aspect": 1.7777777777777777,
-   "face": {
-    "offset": 97074,
-    "shape": [
-     12,
-     102,
-     2
-    ]
-   },
+   "use_face": false,
    "groups": null,
    "T": 12,
    "hand": {
-    "offset": 93726,
+    "offset": 117546,
     "shape": [
      12,
      2,
@@ -365,7 +415,7 @@
     ]
    },
    "hand_world": {
-    "offset": 95238,
+    "offset": 119058,
     "shape": [
      12,
      2,
@@ -374,22 +424,30 @@
     ]
    },
    "pose": {
-    "offset": 96750,
+    "offset": 120570,
     "shape": [
      12,
      9,
      3
     ]
    },
+   "face": {
+    "offset": 120894,
+    "shape": [
+     12,
+     102,
+     2
+    ]
+   },
    "blend": {
-    "offset": 99522,
+    "offset": 123342,
     "shape": [
      12,
      52
     ]
    },
    "expected": {
-    "offset": 100146,
+    "offset": 123966,
     "shape": [
      12,
      656
@@ -399,14 +457,7 @@
   {
    "name": "hands_only_groups",
    "aspect": 1.7777777777777777,
-   "face": {
-    "offset": 111366,
-    "shape": [
-     12,
-     102,
-     2
-    ]
-   },
+   "use_face": true,
    "groups": [
     "hands",
     "hand_shape",
@@ -415,7 +466,7 @@
    ],
    "T": 12,
    "hand": {
-    "offset": 108018,
+    "offset": 131838,
     "shape": [
      12,
      2,
@@ -424,7 +475,7 @@
     ]
    },
    "hand_world": {
-    "offset": 109530,
+    "offset": 133350,
     "shape": [
      12,
      2,
@@ -433,22 +484,30 @@
     ]
    },
    "pose": {
-    "offset": 111042,
+    "offset": 134862,
     "shape": [
      12,
      9,
      3
     ]
    },
+   "face": {
+    "offset": 135186,
+    "shape": [
+     12,
+     102,
+     2
+    ]
+   },
    "blend": {
-    "offset": 113814,
+    "offset": 137634,
     "shape": [
      12,
      52
     ]
    },
    "expected": {
-    "offset": 114438,
+    "offset": 138258,
     "shape": [
      12,
      382
