@@ -386,18 +386,24 @@ of whole sentence recordings by signers it has never seen? Every val / test reco
 word mode as in the browser (activity → spans → windows → the word model → non-maximum suppression)
 and the detected words are matched with the annotated glosses.
 
-**Parameters are chosen on val** (all configurations of `segment_eval.GRID`, best F1). **Test is
-scored once**, only with configurations fixed before: the val choice, the current defaults (v1), and
-the best "whole span = one word" baseline.
+**Model and parameters are chosen on val**: every model in `MODEL_RUNS` × every configuration of
+`GRID`, best F1. **Test is scored once**, with the chosen model and only configurations fixed before:
+the val choice and the segmentation defaults of `segment.py`.
 
-**Inputs:** the four 02 shards, 03 (splits) and 04 (the trained model, run 5a = `no_face_seed1`).
+Version 1 of this notebook (run 5a, the full `segment_eval.GRID`) chose the defaults of segmentation
+v2. Version 2 compares the models with an "unknown sign" class (run 6) on a narrower grid: the
+window set and rest line that won in version 1, with a wider range of thresholds.
+
+**Inputs:** the four 02 shards, 03 (splits) and 04 (trained models: `train/<run>/best.pt`).
 **Kaggle settings:** CPU (scoring is ~2 ms per window; the GPU queue is not worth it), Internet off.
 **Writes** `eval/`: `grid_val.csv`, `summary.json`, `detections_test.csv`.
 """),
         code(f"""
 SMOKE = False                  # True: 30 recordings per split, to check the setup
-MODEL_RUN = 'no_face_seed1'    # run 5a, the model the browser ships (picked on validation)
-FACE = False                   # the browser runs 5a without the face tracker (s2w.js needsFace)
+MODEL_RUNS = ['unk_w1', 'unk_w4', 'unk_w8']    # run 6: unknown-sign class, weight 1 / 4 / 8
+FACE = False                   # the browser runs these models without the face tracker (s2w.js needsFace)
+GRID = dict(rest_line=(1.0,), lens=((16, 24, 32),),
+            min_p=(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), max_overlap=(0.0, 0.25, 0.5))
 FAMILIES = {json.dumps(families, ensure_ascii=False)}   # ml/lemma_groups.csv, confirmed
 """),
         code(SETUP),
@@ -413,19 +419,22 @@ def find(pattern):
 
 splits_dir = find('splits/sentences_split.csv')[0]
 sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
-ckpt = glob.glob(os.path.join(INPUT, '**', 'train', MODEL_RUN, 'best.pt'), recursive=True)[0]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-net, vocab, groups = E.load_net(ckpt, device)
-scorer = E.Scorer(net, groups, FACE, device)
+models = {}
+for run in MODEL_RUNS:
+    ckpt = glob.glob(os.path.join(INPUT, '**', 'train', run, 'best.pt'), recursive=True)[0]
+    net, vocab, groups = E.load_net(ckpt, device)
+    models[run] = (E.Scorer(net, groups, FACE, device), vocab)
+    print(run, ckpt, '| groups:', groups, '| classes:', len(vocab), '| unknown class:', E.TR.UNKNOWN in vocab)
 store = LandmarkStore(sentence_dirs)
 idx = store.index
-print('model:', ckpt, '| groups:', groups, '| device:', device, '| sentence shards:', len(sentence_dirs))
+print('device:', device, '| sentence shards:', len(sentence_dirs))
 """),
         code("""
 sents = pd.read_csv(os.path.join(splits_dir, 'sentences_split.csv'), dtype={'rec_id': str})
 tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
 tags = tags[tags.start.notna() & tags.end.notna()]
-in_vocab = set(vocab)
+in_vocab = set(next(iter(models.values()))[1]) - {E.TR.UNKNOWN}
 anns = {rid: [(s, e, g, g in in_vocab) for s, e, g in zip(t.start, t.end, t.gloss)] for rid, t in tags.groupby('rec_id')}
 
 def recs(split):
@@ -442,16 +451,19 @@ counts = {s: {'recordings': len(recs(s)),
           for s in ('val', 'test')}
 counts
 """),
-        md('### Val: every configuration'),
+        md('### Val: every model × every configuration'),
         code("""
-val_t, val_oracle, _ = E.evaluate(load, recs('val'), anns, scorer, vocab, FAMILIES)
-rows = [{'rest_line': k[0], 'lens': ' '.join(map(str, k[1])) or 'whole span', 'min_p': k[2],
-         'max_overlap': k[3], **t.metrics()} for k, t in val_t.items()]
+rows, val_t, val_oracle = [], {}, {}
+for run, (scorer, vocab) in models.items():
+    val_t[run], val_oracle[run], _ = E.evaluate(load, recs('val'), anns, scorer, vocab, FAMILIES,
+                                                cfgs=list(E.configs(GRID)))
+    print(run, 'oracle boundaries, val: top-1', round(val_oracle[run]['top1'] / val_oracle[run]['n'], 4))
+    rows += [{'model': run, 'rest_line': k[0], 'lens': ' '.join(map(str, k[1])) or 'whole span', 'min_p': k[2],
+              'max_overlap': k[3], **t.metrics()} for k, t in val_t[run].items()]
 grid = pd.DataFrame(rows).sort_values('f1', ascending=False)
 os.makedirs(os.path.join(OUT, 'eval'), exist_ok=True)
 grid.to_csv(os.path.join(OUT, 'eval', 'grid_val.csv'), index=False)
-print('oracle boundaries, val: top-1', round(val_oracle['top1'] / val_oracle['n'], 4), 'of', val_oracle['n'])
-grid.head(15)
+grid.groupby('model').head(3)
 """),
         code("""
 def as_cfg(row):
@@ -459,30 +471,34 @@ def as_cfg(row):
     return {**SG.SEGMENT, 'rest_line': float(row['rest_line']), 'lens': lens,
             'min_p': float(row['min_p']), 'max_overlap': float(row['max_overlap'])}
 
+best_model = grid.iloc[0]['model']
 chosen = {'chosen on val (F1)': as_cfg(grid.iloc[0]),
-          'segment.py v1 defaults': dict(SG.SEGMENT),
-          'whole span = one word, best on val': as_cfg(grid[grid.lens == 'whole span'].iloc[0])}
-{k: {kk: v[kk] for kk in ('rest_line', 'lens', 'min_p', 'max_overlap')} for k, v in chosen.items()}
+          f'segment.py v{SG.SEGMENT_VERSION} defaults': dict(SG.SEGMENT)}
+best_model, {k: {kk: v[kk] for kk in ('rest_line', 'lens', 'min_p', 'max_overlap')} for k, v in chosen.items()}
 """),
-        md('### Test: scored once, with the configurations fixed on val'),
+        md('### Test: scored once, with the model and configurations fixed on val'),
         code("""
+scorer, vocab = models[best_model]
 test_t, test_oracle, kept = E.evaluate(load, recs('test'), anns, scorer, vocab, FAMILIES,
                                        cfgs=list(chosen.values()), keep=chosen['chosen on val (F1)'])
-summary = {'model': MODEL_RUN, 'face': FACE, 'segment_version': SG.SEGMENT_VERSION, 'counts': counts,
-           'oracle_top1': {'val': val_oracle['top1'] / val_oracle['n'], 'test': test_oracle['top1'] / test_oracle['n'],
-                           'val_merged': val_oracle['top1_m'] / val_oracle['n'],
+val_of = lambda p: val_t[best_model][E.config_key(p)].metrics() if E.config_key(p) in val_t[best_model] else None
+summary = {'models': MODEL_RUNS, 'chosen_model': best_model, 'face': FACE, 'segment_version': SG.SEGMENT_VERSION,
+           'grid': {k: [list(x) if isinstance(x, tuple) else x for x in v] for k, v in GRID.items()}, 'counts': counts,
+           'oracle_top1': {**{f'val {r}': o['top1'] / o['n'] for r, o in val_oracle.items()},
+                           'test': test_oracle['top1'] / test_oracle['n'],
                            'test_merged': test_oracle['top1_m'] / test_oracle['n']},
+           'best_val_per_model': {r: g.iloc[0][['min_p', 'max_overlap', 'precision', 'recall', 'f1', 'wer']].to_dict()
+                                  for r, g in grid.groupby('model')},
            'configs': {name: {'params': {k: list(v) if isinstance(v, tuple) else v for k, v in p.items()},
-                              'val': val_t[E.config_key(p)].metrics(), 'test': test_t[E.config_key(p)].metrics()}
+                              'val': val_of(p), 'test': test_t[E.config_key(p)].metrics()}
                        for name, p in chosen.items()}}
 with open(os.path.join(OUT, 'eval', 'summary.json'), 'w', encoding='utf-8') as f:
-    json.dump(summary, f, ensure_ascii=False, indent=1)
+    json.dump(summary, f, ensure_ascii=False, indent=1, default=float)
 pd.DataFrame(kept, columns=['rec_id', 'start0', 'end0', 'word']).to_csv(
     os.path.join(OUT, 'eval', 'detections_test.csv'), index=False)
 cols = ['precision', 'recall', 'f1', 'precision_inv', 'wer', 'wer_inv', 'f1_merged', 'wer_merged',
         'start_err_frames', 'end_err_frames', 'detections']
-pd.DataFrame({f'{name} | {split}': {c: round(summary['configs'][name][split][c], 4) for c in cols}
-              for name in chosen for split in ('val', 'test')}).T
+pd.DataFrame({f'{name} | test': {c: round(summary['configs'][name]['test'][c], 4) for c in cols} for name in chosen}).T
 """),
     ])
 

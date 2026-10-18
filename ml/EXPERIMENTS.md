@@ -315,6 +315,54 @@ Observations (run 5):
 - **Browser model = 5a, picked on validation** (highest val macro-F1, 0.873), not on test. 4d has the
   best test score, but choosing it by that would make the test number optimistic.
 
+
+### Run 6: an "unknown sign" class (split v6)
+
+Word mode on held-out sentences (E6) mostly fails on signs outside the 200 words: the model names them
+as a known word. Run 6 adds one class, `<unk>`, made of the out-of-vocabulary sentence signs of the
+train signers: 12,031 signs of 584 glosses. Another 59 glosses (1,030 signs) are left out because they
+share their first 4 letters with a vocabulary word (ALMALIYAM, DEYİLƏM, QARABAQ, …), so they are
+probably the same sign. The setup is otherwise run 5a (no face, seed 1). The variable is the
+`<unk>` class's sampling weight: the usual n^-0.5, times 1, 4 or 8. The checkpoint is still chosen
+on val Words_200 macro-F1, as in every run.
+
+Out-of-vocabulary sentence signs of the val / test signers (2,067 / 2,652) are kept apart, so the
+word and sign scores stay comparable with run 5a:
+- **Unknown rejected:** the share of them predicted `<unk>`.
+- **Known rejected:** the share of in-vocabulary sentence signs wrongly predicted `<unk>`.
+- **Open-set accuracy:** over all sentence signs, known signs named right plus unknown ones rejected.
+- **Known-only macro-F1:** the `<unk>` output is ignored.
+
+| Run | Best epoch | Val W macro-F1 | Test W top-1 / macro-F1 | Test W macro-F1, known only | Test S top-1 | Unknown rejected, val / test | Known rejected, test S | Open-set accuracy, val / test |
+|---|---|---|---|---|---|---|---|---|
+| 5a (no `<unk>`) | 55 | 0.873 | 0.854 / 0.849 | | 0.870 | | | |
+| 6a, weight 1 | 22 | 0.862 | 0.854 / 0.815 | 0.817 | 0.850 | 0.672 / 0.685 | 2.1 % | 0.809 / 0.790 |
+| 6b, weight 4 | 24 | 0.850 | 0.793 / 0.812 | 0.820 | 0.822 | 0.820 / 0.830 | 3.9 % | 0.840 / 0.825 |
+| 6c, weight 8 | 32 | 0.838 | 0.819 / 0.796 | 0.819 | 0.815 | 0.872 / 0.887 | 5.1 % | 0.855 / 0.841 |
+
+Validation per epoch (Words_200 macro-F1 / unknown rejected / open-set accuracy):
+
+| Epoch | 6a weight 1 | 6b weight 4 | 6c weight 8 | 5a (W macro-F1) |
+|---|---|---|---|---|
+| 10 | 0.823 / 0.610 / 0.777 | 0.798 / 0.725 / 0.803 | 0.768 / 0.835 / 0.804 | 0.803 |
+| 20 | 0.842 / 0.678 / 0.802 | 0.805 / 0.830 / 0.843 | 0.803 / 0.861 / 0.841 | 0.825 |
+| 30 | 0.850 / 0.715 / 0.826 | 0.839 / 0.870 / 0.863 | 0.807 / 0.867 / 0.849 | 0.846 |
+| 40 | 0.850 / 0.818 / 0.840 | 0.825 / 0.878 / 0.864 | 0.817 / 0.886 / 0.867 | 0.869 |
+| 50 | 0.844 / 0.849 / 0.868 | 0.819 / 0.896 / 0.878 | 0.816 / 0.913 / 0.864 | 0.863 |
+| 60 | 0.842 / 0.855 / 0.859 | 0.824 / 0.902 / 0.875 | 0.809 / 0.914 / 0.872 | 0.861 |
+
+Observations (run 6):
+- **The `<unk>` class works:** 69–89 % of unknown signs on test are rejected, while 2–5 % of known
+  signs are wrongly rejected. The weight moves along that trade-off.
+- **It costs known-word accuracy:** test Words_200 macro-F1 drops from 0.849 to 0.796–0.815, also when
+  the `<unk>` output is ignored (0.817–0.820). So it is not only false rejections: the shared layers
+  fit the known words a little less well.
+- **The checkpoint rule now works against the new class.** Rejection keeps improving until the end
+  (weight 1: 0.672 at the chosen epoch 22, 0.855 at epoch 60), while Words_200 macro-F1 peaks early.
+  So the saved models are early ones with weaker rejection. Next run: choose the checkpoint on val
+  open-set accuracy.
+- Which model is better for word mode is decided on the val sentences (E6, notebook 05 v3).
+
 ---
 
 ## E4 — Browser landmarks vs the training pipeline
