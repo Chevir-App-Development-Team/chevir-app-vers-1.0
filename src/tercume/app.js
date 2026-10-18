@@ -142,7 +142,8 @@ function initS2T() {
           if (last) renderPredictions(last.top);
           $('#signs-info').textContent = added.length
             ? `+${added.length} · ${Math.round(ms)} ms` : signs.length ? `${signs.length} söz` : '—';
-          $('#pred-quality').textContent = last ? `əmin ${Math.round(last.p * 100)}%` : '—';
+          $('#pred-quality').textContent = !last ? '—'
+            : last.unsure ? `əmin deyil · ${Math.round(last.p * 100)}%` : `əmin ${Math.round(last.p * 100)}%`;
         },
       });
       await s2w.init();
@@ -261,8 +262,9 @@ function renderSigns(signs, nNew = 0) {
   $('#signs').innerHTML = signs.length
     ? signs.map((s, i) => {
       const alt = s.top.map((t) => `${t.label} ${(t.p * 100).toFixed(0)}%`).join(' · ');
-      const cls = i >= signs.length - nNew ? 's new' : 's';
-      return `<span class="${cls}" title="${escapeHtml(alt)}">${escapeHtml(s.label)}<em>${Math.round(s.p * 100)}%</em></span>`;
+      const cls = ['s', i >= signs.length - nNew && 'new', s.unsure && 'unsure'].filter(Boolean).join(' ');
+      const label = s.unsure ? `${s.label}?` : s.label;
+      return `<span class="${cls}" title="${escapeHtml(alt)}">${escapeHtml(label)}<em>${Math.round(s.p * 100)}%</em></span>`;
     }).join('')
     : '<span class="muted">boş</span>';
 }

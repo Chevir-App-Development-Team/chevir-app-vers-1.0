@@ -202,8 +202,10 @@ models. The server is not built yet. These pieces keep both paths identical:
   stream into signs (activity from the hand height, spans between rests, then the model picks
   non-overlapping windows inside a span). The browser twin is `src/tercume/segment.js`. Both are checked
   on `ml/fixtures/segment_v<N>.json` (`node tools/verify_segment.mjs`). `make_fixture.py` writes it, and
-  `--check` fails if the rules change without a `SEGMENT_VERSION` bump. Results so far: `EXPERIMENTS.md`
-  E6.
+  `--check` fails if the rules change without a `SEGMENT_VERSION` bump. Notebook 05
+  (`azsl/segment_eval.py`) scores word mode on the held-out sentence recordings and chooses its
+  parameters on val; version 2 uses that choice. Fetch its output with
+  `python ml/kaggle_run.py eval --to NAME`. Results: `EXPERIMENTS.md` E6.
 - **Face tracker in the browser:** word mode loads it only if the model's validation macro-F1
   without face (`val_words_noface` in the manifest) is more than 0.01 below the score with face.
 - **ONNX export:** the exported graph takes any clip length (1 × T × F). Models exported before this

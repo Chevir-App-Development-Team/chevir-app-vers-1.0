@@ -16,9 +16,11 @@
 """
 import numpy as np
 
-SEGMENT_VERSION = 1
+# v2: lens, min_p and max_overlap chosen on the val sentences (notebook 05, EXPERIMENTS.md E6);
+# v1 was lens (12, 18, 26), min_p 0.5, max_overlap 0.25 and found ~2 words per real sign.
+SEGMENT_VERSION = 2
 SEGMENT = dict(rest_line=1.0, min_on=3, min_off=8, margin=8, min_span=8, max_span=240,
-               lens=(12, 18, 26), stride=3, min_p=0.5, max_overlap=0.25)
+               lens=(16, 24, 32), stride=3, min_p=0.8, max_overlap=0.0)
 
 
 def activity(raw: dict, aspect: float, rest_line: float = SEGMENT['rest_line']) -> np.ndarray:

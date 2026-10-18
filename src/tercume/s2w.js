@@ -27,7 +27,8 @@ export class SignToWords {
    * @param {object} o
    * @param {HTMLVideoElement} o.video
    * @param {(e: {frame, active, state, aspect, fileProgress?}) => void} [o.onFrame] hər kadr
-   * @param {(e: {signs, added, span, ms}) => void} [o.onSigns] aralıq tanınanda
+   * @param {(e: {signs, added, span, ms}) => void} [o.onSigns] aralıq tanınanda (unsure: true —
+   *   heç bir söz əminlik həddini keçmədi, ən yaxşı təxmin)
    * @param {(e: {stage, message}) => void} [o.onStatus]
    * @param {object} [o.segment] segment.js SEGMENT-in dəyişdirilən sahələri
    */
@@ -41,6 +42,7 @@ export class SignToWords {
     this.lms = null;
     this.running = false;
     this.signs = [];
+    this.lastTs = 0;                             // MediaPipe VIDEO rejimi: zaman damğası həmişə artmalıdır
     this.#reset();
   }
 
@@ -84,11 +86,12 @@ export class SignToWords {
     this.running = true;
     this.onStatus?.({ stage: 'running', message: 'Video emal olunur' });
     const n = Math.round(v.duration * fps);
+    const t0 = this.lastTs + 1;                  // növbəti video da əvvəlkinin davamı kimi
     for (let i = 0; i < n; i++) {
       v.currentTime = (i + 0.5) / fps;
       await new Promise((resolve) => v.addEventListener('seeked', resolve, { once: true }));
       if (this._file !== token) return;
-      await this.#process(v, Math.round((i * 1000) / fps) + 1, { fileProgress: (i + 1) / n });
+      await this.#process(v, t0 + Math.round((i * 1000) / fps), { fileProgress: (i + 1) / n });
     }
     const last = this.seg.flush();
     if (last) await this.#recognize(last);
@@ -139,6 +142,8 @@ export class SignToWords {
   /** Bir kadr: landmark-lar → bufer → aktivlik → (aralıq bağlandısa) tanıma. */
   #process(v, ts, extra = {}) {
     this.aspect = v.videoWidth / v.videoHeight;
+    ts = Math.max(Math.round(ts), this.lastTs + 1);   // kameradan videoya, videodan videoya keçəndə də
+    this.lastTs = ts;
     const frame = detectFrame(this.lms, v, ts);
     this.clip.push(frame);
     const active = frameActive(frame, this.aspect, this.p.restLine);
@@ -160,7 +165,9 @@ export class SignToWords {
         const x = await this.rec.recognize(r, aspect, { topK: 3 });
         return { label: x.top[0].label, p: x.top[0].p, top: x.top };
       };
-      const added = await segmentSpan(span, raw, score, FRAME_SIZES, this.p);
+      const { signs, best } = await segmentSpan(span, raw, score, FRAME_SIZES, this.p);
+      // heç bir söz kifayət qədər əmin deyilsə, ən yaxşı təxmin işarələnib göstərilir
+      const added = signs.length ? signs : best ? [{ ...best, unsure: true }] : [];
       this.signs.push(...added);
       this.onSigns?.({ signs: this.signs, added, span, ms: performance.now() - t0 });
     }).catch((err) => {

@@ -12,10 +12,11 @@
  *    ən əmin pəncərə saxlanılır, onunla qısanın `maxOverlap` hissəsindən çox üst-üstə düşənlər
  *    atılır, `minP`-ə qədər təkrarlanır. Zamana görə düzülür, eyni sözlü qonşular birləşir.
  */
-export const SEGMENT_VERSION = 1;
+// v2: lens, minP və maxOverlap val cümlələrində seçilib (notebook 05, EXPERIMENTS.md E6)
+export const SEGMENT_VERSION = 2;
 export const SEGMENT = {
   restLine: 1.0, minOn: 3, minOff: 8, margin: 8, minSpan: 8, maxSpan: 240,
-  lens: [12, 18, 26], stride: 3, minP: 0.5, maxOverlap: 0.25,
+  lens: [16, 24, 32], stride: 3, minP: 0.8, maxOverlap: 0.0,
 };
 
 /** Bir kadr (landmarks.js frame: hand 126, pose 27) aktivdirmi? */
@@ -131,7 +132,8 @@ export function sliceRaw(raw, a, b, sizes) {
 
 /**
  * Bir aralığı işarələrə bölür. raw — aralığın kadrları (0 = span.lo); score(raw) → { label, p, top }.
- * Qaytarır: [{ a, b, label, p, top }] — mütləq kadr nömrələri ilə.
+ * Qaytarır: { signs: [{ a, b, label, p, top }] (mütləq kadr nömrələri ilə), best } — best ən əmin
+ * pəncərədir, heç bir söz `minP`-i keçməyəndə interfeys onu "əmin deyil" kimi göstərə bilər.
  */
 export async function segmentSpan(span, raw, score, sizes, p = SEGMENT) {
   const scored = [];
@@ -139,5 +141,6 @@ export async function segmentSpan(span, raw, score, sizes, p = SEGMENT) {
     const r = await score(sliceRaw(raw, a - span.lo, b - span.lo, sizes));
     scored.push({ a, b, label: r.label, p: r.p, top: r.top });
   }
-  return pick(scored, p);
+  const best = scored.reduce((m, w) => (!m || w.p > m.p ? w : m), null);
+  return { signs: pick(scored, p), best };
 }

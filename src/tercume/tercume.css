@@ -549,6 +549,13 @@ kbd {
   background: rgba(63, 193, 232, 0.08);
 }
 
+/* heç bir söz əminlik həddini keçmədi: ən yaxşı təxmin */
+.signs span.s.unsure {
+  color: var(--ink-3);
+  border-style: dashed;
+  background: transparent;
+}
+
 /* ── hərflər / dekod ── */
 .letters {
   display: flex;

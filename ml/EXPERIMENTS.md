@@ -396,20 +396,23 @@ Two export bugs, found and fixed on the way:
 `src/tercume/s2w.js` (`SignToWords`) + `src/tercume/segment.js`, with the Python reference
 `ml/azsl/segment.py`. In the app: Jest → Mətn, "Nə tanınsın: sözlər".
 
-Method (no training, version 1):
+Method (no training; version 2 since the held-out evaluation below, which chose the numbers in
+step 3 on val; version 1 used windows of 12, 18 and 26 frames, p ≥ 0.5, overlap ≤ 25 %):
 1. **Activity.** A frame is active when a hand is seen with its wrist above the rest line: shoulder
    line + 1.0 shoulder width. In AzSLD the hands rest in the lap, 1.25–1.3 shoulder widths below the
    shoulders, and are mostly not detected there.
 2. **Spans.** A span opens after 3 active frames and closes after 8 resting ones, with 8 frames of
    context on both sides (the training margin). Words appear when the hands go down.
 3. **Words inside a span.** Continuous signing has no rest between signs, so the model chooses the cuts.
-   Candidates are the whole span plus windows of 12, 18 and 26 frames every 3 frames, centred where the
-   hands are up. They are scored by top-1 probability, then greedy non-maximum suppression (overlap
-   ≤ 25 % of the shorter window, p ≥ 0.5) runs, and neighbours with the same word merge. Isolated words
-   (rest → sign → rest, like Words_200) usually win as the whole span.
+   Candidates are the whole span plus windows of 16, 24 and 32 frames every 3 frames, centred where the
+   hands are up. They are scored by top-1 probability, then greedy non-maximum suppression runs (no
+   overlap between kept windows, p ≥ 0.8), and neighbours with the same word merge. Isolated words
+   (rest → sign → rest, like Words_200) usually win as the whole span. If no window reaches p ≥ 0.8, the
+   app shows the most confident one as an unsure guess ("SİZ?", dashed). This is display only and is
+   not counted in the evaluation.
 
 **Python and browser give the same cuts** (`node tools/verify_segment.mjs` against
-`ml/fixtures/segment_v1.json`, written by `ml/make_fixture.py`):
+`ml/fixtures/segment_v<N>.json`, written by `ml/make_fixture.py`; equal for v1 and v2):
 
 | Step | Equal |
 |---|---|
@@ -426,6 +429,7 @@ accuracy), in the app, video file processed frame by frame:
 | Python reference, run 4d | SİZ 23–40, 0.932 | AD 44–61, 0.928 | NƏDİR 68–85, 0.925 | 53 model calls |
 | Browser, run 4d, 3 trackers | SİZ 22–47, 0.937 | AD 46–57, 0.926 | NƏDİR 58–83, 0.930 | 155 ms |
 | Browser, run 5a, no face tracker | SİZ 25–45, 0.923 | AD 46–57, 0.915 | NƏDİR 61–86, 0.919 | 164 ms |
+| Browser, run 5a, v2 defaults | SİZ 22–37, 0.924 | AD 46–61, 0.908 | NƏDİR 67–90, 0.918 | 0.56–0.61 s (56 windows) |
 
 The whole span as one sign gives SİZ 0.244, so cutting is needed for sentences. The first prototype,
 without the "centre where the hands are up" rule and without merging, found the three words plus a
@@ -435,12 +439,63 @@ duplicate SİZ and a spurious AYAQ while the hands went down.
 |---|---|
 | Landmarks, hands + body (5a: no face tracker, see run 5) | 39.9 ms per frame (25 fps) |
 | Landmarks, hands + body + face | 52.5 ms per frame (19 fps) |
-| Splitting one 70-frame span (~50 windows) | 155–165 ms, after the hands go down |
+| One window, 12–32 frames | 3–8 ms earlier in the session, 7–12 ms later (machine load) |
+| Splitting one 70-frame span (~50 windows) | 0.16–0.6 s after the hands go down |
 
 The face tracker is loaded only if the model needs it: when the manifest's validation macro-F1
 without face is more than 0.01 below with face (`needsFace` in s2w.js). For 5a the gap is 0.0007.
 
-**Open:** these numbers are one training-split recording. Next is a held-out evaluation on the val and
-test sentences (signers never seen in training), on Kaggle: word precision / recall against the
-annotated glosses, and how often a word is cut in two or merged, with the parameters chosen on val.
-Live-camera speed is still unmeasured.
+A bug found on the way: MediaPipe's video mode needs increasing timestamps, and a second video (or a
+video after the camera) restarted them at 1 ms and failed. Word mode now keeps one increasing clock.
+
+### Held-out sentences (notebook 05, signers never seen in training)
+
+Every val / test sentence recording runs through word mode as in the browser: run 5a, face off,
+activity → spans → windows → non-maximum suppression (`ml/azsl/segment_eval.py`). The detected words
+are matched with the annotated glosses: same word, frames overlap, one to one by largest overlap.
+
+| | Val | Test |
+|---|---|---|
+| Recordings | 1,545 | 1,484 |
+| Annotated signs | 6,891 | 7,577 |
+| … in the 200-word vocabulary | 4,668 (68 %) | 4,663 (62 %) |
+
+- **Recall:** the share of in-vocabulary annotated signs that were found as the right word.
+- **Precision:** the share of all detections that are right. A word shown on an out-of-vocabulary sign
+  still counts as wrong.
+- **Precision, in-vocabulary:** the same, leaving out detections that only overlap out-of-vocabulary
+  signs.
+- **WER:** word error rate of the detected sequence against the in-vocabulary glosses.
+- **Merged:** the confirmed word-form families count as one word.
+
+All 270 configurations (`segment_eval.GRID`: rest line, window lengths, p threshold, overlap) were
+compared **on val only**. Test was scored once, only with three configurations fixed beforehand:
+
+| Configuration | Val P / R / F1 | **Test P / R / F1** | Test P, in-vocab. | Test WER (in-vocab.) | Test F1 merged | Boundary error, start / end |
+|---|---|---|---|---|---|---|
+| **Chosen on val = v2**: windows 16/24/32, p ≥ 0.8, no overlap, rest line 1.0 | 0.642 / 0.775 / 0.703 | **0.582 / 0.724 / 0.645** | 0.812 | 0.64 (0.33) | 0.677 | 4.4 / 5.0 frames |
+| v1 defaults: windows 12/18/26, p ≥ 0.5, overlap ≤ 25 % | 0.457 / 0.903 / 0.607 | 0.413 / 0.859 / 0.558 | 0.649 | 1.23 (0.48) | 0.593 | 3.7 / 4.6 frames |
+| Baseline: each span is one word (best on val) | 0.752 / 0.147 / 0.246 | 0.691 / 0.131 / 0.220 | 0.712 | 0.87 (0.87) | 0.227 | 44 / 38 frames |
+| Oracle: annotated boundaries given (top-1) | recall 0.892 | recall 0.870 | | | merged 0.927 | |
+
+On val, the window lengths matter most: best F1 is 0.703 with 16/24/32, against 0.682–0.686 with the
+other sets. The p threshold comes next: best F1 rises from 0.663 at p ≥ 0.3 to 0.703 at p ≥ 0.8. The
+rest line barely matters (best F1 0.698–0.703 for 0.8 / 1.0 / 1.2 shoulder widths).
+
+Observations (held-out):
+- **v1 found about two words per real sign** on unseen signers: 9,709 detections for 4,663
+  in-vocabulary signs. v2 outputs 5,805 and raises test F1 from 0.558 to 0.645.
+- **Most remaining errors are signs outside the vocabulary.** 32–38 % of the annotated signs in these
+  sentences are not among the 200 words, and the model gives them a known word with high confidence.
+  Leaving those detections out, precision is 0.81, and WER drops from 0.64 to 0.33. Next experiment:
+  an "unknown sign" class, trained on the out-of-vocabulary sentence signs of the train signers.
+- **Cutting costs about 15 points of recall:** 0.72 found against 0.87 when the boundaries are given.
+  Boundaries of the found words are within 4–5 frames (0.15 s) of the annotation.
+- **Per word (test, ≥ 10 signs):** 65 of 105 words have recall ≥ 0.8, none has 0. The lowest are
+  word forms of a family: MƏNİM 0.02 (found as MƏN), ONUN 0.26 (O), BİLƏR 0.39 (BİLMƏK), ORDA 0.31
+  (ORA), İSTƏYİRƏM 0.47 (İSTƏMƏK). Merged scoring recovers part of this (F1 0.645 → 0.677). Also
+  ÜÇÜN 0.48 and "2" 0.47.
+- Treating each span as one word is precise (0.69) but finds only 13 % of the signs: in AzSLD
+  sentences the hands rarely rest between words.
+
+**Open:** an "unknown sign" class (precision), live-camera speed.
