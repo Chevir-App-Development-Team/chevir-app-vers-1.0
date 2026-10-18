@@ -290,13 +290,14 @@ CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4,
 # train/<name>/ and train/summary.csv. Run 3 (split v6, seed 0, all features) is the reference.
 # Run 4 (seed1, seed2, hands_only, no_face, epochs100): no_face = hands + pose was best, one seed.
 # Run 5: does no_face hold over seeds, and without the face tracker (the "face detected" flag)?
+# Run 6: an "unknown sign" class from the out-of-vocabulary sentence signs, for word-mode precision
+# (5a setup = no face, seed 1; the class's sampling weight is the variable).
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
 NO_FACE = HANDS + ['pose']
 RUNS = {
-    'no_face_seed1': dict(groups=NO_FACE, seed=1),
-    'no_face_seed2': dict(groups=NO_FACE, seed=2),
-    'no_face_fd50': dict(groups=NO_FACE, face_drop=0.5),     # flag randomly 0 in training
-    'full_fd50': dict(face_drop=0.5),                        # all features, face randomly removed
+    'unk_w1': dict(groups=NO_FACE, seed=1, unknown=1.0),
+    'unk_w4': dict(groups=NO_FACE, seed=1, unknown=4.0),
+    'unk_w8': dict(groups=NO_FACE, seed=1, unknown=8.0),
 }
 """),
         code(SETUP),
@@ -331,15 +332,19 @@ tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': 
 import hashlib
 with open(os.path.join(splits_dir, 'words200_split.csv'), 'rb') as f:
     CFG['split_id'] = hashlib.sha1(f.read()).hexdigest()[:10]     # recorded in every model manifest
-vocab_list = sorted(wsplit.gloss.unique())
+UNKNOWN = any(r.get('unknown') for r in RUNS.values())   # out-of-vocabulary signs as one extra class
+vocab_list = sorted(wsplit.gloss.unique()) + ([T.UNKNOWN] if UNKNOWN else [])
 vocab = {g: i for i, g in enumerate(vocab_list)}
-tags = tags[tags.in_w200 & tags.has_landmarks & tags.split.notna()]
+tags = tags[(tags.in_w200 | UNKNOWN) & tags.has_landmarks & tags.split.notna()]
 if SMOKE:
     tags = tags.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 1500), random_state=0))
     wsplit = wsplit.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 300), random_state=0))
     CFG.update(epochs=2)
     RUNS = dict(list(RUNS.items())[:2])
-signs = T.load_sentence_signs(sentence_dirs, tags, vocab, margin=CFG['margin'])
+AMBIGUOUS = T.ambiguous_oov(tags.gloss.unique(), set(wsplit.gloss)) if UNKNOWN else []
+print(len(AMBIGUOUS), 'out-of-vocabulary glosses look like forms of known words, left out:', AMBIGUOUS[:12])
+signs = T.load_sentence_signs(sentence_dirs, tags, vocab, margin=CFG['margin'],
+                              unknown=T.UNKNOWN if UNKNOWN else None, exclude=AMBIGUOUS)
 words = T.load_words200(words_dirs, wsplit, vocab)
 """),
         md('### Training — one line per epoch per run (`*` = new best on val macro-F1)'),
@@ -353,7 +358,8 @@ import matplotlib.pyplot as plt
 summ = pd.read_csv(os.path.join(OUT, 'train', 'summary.csv'))
 cols = [c for c in ('run', 'best_epoch', 'n_features', 'params', 'minutes', 'val_words_top1', 'test_words_top1',
                     'test_words_top5', 'test_words_macro_f1', 'test_words_balanced_acc', 'test_signs_top1',
-                    'test_signs_macro_f1', 'test_words_majority', 'error') if c in summ]
+                    'test_signs_macro_f1', 'test_words_majority', 'val_open_acc', 'test_open_acc',
+                    'test_unk_rejected', 'test_words_unk_rate', 'test_signs_unk_rate', 'error') if c in summ]
 display(summ[cols])
 fig, ax = plt.subplots(1, 2, figsize=(13, 4))
 for name in RUNS:

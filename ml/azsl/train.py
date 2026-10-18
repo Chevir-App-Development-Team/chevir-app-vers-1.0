@@ -11,6 +11,12 @@ Model     Conv1D (depthwise, ECA) + Transformer blocks, as in the top Kaggle iso
 Classes are very uneven (MƏN ≈ 30% of Words_200), so batches are drawn with weights n_c^-0.5
 and checkpoints are chosen by val macro-F1; plain accuracy is always shown next to the
 majority-class baseline.
+
+Unknown signs (cfg 'unknown' > 0): sentence signs outside the vocabulary become one extra class,
+UNKNOWN, so word mode can say "not one of my words" instead of naming the closest one. Their
+sampling weight is the usual n^-0.5 times cfg['unknown']. Val/test out-of-vocabulary signs are kept
+in separate banks (val_unk, test_unk): the word and sign metrics stay comparable with earlier runs,
+and the open-set ones are reported next to them.
 """
 import csv
 import json
@@ -27,10 +33,12 @@ from . import features as FT
 from .store import LandmarkStore
 
 KEYS = ('hand', 'hand_world', 'pose', 'face', 'blend')
+UNKNOWN = '<unk>'          # the extra class for out-of-vocabulary signs (last label of the vocabulary)
 DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label_smoothing=0.1,
                 balance_power=0.5, dim=192, stages=2, convs=3, kernel=17, heads=4, drop=0.2,
                 head_drop=0.4, margin=8, workers=4, seed=0, groups=None,
                 face_drop=0.0,          # P(train clip loses face + blendshapes): one model for both privacy modes
+                unknown=0.0,            # sampling weight of the UNKNOWN class (0 = known words only)
                 fold=None, split_id=None)
 
 
@@ -64,16 +72,30 @@ class Bank:
         return {k: self.data[k][off:off + T] for k in KEYS}, label, aspect, (lo, hi)
 
 
-def load_sentence_signs(sentence_dirs, tags, vocab, margin=8, log=print):
-    """tags (glosses_split.csv rows) → Bank per split, sliced from whole-recording landmarks."""
+def ambiguous_oov(glosses, vocab_words, prefix=4):
+    """Out-of-vocabulary glosses that share their first `prefix` letters with a vocabulary word: mostly
+    other forms or misspellings of it (İSTƏYİR ~ İSTƏMƏK, QARABAQ ~ QARABAĞ, ALMALIYAM ~ ALMAQ), so
+    probably the same sign. They are left out of the unknown class instead of teaching a contradiction."""
+    stems = {v[:prefix] for v in vocab_words if len(v) >= prefix}
+    return sorted({g for g in glosses if g not in vocab_words and len(g) >= prefix and g[:prefix] in stems})
+
+
+def load_sentence_signs(sentence_dirs, tags, vocab, margin=8, log=print, unknown=None, exclude=()):
+    """tags (glosses_split.csv rows) → Bank per split, sliced from whole-recording landmarks.
+    unknown: a label in vocab (UNKNOWN) → out-of-vocabulary signs are kept too, with that label: in
+    'train' for training, in 'val_unk' / 'test_unk' for the open-set metrics. exclude: glosses left
+    out entirely (ambiguous_oov)."""
     store = LandmarkStore(sentence_dirs)
     idx = store.index
     n0 = len(tags)
-    tags = tags[tags.rec_id.isin(idx.index) & tags.gloss.isin(vocab) & tags.start.notna() & tags.end.notna()].copy()
+    known = (tags.gloss.isin(vocab) if unknown is None else tags.gloss.notna()) & ~tags.gloss.isin(list(exclude))
+    tags = tags[tags.rec_id.isin(idx.index) & known & tags.start.notna() & tags.end.notna()].copy()
     if len(tags) < n0:
         log(f'  {n0 - len(tags)} signs dropped (no landmarks, outside the vocabulary or no frame range)')
     tags['_order'] = list(zip(tags.rec_id.map(idx['dir']), tags.rec_id.map(idx['part'])))
     banks = {s: Bank() for s in ('train', 'val', 'test')}
+    if unknown is not None:
+        banks.update(val_unk=Bank(), test_unk=Bank())
     t0, skipped = time.time(), 0
     for n, (rid, g) in enumerate(tags.sort_values(['_order', 'rec_id']).groupby('rec_id', sort=False)):
         raw = FT.reduce(store.get(rid, dtype=np.float16))
@@ -85,8 +107,10 @@ def load_sentence_signs(sentence_dirs, tags, vocab, margin=8, log=print):
                 skipped += 1
                 continue
             lo, hi = max(0, s0 - margin), min(T, e0 + margin)
-            banks[r.split].add({k: v[lo:hi] for k, v in raw.items()}, vocab[r.gloss], aspect,
-                               (s0 - lo, e0 - lo), r.key)
+            oov = r.gloss not in vocab
+            bank = banks[r.split if not oov or r.split == 'train' else f'{r.split}_unk']
+            bank.add({k: v[lo:hi] for k, v in raw.items()}, vocab[unknown if oov else r.gloss], aspect,
+                     (s0 - lo, e0 - lo), r.key)
         if n and n % 2000 == 0:
             log(f'  {n} recordings sliced ({time.time() - t0:.0f} s)')
     log('sentence signs: ' + ', '.join(f'{s} {len(b)}' for s, b in banks.items()) + f' (skipped {skipped})')
@@ -296,14 +320,18 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     tr = signs['train']
     counts = np.bincount(tr.labels, minlength=C)
     weights = counts[tr.labels].astype(np.float64) ** -cfg['balance_power']
+    unk = vocab_list.index(UNKNOWN) if UNKNOWN in vocab_list else None
+    if unk is not None:
+        weights[tr.labels == unk] *= cfg['unknown']          # 0: this run learns the known words only
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights), num_samples=len(tr), replacement=True)
     cols, groups = FT.columns(cfg['groups']), cfg['groups']
     dl = torch.utils.data.DataLoader(SignDataset(tr, train=True, groups=groups, face_drop=cfg['face_drop']),
                                      batch_size=cfg['batch'], sampler=sampler,
                                      num_workers=cfg['workers'], collate_fn=collate, drop_last=True,
                                      persistent_workers=cfg['workers'] > 0, pin_memory=device.type == 'cuda')
-    evals = {k: b for k, b in (('val_words', words.get('val')), ('val_signs', signs.get('val'))) if b is not None and len(b)}
-    major = int(np.bincount(tr.labels, minlength=C).argmax())
+    evals = {k: b for k, b in (('val_words', words.get('val')), ('val_signs', signs.get('val')),
+                               ('val_unk', signs.get('val_unk') if unk is not None else None)) if b is not None and len(b)}
+    major = int(np.bincount(tr.labels[tr.labels != unk] if unk is not None else tr.labels, minlength=C).argmax())
 
     model = Net(len(cols), C, cfg['dim'], cfg['stages'], cfg['convs'], cfg['kernel'], cfg['heads'],
                 cfg['drop'], cfg['head_drop']).to(device)
@@ -315,7 +343,8 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     scaler = torch.amp.GradScaler(enabled=device.type == 'cuda')
 
     log(f'{device} | {n_params / 1e6:.2f} M params | {len(cols)} features | {len(tr)} train signs | {C} classes | '
-        f'{len(dl)} steps/epoch | majority class "{vocab_list[major]}"')
+        f'{len(dl)} steps/epoch | majority class "{vocab_list[major]}"' +
+        (f' | {int((tr.labels == unk).sum())} unknown train signs, weight × {cfg["unknown"]}' if unk is not None else ''))
     for k, b in evals.items():
         log(f'  {k}: {len(b)} samples, majority-class accuracy {(b.labels == major).mean():.3f}')
     hist_path = os.path.join(out_dir, 'history.csv')
@@ -338,8 +367,19 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
             tl, tc, tn = tl + loss.item() * len(y), tc + int((logits.argmax(1) == y).sum()), tn + len(y)
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / tn, 'train_acc': tc / tn}
         for k, b in evals.items():
-            s = scores(predict(model, b, device, workers=min(2, cfg['workers']), groups=groups), b.labels)
-            row.update({f'{k}_{m}': v for m, v in s.items() if m != 'n'})
+            p = predict(model, b, device, workers=min(2, cfg['workers']), groups=groups)
+            if k == 'val_unk':
+                row['val_unk_rejected'] = float((p.argmax(1) == unk).mean())
+                continue
+            row.update({f'{k}_{m}': v for m, v in scores(p, b.labels).items() if m != 'n'})
+            if unk is not None:
+                row[f'{k}_unk_rate'] = float((p.argmax(1) == unk).mean())
+                if k == 'val_signs':
+                    row['_val_signs_correct'] = int((p.argmax(1) == b.labels).sum())
+        if 'val_unk_rejected' in row and '_val_signs_correct' in row:   # known signs right + unknown rejected
+            nk, nu = len(evals['val_signs']), len(evals['val_unk'])
+            row['val_open_acc'] = (row.pop('_val_signs_correct') + row['val_unk_rejected'] * nu) / (nk + nu)
+        row.pop('_val_signs_correct', None)
         row['sec'] = time.time() - t0
         key = 'val_words_macro_f1' if 'val_words' in evals else 'val_signs_macro_f1'
         row['best'] = row.get(key, 0) > best
@@ -361,14 +401,24 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
               'majority_class': vocab_list[major]}
     preds = {}
     for name, bank in (('test_words', words.get('test')), ('test_signs', signs.get('test')),
-                       ('val_words', words.get('val')), ('val_signs', signs.get('val'))):
-        if bank is None or not len(bank):
+                       ('val_words', words.get('val')), ('val_signs', signs.get('val')),
+                       ('test_unk', signs.get('test_unk')), ('val_unk', signs.get('val_unk'))):
+        if bank is None or not len(bank) or (name.endswith('_unk') and unk is None):
             continue
         nw = min(2, cfg['workers'])
         p = predict(model, bank, device, workers=nw, groups=groups)
         preds.update({f'{name}_probs': p.astype(np.float16), f'{name}_labels': bank.labels,
                       f'{name}_ids': np.array(bank.ids)})
+        if name.endswith('_unk'):                            # out-of-vocabulary signs: rejected?
+            result[name] = {'rejected': float((p.argmax(1) == unk).mean()),
+                            'mean_p_unknown': float(p[:, unk].mean()), 'n': int(len(bank))}
+            continue
         result[name] = scores(p, bank.labels)
+        if unk is not None:                                  # known words wrongly rejected; scores without UNKNOWN
+            result[name]['unk_rate'] = float((p.argmax(1) == unk).mean())
+            pk = p.copy()
+            pk[:, unk] = 0
+            result[name + '_known'] = scores(pk, bank.labels)
         result[name]['majority_acc'] = float((bank.labels == major).mean())
         result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True, groups=groups), bank.labels)
         if reads_face(groups):                                      # privacy mode: same model, no face points
@@ -376,6 +426,10 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
                                               bank.labels)
         if name == 'test_words':
             _per_class(p, bank.labels, vocab_list, out_dir)
+    for sp in ('val', 'test'):                               # open set: known signs right + unknown rejected
+        if f'{sp}_unk' in result and f'{sp}_signs' in result:
+            nk, nu = result[f'{sp}_signs']['n'], result[f'{sp}_unk']['n']
+            result[f'{sp}_open_acc'] = (result[f'{sp}_signs']['top1'] * nk + result[f'{sp}_unk']['rejected'] * nu) / (nk + nu)
     with open(os.path.join(out_dir, 'metrics.json'), 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
     with open(os.path.join(out_dir, 'vocab.json'), 'w', encoding='utf-8') as f:
@@ -401,6 +455,8 @@ def write_manifest(out_dir, cfg, vocab_list, result, n_in, onnx_ok=True):
                    'ensembles average the softmax probabilities'},
         # without face = trained with the face randomly removed, or an input the face cannot change
         'face_drop': cfg['face_drop'], 'works_without_face': bool(cfg['face_drop']) or not reads_face(cfg['groups']),
+        # a window whose top-1 is this label is "not one of the words": word mode drops it
+        'unknown_label': UNKNOWN if UNKNOWN in vocab_list else None,
         'contract': FT.spec(),
         'run': os.path.basename(os.path.normpath(out_dir)), 'seed': cfg['seed'], 'fold': cfg.get('fold'),
         'split_id': cfg.get('split_id'), 'best_epoch': result.get('best_epoch'), 'params': result.get('params'),
@@ -430,6 +486,15 @@ def fit_many(runs: dict, signs, words, vocab_list, out_root, log=print):
             if k in r:
                 row.update({f'{k}_{m}': round(r[k][m], 4) for m in ('top1', 'top5', 'macro_f1', 'balanced_acc')})
         row['test_words_majority'] = round(r['test_words']['majority_acc'], 4) if 'test_words' in r else None
+        for k in ('val_open_acc', 'test_open_acc'):
+            if k in r:
+                row[k] = round(r[k], 4)
+        for k in ('val_unk', 'test_unk'):
+            if k in r:
+                row[f'{k}_rejected'] = round(r[k]['rejected'], 4)
+        for k in ('test_words', 'test_signs'):
+            if k in r and 'unk_rate' in r[k]:
+                row[f'{k}_unk_rate'] = round(r[k]['unk_rate'], 4)
         rows.append(row)
         with open(os.path.join(out_root, 'summary.csv'), 'w', newline='', encoding='utf-8') as f:
             w = csv.DictWriter(f, fieldnames=sorted({k for rr in rows for k in rr}, key=lambda k: (k != 'run', k)))
@@ -442,7 +507,8 @@ def _line(row, header):
     cols = [('epoch', 'ep', '{:>3d}'), ('train_loss', 'loss', '{:6.3f}'), ('train_acc', 'tr_acc', '{:6.3f}'),
             ('val_words_top1', 'W_top1', '{:6.3f}'), ('val_words_top5', 'W_top5', '{:6.3f}'),
             ('val_words_macro_f1', 'W_mF1', '{:6.3f}'), ('val_signs_top1', 'S_top1', '{:6.3f}'),
-            ('val_signs_macro_f1', 'S_mF1', '{:6.3f}'), ('sec', 'sec', '{:5.0f}')]
+            ('val_signs_macro_f1', 'S_mF1', '{:6.3f}'), ('val_unk_rejected', 'U_rej', '{:6.3f}'),
+            ('val_open_acc', 'open', '{:6.3f}'), ('sec', 'sec', '{:5.0f}')]
     cols = [c for c in cols if c[0] in row]
     s = '  '.join(f.format(row[k]) for k, _, f in cols) + ('  *' if row.get('best') else '')
     return ('  '.join(f'{h:>{len(f.format(row[k]))}}' for k, h, f in cols) + '\n' + s) if header else s

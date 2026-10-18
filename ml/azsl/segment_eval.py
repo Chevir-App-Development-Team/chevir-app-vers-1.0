@@ -12,6 +12,9 @@ runs without the face tracker) → pick → detected words. They are compared wi
   WER         word error rate of the detected word sequence against the in-vocabulary glosses
   merged      the same with the confirmed word-form families as one word (ml/lemma_groups.csv)
 
+A model with the unknown class (train.UNKNOWN in its vocabulary): an unknown window takes part in the
+non-maximum suppression like any word, so it can suppress weaker guesses, but is never output.
+
 Baselines: "whole span" (lens = (): every span is one word, no cutting) and "oracle" (the annotated
 boundaries are given; top-1 on the in-vocabulary signs = the recall a perfect cutter would reach).
 Parameters are chosen on val by F1; test is scored once with them.
@@ -185,7 +188,7 @@ def evaluate(load, recs, anns_by_rec, scorer, vocab, fam, cfgs=None, log=print, 
                       for sp in spans[rl]]
             for mp, mo in choices:
                 p = {**p0, 'min_p': mp, 'max_overlap': mo}
-                dets = [(a, b, lab) for sc in scored for a, b, lab, _ in SG.pick(sc, p)]
+                dets = [(a, b, lab) for sc in scored for a, b, lab, _ in SG.pick(sc, p) if lab != TR.UNKNOWN]
                 tallies[config_key(p)].add(dets, anns, fam)
                 if keep is not None and config_key(p) == config_key(keep):
                     kept += [(rid, a, b, lab) for a, b, lab in dets]
