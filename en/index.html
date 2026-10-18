@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png?v=3" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png?v=3" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="{{home.meta.description}}"
+    />
+    <title>{{home.meta.title}}</title>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://chevirapp.com/en/" />
+    <meta property="og:title" content="{{home.meta.title}}" />
+    <meta
+      property="og:description"
+      content="{{home.meta.description}}"
+    />
+    <meta property="og:image" content="https://chevirapp.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Poppins-Light.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Poppins-Regular.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Poppins-Bold.woff2" crossorigin />
+    <script>
+      // Splash YALNIZ reload-da və ya kənar/birbaşa keçiddə (eyni-mənbəli
+      // referrer yoxdursa) göstərilir - sayt-daxili keçiddə (/tercume,
+      // /nsosyal, geri) və ya reduced-motion-da ATLANIR. Qərar paint-dən
+      // ƏVVƏL, sinxron verilir ki, FOUC/yanıb-sönmə olmasın - bu bayraq
+      // preloader.js-də oxunur (bax initPreloader). index.html ilə HƏRFİ
+      // eyni script - yol-müstəqildir (sessionStorage yox, navigation
+      // type + referrer), ona görə /en/-də də eyni davranır.
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var navEntry = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || null;
+      var navType = navEntry ? navEntry.type : 'navigate';
+      var sameOriginRef = document.referrer.indexOf(location.origin) === 0;
+      var showSplash = !reducedMotion && navType !== 'back_forward' && (navType === 'reload' || !sameOriginRef);
+      window.__SPLASH_SHOW__ = showSplash;
+      if (showSplash) {
+        document.documentElement.classList.add('preloading');
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

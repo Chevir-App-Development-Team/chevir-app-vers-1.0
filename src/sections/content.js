@@ -1,5 +1,6 @@
 import gsap from 'gsap'
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
+import { t } from '../lib/i18n.js'
 import { HAND_POSE_OPEN, HAND_CONNECTIONS } from '../lib/handPoses.js'
 import { initLineCarousel } from '../lib/lineCarousel.js'
 import {
@@ -80,25 +81,21 @@ export const contentMarkup = `
   ${logoBackgroundMarkup('left')}
   <div class="reveal">
     <div class="problem__stat">
-      <p class="problem__number">13&nbsp;000</p>
+      <p class="problem__number">${t('home.problem.stat.number')}</p>
       <p class="problem__stat-desc">
-        Azərbaycanda eşitmə məhdudiyyətli insanların təxmini sayı.
+        ${t('home.problem.stat.desc')}
       </p>
     </div>
     <div class="problem__content">
       <h2 id="problem-heading" class="problem__heading">
-        Yazı həll deyil, maneədir.
+        ${t('home.problem.heading')}
       </h2>
       <div class="problem__body">
         <p class="problem__paragraph">
-          Eşitmə məhdudiyyəti ilə doğulan insan Azərbaycan dilini heç vaxt eşitmir.
-          Onu ikinci dil kimi öyrənir. Poliklinikada anket doldurmaq, bank
-          müqaviləsi oxumaq - bunlar onun üçün yad dildə sənəd doldurmaqdır.
+          ${t('home.problem.paragraph1')}
         </p>
         <p class="problem__paragraph">
-          Mövcud əlçatanlıq alətləri isə yalnız bir istiqamətdə işləyir: eşidəndən
-          eşitmə məhdudiyyətli şəxsə. Altyazı var. Əks istiqamət - jest dilində
-          deyilənin eşidənə çatması - tamamilə boşdur.
+          ${t('home.problem.paragraph2')}
         </p>
       </div>
     </div>
@@ -107,34 +104,24 @@ export const contentMarkup = `
 
 <section class="difference" aria-labelledby="difference-heading">
   <div class="reveal">
-    <h2 id="difference-heading" class="difference__heading">Fərqimiz nədir</h2>
+    <h2 id="difference-heading" class="difference__heading">${t('home.difference.heading')}</h2>
     <div class="difference__grid">
       <div class="difference__item">
-        <h3 class="difference__item-title">Bir skelet, iki istiqamət</h3>
+        <h3 class="difference__item-title">${t('home.difference.item.0.title')}</h3>
         <p class="difference__item-desc">
-          Tanıma və istehsal ayrı sistemlər deyil. Hər ikisi eyni skelet
-          təsvirindən qidalanır - kameradan çıxarılan nöqtələr həm jesti
-          oxumaq, həm də avatarı hərəkətə gətirmək üçün işlədilir. Bu, iki
-          istiqamətin uyğunluğunu arxitektura səviyyəsində təmin edir.
+          ${t('home.difference.item.0.desc')}
         </p>
       </div>
       <div class="difference__item">
-        <h3 class="difference__item-title">Mimika sonradan əlavə deyil</h3>
+        <h3 class="difference__item-title">${t('home.difference.item.1.title')}</h3>
         <p class="difference__item-desc">
-          Jest dilində inkar, sual və şərt üz və baş hərəkətləri ilə ötürülür.
-          Sahənin aparıcı kommersiya oyunçusu bu elementlərin səlis
-          istehsalını həll olunmamış problem kimi elan edir. Bizdə bu,
-          sonradan gələcək yaxşılaşdırma deyil - arxitekturanın başlanğıc
-          tələbidir.
+          ${t('home.difference.item.1.desc')}
         </p>
       </div>
       <div class="difference__item">
-        <h3 class="difference__item-title">İcma ilə yoxlama</h3>
+        <h3 class="difference__item-title">${t('home.difference.item.2.title')}</h3>
         <p class="difference__item-desc">
-          Model çıxışları laboratoriya metrikası ilə deyil, ana dili jest
-          dili olan insanların anlama səviyyəsi ilə yoxlanılır. Nəzəri
-          olaraq uğurlu görünən, praktikada isə anlaşılmayan nəticələrin
-          qarşısı belə alınır.
+          ${t('home.difference.item.2.desc')}
         </p>
       </div>
     </div>
@@ -144,13 +131,11 @@ export const contentMarkup = `
 <section class="values" aria-labelledby="values-heading">
   <div class="reveal">
     <p id="values-heading" class="values__statement">
-      Biz olmadan bizim haqqımızda heç nə.
+      ${t('home.values.statement')}
     </p>
-    <p class="values__slogan">Eşitmə məhdudiyyətli icmanın şüarı.</p>
+    <p class="values__slogan">${t('home.values.slogan')}</p>
     <p class="values__principle">
-      Eşitmə məhdudiyyətli istifadəçi öz ana dilində məzmun oxumaq və yaratmaq
-      üçün heç vaxt ödəniş etməyəcək. Əlçatanlıq ödəniş divarının arxasında
-      ola bilməz.
+      ${t('home.values.principle')}
     </p>
   </div>
 </section>
@@ -158,32 +143,30 @@ export const contentMarkup = `
 <section class="usecases" aria-labelledby="usecases-heading">
   ${dotsBackgroundMarkup('right')}
   <div class="reveal">
-    <h2 id="usecases-heading" class="usecases__heading">Harada işləyir</h2>
+    <h2 id="usecases-heading" class="usecases__heading">${t('home.usecases.heading')}</h2>
     <div class="usecases__grid">
       <div class="usecases__item">
-        <h3 class="usecases__item-title">Dövlət xidmətləri və banklar</h3>
+        <h3 class="usecases__item-title">${t('home.usecases.item.0.title')}</h3>
         <p class="usecases__item-desc">
-          Ərizə qəbulu, pəncərə xidməti və çağrı mərkəzlərində birbaşa
-          tərcümə.
+          ${t('home.usecases.item.0.desc')}
         </p>
       </div>
       <div class="usecases__item">
-        <h3 class="usecases__item-title">Səhiyyə</h3>
+        <h3 class="usecases__item-title">${t('home.usecases.item.1.title')}</h3>
         <p class="usecases__item-desc">
-          Həkim və xəstə arasında təcili və planlı görüşlərdə ünsiyyət.
+          ${t('home.usecases.item.1.desc')}
         </p>
       </div>
       <div class="usecases__item">
-        <h3 class="usecases__item-title">Təhsil</h3>
+        <h3 class="usecases__item-title">${t('home.usecases.item.2.title')}</h3>
         <p class="usecases__item-desc">
-          Dərs otağında və valideyn-müəllim görüşlərində real vaxtda
-          tərcümə.
+          ${t('home.usecases.item.2.desc')}
         </p>
       </div>
       <div class="usecases__item">
-        <h3 class="usecases__item-title">Rəqəmsal platformalar</h3>
+        <h3 class="usecases__item-title">${t('home.usecases.item.3.title')}</h3>
         <p class="usecases__item-desc">
-          Tətbiq və veb-saytlara API ilə inteqrasiya olunan tərcümə qatı.
+          ${t('home.usecases.item.3.desc')}
         </p>
       </div>
     </div>
@@ -194,23 +177,18 @@ export const contentMarkup = `
   ${logoBackgroundMarkup('left')}
   <div class="reveal">
     <div class="results__intro">
-      <h2 id="results-heading" class="results__heading">Hazırkı nəticələr</h2>
+      <h2 id="results-heading" class="results__heading">${t('home.results.heading')}</h2>
       <p class="results__lead">
-        Aşağıdakılar AzSLD (Azərbaycan Jest Dili Datasetı) üzərində öyrədilmiş
-        modellərin real çıxışlarıdır.
+        ${t('home.results.lead')}
       </p>
     </div>
     <div class="results__accuracy">
-      <p class="results__accuracy-number">84,85%</p>
+      <p class="results__accuracy-number">${t('home.results.accuracy.number')}</p>
       <p class="results__accuracy-desc">
-        AzSLD - 30 000 annotasiyalı video üzərində öyrədilmiş tanıma
-        modelimizin dəqiqliyi.
+        ${t('home.results.accuracy.desc')}
       </p>
       <p class="results__accuracy-caveat">
-        Bu sahədə adətən 95%-dən yuxarı rəqəmlər elan olunur. Amma həmin rəqəm
-        eyni insanların videoları həm öyrətmədə, həm testdə olanda alınır.
-        Model heç görmədiyi yeni bir insanı tanımalı olanda dəqiqlik 62%-ə
-        düşür. Biz birinci rəqəmi ümumiyyətlə göstərmirik.
+        ${t('home.results.accuracy.caveat')}
       </p>
     </div>
     <div class="results__grid">
@@ -232,9 +210,9 @@ export const contentMarkup = `
           </video>
         </div>
         <figcaption>
-          <h3 class="results__card-title" id="results-title-0">Proqnoz</h3>
+          <h3 class="results__card-title" id="results-title-0">${t('home.results.card.0.title')}</h3>
           <p class="results__card-desc" id="results-desc-0">
-            Orijinal görüntü və modelin proqnozu yan-yana müqayisə olunur.
+            ${t('home.results.card.0.desc')}
           </p>
         </figcaption>
       </figure>
@@ -256,9 +234,9 @@ export const contentMarkup = `
           </video>
         </div>
         <figcaption>
-          <h3 class="results__card-title" id="results-title-1">Tanınma çıxışı</h3>
+          <h3 class="results__card-title" id="results-title-1">${t('home.results.card.1.title')}</h3>
           <p class="results__card-desc" id="results-desc-1">
-            Tanınan işarənin mətn və səs çıxışına çevrilməsi.
+            ${t('home.results.card.1.desc')}
           </p>
         </figcaption>
       </figure>
@@ -266,15 +244,13 @@ export const contentMarkup = `
   </div>
 </section>
 
-<section class="impact" id="impact" aria-label="Təsir">
+<section class="impact" id="impact" aria-label="${t('home.impact.ariaLabel')}">
   <div class="line-carousel">
     <p class="line-carousel__line">
-      Azərbaycanda eşitmə məhdudiyyətli şəxslərin ünsiyyət qurması ya
-      tərcüməçilərdən, ya da ailə üzvlərindən asılıdır.
+      ${t('home.impact.line1')}
     </p>
     <p class="line-carousel__line">
-      Chevir bunu dəyişdirir və ana dili işarə dili olanları cəmiyyətə
-      geri qazandırmağı hədəfləyir.
+      ${t('home.impact.line2')}
     </p>
   </div>
 </section>
@@ -282,30 +258,27 @@ export const contentMarkup = `
 <section class="roadmap" aria-labelledby="roadmap-heading">
   ${logoBackgroundMarkup('right')}
   <div class="reveal">
-    <h2 id="roadmap-heading" class="roadmap__heading">Mərhələlər</h2>
+    <h2 id="roadmap-heading" class="roadmap__heading">${t('home.roadmap.heading')}</h2>
     <ol class="roadmap__list">
       <li class="roadmap__item">
         <span class="roadmap__number">01</span>
-        <h3 class="roadmap__item-title">Veb platformalar üçün tərcümə API-si</h3>
+        <h3 class="roadmap__item-title">${t('home.roadmap.item.0.title')}</h3>
         <p class="roadmap__item-desc">
-          Bank, dövlət və səhiyyə sistemlərinin birbaşa inteqrasiya edə
-          biləcəyi tərcümə xidməti.
+          ${t('home.roadmap.item.0.desc')}
         </p>
       </li>
       <li class="roadmap__item">
         <span class="roadmap__number">02</span>
-        <h3 class="roadmap__item-title">Müstəqil mobil tətbiq</h3>
+        <h3 class="roadmap__item-title">${t('home.roadmap.item.1.title')}</h3>
         <p class="roadmap__item-desc">
-          Eşitmə məhdudiyyətli və eşidən istifadəçilərin birbaşa öz telefonundan istifadə edə
-          biləcəyi tətbiq.
+          ${t('home.roadmap.item.1.desc')}
         </p>
       </li>
       <li class="roadmap__item">
         <span class="roadmap__number">03</span>
-        <h3 class="roadmap__item-title">Platforma və dataset genişlənməsi</h3>
+        <h3 class="roadmap__item-title">${t('home.roadmap.item.2.title')}</h3>
         <p class="roadmap__item-desc">
-          Daha geniş işarə ehtiyatı və yeni istifadə sahələri üçün dataset
-          böyüməsi.
+          ${t('home.roadmap.item.2.desc')}
         </p>
       </li>
     </ol>
@@ -315,31 +288,28 @@ export const contentMarkup = `
 <section class="trust" aria-labelledby="trust-heading">
   <div class="reveal">
     <div class="trust__intro">
-      <h2 id="trust-heading" class="trust__heading">Arxamızda nə dayanır</h2>
+      <h2 id="trust-heading" class="trust__heading">${t('home.trust.heading')}</h2>
       <p class="trust__lead">
-        Chevir sıfırdan başlamır - arxasında dərc olunmuş tədqiqat, açıq dataset
-        və icma ilə real əməkdaşlıq var.
+        ${t('home.trust.lead')}
       </p>
     </div>
     <div class="trust__grid">
       <div class="trust__item">
-        <h3 class="trust__item-title">AzSLD dataseti</h3>
-        <p class="trust__item-desc">Azərbaycan jest dili üçün ilk açıq dataset.</p>
+        <h3 class="trust__item-title">${t('home.trust.item.0.title')}</h3>
+        <p class="trust__item-desc">${t('home.trust.item.0.desc')}</p>
         <p class="trust__item-meta">
-          Alishzade, N. &amp; Hasanov, J. (2025), Data in Brief, DOI:
-          10.1016/j.dib.2024.111230
+          ${t('home.trust.item.0.meta')}
         </p>
       </div>
       <div class="trust__item">
-        <h3 class="trust__item-title">Akademik baza</h3>
+        <h3 class="trust__item-title">${t('home.trust.item.1.title')}</h3>
         <p class="trust__item-desc">
-          Qarabağ Universiteti, Bakı Dövlət Universiteti, AMEA Molekulyar
-          Biologiya İnstitutu, MRC LMB Cambridge.
+          ${t('home.trust.item.1.desc')}
         </p>
       </div>
       <div class="trust__item">
-        <h3 class="trust__item-title">İcma əməkdaşlığı</h3>
-        <p class="trust__item-desc">"Karlara Dəstək" İctimai Birliyi.</p>
+        <h3 class="trust__item-title">${t('home.trust.item.2.title')}</h3>
+        <p class="trust__item-desc">${t('home.trust.item.2.desc')}</p>
       </div>
     </div>
   </div>
@@ -348,37 +318,27 @@ export const contentMarkup = `
 <section class="team" aria-labelledby="team-heading">
   ${dotsBackgroundMarkup('left')}
   <div class="reveal">
-    <h2 id="team-heading" class="team__heading">Komanda</h2>
+    <h2 id="team-heading" class="team__heading">${t('home.team.heading')}</h2>
     <div class="team__grid">
       <div class="team__card">
-        <h3 class="team__name">Sitara Aghayeva</h3>
-        <p class="team__role">Baş İcraçı Direktor</p>
+        <h3 class="team__name">${t('home.team.member.0.name')}</h3>
+        <p class="team__role">${t('home.team.member.0.role')}</p>
         <p class="team__bio">
-          Data Science və maşın öyrənməsi üzrə yeddi, risk idarəçiliyi üzrə
-          dörd il təcrübə. IU Beynəlxalq Tətbiqi Elmlər Universitetində
-          magistr, beynəlxalq Risk və Süni İntellekt sertifikatı sahibi.
-          Chevir-in icrasına və pilot tərəfdaşlıqlarına rəhbərlik edir.
+          ${t('home.team.member.0.bio')}
         </p>
       </div>
       <div class="team__card">
-        <h3 class="team__name">Lala Ibadullayeva</h3>
-        <p class="team__role">Baş Tədqiqat Direktoru</p>
+        <h3 class="team__name">${t('home.team.member.1.name')}</h3>
+        <p class="team__role">${t('home.team.member.1.role')}</p>
         <p class="team__bio">
-          AMEA Molekulyar Biologiya İnstitutunda hesablamalı struktur
-          biologiyası üzrə PhD namizədi, Bakı Dövlət Universitetində süni
-          intellekt həlləri qurur. Cambridge MRC LMB-də tədqiqat təcrübəsi.
-          Chevir-in hərəkət tanıma və jest tərcüməsi modellərinin dərin
-          öyrənmə tədqiqatına rəhbərlik edir.
+          ${t('home.team.member.1.bio')}
         </p>
       </div>
       <div class="team__card">
-        <h3 class="team__name">Nigar Alishzade</h3>
-        <p class="team__role">Baş Texnologiya Direktoru</p>
+        <h3 class="team__name">${t('home.team.member.2.name')}</h3>
+        <p class="team__role">${t('home.team.member.2.role')}</p>
         <p class="team__bio">
-          PhD namizədi, Qarabağ Universitetində kompüter elmləri müəllimi və
-          "Karlara Dəstək" İctimai Birliyinin icraçı üzvü. AzSLD datasetinin
-          və bir sıra jest dili tanıma məqalələrinin müəllifidir. Chevir-in
-          texnologiya inkişafına və icma ilə əlaqələrinə rəhbərlik edir.
+          ${t('home.team.member.2.bio')}
         </p>
       </div>
     </div>
@@ -390,17 +350,17 @@ export const contentMarkup = `
   <div class="contact__grain" aria-hidden="true"></div>
   <svg class="contact__wordmark" viewBox="0 0 81 24" aria-hidden="true">${CONTACT_WORDMARK_MARKUP}</svg>
   <div class="reveal">
-    <span class="visually-hidden">Chevir</span>
+    <span class="visually-hidden">${t('common.brand.name')}</span>
     <div class="contact__content">
-      <h2 id="contact-heading" class="contact__heading">Bizə nə lazımdır</h2>
+      <h2 id="contact-heading" class="contact__heading">${t('home.contact.heading')}</h2>
       <ul class="contact__asks">
-        <li>Pilot tərəfdaşlar - dövlət qurumu, bank və ya xəstəxana.</li>
-        <li>Eşitmə məhdudiyyətli icma ilə davamlı əməkdaşlıq.</li>
+        <li>${t('home.contact.ask.0')}</li>
+        <li>${t('home.contact.ask.1')}</li>
       </ul>
-      <a class="contact__cta" href="mailto:devteam@chevirapp.com">devteam@chevirapp.com</a>
+      <a class="contact__cta" href="mailto:${t('home.contact.email')}">${t('home.contact.email')}</a>
       <div class="contact__meta">
-        <p class="contact__meta-copyright">© 2026 Chevir · chevirapp.com</p>
-        <p class="contact__meta-slogan">Biz olmadan bizim haqqımızda heç nə.</p>
+        <p class="contact__meta-copyright">${t('home.contact.meta.copyright')}</p>
+        <p class="contact__meta-slogan">${t('home.contact.meta.slogan')}</p>
       </div>
     </div>
   </div>

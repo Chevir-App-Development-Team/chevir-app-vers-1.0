@@ -1,5 +1,5 @@
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
-import { HERO_TAGLINE_LINE1, HERO_TAGLINE_LINE2 } from '../lib/i18n.js'
+import { t } from '../lib/i18n.js'
 import { buildBrandLogoMarkupBlue, BRAND_LOGO_VIEWBOX } from '../lib/brandLogo.js'
 import { navbarMarkup as buildNavbarMarkup } from './navbar.js'
 
@@ -32,24 +32,24 @@ export const navbarMarkup = buildNavbarMarkup({ page: 'home' })
 const HERO_LOGO_MARKUP_BLUE = buildBrandLogoMarkupBlue('hero-fallback')
 
 export const heroMarkup = `
-<section class="hero" id="top" aria-label="Chevir">
+<section class="hero" id="top" aria-label="${t('common.brand.name')}">
   <div class="hero__bg" aria-hidden="true"></div>
   <canvas class="hero__scene" data-hero-canvas aria-hidden="true"></canvas>
   <svg class="hero__wordmark" viewBox="0 0 81 24" aria-hidden="true">${WORDMARK_MARKUP}</svg>
   <div class="hero__content">
     <p class="hero__tagline hero__desc">
-      <span class="hero__tagline-line hero__tagline-line--light">${HERO_TAGLINE_LINE1}</span>
-      <span class="hero__tagline-line hero__tagline-line--bold">${HERO_TAGLINE_LINE2}</span>
+      <span class="hero__tagline-line hero__tagline-line--light">${t('home.hero.title.line1')}</span>
+      <span class="hero__tagline-line hero__tagline-line--bold">${t('home.hero.title.line2')}</span>
     </p>
-    <a href="${BASE}nsosyal/" class="hero__nsosyal-btn">NSosyal <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
+    <a href="${BASE}nsosyal/" class="hero__nsosyal-btn">${t('common.nav.nsosyal')} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
 
     <div class="hero__logo-slot" aria-hidden="true">
       <svg class="brand-logo" viewBox="${BRAND_LOGO_VIEWBOX}">${HERO_LOGO_MARKUP_BLUE}</svg>
     </div>
 
     <div class="hero__mobile-actions">
-      <a class="hero__mobile-cta" href="${BASE}#pilot">Pilot tərəfdaş olun</a>
-      <a class="hero__mobile-secondary" href="${BASE}tercume/">Sistemi sına</a>
+      <a class="hero__mobile-cta" href="${BASE}#pilot">${t('common.nav.cta')}</a>
+      <a class="hero__mobile-secondary" href="${BASE}tercume/">${t('common.nav.tercume')}</a>
     </div>
   </div>
 </section>

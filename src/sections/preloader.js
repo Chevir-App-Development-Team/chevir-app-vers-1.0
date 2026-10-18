@@ -1,5 +1,6 @@
 import gsap from 'gsap'
 import { prefersReducedMotion } from '../lib/gsapSetup.js'
+import { t } from '../lib/i18n.js'
 import {
   BRAND_LOGO_VIEWBOX,
   BRAND_LOGO_BLOB_A_D,
@@ -10,7 +11,7 @@ import {
 
 export const splashMarkup = `
 <div id="splash" role="status" aria-live="polite">
-  <span class="visually-hidden">Chevir yüklənir</span>
+  <span class="visually-hidden">${t('home.splash.loading')}</span>
 </div>
 `
 
