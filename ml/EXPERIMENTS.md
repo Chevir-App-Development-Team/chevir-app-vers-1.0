@@ -159,3 +159,10 @@ Candidate next experiments (one change at a time, all on split v6):
 - lemma-merged evaluation (İSTƏYİRƏM/İSTƏMƏK, MƏNİM/MƏN, GEDƏ/GETMƏK, …)
 - feature ablations: no face/blendshapes, hands only (what the browser can run most cheaply)
 - several seeds, to put error bars on the headline number
+
+### Word-form families (evaluation only)
+
+AzSLD labels Azerbaijani word forms, so some classes are inflections of one sign. The 13 candidate
+families in `ml/lemma_groups.csv` (30 forms → 13 classes) were **all confirmed as the same sign by
+Nigar Alishzade on 2026-10-18**. Merged scores (`ml/analyze.py`) count a prediction of any form in a
+family as correct. They are reported next to the plain 200-class scores, not instead of them.
