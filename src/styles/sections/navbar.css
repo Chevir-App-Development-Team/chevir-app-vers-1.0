@@ -213,11 +213,17 @@
   transform: translateY(-2px);
 }
 
-/* ---------- Mobil hamburger menyusu (yalnız data-page="home", ≤600px) ---------- */
-/* Masaüstü/tablet və /tercume, /nsosyal-da HƏR ZAMAN gizli - yalnız home-un
-   ≤600px görünüşündə aşağıdakı media query onu açır (bax navbar.js
-   data-page). İkon klikdə iki xəttdən X-ə dönür, .navbar__links eyni
-   elementi (artıq mövcud linklər) ağ dropdown kartı kimi göstərir. */
+/* ---------- Mobil/planşet hamburger menyusu (yalnız data-page="home", ≤1023px) ---------- */
+/* Masaüstü (≥1024px) və /tercume, /nsosyal-da HƏR ZAMAN gizli - yalnız
+   home-un ≤1023px görünüşündə aşağıdakı media query-lər onu açır (bax
+   navbar.js data-page). Üç keçid (bax LINKS, navbar.js) 601-1023px
+   aralığında CTA ilə birgə sığmadığı üçün (ölçülüb: boşluq 0-2px) bu
+   aralıqda da linklər dropdown-a köçür, YALNIZ CTA görünən qalır (toggle
+   mərkəz sütunda). ≤600px-də isə CTA da gizlənir (hero-nun öz alt
+   düymələri onu əvəz edir, bax hero.css) - toggle sağ sütuna keçir (bax
+   aşağı, ayrıca ≤600px bloku). İkon klikdə iki xəttdən X-ə dönür,
+   .navbar__links eyni elementi (mövcud linklər) ağ dropdown kartı kimi
+   göstərir. */
 .navbar__toggle {
   display: none;
   align-items: center;
@@ -249,20 +255,16 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1023px) {
   .navbar[data-page='home'] .navbar__links {
-    display: none;
-  }
-
-  .navbar[data-page='home'] .navbar__cta {
     display: none;
   }
 
   .navbar[data-page='home'] .navbar__toggle {
     display: inline-flex;
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
-    justify-self: end;
+    justify-self: center;
     opacity: 0;
     visibility: hidden;
   }
@@ -287,7 +289,8 @@
     gap: 0.25rem;
     position: absolute;
     top: calc(100% + 0.6rem);
-    right: clamp(1.25rem, 5vw, 4rem);
+    left: 50%;
+    transform: translateX(-50%);
     min-width: 170px;
     padding: 0.6rem;
     border-radius: 16px;
@@ -297,7 +300,6 @@
     z-index: 60;
     opacity: 1;
     visibility: visible;
-    transform: none;
   }
 
   .navbar[data-page='home'].is-menu-open .navbar__link {
@@ -316,6 +318,26 @@
   .navbar[data-page='home'].is-menu-open .navbar__link:hover,
   .navbar[data-page='home'].is-menu-open .navbar__link:focus-visible {
     background: rgba(0, 113, 239, 0.08);
+    transform: none;
+  }
+}
+
+/* ≤600px: CTA da gizlənir (hero-nun öz alt düymələri əvəz edir, bax
+   hero.css), toggle sağ sütuna keçir - yuxarıdakı ≤1023px blokundan SONRA
+   gəldiyi üçün (eyni spesifiklik, source-order) bu dəyərlər üstələyir. */
+@media (max-width: 600px) {
+  .navbar[data-page='home'] .navbar__cta {
+    display: none;
+  }
+
+  .navbar[data-page='home'] .navbar__toggle {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .navbar[data-page='home'].is-menu-open .navbar__links {
+    left: auto;
+    right: clamp(1.25rem, 5vw, 4rem);
     transform: none;
   }
 }

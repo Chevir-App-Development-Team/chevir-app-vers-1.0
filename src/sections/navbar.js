@@ -12,6 +12,7 @@ const LINKS = {
   home: { href: '', label: 'Ana səhifə' },
   tercume: { href: 'tercume/', label: 'Sistemi sına' },
   nsosyal: { href: 'nsosyal/', label: 'NSosyal' },
+  investors: { href: 'https://bakuid.seeder.so/r/bakuid-2026/s/chevir', label: 'İnvestorlar üçün', external: true },
 }
 
 /**
@@ -26,7 +27,11 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
   const links = Object.entries(LINKS)
     .filter(([key]) => key !== page)
     .sort(([a], [b]) => (a === 'home' ? -1 : b === 'home' ? 1 : 0))
-    .map(([, l], i) => `<a class="navbar__link${i ? ' navbar__link--extra' : ''}" href="${BASE}${l.href}">${l.label}</a>`)
+    .map(([, l], i) => {
+      const href = l.external ? l.href : `${BASE}${l.href}`
+      const extAttrs = l.external ? ' target="_blank" rel="noopener noreferrer"' : ''
+      return `<a class="navbar__link${i ? ' navbar__link--extra' : ''}" href="${href}"${extAttrs}>${l.label}</a>`
+    })
     .join('\n    ')
   const cls = `${home ? '' : ' is-revealed is-scrolled'}${light ? ' is-light' : ''}`
   return `
