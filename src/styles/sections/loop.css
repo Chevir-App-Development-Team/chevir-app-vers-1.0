@@ -70,14 +70,15 @@
   background: rgba(243, 247, 252, 0.03);
   width: 100%;
   max-width: 260px;
-}
-
-.loop__side--signed {
-  border-color: rgba(243, 247, 252, 0.4);
-}
-
-.loop__side--spoken {
+  /* Hər iki kart SİMMETRİKDİR - hansının "işıqlı" olduğunu statik
+     --signed/--spoken fərqi yox, `.is-active` (loop.js, A/B yolunun hansı
+     fazada olduğuna görə hər scroll tick-ində qoyulur) təyin edir. */
   border-color: rgba(243, 247, 252, 0.14);
+  transition: border-color 0.4s ease;
+}
+
+.loop__side.is-active {
+  border-color: rgba(243, 247, 252, 0.4);
 }
 
 .loop__side-title {
@@ -88,14 +89,12 @@
   font-weight: 600;
   margin-bottom: 0.35rem;
   overflow-wrap: break-word;
-}
-
-.loop__side--signed .loop__side-title {
-  color: var(--ink-on-dark);
-}
-
-.loop__side--spoken .loop__side-title {
   color: var(--ink-on-dark-muted);
+  transition: color 0.4s ease;
+}
+
+.loop__side.is-active .loop__side-title {
+  color: var(--ink-on-dark);
 }
 
 .loop__side-desc {
@@ -216,11 +215,7 @@
   transition: fill 0.4s ease, font-weight 0.4s ease;
 }
 
-.loop__stage-label[data-path='a'].is-active {
+.loop__stage-label.is-active {
   fill: var(--ink-on-dark);
   font-weight: 600;
-}
-
-.loop__stage-label[data-path='b'].is-active {
-  fill: var(--ink-on-dark-muted);
 }
