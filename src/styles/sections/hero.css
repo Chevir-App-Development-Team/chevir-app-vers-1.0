@@ -1,12 +1,15 @@
 /* ---------- Hero ---------- */
 
 .hero {
-  /* Hero həmişə tünd qalır - sistemin işıq/tünd rejimindən asılı olmayaraq.
-     --signed/--spoken burda hand3d.js-nin oxuduğu rənglərdir (nöqtə/sümük),
-     hər ikisi ağa çəkilib. */
-  --signed: #ffffff;
-  --spoken: #ffffff;
-  --hero-pad-x: clamp(1.25rem, 6vw, 4.5rem);
+  /* Hero açıq (Cloud) fondur - CTA-dan başqa bütün bölmə ritmi buna görə
+     qurulur (bax navbar.css `.is-light`, hero.js LIGHT_SECTION_SELECTOR).
+     3D əlin rəngləri (--hand-left/--hand-right) base.css-də :root-da sabit
+     təyin olunur, burda heç nə override edilmir - brend dəyişənləri heç
+     yerdə lokal override olunmur (bax base.css). */
+  /* Naviqasiyanın sol padding-i ilə HƏRFİ EYNİ düstur (bax navbar.css
+     `.navbar`) - başlığın/loqonun sol kənarları hər ölçüdə tam üst-üstə
+     düşsün deyə, fərqli clamp() yox, eyni düstur paylaşılır. */
+  --hero-pad-x: clamp(1.25rem, 5vw, 4rem);
   /* Statik loqo fallback-ın (reduced-motion/WebGL-siz) yuxarı/aşağı sərhədləri
      - tagline və wordmark-a yer saxlamaq üçün. Canvas özü artıq bunlardan
      asılı deyil (tam ekranı örtür, bax .hero__scene). */
@@ -16,25 +19,28 @@
   position: relative;
   overflow: hidden;
   min-height: 100svh;
-  background: #16130f;
-  color: #ffffff;
-  color-scheme: dark;
+  background: var(--cloud);
+  color: var(--ink-on-light);
 }
 
-/* Statik CSS fallback - reduced-motion, WebGL-siz, və <980px-də dalğa shader-i
-   heç yaradılmır, bu qat əsl fon kimi qalır (hərəkətsiz, "sabit gradient").
-   Masaüstündə WebGL yükləndikdə üstündən hero__scene keçir. Rəng #16130F -
-   base.css-dəki --paper tündrejim dəyəri (loop.css-də də eyni sabit) ki,
-   hero ilə pipeline arasında (tünd rejimdə) tikiş görünməsin. */
+/* Statik CSS fon - WebGL yüklənmədən/sonra EYNİ qalır (canvas şəffafdır,
+   yalnız əli çəkir - bax hand3d.js), ona görə yüklənmə ilə tam açılış
+   arasında heç bir vizual sıçrayış olmur. Forma/yerləşmə/yumşaqlıq
+   brendinqdən ƏVVƏLKİ (origin/main) versiyadan BİRƏ-BİR götürülüb (3 ədəd
+   45-50%/30-40% radial-gradient, eyni faiz mövqeləri, `transparent 70%`) -
+   YALNIZ rəng dəyişib: orijinalda ağ idi, TÜND fonda (#16130f) işləyirdi;
+   indi hero AÇIQ (Cloud) fondur, ona görə eyni "boz-tonlu" (neytral, mavi
+   ton YOX) ləkələr TƏRSİNƏ - neytral tünd boz rənglə - işlədilir ki, açıq
+   fonda görünsün (ağ-üstə-ağ görünməz olardı). */
 .hero__bg {
   position: absolute;
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(45% 35% at 12% 18%, rgba(255, 255, 255, 0.09), transparent 70%),
-    radial-gradient(40% 30% at 88% 28%, rgba(255, 255, 255, 0.07), transparent 70%),
-    radial-gradient(50% 40% at 22% 90%, rgba(255, 255, 255, 0.06), transparent 70%),
-    #16130f;
+    radial-gradient(45% 35% at 12% 18%, rgba(12, 12, 16, 0.09), transparent 70%),
+    radial-gradient(40% 30% at 88% 28%, rgba(12, 12, 16, 0.07), transparent 70%),
+    radial-gradient(50% 40% at 22% 90%, rgba(12, 12, 16, 0.06), transparent 70%),
+    var(--cloud);
 }
 
 /* Tək Three.js canvas - fon (noise dalğa + grain shader-li müstəvi, yalnız
@@ -75,8 +81,8 @@
   aspect-ratio: 81 / 24;
   height: auto;
   display: block;
-  color: #ffffff;
-  opacity: 0.62;
+  color: var(--bridge-blue);
+  opacity: 0.14;
   filter: blur(3px);
   pointer-events: none;
 }
@@ -96,41 +102,99 @@
   position: absolute;
   /* --hero-top-zone artıq canvas-ın öz sərhədi deyil (canvas tam ekranı örtür) -
      əl indi böyüdüyü üçün tagline naviqasiyaya yaxın, əlin üstündən aralı saxlanılır.
-     Sol tərəfdə dayanır (mərkəzdə əlin üstünə düşməsin). */
+     Sol tərəfdə dayanır (mərkəzdə əlin üstünə düşməsin). Sol hiza
+     --hero-pad-x - navbar-dakı loqo ilə EYNİ dəyişən (bax navbar.css
+     `.navbar` padding), x hizalanması bununla təmin olunur. */
   top: clamp(5rem, 11vh, 6.5rem);
   left: var(--hero-pad-x);
+  right: var(--hero-pad-x);
   z-index: 5;
   margin: 0;
-  max-width: min(70vw, 18rem);
+  display: flex;
+  flex-direction: column;
   text-align: left;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.05;
+  /* Default GİZLİ, animasiya skriptindən ASILI OLMAYARAQ - yalnız
+     `.hero.is-revealed`-də görünən (bax preloader.js revealHero(), HƏR
+     İKİ yolda - splash var/yox - çağırılır). KÖK SƏBƏB (əvvəlki bug):
+     gizli başlanğıc vəziyyət JS-dən (gsap.set) qoyulurdu, splash atlanan
+     sayt-daxili keçiddə heç kim geri açmırdı - elementlər həmişəlik gizli
+     qalırdı. İndi CSS-sinif-əsaslı, splash tween-i (bax preloader.js
+     `runSplashAnimation`) bu başlanğıc vəziyyətdən oxuyub animasiya edir -
+     splash-ın görünüşü DƏYİŞMİR, yalnız "gizlətmək kim edir" dəyişdi. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+}
+
+.hero.is-revealed .hero__tagline {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.hero__tagline-line {
+  font-size: clamp(2.2rem, 4.8vw, 4.4rem);
+}
+
+/* Birinci sətir - yüngül (Light 300), solğun mavi-boz. QEYD: xalis Chevir
+   Blue-nun 60%-lik opacity qarışığı ölçülüb - Cloud fonda kontrast 2.34
+   (AA-nın böyük-mətn 3:1 həddindən aşağı). Bunun əvəzinə kontrastı
+   ölçülmüş (3.75) sabit ton işlədilir - "solğun mavi-boz" görünüşü
+   saxlayır, əlçatanlıq güzəştsiz qalır (bax CLAUDE.md). */
+.hero__tagline-line--light {
+  font-weight: 300;
+  color: #6081a9;
+}
+
+.hero__tagline-line--bold {
+  font-weight: 700;
+  color: var(--bridge-blue);
 }
 
 .hero__nsosyal-btn {
   display: none;
   position: absolute;
-  top: calc(clamp(5rem, 11vh, 6.5rem) + 6.5rem);
+  /* 2*2.2rem*1.05 - başlığın iki sətrinin minimum (mobil, clamp-ın aşağı
+     ucu) hündürlüyü, bax .hero__tagline-line - başlıq ölçüsü dəyişəndə
+     bu da uyğunlaşdırılmalıdır. */
+  top: calc(clamp(5rem, 11vh, 6.5rem) + 2 * 2.2rem * 1.05 + 1.25rem);
   left: var(--hero-pad-x);
   z-index: 5;
   padding: 0.5rem 1.1rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(9, 22, 56, 0.06);
   backdrop-filter: blur(8px);
-  color: #fff;
+  color: var(--ink-on-light);
   font-size: var(--fs-small);
   font-weight: 600;
   text-decoration: none;
   pointer-events: auto;
   align-items: center;
   gap: 0.5rem;
+  /* Eyni default-gizli/`.is-revealed` sxemi - bax .hero__tagline. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+}
+
+.hero.is-revealed .hero__nsosyal-btn {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 @media (max-width: 640px) {
   .hero__nsosyal-btn {
     display: inline-flex;
   }
+}
+
+/* Mobil alt CTA-lar (bax aşağı @media max-width:600px) - masaüstündə həmişə
+   gizli, komanda yoldaşının .hero__nsosyal-btn-i ilə eyni konteynerdə,
+   TOXUNULMADAN yanaşı saxlanılır (≤600px-də o ayrıca gizlədilir, bax aşağı). */
+.hero__mobile-actions {
+  display: none;
 }
 
 /* ---------- Qat 3: 3D əl (statik loqo yalnız fallback) ---------- */
@@ -143,15 +207,10 @@
   justify-content: center;
 }
 
-/* Seçici .hero__logo-slot-a scope edilib (bare .brand-logo yox) - bu class
-   splash.js-nin klonladığı elementdə də qalır (splashLogo), splash klonu
-   #splash-in daxilindədir, .hero__logo-slot-un xaricində, ona görə bu
-   qayda ona TƏSİR ETMİR (əks halda splash animasiyası da gizli qalardı). */
 .hero__logo-slot .brand-logo {
   width: min(46vh, 80vw, 420px);
   height: min(46vh, 80vw, 420px);
   overflow: visible;
-  color: #ffffff;
   opacity: 0;
   transition: opacity 0.6s ease;
 }
@@ -161,4 +220,68 @@
    mərkəzində "yanıb-sönən" loqo effekti yaranmasın deyə). */
 .hero__logo-slot.is-fallback .brand-logo {
   opacity: 1;
+}
+
+/* ---------- Mobil hero (≤600px) ---------- */
+/* Yalnız bu blokdakı qaydalar mobildir, ≥601px-ə heç biri toxunmur.
+   `.hero__scene`/`.hero__logo-slot` (canvas, 3D əlin yeri/ölçüsü) BURDA
+   override OLUNMUR - əllərin mobildəki mövqeyi/ölçüsü dəyişməz qalır. */
+@media (max-width: 600px) {
+  .hero__tagline-line {
+    font-size: 9.5vw;
+  }
+
+  .hero__nsosyal-btn {
+    display: none;
+  }
+
+  /* "chevir" tam görünsün - en təxminən 100vw-ü doldurur, mərkəzləndirilib
+     cüzi (~2.5%) daşır hər iki tərəfdən (c solda/r sağda çox az kəsilə bilər),
+     "ir" tam ekrandan çıxmır - rəng/blur/opacity dəyişmir, yalnız ölçü/mövqe. */
+  .hero__wordmark {
+    width: 105vw;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 58%;
+    transform: translateX(-50%);
+  }
+
+  .hero__mobile-actions {
+    display: flex;
+    position: absolute;
+    left: var(--hero-pad-x);
+    right: var(--hero-pad-x);
+    bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
+    z-index: 5;
+    gap: 0.7rem;
+    pointer-events: auto;
+  }
+
+  .hero__mobile-cta,
+  .hero__mobile-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 54px;
+    border-radius: 999px;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    text-decoration: none;
+    text-align: center;
+  }
+
+  .hero__mobile-cta {
+    flex: 3;
+    background: var(--brand-gradient);
+    color: #ffffff;
+    box-shadow: 0 12px 24px rgba(0, 113, 239, 0.28);
+  }
+
+  .hero__mobile-secondary {
+    flex: 2;
+    background: #ffffff;
+    border: 1px solid rgba(0, 113, 239, 0.22);
+    color: var(--bridge-blue);
+  }
 }

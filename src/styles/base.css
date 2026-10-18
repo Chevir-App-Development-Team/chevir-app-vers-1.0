@@ -1,11 +1,97 @@
-:root {
-  --ink: #1a1817;
-  --paper: #f1f0ee;
-  --signed: #d6006c;
-  --spoken: #0088b0;
-  --muted: #6e6965;
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
 
-  --sans: 'Inter Tight', system-ui, 'Segoe UI', sans-serif;
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Metrik-uyğunlaşdırılmış fallback (CLS qarşısını alır) - Poppins-in öz
+   font cədvəllərindən (capHeight/upm nisbəti) hesablanıb, Arial-ın nəşr
+   olunmuş standart metrikaları (upm 2048, capHeight 1467) ilə müqayisədə. */
+@font-face {
+  font-family: 'Poppins Fallback';
+  src: local('Arial');
+  size-adjust: 97.44%;
+  ascent-override: 107.75%;
+  descent-override: 35.92%;
+  line-gap-override: 10.26%;
+}
+
+:root {
+  --chevir-blue: #0071ef;
+  --bridge-blue: #0021bf;
+  --midnight: #091638;
+  --cloud: #f3f7fc;
+
+  /* Bridge Blue Midnight fonda AA-nı keçmir (kontrast 1.66) - tünd fonlarda
+     "B" kanalı üçün bunun əvəzinə bu daha açıq ton işlədilir (kontrast 7.95).
+     Heç bir bölmə bu dəyişənləri lokal override ETMİR - hər istehlakçı öz
+     fonunun tünd/açıq olduğunu bilə-bilə düzgün sabiti birbaşa seçir (bax
+     pipeline.css/loop.css/content.css). */
+  --accent-b-on-dark: #6fb1ff;
+
+  /* 3D əlin rəngləri (hand3d.js :root-dan oxuyur) - brend dəyişənlərindən
+     ayrı, heç vaxt override olunmayan sabitlər. Hero həmişə açıq fon
+     olduğu üçün (bax hero.css) hər iki əl açıq fonda oxunaqlı tondadır -
+     --accent-b-on-dark BURDA YOX (adından da göründüyü kimi tünd fon
+     üçündür, açıq fonda kontrastı zəifdir). --hand-right xalis Bridge
+     Blue-dan bir qədər açılıb (70% Bridge + 30% Chevir, #0039cd) - ekranda
+     xalis Bridge Blue sol əllə müqayisədə həddindən artıq tünd/ağır
+     göründü (referans şəkildəki daha işıqlı indiqo tonu ilə tutuşdurularaq).
+     QEYD: dəyər `color-mix()` funksiyası YOX, ƏVVƏLCƏDƏN hesablanmış sabit
+     hex-dir - sınanıb, hand3d.js-dəki getComputedStyle()-la oxunan
+     `color-mix(...)` sətri THREE.Color-a HƏR BRAUZERDƏ düzgün ötürülmür
+     (əl ağ/pozulmuş render olundu, ekranda görüldü), sabit hex isə etibarlı
+     işləyir. */
+  --hand-left: var(--chevir-blue);
+  --hand-right: #0039cd;
+
+  --brand-gradient: linear-gradient(90deg, var(--chevir-blue), var(--bridge-blue));
+
+  --ink-on-light: var(--midnight);
+  --ink-on-light-muted: rgba(9, 22, 56, 0.62);
+  --ink-on-dark: var(--cloud);
+  --ink-on-dark-muted: rgba(243, 247, 252, 0.68);
+  --ink-on-dark-faint: rgba(243, 247, 252, 0.45);
+
+  /* Fon dekorları (loqo/nöqtə buludu) açıq VƏ tünd bölmələrin hər ikisində
+     görünür (problem tünd, results/roadmap açıq) - tək, bitərəf orta ton. */
+  --decor-faint: #5b6b8c;
+
+  --sans: 'Poppins', 'Poppins Fallback', system-ui, 'Segoe UI', sans-serif;
 
   --fs-small: clamp(0.85rem, 0.82rem + 0.15vw, 0.95rem);
   --fs-body: clamp(1.15rem, 1.05rem + 0.3vw, 1.25rem);
@@ -13,22 +99,20 @@
   --fs-h2: clamp(2rem, 1.5rem + 2.2vw, 3.1rem);
   --fs-h1: clamp(2.3rem, 1.5rem + 2.8vw, 4rem);
 
-  --signed-glow: rgba(214, 0, 108, 0.5);
-  --spoken-glow: rgba(0, 136, 176, 0.5);
-
   /* Bölmələrin tünd/açıq ritmi qəsdli dizayn qərarıdır (Baku ID sərgisi:
      ziyarətçilər müxtəlif OS temalı telefonlarla QR kodla açır, hamısında
      eyni görünməlidir) - ona görə color-scheme "dark" DEYİL, yalnız "light":
      OS tünd rejimi native form/scrollbar rənglərini belə dəyişməməlidir. */
   color-scheme: light;
   font: 400 1rem/1.5 var(--sans);
-  color: var(--ink);
-  /* var(--paper) YOX - sayt əsasən tünddür, --paper yalnız bir neçə sərt-
-     kodlanmış açıq bölmənin (difference/usecases/team, öz background-ı ilə)
-     dəyişənidir. html/body-nin default fonu tünd olmalıdır ki, hər hansı
-     naməlum səbəbdən açılan bölmə-arası boşluq (məs. pin zamanı) açıq yox,
-     tünd görünsün - sayt ritminə uyğun defolt təhlükəsizlik qatı. */
-  background: #16130f;
+  color: var(--ink-on-dark);
+  /* var(--cloud) YOX - sayt əsasən tünddür, --cloud yalnız bir neçə sərt-
+     kodlanmış açıq bölmənin (statement/difference/usecases/results/roadmap/
+     team, öz background-ı ilə) dəyişənidir. html/body-nin default fonu tünd
+     olmalıdır ki, hər hansı naməlum səbəbdən açılan bölmə-arası boşluq
+     (məs. pin zamanı) açıq yox, tünd görünsün - sayt ritminə uyğun defolt
+     təhlükəsizlik qatı. */
+  background: var(--midnight);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -54,8 +138,8 @@ html.preloading body {
 }
 
 body {
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
   min-height: 100svh;
   font-size: var(--fs-body);
 }
@@ -65,13 +149,26 @@ p {
   margin: 0;
 }
 
+/* Son-çarə təhlükəsizlik toru - uzun Azərbaycan sözləri (ə/ğ/ı/ş/ç/ö/ü daxil)
+   məhdud enlikli konteynerlərdə kənara çıxmasın. Sözləri ORTADAN kəsmək son
+   seçimdir - əsl həll hər bölmədə font-size/konteyner enliyi uyğunlaşdırmaqdır
+   (bax loop.css-dəki kart-spesifik clamp). */
+h1,
+h2,
+h3,
+p,
+button,
+a {
+  overflow-wrap: break-word;
+}
+
 a,
 button {
   font-family: inherit;
 }
 
 :focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--chevir-blue);
   outline-offset: 3px;
 }
 

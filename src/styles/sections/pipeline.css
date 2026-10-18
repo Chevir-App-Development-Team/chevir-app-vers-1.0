@@ -6,8 +6,8 @@
   /* max() ilə --navbar-h-dən az olmur - ölçülüb (390px VƏ 1440px, hər ikisində
      başlıq naviqasiyanın arxasında qalırdı, bax statement.css-də eyni şərh). */
   padding-top: max(clamp(3rem, 8vw, 7rem), var(--navbar-h));
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
 }
 
 .pipeline__intro {
@@ -38,7 +38,7 @@
 
 .pipeline__lead {
   margin-top: 0.75rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
   max-width: 36rem;
@@ -72,7 +72,7 @@
     max-width: 520px;
     aspect-ratio: 16 / 9;
     margin: 0 auto;
-    background: #16130f;
+    background: var(--midnight);
     border-radius: 1.5rem;
     overflow: hidden;
   }
@@ -93,7 +93,7 @@
 
 .pipeline__video {
   object-fit: contain;
-  background: #16130f;
+  background: var(--midnight);
 }
 
 .pipeline__steps {
@@ -118,16 +118,25 @@
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 0.03em;
-  color: #c9c3bc;
   margin-bottom: 0.5rem;
   transition: color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
     transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Kanal rəngi (magenta/mavi) mətndə işlədilmir - aktiv
-   vəziyyət rəng əvəzinə tam kontrastlı ton + ölçü ilə fərqləndirilir. */
+/* Kanal rəngi (Chevir Blue / --accent-b-on-dark) iri, qalın nömrə rəqəminə
+   tətbiq olunur - qrafik element sayılır, kiçik mətnə yox (bax base.css-dəki
+   AA kontrast qeydi). Pipeline tünd qaldığı üçün --accent-b-on-dark birbaşa
+   işlədilir (bax base.css). */
+.pipeline__step[data-channel='signed'] .pipeline__number {
+  color: var(--chevir-blue);
+}
+
+.pipeline__step[data-channel='spoken'] .pipeline__number {
+  color: var(--accent-b-on-dark);
+}
+
+/* Aktiv vəziyyət ölçü ilə fərqləndirilir - kanal rəngi dəyişmir. */
 .pipeline__step.is-active .pipeline__number {
-  color: #f1ede9;
   transform: scale(1.08);
 }
 
@@ -141,7 +150,7 @@
 .pipeline__step-desc {
   margin-top: 0.6rem;
   max-width: 32rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
 }

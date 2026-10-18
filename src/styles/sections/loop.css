@@ -1,8 +1,8 @@
 /* ---------- Loop diagram ---------- */
 
 .loop {
-  background: #16130f;
-  color: #f1ede9;
+  background: var(--midnight);
+  color: var(--ink-on-dark);
   padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 4rem);
   /* max() ilə --navbar-h-dən az olmur (bax statement.css-də eyni şərh). */
   padding-top: max(clamp(4rem, 10vw, 8rem), var(--navbar-h));
@@ -24,7 +24,7 @@
 
 .loop__lead {
   margin-top: 0.9rem;
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-body);
   line-height: 1.55;
   max-width: 34rem;
@@ -46,7 +46,7 @@
   }
 
   .loop__stage {
-    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, 220px);
+    grid-template-columns: minmax(0, 248px) minmax(0, 1fr) minmax(0, 248px);
     align-items: center;
     gap: 1.5rem;
     min-height: 42vh;
@@ -63,39 +63,43 @@
 }
 
 .loop__side {
-  border: 1px solid rgba(241, 237, 233, 0.16);
+  border: 1px solid rgba(243, 247, 252, 0.16);
   border-radius: 1.25rem;
-  padding: 1.5rem;
+  padding: 1.1rem 1.25rem;
   text-align: center;
-  background: rgba(241, 237, 233, 0.03);
+  background: rgba(243, 247, 252, 0.03);
   width: 100%;
   max-width: 260px;
 }
 
 .loop__side--signed {
-  border-color: rgba(241, 237, 233, 0.4);
+  border-color: rgba(243, 247, 252, 0.4);
 }
 
 .loop__side--spoken {
-  border-color: rgba(241, 237, 233, 0.14);
+  border-color: rgba(243, 247, 252, 0.14);
 }
 
 .loop__side-title {
-  font-size: var(--fs-h3);
+  /* --fs-h3 (digər bölmələrdə işlədilir, bax base.css) bu kartın məhdud
+     enliyi üçün çox böyükdür - "məhdudiyyətli" sözü daşıyır. Kart-spesifik,
+     daha dar clamp (ölçülüb: kart daxili enliyi ~195-220px). */
+  font-size: clamp(1.15rem, 1rem + 0.45vw, 1.45rem);
   font-weight: 600;
   margin-bottom: 0.35rem;
+  overflow-wrap: break-word;
 }
 
 .loop__side--signed .loop__side-title {
-  color: #f1ede9;
+  color: var(--ink-on-dark);
 }
 
 .loop__side--spoken .loop__side-title {
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
 }
 
 .loop__side-desc {
-  color: #c9c3bc;
+  color: var(--ink-on-dark-muted);
   font-size: var(--fs-small);
   line-height: 1.45;
 }
@@ -133,13 +137,15 @@
   stroke-dashoffset: 100;
 }
 
-/* İki yol rənglə deyil, qalınlıq və parıltı gücü ilə ayrılır: siqnal (a) qalın
-   və parlaq, danışıq (b) nazik və sönük. */
+/* Kanal rəngi (Chevir Blue / --accent-b-on-dark) oxlara və marker-lərə tətbiq
+   olunur - qrafik element sayılır (bax base.css-dəki AA kontrast qeydi).
+   Qalınlıq/parıltı fərqi (siqnal qalın+parlaq, danışıq nazik+sönük) qalır -
+   rəng ƏLAVƏ fərqləndirici, yeganə deyil. */
 
 .loop__path--signed {
-  stroke: #f1ede9;
+  stroke: var(--chevir-blue);
   stroke-width: 4;
-  filter: drop-shadow(0 0 6px rgba(241, 237, 233, 0.75));
+  filter: drop-shadow(0 0 6px rgba(0, 113, 239, 0.6));
 }
 
 /* NAZIK XƏTT PARILTISI - dəqiq ölçülmüş səbəb (üçüncü cəhd):
@@ -160,7 +166,8 @@
    etibarlı görünür. */
 
 .loop__path--spoken {
-  stroke: rgba(241, 237, 233, 0.75);
+  /* rgba (flat var yox) - "sönük" görünüş əvvəlki kimi alfa ilə qorunur. */
+  stroke: rgba(111, 177, 255, 0.75);
   stroke-width: 1.5;
 }
 
@@ -172,13 +179,14 @@
   pointer-events: none;
 }
 
+/* Halo pathB-nin (spoken/--accent-b-on-dark) arxasındadır - rəngi ona uyğun. */
 .loop__path-halo--outer {
-  stroke: rgba(241, 237, 233, 0.12);
+  stroke: rgba(111, 177, 255, 0.12);
   stroke-width: 9;
 }
 
 .loop__path-halo--mid {
-  stroke: rgba(241, 237, 233, 0.22);
+  stroke: rgba(111, 177, 255, 0.22);
   stroke-width: 5;
 }
 
@@ -187,29 +195,32 @@
 }
 
 .loop__marker--signed {
-  fill: #f1ede9;
-  filter: drop-shadow(0 0 3px rgba(241, 237, 233, 0.95))
-    drop-shadow(0 0 9px rgba(241, 237, 233, 0.75));
+  fill: var(--chevir-blue);
+  filter: drop-shadow(0 0 3px rgba(0, 113, 239, 0.95))
+    drop-shadow(0 0 9px rgba(0, 113, 239, 0.75));
 }
 
 .loop__marker--spoken {
   /* Eyni səbəbdən (bax .loop__path--spoken) opacity yox, fill-in öz alfası. */
-  fill: rgba(241, 237, 233, 0.65);
-  filter: drop-shadow(0 0 3px rgba(241, 237, 233, 0.5));
+  fill: rgba(111, 177, 255, 0.65);
+  filter: drop-shadow(0 0 3px rgba(111, 177, 255, 0.5));
 }
 
+/* Mərhələ etiketləri (jest/gloss/mətn+səs) KİÇİK mətndir - kanal rənginə
+   deyil, neytral ink dəyişənlərinə qalır (bax base.css-dəki AA qeydi:
+   Chevir Blue/--accent-b-on-dark kiçik mətndə AA-nı keçmir). */
 .loop__stage-label {
   font-family: var(--sans);
   font-size: var(--fs-small);
-  fill: #8b857e;
+  fill: var(--ink-on-dark-faint);
   transition: fill 0.4s ease, font-weight 0.4s ease;
 }
 
 .loop__stage-label[data-path='a'].is-active {
-  fill: #f1ede9;
+  fill: var(--ink-on-dark);
   font-weight: 600;
 }
 
 .loop__stage-label[data-path='b'].is-active {
-  fill: #c9c3bc;
+  fill: var(--ink-on-dark-muted);
 }

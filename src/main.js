@@ -28,8 +28,8 @@ ${contentMarkup}
 `
 
 const lenis = createLenis()
-const { logo } = setupHero()
-initPreloader(lenis, logo, () => {})
+setupHero()
+initPreloader(lenis, () => {})
 initNavbar()
 initPipeline()
 initLoop()
