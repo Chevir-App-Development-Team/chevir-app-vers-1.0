@@ -292,12 +292,13 @@ CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4,
 # Run 5: does no_face hold over seeds, and without the face tracker (the "face detected" flag)?
 # Run 6: an "unknown sign" class from the out-of-vocabulary sentence signs, for word-mode precision
 # (5a setup = no face, seed 1; the class's sampling weight is the variable).
+# Run 7: run 6 with the checkpoint chosen on val open-set accuracy (rejection kept improving after
+# the Words_200 macro-F1 peak, so run 6 saved early checkpoints).
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
 NO_FACE = HANDS + ['pose']
 RUNS = {
-    'unk_w1': dict(groups=NO_FACE, seed=1, unknown=1.0),
-    'unk_w4': dict(groups=NO_FACE, seed=1, unknown=4.0),
-    'unk_w8': dict(groups=NO_FACE, seed=1, unknown=8.0),
+    'unk_w1_open': dict(groups=NO_FACE, seed=1, unknown=1.0, select='open'),
+    'unk_w4_open': dict(groups=NO_FACE, seed=1, unknown=4.0, select='open'),
 }
 """),
         code(SETUP),
