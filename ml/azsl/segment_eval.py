@@ -6,10 +6,13 @@ runs without the face tracker) → pick → detected words. They are compared wi
 
   match       a detection and an annotation of the same word whose frames overlap; one to one,
               largest overlap (IoU) first
-  recall      matched / annotated signs in the 200-word vocabulary (the model cannot know the others)
+  recall      matched / annotated signs in the model's vocabulary (it cannot know the others)
+  recall_all  matched / all annotated signs: what the user gets. Models with different vocabularies
+              (200 words, every learnable word) are compared on the *_all metrics
   precision   matched / all detections: a word shown on an out-of-vocabulary sign is still wrong for
               the user. precision_inv leaves out detections that only overlap out-of-vocabulary signs.
   WER         word error rate of the detected word sequence against the in-vocabulary glosses
+              (wer_all: against all annotated glosses)
   merged      the same with the confirmed word-form families as one word (ml/lemma_groups.csv)
 
 A model with the unknown class (train.UNKNOWN in its vocabulary): an unknown window takes part in the
@@ -108,7 +111,8 @@ def edits(hyp, ref):
 
 class Tally:
     """Counts for one configuration over many recordings."""
-    KEYS = ('n_det', 'n_det_inv', 'tp', 'tp_m', 'n_ann', 'edits', 'edits_inv', 'edits_m', 'start_err', 'end_err')
+    KEYS = ('n_det', 'n_det_inv', 'tp', 'tp_m', 'n_ann', 'n_all', 'edits', 'edits_inv', 'edits_m', 'edits_all',
+            'start_err', 'end_err')
 
     def __init__(self):
         self.c = dict.fromkeys(self.KEYS, 0)
@@ -124,6 +128,7 @@ class Tally:
         c['tp'] += len(tp)
         c['tp_m'] += len(match(dets, anns, fam))
         c['n_ann'] += len(inv_anns)
+        c['n_all'] += len(anns)
         ref = [g for _, _, g, _ in sorted(inv_anns)]
         timed = sorted(zip(dets, oov_only))
         hyp = [lab for (_, _, lab), _ in timed]
@@ -131,6 +136,7 @@ class Tally:
         c['edits'] += edits(hyp, ref)
         c['edits_inv'] += edits(hyp_inv, ref)
         c['edits_m'] += edits([fam.get(x, x) for x in hyp], [fam.get(x, x) for x in ref])
+        c['edits_all'] += edits(hyp, [g for _, _, g, _ in sorted(anns)])
         for i, j in tp:
             c['start_err'] += abs(dets[i][0] - anns[j][0])
             c['end_err'] += abs(dets[i][1] - anns[j][1])
@@ -138,15 +144,16 @@ class Tally:
     def metrics(self):
         c = self.c
         div = lambda a, b: a / b if b else float('nan')                    # noqa: E731
-        p, r = div(c['tp'], c['n_det']), div(c['tp'], c['n_ann'])
+        p, r, ra = div(c['tp'], c['n_det']), div(c['tp'], c['n_ann']), div(c['tp'], c['n_all'])
         pm, rm = div(c['tp_m'], c['n_det']), div(c['tp_m'], c['n_ann'])
         return {'precision': p, 'recall': r, 'f1': div(2 * p * r, p + r),
+                'recall_all': ra, 'f1_all': div(2 * p * ra, p + ra), 'wer_all': div(c['edits_all'], c['n_all']),
                 'precision_inv': div(c['tp'], c['n_det_inv']),
                 'wer': div(c['edits'], c['n_ann']), 'wer_inv': div(c['edits_inv'], c['n_ann']),
                 'precision_merged': pm, 'recall_merged': rm, 'f1_merged': div(2 * pm * rm, pm + rm),
                 'wer_merged': div(c['edits_m'], c['n_ann']),
                 'start_err_frames': div(c['start_err'], c['tp']), 'end_err_frames': div(c['end_err'], c['tp']),
-                'detections': c['n_det'], 'annotated_in_vocab': c['n_ann'], 'matched': c['tp']}
+                'detections': c['n_det'], 'annotated_in_vocab': c['n_ann'], 'annotated': c['n_all'], 'matched': c['tp']}
 
 
 def config_key(p):
@@ -155,7 +162,8 @@ def config_key(p):
 
 def evaluate(load, recs, anns_by_rec, scorer, vocab, fam, cfgs=None, log=print, keep=None):
     """load(rec_id) → reduced raw (features.reduce layout); recs [(rec_id, aspect)];
-    anns_by_rec {rec_id: [(start, end, gloss, in_vocab)]} with the annotation's 1-based inclusive frames;
+    anns_by_rec {rec_id: [(start, end, gloss, ...)]} with the annotation's 1-based inclusive frames (in the
+    vocabulary or not is decided here, from `vocab`);
     cfgs: the configurations to score (default: all of GRID).
     → ({config_key: Tally}, oracle counts, detections [(rec_id, a, b, word)] of the `keep` config)."""
     cfgs = list(configs()) if cfgs is None else list(cfgs)
@@ -164,12 +172,14 @@ def evaluate(load, recs, anns_by_rec, scorer, vocab, fam, cfgs=None, log=print, 
     for p in cfgs:
         groups.setdefault((p['rest_line'], tuple(p['lens'])), []).append((p['min_p'], p['max_overlap']))
     rest_lines = sorted({rl for rl, _ in groups})
-    oracle = {'n': 0, 'top1': 0, 'top1_m': 0}
+    oracle = {'n': 0, 'top1': 0, 'top1_m': 0, 'n_all': 0}
+    known = set(vocab) - {TR.UNKNOWN}
     kept, t0 = [], time.time()
     for n, (rid, aspect) in enumerate(recs):
         raw = load(rid)
         T = raw['hand'].shape[0]
-        anns = [(max(0, int(s) - 1), min(int(e), T), g, bool(inv)) for s, e, g, inv in anns_by_rec.get(rid, [])]
+        anns = [(max(0, int(a[0]) - 1), min(int(a[1]), T), a[2], a[2] in known) for a in anns_by_rec.get(rid, [])]
+        oracle['n_all'] += sum(e - s >= 2 for s, e, _, _ in anns)
         spans = {rl: SG.spans(SG.activity(raw, aspect, rl), {**SG.SEGMENT, 'rest_line': rl}) for rl in rest_lines}
         wins = set()
         for rl, lens in groups:

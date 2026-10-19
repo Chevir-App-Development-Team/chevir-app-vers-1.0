@@ -223,9 +223,10 @@ def run_fingerspelling(out_dir, paths, workers=None, limit=None, tmp_dir='/tmp',
 
 
 def run_sentences(out_dir, paths, shard=0, num_shards=1, camera='Cam2', workers=None, limit=None,
-                  time_budget_h=11.0, resume_from=()):
+                  time_budget_h=11.0, resume_from=(), face=None):
     """One shard of the Sentences recordings, read one by one from the 43.9 GB zip.
-    Cam2 (frontal) also stores a face embedding per recording for the signer split."""
+    Cam2 (frontal) also stores a face embedding per recording for the signer split.
+    face: run the face landmarker (default: Cam2 only; the side view is used without face points)."""
     members = zenodo.list_members(zenodo.archive_url('sentences'))
     recs = sources.sentence_recordings(members, camera)
     mine = [m for k, m in enumerate(recs) if k % num_shards == shard]
@@ -237,10 +238,11 @@ def run_sentences(out_dir, paths, shard=0, num_shards=1, camera='Cam2', workers=
             shutil.copytree(prev, sub, dirs_exist_ok=True)
             print(f'resumed from {prev}', flush=True)
     embed = camera == 'Cam2'
+    face = embed if face is None else face
     writer = store.PartWriter(sub, items_per_part=200, embeddings=embed)
     tasks = [(sources.rec_id(m.name), m, {'rec_id': sources.rec_id(m.name), 'camera': camera, 'bytes': m.size})
              for m in mine]
-    return run_pool(tasks, _video_job, writer, (paths, True, embed, None), workers, time_budget_h,
+    return run_pool(tasks, _video_job, writer, (paths, face, embed, None), workers, time_budget_h,
                     log_every=100, label=f'Sentences {camera} shard {shard}/{num_shards}')
 
 

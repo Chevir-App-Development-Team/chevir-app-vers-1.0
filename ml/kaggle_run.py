@@ -6,6 +6,7 @@ Python's protobuf 4.25 breaks it.
 
     python ml/kaggle_run.py whoami
     python ml/kaggle_run.py push 01 [--smoke]      # 01 | 02-0 … 02-3 | 02 (all shards) | 03
+                                                   # 02c1-0 … 02c1-3 | 02c1: side camera (Cam1) shards
     python ml/kaggle_run.py status                 # every notebook
     python ml/kaggle_run.py log 02-1               # last lines of a run's log
     python ml/kaggle_run.py splits                 # 03's splits/ → ml/splits/ (a few MB)
@@ -36,16 +37,21 @@ SHARDS = 4
 NOTEBOOKS = {
     '01': ('01_index_words200_fingerspelling.ipynb', '01-index-words200-fingerspelling'),
     **{f'02-{k}': (f'02_sentences_shard{k}.ipynb', f'02-sentences-shard{k}') for k in range(SHARDS)},
+    **{f'02c1-{k}': (f'02_sentences_cam1_shard{k}.ipynb', f'02-sentences-cam1-shard{k}') for k in range(SHARDS)},
     '03': ('03_split_benchmark.ipynb', '03-split-benchmark'),
     '04': ('04_train_words.ipynb', '04-train-words'),
     '05': ('05_eval_word_mode.ipynb', '05-eval-word-mode'),
 }
 EXTRACTION = ['01'] + [f'02-{k}' for k in range(SHARDS)]
+CAM1 = [f'02c1-{k}' for k in range(SHARDS)]
 # per notebook: GPU, internet, which earlier notebooks' outputs it reads (01/02 default: CPU + internet)
 SETTINGS = {
+    # Cam2: for the alignment; the shard's own previous output: a rerun resumes from it
+    **{k: dict(gpu=False, internet=True, sources=[f'02-{j}' for j in range(SHARDS)] + [k]) for k in CAM1},
     '03': dict(gpu=False, internet=False, sources=EXTRACTION),
-    '04': dict(gpu=True, internet=True, sources=EXTRACTION + ['03']),   # internet: pip onnx if missing
-    '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04']),   # CPU: ~2 ms/window
+    '04': dict(gpu=True, internet=True, sources=EXTRACTION + CAM1 + ['03']),   # internet: pip onnx if missing
+    # CPU: ~2 ms/window; its own previous output keeps models that 04 has since replaced
+    '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04', '05']),
 }
 
 
@@ -103,6 +109,8 @@ def stage(key, user, smoke):
 def keys(arg):
     if arg == '02':
         return [f'02-{k}' for k in range(SHARDS)]
+    if arg == '02c1':
+        return CAM1
     if arg == 'all':
         return list(NOTEBOOKS)
     if arg not in NOTEBOOKS:
@@ -167,7 +175,7 @@ def main():
     elif a.cmd == 'results':
         ref = f'{user}/{NOTEBOOKS["04"][1]}'   # always the latest version: the CLI ignores a /<version> suffix
         tmp = tempfile.mkdtemp(prefix='kaggle_results_')
-        small = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|per_class_test_words\.csv|predictions\.npz'
+        small = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|per_class_test_\w+\.csv|predictions\.npz'
         files = small + (r'|model\.onnx|best\.pt' if a.models else '')
         run = re.escape(a.run) if a.run else '[^/]+'
         kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', rf'^train/(summary\.csv|({run}/)?({files}))$',

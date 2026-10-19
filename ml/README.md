@@ -22,7 +22,8 @@ so it keeps running after you close the tab.
 | # | Notebook | Takes | Writes |
 |---|---|---|---|
 | 1 | `01_index_words200_fingerspelling` | ~1–1.5 h | `index/`, `landmarks/words200/`, `landmarks/fingerspelling/` |
-| 2 | `02_sentences_shard0` … `shard3` | ~2–3 h each | `landmarks/sentences_cam2/shardNN/` |
+| 2 | `02_sentences_shard0` … `shard3` | 6–7 h each | `landmarks/sentences_cam2/shardNN/` |
+| 2c1 | `02_sentences_cam1_shard0` … `shard3` | ~6 h each | `landmarks/sentences_cam1/shardNN/` + `align.csv` |
 | 3 | `03_split_benchmark` | minutes | `splits/` |
 
 - 1 and the four 2s are independent — start them together if Kaggle lets you
@@ -30,6 +31,7 @@ so it keeps running after you close the tab.
   retries, Zenodo is throttling: run the shards one after another instead.
 - 3 needs the outputs of 1 and all four 2s: *Add Input → Your Work → Notebooks*.
   No internet needed.
+- 2c1 (the side camera, extra training data) needs the four 2s as inputs, for the frame alignment.
 - **Try `SMOKE = True` first** (top cell) — a ~3-minute run on a few files that checks
   the install, models and Zenodo access before you commit hours.
 - A run that hits `TIME_BUDGET_H` (11 h) stops cleanly with `complete: False`. Add that
@@ -76,6 +78,17 @@ Sentence recordings are stored whole. Isolated glosses are slices of them, taken
 `index/tags.csv` (`start`, `end` are 1-based inclusive frame numbers), so a model can be given
 context margins instead of the black padding the old I3D loader used.
 
+## The side camera (notebooks 02c1)
+
+Cam1 records the same signing from another angle, so each annotated sign is a second training sample.
+Only hands and body are extracted (the word models do not use the face). Annotations belong to Cam2, so
+`azsl/views.py` finds each recording's frame offset: the lag (±45 frames) at which the arms' vertical
+movement agrees best between the views (mean wrist height, the higher wrist, mean elbow height, each
+minus its 1 s moving average). `align.csv` keeps the lag, its agreement `corr` and the `margin` over the
+best lag more than 5 frames away. Notebook 04 uses a recording when both are clear (`SIDE_MIN_CORR`,
+`SIDE_MIN_MARGIN`). The split is by recording, so a side view is always in the same split as its
+frontal view. Val/test signers' side views are scored separately (`*_side`) and never choose a checkpoint.
+
 ## The split (notebook 03)
 
 AzSLD has no signer ids, so every frontal recording gets a pseudo-signer:
@@ -117,9 +130,9 @@ while the median gloss has 21.
 ## AzSLD layout (checked Oct 2026, Zenodo 14222948)
 
 - `AzSLD_Sentences/<folder>/{Cam1,Cam2}/<timestamp>.mp4` + `ann/<timestamp>.mp4.json`, 1280×960 at 30 fps.
-  **Cam2 is the frontal camera** and the annotations belong to it (frame counts match). Cam1 is the
-  side view, a few frames shorter, and missing for ~600 recordings. 10,189 Cam2 recordings,
-  ~2.2 M frames (estimated from file sizes).
+  **Cam2 is the frontal camera** and the annotations belong to it (frame counts match). 10,189 Cam2
+  recordings, 2.18 M frames. Cam1 is an oblique view from one side and above, 9,571
+  recordings. It starts and stops a few frames apart from Cam2.
 - Annotation tags: `{name, frameRange: [start, end], key}`. Ranges are 1-based inclusive
   (a Words_200 clip equals Cam2 frames `start-1 … end-1`). Some signs are annotated twice → `dup`.
 - `AzSLD_Words_200/<GLOSS>/<key>.mp4`: 8,557 clips cut from Cam2 with no margin. `key` is the tag key,
@@ -133,10 +146,13 @@ while the median gloss has 21.
 
 `04_train_words` (Kaggle **GPU T4**) trains the word model on landmarks:
 
-- **Train:** every annotated sign of the 200-word vocabulary cut from train signers' recordings
-  (≈21.7k), with ±8 frames of real context that augmentation crops inside.
+- **Vocabulary:** up to run 7 the 200 words of Words_200. From run 8 every sentence gloss with at least
+  10 signs of train signers joins them (`VOCAB_MIN_TRAIN`, `train.learnable_vocab`): 768 words, which
+  cover 99.0% of the annotated signs (the 200 cover 63%). The remaining rare glosses form the unknown class.
+- **Train:** every annotated sign of the vocabulary cut from train signers' recordings, with ±8 frames
+  of real context that augmentation crops inside. With `SIDE`, the same signs from the side camera too.
 - **Val, every epoch:** Words_200 clips of val signers (`W_*`, the benchmark) and sentence-cut
-  signs of val signers (`S_*`).
+  signs of val signers (`S_*`; `S200` = only those of the 200 words, comparable with runs before 8).
 - **Test, once:** the best-on-val (macro-F1) checkpoint, plain and with mirror test-time augmentation.
 - **Several experiments per session:** `RUNS` in the notebook (e.g. seeds, feature-group ablations via
   `groups`, longer schedules) share the loaded data; each writes `train/<name>/` plus a line in

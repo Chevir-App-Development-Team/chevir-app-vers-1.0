@@ -97,7 +97,8 @@ def add_segment(path, manifest, summary_path):
     if chosen != manifest['run']:
         sys.exit(f'{summary_path} chose {chosen}, not {manifest["run"]}')
     c = s['configs']['chosen on val (F1)']
-    keep = ('precision', 'recall', 'f1', 'wer', 'f1_merged')
+    keep = [k for k in ('precision', 'recall', 'f1', 'wer', 'f1_merged', 'recall_all', 'f1_all', 'wer_all')
+            if k in c['test']]
     manifest['segment'] = {'version': s['segment_version'], 'params': c['params'],
                            'chosen_on': 'val sentence recordings (notebook 05)',
                            'val': {k: round(c['val'][k], 4) for k in keep},
