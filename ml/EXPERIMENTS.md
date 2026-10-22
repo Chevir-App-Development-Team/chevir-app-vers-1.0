@@ -39,6 +39,7 @@ Hands run in VIDEO mode (tracking) for videos and IMAGE mode for the fingerspell
 |---|---|---|---|---|---|---|---|---|---|
 | Words_200 clips | 8,557 | 186,934 | 20 | 0.971 | 0.524 | 1.000 | 0.998 | 0 | part of notebook 01 |
 | Sentences, frontal camera | 10,189 | 2,177,018 | 197 | 0.805 | 0.495 | 1.000 | 1.000 | 0 | 4 shards, 5.6–7.0 h each, 22–27 frames/s |
+| Sentences, side camera (Cam1) | 9,571 | 2,011,680 | 195 | 0.785 | 0.347 | 1.000 | not extracted | 0 (21 videos empty) | 4 shards, 3.1–5.1 h each, ~34 frames/s |
 | Fingerspelling images | 7,359 | — | — | 0.935 (static 0.931, dynamic 0.935) | — | — | — | 0 | 0.1 h |
 
 - "Hand found" for words and sentences is the frame-weighted share of frames with at least one hand.
@@ -46,6 +47,30 @@ Hands run in VIDEO mode (tracking) for videos and IMAGE mode for the fingerspell
 - Frontal-camera check (nose offset from the shoulder centre ÷ shoulder width): median 0.025, max 0.125.
   All 10,189 recordings are frontal.
 - The annotation index has 10,104 annotated recordings and 49,287 sign annotations; 7 lack a frame range.
+
+### The side camera (Cam1, notebooks 02c1, added for run 9)
+
+AzSLD films every sentence from a second camera, to one side and above the signer. These 9,571
+recordings were not used before. They hold the same annotated signs from another angle, so they can be
+a second training sample of each sign. Only hands and body were extracted (the word models use no face),
+which made it faster than the frontal pass. The angle measure (nose offset ÷ shoulder width) has median
+0.37 (frontal camera: 0.025). Hands are found about as often as from the front (0.785 vs 0.805), but
+both hands much less often (0.347 vs 0.495), as one hand hides the other.
+
+The annotations belong to the frontal camera, and the two cameras start a few frames apart. Each
+recording gets the frame lag at which the arms' vertical movement agrees best between the views
+(`azsl/views.py`, searched over ±45 frames):
+
+| | |
+|---|---|
+| Recordings aligned | 9,550 (21 empty) |
+| Agreement at the best lag (Pearson r, mean of 3 signals) | median 0.693, IQR 0.594–0.786 |
+| Best lag minus the best lag more than 5 frames away (margin) | median 0.434 |
+| Lag | −3 … +4 frames for 99 % (0: 1,778, +1: 1,939, +2: 1,869, −1: 1,606, +3: 1,333) |
+| Used (agreement ≥ 0.3 and margin ≥ 0.1, fixed before any training) | **9,463 (98.9 %)**, of which 99.9 % have \|lag\| ≤ 5 |
+
+The thresholds were set from this table only. A recording is in the same split as its frontal view,
+since the split is by recording.
 
 ---
 
@@ -383,6 +408,136 @@ Observations (run 7):
 - Run 6's checkpoints cannot be fetched any more: the Kaggle CLI serves only the latest version of a
   notebook's output and ignores a version suffix. Notebook 05 now saves the model it picks.
 
+### Run 8: every learnable word (split v6)
+
+Up to run 7 the vocabulary was the 200 words of Words_200, which cover 63 % of the signs annotated in
+the sentences. AzSLD's sentences contain 841 glosses. Run 8 learns every gloss with at least 10 signs of
+train signers: **768 words** (the 200 plus 568), covering **99.0 %** of the annotated signs. The median
+gloss has 16 train signs from 15 different signers, and 382 of the 768 occur in only one sentence. The
+remaining 53 rare glosses (231 train signs) form the unknown class, so its job changes: in AzSLD it is
+now rare. Setup otherwise 7b (no face, unknown weight 4, checkpoint on val open-set accuracy), seeds 1
+and 2. Notebook 04 v8, 2 × 44 min on a T4.
+
+Test, best-on-val checkpoint. `S` = sentence-cut signs of the test signers: for 7b only the 200 words,
+for run 8 all 768. "S, 200 words" = run 8 scored on the signs of the 200 words only (argmax over all
+769 outputs), the number comparable with 7b. Merged = the 13 confirmed word-form families.
+
+| Run | Classes | Best epoch | Val W macro-F1 | Test W top-1 / top-5 / macro-F1 / balanced | Test W merged top-1 / macro-F1 | Test S (all words) top-1 / top-5 / macro-F1 | Test S, 200 words: top-1 / macro-F1 | Test unknown rejected |
+|---|---|---|---|---|---|---|---|---|
+| 7b (reference) | 201 | 53 | 0.812 | 0.812 / — / 0.813 / — | — | (200 words only) | 0.838 / 0.827 | 0.911 of 2,652 |
+| **8a, seed 1** | 769 | 50 | 0.851 | 0.851 / 0.985 / 0.835 / 0.835 | 0.928 / 0.873 | **0.833 / 0.970 / 0.786** | 0.830 / 0.827 | 0.353 of 51 |
+| **8b, seed 2** | 769 | 58 | 0.840 | 0.823 / 0.984 / 0.831 / 0.829 | 0.916 / 0.874 | **0.831 / 0.975 / 0.790** | 0.824 / 0.830 | 0.490 of 51 |
+
+Per word (8a, test sentence-cut signs): of the 597 words with at least 3 test signs, 410 reach recall
+≥ 0.8 (8b: 417) and 6 have recall 0 (8b: 8); the median recall is 1.0.
+
+Observations (run 8):
+- **The model learns 3.8 × as many words at almost no cost to the 200.** On the 200 words' sentence
+  signs it scores 0.827 / 0.830 macro-F1, the same as 7b (0.827). On Words_200 it is 0.833 on average,
+  higher than 7b (0.813) and inside the spread of the 200-word models without an unknown class (no face,
+  three seeds: 0.847 ± 0.016).
+- **On all 768 words: test top-1 0.832, macro-F1 0.788** (mean of two seeds), on signers never seen in
+  training. Top-5 is 0.97.
+- **The remaining errors are mostly not real confusions.** The most-missed words are word forms
+  (MƏNİM → MƏN, BİLƏR → BİLMƏK, İSTƏYİRƏM → İSTƏMƏK, GEDƏ → GETMƏK), synonyms that are probably one
+  sign (YARDİM, YARDİMİ → KOMƏK), and one word annotated in two spellings (BİR DƏFƏ / BİRDƏFƏ).
+- **The unknown class is weak now** (35–49 % of 51 test unknown signs rejected, against 91 % for 7b),
+  because it has 231 training signs instead of 12,000. Almost every AzSLD sign now has its own class, so
+  word mode shows whether this matters (E6).
+
+### Spelling variants in the annotations
+
+Some words are annotated in two spellings, typed with and without Azerbaijani letters: ÇOX / COX, KÖMƏK
+/ KOMƏK, İL / IL, SAĞLAM / SAGLAM, DÖVLƏT / DOVLƏT, … and BİR DƏFƏ / BİRDƏFƏ (14 pairs,
+`ml/gloss_spelling.csv`). Up to run 8 each pair was two classes of the same sign. Words_200 contains only
+one spelling of each pair, so the benchmark does not change; the merged word takes the Words_200
+spelling where there is one. Pairs that are different words stay apart (NECƏ "how" / NEÇƏ "how many",
+SƏHƏR / ŞƏHƏR, fingerspelled letters such as S / Ş).
+
+Run 8's test predictions with the pairs merged afterwards (no retraining): sentence-cut top-1 / macro-F1
+0.833 / 0.786 → 0.839 / 0.792 (8a) and 0.831 / 0.790 → 0.837 / 0.796 (8b); with the word-form families
+merged too, 0.870 / 0.802 and 0.873 / 0.804. From run 9 the pairs are merged in training (756 words), and
+notebook 05 merges them in the references and in every model's labels.
+
+### Run 9: spelling variants merged, and the side camera (split v6)
+
+Run 8 setup with the 14 spelling pairs merged in training (756 words + unknown). 9a is the frontal camera
+only. 9b and 9c add the side camera's view of the train signers' signs (9,463 aligned recordings, E1),
+which doubles the training set; 60 epochs as before, so twice the steps. The checkpoint is still chosen
+on the frontal val signers only. `Side` = the test signers' signs seen by the side camera (7,126),
+never used for any choice. Notebook 04 v9: 47 + 89 + 91 min on a T4.
+
+| Run | Side camera in training | Best epoch | Val W macro-F1 | Test W top-1 / macro-F1 / balanced | Test W merged top-1 / macro-F1 | Test S (756 words) top-1 / macro-F1 | Test S, 200 words: top-1 / macro-F1 | **Test side view** top-1 / macro-F1 | Test W macro-F1 without face |
+|---|---|---|---|---|---|---|---|---|---|
+| 9a, seed 1 | no | 53 | 0.852 | 0.830 / 0.827 / 0.831 | 0.921 / 0.863 | 0.837 / 0.800 | 0.835 / 0.845 | 0.451 / 0.405 | 0.838 |
+| **9b, seed 1** | yes | 51 | 0.858 | 0.847 / **0.857** / 0.863 | 0.934 / 0.894 | **0.844 / 0.807** | 0.833 / 0.844 | **0.779 / 0.749** | 0.801 |
+| **9c, seed 2** | yes | 60 | 0.856 | 0.852 / **0.862** / 0.872 | 0.935 / 0.897 | **0.846 / 0.808** | 0.840 / 0.853 | **0.788 / 0.750** | 0.799 |
+
+Words with at least 3 test signs that reach recall ≥ 0.8: 395 of 587 (9a), 430 (9b), 416 (9c).
+
+Observations (run 9):
+- **The side camera improves recognition from the front too:** Words_200 macro-F1 0.827 → 0.857 / 0.862
+  (+0.03, both seeds), merged 0.863 → 0.894 / 0.897, and all-word sentence signs 0.837 → 0.844 / 0.846
+  top-1. The same signs from a second angle act as real (not synthetic) viewpoint augmentation.
+- **It makes the model robust to the camera angle:** on the test signers seen from the side, top-1 rises
+  from 0.451 to 0.779 / 0.788. A webcam is rarely exactly in front of the user.
+- **But without face the side models lose 0.05–0.06** (Words_200 macro-F1 0.857 → 0.801; val 0.858 →
+  0.753), while 9a loses nothing (0.827 → 0.838). The side views have no face points, so the "face
+  detected" flag told the model which camera it was looking at; with the face tracker off (the browser's
+  mode) every input looks like a side view to it. Run 10 removes the flag's information: the same side
+  runs with `face_drop` 1.0 (no face in training or scoring).
+- Merging the spelling variants (9a vs 8a): test S 0.837 / 0.800 on 756 words against 0.833 / 0.786 on
+  768, about what merging run 8's predictions afterwards gave (0.839 / 0.792).
+
+### Run 10: side camera without any face (split v6)
+
+Runs 9b / 9c with `face_drop` 1.0: no face points in training, so the "face detected" flag is always 0,
+as in the browser without the face tracker, and the flag can no longer tell the cameras apart. Such a
+model is also scored without face (`train.fit`), and its manifest says `works_without_face`, so the
+browser never loads the face tracker for it. Notebook 04 v10, 2 × 83 min on a T4.
+
+All numbers without face (the browser's mode). For 9a this is its `*_noface` score; 8a is shown with
+face, which it barely uses (E3 run 5).
+
+| Run | Side camera | Best epoch | Val W macro-F1 | Test W top-1 / macro-F1 / balanced | Test W merged top-1 / macro-F1 | Test S (all words) top-1 / macro-F1 | Test S, 200 words: top-1 / macro-F1 | Test side view top-1 / macro-F1 |
+|---|---|---|---|---|---|---|---|---|
+| 8a (768 words) | no | 50 | 0.851 | 0.851 / 0.835 / 0.835 | 0.928 / 0.873 | 0.833 / 0.786 | 0.830 / 0.827 | — |
+| 9a (756 words) | no | 53 | 0.850 | 0.831 / 0.838 / — | — | 0.836 / 0.797 | — | 0.451 / 0.405 (with face) |
+| 9b, with face flag | yes | 51 | 0.753 | 0.816 / 0.801 / — | — | 0.801 / 0.753 | — | — |
+| **10a, seed 1** | yes | 59 | **0.864** | 0.839 / **0.850** / 0.856 | 0.916 / 0.888 | **0.850 / 0.815** | 0.840 / 0.850 | **0.797 / 0.756** |
+| **10b, seed 2** | yes | 51 | 0.851 | 0.858 / **0.846** / 0.851 | 0.929 / 0.878 | **0.851 / 0.812** | 0.844 / 0.855 | **0.789 / 0.755** |
+
+Words with at least 3 test signs that reach recall ≥ 0.8: 428 of 587 (10a), 425 (10b).
+
+Observations (run 10):
+- **Without any face, the side camera's gain stays.** Against the frontal-only models in the browser's
+  mode, Words_200 macro-F1 0.835–0.838 → 0.846–0.850 and all-word sentence signs 0.833–0.836 → 0.850 /
+  0.851 top-1 (macro-F1 0.786–0.797 → 0.812–0.815). Side-view top-1 0.797 / 0.789.
+- With face, 9b / 9c were 0.857 / 0.862 on Words_200: a little higher, but only with the face tracker,
+  which the browser does not run. 10a / 10b are the best models for the browser so far.
+- The two seeds agree within 0.004 on every test metric above except Words_200 top-1 (MƏN / MƏNİM, E3).
+
+### Run 11: the final model, on train + val signers (split v6)
+
+Everything up to here was chosen on the 7 val signers: the vocabulary rule, the side camera, no face,
+seed 1, the checkpoint epoch (10a's best, 59), the word-mode settings (E6). With those fixed, run 11
+trains 10a's recipe on the train **and** val signers, 34 instead of 27 (about 41,700 annotated frontal
+signs instead of 34,800, plus their side views), and keeps epoch 59 without looking at any score. The 5 test
+signers are still never seen, so its test scores stay signer-independent. It has no val scores, and its
+word-mode settings are 10a's. Notebook 04 v11, 94 min on a T4 (the run ended in an error in the last,
+plotting cell, which assumed val curves; the model and every result had been written).
+
+| Run | Training signers | Test W top-1 / macro-F1 / balanced | Test W merged top-1 / macro-F1 | Test S (756 words) top-1 / top-5 / macro-F1 | Test S, 200 words: top-1 / macro-F1 | Test side view top-1 / macro-F1 |
+|---|---|---|---|---|---|---|
+| 10a | 27 | 0.839 / 0.850 / 0.856 | 0.916 / 0.888 | 0.850 / 0.977 / 0.815 | 0.840 / 0.850 | 0.797 / 0.756 |
+| **11 (final)** | 34 | 0.840 / **0.862** / 0.865 | **0.938 / 0.903** | 0.850 / 0.979 / **0.826** | 0.837 / **0.865** | **0.810 / 0.778** |
+
+- Seven more signers raise every macro-F1 by about 0.01–0.02 (Words_200 0.850 → 0.862, all words
+  0.815 → 0.826, side view 0.756 → 0.778) at the same top-1. One run each, so the size of the gain is
+  uncertain (seed differences are 0.004–0.02), but it is consistent across all test sets.
+- **Run 11 is the browser model.** Test Words_200 macro-F1 0.862 (merged 0.903): the 200-word benchmark
+  is as high as the best 200-word models while the model knows 756 words.
+
 ---
 
 ## E4 — Browser landmarks vs the training pipeline
@@ -422,6 +577,8 @@ Installed models since then:
 - **7b** after run 7: unknown class, weight 4, checkpoint on open-set accuracy. It was picked for word
   mode on the val sentences (E6), and its word-mode settings are in its manifest. Check: max logit
   difference 2.9e-6, same top-5 on all 8 cases. All 8 synthetic cases come out as `<unk>`.
+- **Run 11** (final_side_noface): 756 words + unknown, side camera, no face (E3). The browser loads no
+  face tracker for it (`works_without_face`). Check: max logit difference 3.3e-6 on all 8 cases.
 
 The tables below are for 4d; E6 has 5a and 7b on the same recording.
 
@@ -642,4 +799,111 @@ scored once:
   it reads the E4 recording as SİZ 0.93, AD 0.91, NƏDİR 0.93 (train split, mechanism check). A span
   whose best window is `<unk>` shows a "naməlum" chip.
 
-**Open:** live-camera speed; a second seed for 7b.
+### Every learnable word in word mode (notebook 05 v5, run 8 models)
+
+Up to v4, recall and WER counted only the annotated signs of the 200 words, which is what a 200-word
+model can know. A model with 768 words has to be compared on the same reference, so v5 adds metrics over
+**all annotated signs**: `recall_all` = matched / all annotated signs, `f1_all` with the same precision,
+`wer_all` against every annotated gloss. The model and its configuration are chosen on val `f1_all`;
+test is scored once per model at its own val-best configuration. From v5 the spelling variants (E3)
+count as one word in the references and in every model's labels, so 7b's numbers differ slightly from v4.
+
+Best val `f1_all` per model (over overlap), by threshold:
+
+| min p | 7b (200 words) | 8a (768, seed 1) | 8b (768, seed 2) |
+|---|---|---|---|
+| 0.3 | 0.632 | 0.754 | 0.742 |
+| 0.5 | 0.639 | 0.770 | 0.758 |
+| 0.6 | **0.641** | 0.775 | **0.765** |
+| 0.7 | 0.641 | **0.779** | 0.764 |
+| 0.8 | 0.628 | 0.765 | 0.755 |
+| 0.9 | 0.527 | 0.637 | 0.627 |
+
+Test (1,484 recordings of the 5 test signers, 7,577 annotated signs), each model at its val-best setting:
+
+| Model + settings | Val f1_all | Test precision | Test recall_all | **Test f1_all** | **Test wer_all** | Matched signs | Test f1 / WER, own vocabulary | Test f1 merged |
+|---|---|---|---|---|---|---|---|---|
+| 7b, p ≥ 0.6, overlap ≤ 50 % | 0.641 | 0.699 | 0.488 | 0.575 | 0.567 | 3,697 | 0.737 / 0.451 | 0.769 |
+| **8a, p ≥ 0.7, overlap ≤ 25 %** (chosen on val) | **0.779** | **0.785** | 0.745 | **0.765** | **0.319** | 5,646 | 0.768 / 0.317 | 0.789 |
+| 8b, p ≥ 0.6, overlap ≤ 25 % | 0.765 | 0.752 | 0.767 | 0.759 | 0.331 | 5,813 | 0.763 / 0.330 | 0.790 |
+| 8a + v2 defaults (p ≥ 0.8, no overlap) | 0.736 | 0.824 | 0.629 | 0.714 | 0.389 | | | |
+
+Oracle (annotated boundaries given), test top-1 of all annotated signs: 7b 0.519, 8a 0.829, 8b 0.829.
+
+Observations:
+- **Learning every word changes word mode most:** on whole sentences of unseen signers, 8a finds
+  5,646 of the 7,577 signs instead of 3,697 (recall 0.488 → 0.745). F1 over all signs goes from 0.575
+  to 0.765, and the word error rate from 0.567 to 0.319.
+- **Precision rises too** (0.699 → 0.785), although the unknown class is now weak (run 8). A sign that
+  used to be "unknown" is now mostly a word the model knows, so it does not have to be rejected.
+- Even counted on its own vocabulary, 8a is at least as good as 7b (F1 0.768 vs 0.737, WER 0.317 vs
+  0.451), so the extra words do not cost the 200.
+- The two seeds differ by 0.006 in test `f1_all`; val chose 8a.
+
+### Spelling variants merged in training (notebook 05 v6, run 9a)
+
+Same evaluation as v5. 8a was scored again as the reference and gave identical numbers.
+
+| Model + settings | Val f1_all | Test precision | Test recall_all | Test f1_all | Test wer_all | Test f1 merged |
+|---|---|---|---|---|---|---|
+| 8a (768 words), p ≥ 0.7, overlap ≤ 25 % | **0.779** | 0.785 | 0.745 | **0.765** | **0.319** | 0.789 |
+| 9a (756 words, spellings merged), p ≥ 0.6, overlap ≤ 25 % | 0.773 | 0.753 | 0.768 | 0.760 | 0.330 | 0.791 |
+
+Merging the spelling variants makes no difference in word mode (−0.006 val, −0.005 test, one seed each,
+inside the 8a / 8b seed difference). It stays, as a correction of the labels, not as a gain.
+
+### The side camera in word mode (notebook 05 v7, run 10 models)
+
+Same evaluation, no face (the browser's mode). Best val `f1_all` by threshold:
+
+| min p | 8a (front only) | 10a (+ side, seed 1) | 10b (+ side, seed 2) |
+|---|---|---|---|
+| 0.5 | 0.770 | 0.757 | 0.753 |
+| 0.6 | 0.775 | 0.763 | 0.759 |
+| 0.7 | **0.779** | **0.767** | **0.759** |
+| 0.8 | 0.765 | 0.753 | 0.735 |
+
+| Model + settings | Val f1_all | Test precision | Test recall_all | Test f1_all | Test wer_all | Test f1 merged | Oracle top-1 of all signs, val / test |
+|---|---|---|---|---|---|---|---|
+| 8a, p ≥ 0.7, overlap ≤ 25 % | **0.779** | 0.785 | 0.745 | 0.765 | 0.319 | 0.789 | 0.850 / 0.829 |
+| 10a, p ≥ 0.7, overlap ≤ 50 % | 0.767 | 0.750 | 0.795 | **0.772** | 0.345 | 0.793 | 0.847 / 0.842 |
+| 10b, p ≥ 0.7, overlap ≤ 25 % | 0.759 | 0.776 | 0.763 | 0.769 | 0.320 | 0.797 | 0.847 / 0.843 |
+
+- **On frontal sentence recordings the side camera neither helps nor hurts word mode.** Averaged over
+  the two seeds of each recipe, it is −0.009 on val (0.772 → 0.763) and +0.008 on test (0.762 → 0.770);
+  the seed-to-seed difference is 0.006–0.014. With the true boundaries (oracle) the picture is the same:
+  val 0.850 vs 0.847, test 0.829 vs 0.842.
+- Val alone, on this criterion, picks 8a. What frontal word mode cannot see is the camera angle: on the
+  val signers seen from the side, single-sign top-1 is 0.841 for 10a against 0.550 for the frontal-only
+  9a, and a webcam is rarely exactly in front of the user.
+- **Choice for the browser: run 10a's recipe** (side camera, no face, seed 1, p ≥ 0.7, overlap ≤ 50 %),
+  for equal frontal word mode and much better robustness to the angle. Both reasons come from val
+  numbers; the test numbers were not used for the choice. Run 11 trains this recipe on train + val
+  signers (E3).
+
+### The final model in word mode (notebook 05 v9, run 11)
+
+Run 11 was trained on the val signers too, so it cannot be tuned on them: its settings are 10a's val
+choice (p ≥ 0.7, overlap ≤ 50 %), fixed before its test (`FIXED`). 10a was scored again in the same run
+and gave the same numbers as v7. (v8 stopped at the start: run 11's notebook version ended in an error in
+its plotting cell, and Kaggle attaches only complete versions as inputs, so the model went in as a private
+dataset, `kaggle_run.py model-dataset`.)
+
+| Model | Training signers | Test precision | Test recall_all | **Test f1_all** | **Test wer_all** | Test f1 merged | Oracle top-1 of all signs, test |
+|---|---|---|---|---|---|---|---|
+| 7b (browser until now, 200 words) | 27 | 0.699 | 0.488 | 0.575 | 0.567 | 0.769 | 0.519 |
+| 10a | 27 | 0.750 | 0.795 | 0.772 | 0.345 | 0.793 | 0.842 |
+| **11 (final, browser)** | 34 | 0.743 | 0.795 | **0.768** | **0.350** | 0.793 | 0.842 |
+
+- In word mode the seven extra signers change nothing (−0.004 f1_all), even with the true boundaries
+  (oracle 0.842 for both); their gain shows only in single-sign macro-F1 (E3, run 11).
+- **Against the browser model before this work (7b):** on whole sentences of unseen signers, recall over
+  all signs 0.488 → 0.795, F1 0.575 → 0.768, word error rate 0.567 → 0.350. The model now knows 756
+  words, without the face tracker, and is robust to the camera angle.
+
+**In the app** (dev server, the browser pane, run 11 installed with its word-mode settings): the E4
+recording ("Sizin adınız nədir?", train split, a mechanism check) is read as SİZ 0.72 (frames 23–39),
+AD 0.93 (41–57), NƏDİR 0.93 (65–81); annotated 23–42, 46–57, 61–85. No face tracker is loaded, 756 words
+are listed, 148 frames took 13.9 s (94 ms per frame in the pane).
+
+**Open:** a live-webcam test; live-camera speed (the pane is not a real camera).

@@ -6,6 +6,7 @@ Python's protobuf 4.25 breaks it.
 
     python ml/kaggle_run.py whoami
     python ml/kaggle_run.py push 01 [--smoke]      # 01 | 02-0 … 02-3 | 02 (all shards) | 03
+                                                   # 02c1-0 … 02c1-3 | 02c1: side camera (Cam1) shards
     python ml/kaggle_run.py status                 # every notebook
     python ml/kaggle_run.py log 02-1               # last lines of a run's log
     python ml/kaggle_run.py splits                 # 03's splits/ → ml/splits/ (a few MB)
@@ -15,6 +16,10 @@ Python's protobuf 4.25 breaks it.
                                                    #  latest version, and nothing while one is queued)
     python ml/kaggle_run.py eval --to wordmode1    # 05's eval/ (summary, val grid, test detections;
                                                    #  --models adds the chosen model's files)
+    python ml/kaggle_run.py model-dataset ml/results/run11_model/final_side_noface
+                                                   # a run's best.pt + manifest as a private dataset, for a
+                                                   # run whose notebook version ended in an error (Kaggle
+                                                   # attaches only complete versions as inputs)
 
 Each push creates a new version of the notebook on Kaggle and starts running it. All notebooks
 are private, CPU-only; 01/02 have internet on (they read Zenodo), 03 reads 01+02 outputs.
@@ -36,16 +41,22 @@ SHARDS = 4
 NOTEBOOKS = {
     '01': ('01_index_words200_fingerspelling.ipynb', '01-index-words200-fingerspelling'),
     **{f'02-{k}': (f'02_sentences_shard{k}.ipynb', f'02-sentences-shard{k}') for k in range(SHARDS)},
+    **{f'02c1-{k}': (f'02_sentences_cam1_shard{k}.ipynb', f'02-sentences-cam1-shard{k}') for k in range(SHARDS)},
     '03': ('03_split_benchmark.ipynb', '03-split-benchmark'),
     '04': ('04_train_words.ipynb', '04-train-words'),
     '05': ('05_eval_word_mode.ipynb', '05-eval-word-mode'),
 }
 EXTRACTION = ['01'] + [f'02-{k}' for k in range(SHARDS)]
+CAM1 = [f'02c1-{k}' for k in range(SHARDS)]
 # per notebook: GPU, internet, which earlier notebooks' outputs it reads (01/02 default: CPU + internet)
 SETTINGS = {
+    # Cam2: for the alignment; the shard's own previous output: a rerun resumes from it
+    **{k: dict(gpu=False, internet=True, sources=[f'02-{j}' for j in range(SHARDS)] + [k]) for k in CAM1},
     '03': dict(gpu=False, internet=False, sources=EXTRACTION),
-    '04': dict(gpu=True, internet=True, sources=EXTRACTION + ['03']),   # internet: pip onnx if missing
-    '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04']),   # CPU: ~2 ms/window
+    '04': dict(gpu=True, internet=True, sources=EXTRACTION + CAM1 + ['03']),   # internet: pip onnx if missing
+    # CPU: ~2 ms/window; its own previous output keeps models that 04 has since replaced
+    '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04', '05'],
+               datasets=['azsl-model-final-side-noface']),
 }
 
 
@@ -92,7 +103,8 @@ def stage(key, user, smoke):
     meta = {
         'id': f'{user}/{slug}', 'title': os.path.splitext(file)[0], 'code_file': file, 'language': 'python', 'kernel_type': 'notebook',
         'is_private': 'true', 'enable_gpu': str(st['gpu']).lower(), 'enable_internet': str(st['internet']).lower(),
-        'machine_shape': 'NvidiaTeslaT4' if st['gpu'] else '', 'dataset_sources': [], 'competition_sources': [],
+        'machine_shape': 'NvidiaTeslaT4' if st['gpu'] else '',
+        'dataset_sources': [f'{user}/{d}' for d in st.get('datasets', [])], 'competition_sources': [],
         'model_sources': [], 'kernel_sources': [f'{user}/{NOTEBOOKS[k][1]}' for k in st['sources']],
     }
     with open(os.path.join(d, 'kernel-metadata.json'), 'w', encoding='utf-8') as f:
@@ -103,6 +115,8 @@ def stage(key, user, smoke):
 def keys(arg):
     if arg == '02':
         return [f'02-{k}' for k in range(SHARDS)]
+    if arg == '02c1':
+        return CAM1
     if arg == 'all':
         return list(NOTEBOOKS)
     if arg not in NOTEBOOKS:
@@ -113,7 +127,8 @@ def keys(arg):
 def main():
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # Windows console is cp1252; glosses aren't
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['whoami', 'push', 'stage', 'status', 'log', 'splits', 'results', 'eval'])
+    ap.add_argument('cmd', choices=['whoami', 'push', 'stage', 'status', 'log', 'splits', 'results', 'eval',
+                                    'model-dataset'])
     ap.add_argument('which', nargs='?', default='all')
     ap.add_argument('--smoke', action='store_true', help='push with SMOKE = True (a few files, ~3 min)')
     ap.add_argument('--user', help='Kaggle username (else read from the CLI config)')
@@ -123,7 +138,21 @@ def main():
     a = ap.parse_args()
     user = a.user or (None if a.cmd == 'stage' else username())
 
-    if a.cmd == 'whoami':
+    if a.cmd == 'model-dataset':                       # which = a run folder with best.pt + manifest.json
+        with open(os.path.join(a.which, 'manifest.json'), encoding='utf-8') as f:
+            run = json.load(f)['run']
+        slug = 'azsl-model-' + run.replace('_', '-')
+        d = os.path.join(STAGE, slug)
+        shutil.rmtree(d, ignore_errors=True)
+        os.makedirs(d)
+        for name in ('best.pt', 'manifest.json', 'vocab.json', 'metrics.json'):
+            shutil.copy2(os.path.join(a.which, name), d)
+        with open(os.path.join(d, 'dataset-metadata.json'), 'w', encoding='utf-8') as f:
+            json.dump({'title': slug, 'id': f'{user}/{slug}', 'licenses': [{'name': 'other'}]}, f)
+        exists = 'ref' in kg('datasets', 'list', '--mine', '-s', slug, check=False).lower() and slug in             kg('datasets', 'list', '--mine', '-s', slug, check=False)
+        out = kg('datasets', 'version', '-p', d, '-m', 'update', check=False) if exists else             kg('datasets', 'create', '-p', d, check=False)            # private unless --public
+        print(f'{user}/{slug}:', out.strip()[-300:])
+    elif a.cmd == 'whoami':
         print('kaggle user:', user)
         print(kg('kernels', 'list', '--mine', '--page-size', '5', check=False))
     elif a.cmd in ('stage', 'push'):
@@ -167,7 +196,7 @@ def main():
     elif a.cmd == 'results':
         ref = f'{user}/{NOTEBOOKS["04"][1]}'   # always the latest version: the CLI ignores a /<version> suffix
         tmp = tempfile.mkdtemp(prefix='kaggle_results_')
-        small = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|per_class_test_words\.csv|predictions\.npz'
+        small = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|per_class_test_\w+\.csv|predictions\.npz'
         files = small + (r'|model\.onnx|best\.pt' if a.models else '')
         run = re.escape(a.run) if a.run else '[^/]+'
         kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', rf'^train/(summary\.csv|({run}/)?({files}))$',

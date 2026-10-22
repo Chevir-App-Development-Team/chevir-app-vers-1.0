@@ -11,7 +11,7 @@ import sys
 import nbformat as nbf
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MODULES = ['__init__', 'zenodo', 'landmarks', 'store', 'sources', 'split', 'pipeline']
+MODULES = ['__init__', 'zenodo', 'landmarks', 'store', 'sources', 'split', 'pipeline', 'views']
 TRAIN_MODULES = MODULES + ['features', 'train']
 NUM_SHARDS = 4
 
@@ -134,20 +134,29 @@ for z in glob.glob(os.path.join(tempfile.gettempdir(), 'AzSLD_*.zip')):
     ])
 
 
-def nb02(shard):
-    return notebook([
-        md(f'''
-# AzSLD 02 — Sentences (frontal camera) → landmarks · shard {shard} of {NUM_SHARDS}
+def nb02(shard, camera='Cam2'):
+    side = camera == 'Cam1'
+    view = 'side camera' if side else 'frontal camera'
+    about = (f"""Reads the side-view (`Cam1`) recordings one at a time from the 43.9 GB zip by HTTP byte range and
+keeps hand and body landmarks (no face: the word models do not use it, and it saves a third of the
+time). This shard takes every {NUM_SHARDS}th recording starting at #{shard}. The annotations belong to the
+frontal camera, so the last cell finds each recording's frame offset to it (`azsl.views`) and writes
+`align.csv`.
 
-Reads the frontal (`Cam2`) recordings one at a time from the 43.9 GB zip by HTTP byte range —
+**Inputs:** the four Cam2 shard notebooks (02, for the alignment).""" if side else f"""Reads the frontal (`Cam2`) recordings one at a time from the 43.9 GB zip by HTTP byte range —
 nothing big is downloaded — and keeps only landmarks. This shard takes every {NUM_SHARDS}th
 recording starting at #{shard}. Each recording also gets one face embedding, used **only** by
-notebook 03 to group recordings by signer (AzSLD has no signer ids); it is not a training feature.
+notebook 03 to group recordings by signer (AzSLD has no signer ids); it is not a training feature.""")
+    cells = [
+        md(f'''
+# AzSLD 02 — Sentences ({view}) → landmarks · shard {shard} of {NUM_SHARDS}
+
+{about}
 
 **Kaggle settings:** Accelerator **None**, Internet **On**. Run with **Save Version → Save & Run All**.
 The four shard notebooks can run at the same time.
 
-**Takes** roughly 2–3 h. **Writes** `landmarks/sentences_cam2/shard{shard:02d}/`.
+**Takes** {'4–6' if side else '6–7'} h. **Writes** `landmarks/sentences_{camera.lower()}/shard{shard:02d}/`.
 
 If it stops at the time budget (`complete: False` at the end): add this notebook's own output
 as an input and run again — finished recordings are skipped.
@@ -155,31 +164,54 @@ as an input and run again — finished recordings are skipped.
         code(f'''
 SHARD = {shard}
 NUM_SHARDS = {NUM_SHARDS}
-CAMERA = 'Cam2'        # Cam2 = frontal. 'Cam1' (side view) only if you want it as extra data later.
-SMOKE = False          # True: 3 recordings, to check the setup
+CAMERA = '{camera}'        # Cam2 = frontal (annotated), Cam1 = side view
+SMOKE = False          # True: {12 if side else 3} recordings, to check the setup
 WORKERS = None
 TIME_BUDGET_H = 11.0
 '''),
         code(SETUP),
         *package_cells(),
         code(INSTALL),
-        code(MODELS_CELL.format(sface=True, name=f'02_shard{shard}')),
-        code('''
+        code(MODELS_CELL.format(sface=not side, name=f'02_{camera.lower()}_shard{shard}' if side else f'02_shard{shard}')),
+        code(f'''
 # an earlier run of this same shard, attached as input → resume from it
-prev = glob.glob(f'/kaggle/input/**/landmarks/sentences_{CAMERA.lower()}/shard{SHARD:02d}', recursive=True)
+prev = glob.glob(f'/kaggle/input/**/landmarks/sentences_{{CAMERA.lower()}}/shard{{SHARD:02d}}', recursive=True)
 print('resume from:', prev or 'nothing')
 summary = pipeline.run_sentences(OUT, paths, SHARD, NUM_SHARDS, CAMERA, WORKERS,
-                                 limit=3 if SMOKE else None, time_budget_h=TIME_BUDGET_H, resume_from=prev)
+                                 limit={12 if side else 3} if SMOKE else None, time_budget_h=TIME_BUDGET_H, resume_from=prev)
 summary
 '''),
         code('''
+import pandas as pd
 from azsl.store import LandmarkStore
 m = LandmarkStore(os.path.join(OUT, 'landmarks', f'sentences_{CAMERA.lower()}', f'shard{SHARD:02d}')).manifest
-print(f'{len(m)} recordings, {m.n_frames.sum():,} frames')
+print(f'{len(m)} recordings, {m.n_frames.sum():,} frames, {int((m.n_frames == 0).sum())} unreadable (0 frames)')
+m['frontal'] = pd.to_numeric(m.frontal, errors='coerce')        # NaN (written as text) without any pose
 print(m[['n_frames', 'hand_rate', 'two_hand_rate', 'pose_rate', 'face_rate', 'frontal']].describe().round(3))
 print('not frontal (> 0.35):', int((m.frontal > 0.35).sum()))
 '''),
-    ])
+    ]
+    if side:
+        cells += [md('''
+### Frame offset to the frontal camera
+`lag`: Cam1 frame i shows Cam2 frame i + lag. `corr` = agreement of the arms' vertical movement at that lag,
+`margin` = how far it is ahead of the best lag more than 5 frames away. Training uses the recordings
+whose alignment is clear (thresholds set in notebook 04 from this table, not from model scores).
+'''), code('''
+from azsl import views
+side_dir = os.path.join(OUT, 'landmarks', f'sentences_{CAMERA.lower()}', f'shard{SHARD:02d}')
+front_dirs = sorted({os.path.dirname(p) for p in glob.glob('/kaggle/input/**/landmarks/sentences_cam2/shard*/manifest.csv',
+                                                           recursive=True)})
+print('frontal shards:', len(front_dirs))
+try:                                   # the landmarks above are saved either way
+    al = views.align_store(LandmarkStore(side_dir), LandmarkStore(front_dirs))
+    al.to_csv(os.path.join(side_dir, 'align.csv'), index=False)
+    print(al[['n_side', 'n_front', 'lag', 'corr', 'second', 'margin']].describe().round(3))
+    print('lag counts:', al.lag.value_counts().sort_index().to_dict())
+except Exception as e:  # noqa: BLE001
+    print('alignment failed:', repr(e))
+''')]
+    return notebook(cells)
 
 
 def nb03():
@@ -265,23 +297,33 @@ print('frontal-camera outliers:', bench['frontal_outliers'])
     ])
 
 
+def spelling():
+    """ml/gloss_spelling.csv → {variant: gloss}: the same word typed two ways in the annotations."""
+    import csv
+    with open(os.path.join(HERE, 'gloss_spelling.csv'), encoding='utf-8') as f:
+        return {r['variant']: r['gloss'] for r in csv.DictReader(f)}
+
+
 def nb04():
     return notebook([
         md("""
 # AzSLD 04 — train the word model (Phase 2)
 
 Isolated-sign recognition on landmarks, **signer-independent**: train on the sentence-cut signs
-of train signers (200-word vocabulary), report every epoch on the val signers, score the test
-signers once at the end with the best-on-val checkpoint. Model: Conv1D + Transformer, ~1.7 M
-parameters, exported to ONNX for the browser.
+of train signers, report every epoch on the val signers, score the test signers once at the end
+with the best-on-val checkpoint. Model: Conv1D + Transformer, ~1.7 M parameters, exported to ONNX
+for the browser. Vocabulary: the 200 words, plus (from run 8) every sentence gloss with enough signs
+of train signers. With `SIDE`, the side camera's view of the same signs is training data too.
 
-**Inputs:** outputs of 01, the four 02 shards and 03 (*Add Input → Your Work → Notebooks*).
+**Inputs:** outputs of 01, the four 02 shards (and the four Cam1 shards for `SIDE`) and 03
+(*Add Input → Your Work → Notebooks*).
 **Kaggle settings:** Accelerator **GPU T4**, Internet **On** (only to install `onnx` if missing).
 **Writes** `train/`: `history.csv` (per epoch), `metrics.json` (test), `per_class_test_words.csv`,
 `best.pt`, `model.onnx`, `vocab.json`.
 
-Columns per epoch: `W_*` = Words_200 val clips (the benchmark), `S_*` = sentence-cut val signs;
-`mF1` = macro-F1. Always compare with the majority-class accuracy printed at the start.
+Columns per epoch: `W_*` = Words_200 val clips (the benchmark), `S_*` = sentence-cut val signs,
+`S200` = those of the 200 words, `side` = val signers seen by the side camera; `mF1` = macro-F1.
+Always compare with the majority-class accuracy printed at the start.
 """),
         code("""
 SMOKE = False          # True: 2 epochs on a sample, to check the setup
@@ -294,13 +336,24 @@ CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4,
 # (5a setup = no face, seed 1; the class's sampling weight is the variable).
 # Run 7: run 6 with the checkpoint chosen on val open-set accuracy (rejection kept improving after
 # the Words_200 macro-F1 peak, so run 6 saved early checkpoints).
+# Run 8: every learnable word (7b setup, two seeds). Run 9: spelling variants merged (9a), and the side
+# camera added (9b, 9c: two seeds).
+# Run 10: run 9's side-camera runs without any face (face_drop 1.0). The side views have no face, so in
+# run 9 the "face detected" flag told the model which camera it saw, and without face it lost ~0.05.
+# Run 11: the final model. Run 10a's recipe (chosen in notebook 05 v7, E6) on train + val signers, saved at
+# 10a's best epoch; test signers stay unseen.
+VOCAB_MIN_TRAIN = 10   # a sentence gloss joins the vocabulary with >= 10 signs of train signers (None: 200 words)
+SPELLING = {spelling}   # ml/gloss_spelling.csv: one word typed two ways
+SIDE = True            # load the side camera (Cam1), shifted by each recording's frame offset (per run: side=)
+SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1     # alignment quality a recording needs (set from 02c1's align.csv)
+TRAIN_ON_VAL = True    # final model: val signers' signs become training data (runs then need save_epoch)
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
 NO_FACE = HANDS + ['pose']
+BASE = dict(groups=NO_FACE, unknown=4.0, select='open')
 RUNS = {
-    'unk_w1_open': dict(groups=NO_FACE, seed=1, unknown=1.0, select='open'),
-    'unk_w4_open': dict(groups=NO_FACE, seed=1, unknown=4.0, select='open'),
+    'final_side_noface': dict(BASE, seed=1, side=True, face_drop=1.0, save_epoch=59),
 }
-"""),
+""".replace('{spelling}', json.dumps(spelling(), ensure_ascii=False))),
         code(SETUP),
         code("""
 # ONNX export (for the browser) needs onnx; onnxruntime checks the export against PyTorch.
@@ -334,18 +387,37 @@ import hashlib
 with open(os.path.join(splits_dir, 'words200_split.csv'), 'rb') as f:
     CFG['split_id'] = hashlib.sha1(f.read()).hexdigest()[:10]     # recorded in every model manifest
 UNKNOWN = any(r.get('unknown') for r in RUNS.values())   # out-of-vocabulary signs as one extra class
-vocab_list = sorted(wsplit.gloss.unique()) + ([T.UNKNOWN] if UNKNOWN else [])
+tags = tags[tags.has_landmarks & tags.split.notna() & ~tags.dup.astype(bool)]
+tags['gloss'] = tags.gloss.replace(SPELLING)
+words_list = (T.learnable_vocab(tags, wsplit.gloss.unique(), VOCAB_MIN_TRAIN) if VOCAB_MIN_TRAIN
+              else sorted(wsplit.gloss.unique()))
+vocab_list = words_list + ([T.UNKNOWN] if UNKNOWN else [])
 vocab = {g: i for i, g in enumerate(vocab_list)}
-tags = tags[(tags.in_w200 | UNKNOWN) & tags.has_landmarks & tags.split.notna()]
+print(f'vocabulary: {len(words_list)} words ({len(set(words_list) - set(wsplit.gloss))} beyond the 200), '
+      f'covering {tags.gloss.isin(words_list).mean():.3f} of the annotated signs')
+tags = tags[tags.gloss.isin(words_list) | UNKNOWN]
+if TRAIN_ON_VAL:       # the vocabulary above is still the train signers' one, as in the runs chosen on val
+    tags['split'] = tags.split.replace({'val': 'train'})
+    wsplit = wsplit[wsplit.split != 'val']
+    assert all(r.get('save_epoch') for r in RUNS.values()), 'without val, every run needs a fixed save_epoch'
+    print('training on train + val signers:', int((tags.split == 'train').sum()), 'signs')
 if SMOKE:
     tags = tags.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 1500), random_state=0))
     wsplit = wsplit.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 300), random_state=0))
     CFG.update(epochs=2)
     RUNS = dict(list(RUNS.items())[:2])
-AMBIGUOUS = T.ambiguous_oov(tags.gloss.unique(), set(wsplit.gloss)) if UNKNOWN else []
+AMBIGUOUS = T.ambiguous_oov(tags.gloss.unique(), set(words_list)) if UNKNOWN else []
 print(len(AMBIGUOUS), 'out-of-vocabulary glosses look like forms of known words, left out:', AMBIGUOUS[:12])
+side = None
+if SIDE:
+    side_dirs = find('landmarks/sentences_cam1/shard*/manifest.csv')
+    al = pd.concat([pd.read_csv(os.path.join(d, 'align.csv'), dtype={'id': str}) for d in side_dirs])
+    good = al[(al['corr'] >= SIDE_MIN_CORR) & (al.margin >= SIDE_MIN_MARGIN)]
+    print(f'side camera: {len(side_dirs)} shards, {len(al)} recordings, {len(good)} clearly aligned '
+          f'(lag {good.lag.min()}…{good.lag.max()}, median corr {good["corr"].median():.3f})')
+    side = (side_dirs, dict(zip(good.id, good.lag)))
 signs = T.load_sentence_signs(sentence_dirs, tags, vocab, margin=CFG['margin'],
-                              unknown=T.UNKNOWN if UNKNOWN else None, exclude=AMBIGUOUS)
+                              unknown=T.UNKNOWN if UNKNOWN else None, exclude=AMBIGUOUS, side=side)
 words = T.load_words200(words_dirs, wsplit, vocab)
 """),
         md('### Training — one line per epoch per run (`*` = new best on val macro-F1)'),
@@ -359,13 +431,14 @@ import matplotlib.pyplot as plt
 summ = pd.read_csv(os.path.join(OUT, 'train', 'summary.csv'))
 cols = [c for c in ('run', 'best_epoch', 'n_features', 'params', 'minutes', 'val_words_top1', 'test_words_top1',
                     'test_words_top5', 'test_words_macro_f1', 'test_words_balanced_acc', 'test_signs_top1',
-                    'test_signs_macro_f1', 'test_words_majority', 'val_open_acc', 'test_open_acc',
+                    'test_signs_macro_f1', 'test_signs200_top1', 'test_signs200_macro_f1', 'test_side_top1',
+                    'test_side_macro_f1', 'test_words_majority', 'val_open_acc', 'test_open_acc',
                     'test_unk_rejected', 'test_words_unk_rate', 'test_signs_unk_rate', 'error') if c in summ]
 display(summ[cols])
 fig, ax = plt.subplots(1, 2, figsize=(13, 4))
 for name in RUNS:
     path = os.path.join(OUT, 'train', name, 'history.csv')
-    if os.path.exists(path):
+    if os.path.exists(path) and 'val_words_top1' in pd.read_csv(path, nrows=1):   # a train + val run has no val
         h = pd.read_csv(path)
         ax[0].plot(h.epoch, h.val_words_top1, label=name)
         ax[1].plot(h.epoch, h.val_words_macro_f1, label=name)
@@ -388,26 +461,39 @@ word mode as in the browser (activity → spans → windows → the word model �
 and the detected words are matched with the annotated glosses.
 
 **Model and parameters are chosen on val**: every model in `MODEL_RUNS` × every configuration of
-`GRID`, best F1. **Test is scored once**, with the chosen model and only configurations fixed before:
-the val choice and the segmentation defaults of `segment.py`.
+`GRID`, best F1 over all annotated signs (`f1_all`; models with different vocabularies are compared
+on the same reference). **Test is scored once per model**, with that model's val-best configuration
+(and the chosen model also with the segmentation defaults of `segment.py`).
 
 Version 1 of this notebook (run 5a, the full `segment_eval.GRID`) chose the defaults of segmentation
 v2. Versions 3 and 4 compare the models with an "unknown sign" class (runs 6 and 7) on a narrower
-grid: the window set and rest line that won in version 1, with a wider range of thresholds.
+grid: the window set and rest line that won in version 1, with a wider range of thresholds. Version 5
+adds the models that know every learnable word (runs 8 and 9) and chooses on `f1_all`. From version 5
+the annotations' spelling variants of one word (`ml/gloss_spelling.csv`) count as that word, for the
+references and for every model's labels.
 
-**Inputs:** the four 02 shards, 03 (splits) and 04 (trained models: `train/<run>/best.pt`).
+**Inputs:** the four 02 shards, 03 (splits), 04 (trained models: `train/<run>/best.pt`) and this
+notebook's own previous output (models kept from earlier runs of 04: `eval/model/<run>/`).
 **Kaggle settings:** CPU (scoring is ~2 ms per window; the GPU queue is not worth it), Internet off.
-**Writes** `eval/`: `grid_val.csv`, `summary.json`, `detections_test.csv`, and `model/<run>/` (the
-chosen model's `best.pt`, `model.onnx`, `manifest.json`).
+**Writes** `eval/`: `grid_val.csv`, `summary.json`, `detections_test.csv`, and `model/<run>/` (each
+compared model's `best.pt`, `model.onnx`, `manifest.json`).
 """),
         code(f"""
 SMOKE = False                  # True: 30 recordings per split, to check the setup
-MODEL_RUNS = ['unk_w1_open', 'unk_w4_open']    # run 7: unknown class, checkpoint on open-set accuracy
+MODEL_RUNS = ['side_noface_s1',                # 10a: the recipe chosen in v7
+              'final_side_noface']              # run 11: 10a's recipe on train + val signers
+# (v5 compared 7b / 8a / 8b over all signs; best val f1_all 0.779, 8a, p >= 0.7, overlap <= 25 %)
+# (v6 compared 8a / 9a; 9a, spellings merged: val f1_all 0.773)
+# (v7 compared 8a / 10a / 10b; val f1_all 0.779 / 0.767 / 0.759; 10a's recipe chosen for angle robustness)
 # (v3 compared run 6: unk_w1 / unk_w4 / unk_w8; best val F1 0.736, unk_w8, p >= 0.5, overlap <= 25 %)
+# (v4 compared run 7: unk_w1_open / unk_w4_open; best val F1 0.782, unk_w4_open, p >= 0.7, overlap <= 50 %)
+FIXED = {{'final_side_noface': dict(rest_line=1.0, lens=[16, 24, 32], min_p=0.7, max_overlap=0.5)}}   # 10a's val choice
+# FIXED: run → word-mode settings fixed before; test only (a model trained on val signers has no fair val)
 FACE = False                   # the browser runs these models without the face tracker (s2w.js needsFace)
 GRID = dict(rest_line=(1.0,), lens=((16, 24, 32),),
             min_p=(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), max_overlap=(0.0, 0.25, 0.5))
 FAMILIES = {json.dumps(families, ensure_ascii=False)}   # ml/lemma_groups.csv, confirmed
+SPELLING = {json.dumps(spelling(), ensure_ascii=False)}   # ml/gloss_spelling.csv: one word typed two ways
 """),
         code(SETUP),
         *package_cells(TRAIN_MODULES + ['segment', 'segment_eval']),
@@ -423,10 +509,22 @@ def find(pattern):
 splits_dir = find('splits/sentences_split.csv')[0]
 sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-models = {}
+def find_ckpt(run):
+    # 04's output first; a model 04 no longer has is kept in 05's own output; a model from a 04 version that
+    # ended in an error comes as a dataset (kaggle_run.py model-dataset), found by its manifest's run name
+    hits = glob.glob(os.path.join(INPUT, '**', run, 'best.pt'), recursive=True)
+    for mp in [] if hits else glob.glob(os.path.join(INPUT, '**', 'manifest.json'), recursive=True):
+        with open(mp, encoding='utf-8') as f:
+            if json.load(f).get('run') == run and os.path.exists(os.path.join(os.path.dirname(mp), 'best.pt')):
+                hits.append(os.path.join(os.path.dirname(mp), 'best.pt'))
+    return sorted(hits, key=lambda p: '/train/' not in p)[0]
+
+models, ckpts = {}, {}
 for run in MODEL_RUNS:
-    ckpt = glob.glob(os.path.join(INPUT, '**', 'train', run, 'best.pt'), recursive=True)[0]
+    ckpt = find_ckpt(run)
+    ckpts[run] = ckpt
     net, vocab, groups = E.load_net(ckpt, device)
+    vocab = [SPELLING.get(v, v) for v in vocab]      # a model trained before the merge: both spellings = one word
     models[run] = (E.Scorer(net, groups, FACE, device), vocab)
     print(run, ckpt, '| groups:', groups, '| classes:', len(vocab), '| unknown class:', E.TR.UNKNOWN in vocab)
 store = LandmarkStore(sentence_dirs)
@@ -437,8 +535,8 @@ print('device:', device, '| sentence shards:', len(sentence_dirs))
 sents = pd.read_csv(os.path.join(splits_dir, 'sentences_split.csv'), dtype={'rec_id': str})
 tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
 tags = tags[tags.start.notna() & tags.end.notna()]
-in_vocab = set(next(iter(models.values()))[1]) - {E.TR.UNKNOWN}
-anns = {rid: [(s, e, g, g in in_vocab) for s, e, g in zip(t.start, t.end, t.gloss)] for rid, t in tags.groupby('rec_id')}
+tags['gloss'] = tags.gloss.replace(SPELLING)
+anns = {rid: list(zip(t.start, t.end, t.gloss)) for rid, t in tags.groupby('rec_id')}   # in vocabulary: per model
 
 def recs(split):
     r = sents[(sents.split == split) & sents.rec_id.isin(idx.index)].rec_id.tolist()
@@ -448,9 +546,9 @@ def recs(split):
 def load(rid):
     return FT.reduce(store.get(rid, dtype=np.float32))
 
-counts = {s: {'recordings': len(recs(s)),
-              'annotated': int(tags[tags.split == s].shape[0]),
-              'annotated_in_vocab': int(tags[(tags.split == s) & tags.gloss.isin(in_vocab)].shape[0])}
+counts = {s: {'recordings': len(recs(s)), 'annotated': int(tags[tags.split == s].shape[0]),
+              **{f'in_vocab {run}': int(tags[(tags.split == s) & tags.gloss.isin(vocab)].shape[0])
+                 for run, (_, vocab) in models.items()}}
           for s in ('val', 'test')}
 counts
 """),
@@ -458,12 +556,16 @@ counts
         code("""
 rows, val_t, val_oracle = [], {}, {}
 for run, (scorer, vocab) in models.items():
+    if run in FIXED:                           # its val signers were training data
+        continue
     val_t[run], val_oracle[run], _ = E.evaluate(load, recs('val'), anns, scorer, vocab, FAMILIES,
                                                 cfgs=list(E.configs(GRID)))
-    print(run, 'oracle boundaries, val: top-1', round(val_oracle[run]['top1'] / val_oracle[run]['n'], 4))
+    o = val_oracle[run]
+    print(run, f'oracle boundaries, val: top-1 {o["top1"] / o["n"]:.4f} of its words, '
+               f'{o["top1"] / o["n_all"]:.4f} of all signs')
     rows += [{'model': run, 'rest_line': k[0], 'lens': ' '.join(map(str, k[1])) or 'whole span', 'min_p': k[2],
               'max_overlap': k[3], **t.metrics()} for k, t in val_t[run].items()]
-grid = pd.DataFrame(rows).sort_values('f1', ascending=False)
+grid = pd.DataFrame(rows).sort_values('f1_all', ascending=False)
 os.makedirs(os.path.join(OUT, 'eval'), exist_ok=True)
 grid.to_csv(os.path.join(OUT, 'eval', 'grid_val.csv'), index=False)
 grid.groupby('model').head(3)
@@ -475,41 +577,59 @@ def as_cfg(row):
             'min_p': float(row['min_p']), 'max_overlap': float(row['max_overlap'])}
 
 best_model = grid.iloc[0]['model']
-chosen = {'chosen on val (F1)': as_cfg(grid.iloc[0]),
+best_cfg = {run: as_cfg(g.iloc[0]) for run, g in grid.groupby('model')}      # each model's val-best configuration
+best_cfg.update({run: {**SG.SEGMENT, **p, 'lens': tuple(p['lens'])} for run, p in FIXED.items()})
+chosen = {'chosen on val (F1)': best_cfg[best_model],
           f'segment.py v{SG.SEGMENT_VERSION} defaults': dict(SG.SEGMENT)}
-best_model, {k: {kk: v[kk] for kk in ('rest_line', 'lens', 'min_p', 'max_overlap')} for k, v in chosen.items()}
+best_model, {r: {k: c[k] for k in ('rest_line', 'lens', 'min_p', 'max_overlap')} for r, c in best_cfg.items()}
 """),
         md('### Test: scored once, with the model and configurations fixed on val'),
         code("""
-scorer, vocab = models[best_model]
-test_t, test_oracle, kept = E.evaluate(load, recs('test'), anns, scorer, vocab, FAMILIES,
-                                       cfgs=list(chosen.values()), keep=chosen['chosen on val (F1)'])
+test_of, kept = {}, None
+for run, (scorer, vocab) in models.items():       # once per model, at its own val choice
+    cfgs = list(chosen.values()) if run == best_model else [best_cfg[run]]
+    t, o, k = E.evaluate(load, recs('test'), anns, scorer, vocab, FAMILIES, cfgs=cfgs, keep=best_cfg[run])
+    test_of[run] = (t, o)
+    kept = k if run == best_model else kept
+test_t, test_oracle = test_of[best_model]
 val_of = lambda p: val_t[best_model][E.config_key(p)].metrics() if E.config_key(p) in val_t[best_model] else None
-summary = {'models': MODEL_RUNS, 'chosen_model': best_model, 'face': FACE, 'segment_version': SG.SEGMENT_VERSION,
+plain = lambda p: {k: list(v) if isinstance(v, tuple) else v for k, v in p.items()}   # noqa: E731
+summary = {'models': MODEL_RUNS, 'chosen_model': best_model, 'chosen_by': 'val f1_all', 'face': FACE,
+           'segment_version': SG.SEGMENT_VERSION, 'checkpoints': ckpts,
            'grid': {k: [list(x) if isinstance(x, tuple) else x for x in v] for k, v in GRID.items()}, 'counts': counts,
            'oracle_top1': {**{f'val {r}': o['top1'] / o['n'] for r, o in val_oracle.items()},
-                           'test': test_oracle['top1'] / test_oracle['n'],
+                           **{f'val_all {r}': o['top1'] / o['n_all'] for r, o in val_oracle.items()},
+                           **{f'test {r}': o['top1'] / o['n'] for r, (_, o) in test_of.items()},
+                           **{f'test_all {r}': o['top1'] / o['n_all'] for r, (_, o) in test_of.items()},
                            'test_merged': test_oracle['top1_m'] / test_oracle['n']},
-           'best_val_per_model': {r: g.iloc[0][['min_p', 'max_overlap', 'precision', 'recall', 'f1', 'wer']].to_dict()
+           'fixed': {r: plain(p) for r, p in FIXED.items()},
+           'per_model': {r: {'params': plain(best_cfg[r]),
+                             'val': val_t[r][E.config_key(best_cfg[r])].metrics() if r in val_t else None,
+                             'test': test_of[r][0][E.config_key(best_cfg[r])].metrics()} for r in models},
+           'best_val_per_model': {r: g.iloc[0][['min_p', 'max_overlap', 'precision', 'recall', 'f1', 'recall_all',
+                                                'f1_all', 'wer', 'wer_all']].to_dict()
                                   for r, g in grid.groupby('model')},
-           'configs': {name: {'params': {k: list(v) if isinstance(v, tuple) else v for k, v in p.items()},
-                              'val': val_of(p), 'test': test_t[E.config_key(p)].metrics()}
+           'configs': {name: {'params': plain(p), 'val': val_of(p), 'test': test_t[E.config_key(p)].metrics()}
                        for name, p in chosen.items()}}
 with open(os.path.join(OUT, 'eval', 'summary.json'), 'w', encoding='utf-8') as f:
     json.dump(summary, f, ensure_ascii=False, indent=1, default=float)
 pd.DataFrame(kept, columns=['rec_id', 'start0', 'end0', 'word']).to_csv(
     os.path.join(OUT, 'eval', 'detections_test.csv'), index=False)
-# the chosen model travels with its evaluation (04's output is replaced by its next version)
+# the compared models travel with their evaluation (04's output is replaced by its next version)
 import shutil
-src = os.path.dirname(glob.glob(os.path.join(INPUT, '**', 'train', best_model, 'best.pt'), recursive=True)[0])
-dst = os.path.join(OUT, 'eval', 'model', best_model)
-os.makedirs(dst, exist_ok=True)
-for f in ('best.pt', 'model.onnx', 'manifest.json', 'metrics.json', 'vocab.json'):
-    if os.path.exists(os.path.join(src, f)):
-        shutil.copy2(os.path.join(src, f), dst)
-cols = ['precision', 'recall', 'f1', 'precision_inv', 'wer', 'wer_inv', 'f1_merged', 'wer_merged',
+for run, ck in ckpts.items():
+    dst = os.path.join(OUT, 'eval', 'model', run)
+    os.makedirs(dst, exist_ok=True)
+    for f in ('best.pt', 'model.onnx', 'manifest.json', 'metrics.json', 'vocab.json'):
+        src = os.path.join(os.path.dirname(ck), f)
+        if os.path.exists(src) and os.path.abspath(os.path.dirname(src)) != os.path.abspath(dst):
+            shutil.copy2(src, dst)
+cols = ['precision', 'recall_all', 'f1_all', 'wer_all', 'recall', 'f1', 'wer', 'f1_merged',
         'start_err_frames', 'end_err_frames', 'detections']
-pd.DataFrame({f'{name} | test': {c: round(summary['configs'][name]['test'][c], 4) for c in cols} for name in chosen}).T
+pd.DataFrame({**{f'{r} (val-best) | test': {c: round(summary['per_model'][r]['test'][c], 4) for c in cols}
+                 for r in models},
+              **{f'{best_model}, {name} | test': {c: round(summary['configs'][name]['test'][c], 4) for c in cols}
+                 for name in chosen}}).T
 """),
     ])
 
@@ -521,6 +641,7 @@ def main():
              '04_train_words.ipynb': nb04(), '05_eval_word_mode.ipynb': nb05()}
     for k in range(NUM_SHARDS):
         books[f'02_sentences_shard{k}.ipynb'] = nb02(k)
+        books[f'02_sentences_cam1_shard{k}.ipynb'] = nb02(k, 'Cam1')
     for name, nb in books.items():
         for i, c in enumerate(nb.cells):          # stable ids: a rebuild without changes is a no-op in git
             c['id'] = f'{os.path.splitext(name)[0][:20]}-{i:02d}'
