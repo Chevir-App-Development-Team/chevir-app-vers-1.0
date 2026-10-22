@@ -338,18 +338,20 @@ CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4,
 # the Words_200 macro-F1 peak, so run 6 saved early checkpoints).
 # Run 8: every learnable word (7b setup, two seeds). Run 9: spelling variants merged (9a), and the side
 # camera added (9b, 9c: two seeds).
+# Run 10: run 9's side-camera runs without any face (face_drop 1.0). The side views have no face, so in
+# run 9 the "face detected" flag told the model which camera it saw, and without face it lost ~0.05.
+# Run 11: the final model. Run 10a's recipe (chosen in notebook 05 v7, E6) on train + val signers, saved at
+# 10a's best epoch; test signers stay unseen.
 VOCAB_MIN_TRAIN = 10   # a sentence gloss joins the vocabulary with >= 10 signs of train signers (None: 200 words)
 SPELLING = {spelling}   # ml/gloss_spelling.csv: one word typed two ways
 SIDE = True            # load the side camera (Cam1), shifted by each recording's frame offset (per run: side=)
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1     # alignment quality a recording needs (set from 02c1's align.csv)
-TRAIN_ON_VAL = False   # final model: val signers' signs become training data (runs then need save_epoch)
+TRAIN_ON_VAL = True    # final model: val signers' signs become training data (runs then need save_epoch)
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
 NO_FACE = HANDS + ['pose']
 BASE = dict(groups=NO_FACE, unknown=4.0, select='open')
 RUNS = {
-    'spell_s1': dict(BASE, seed=1, side=False),
-    'side_s1': dict(BASE, seed=1, side=True),
-    'side_s2': dict(BASE, seed=2, side=True),
+    'final_side_noface': dict(BASE, seed=1, side=True, face_drop=1.0, save_epoch=59),
 }
 """.replace('{spelling}', json.dumps(spelling(), ensure_ascii=False))),
         code(SETUP),
@@ -436,7 +438,7 @@ display(summ[cols])
 fig, ax = plt.subplots(1, 2, figsize=(13, 4))
 for name in RUNS:
     path = os.path.join(OUT, 'train', name, 'history.csv')
-    if os.path.exists(path):
+    if os.path.exists(path) and 'val_words_top1' in pd.read_csv(path, nrows=1):   # a train + val run has no val
         h = pd.read_csv(path)
         ax[0].plot(h.epoch, h.val_words_top1, label=name)
         ax[1].plot(h.epoch, h.val_words_macro_f1, label=name)
@@ -478,10 +480,15 @@ compared model's `best.pt`, `model.onnx`, `manifest.json`).
 """),
         code(f"""
 SMOKE = False                  # True: 30 recordings per split, to check the setup
-MODEL_RUNS = ['unk_w4_open',                   # 7b, the browser model: 200 words + unknown class
-              'all_words_s1', 'all_words_s2']   # run 8: every learnable word (768), seeds 1 and 2
+MODEL_RUNS = ['side_noface_s1',                # 10a: the recipe chosen in v7
+              'final_side_noface']              # run 11: 10a's recipe on train + val signers
+# (v5 compared 7b / 8a / 8b over all signs; best val f1_all 0.779, 8a, p >= 0.7, overlap <= 25 %)
+# (v6 compared 8a / 9a; 9a, spellings merged: val f1_all 0.773)
+# (v7 compared 8a / 10a / 10b; val f1_all 0.779 / 0.767 / 0.759; 10a's recipe chosen for angle robustness)
 # (v3 compared run 6: unk_w1 / unk_w4 / unk_w8; best val F1 0.736, unk_w8, p >= 0.5, overlap <= 25 %)
 # (v4 compared run 7: unk_w1_open / unk_w4_open; best val F1 0.782, unk_w4_open, p >= 0.7, overlap <= 50 %)
+FIXED = {{'final_side_noface': dict(rest_line=1.0, lens=[16, 24, 32], min_p=0.7, max_overlap=0.5)}}   # 10a's val choice
+# FIXED: run → word-mode settings fixed before; test only (a model trained on val signers has no fair val)
 FACE = False                   # the browser runs these models without the face tracker (s2w.js needsFace)
 GRID = dict(rest_line=(1.0,), lens=((16, 24, 32),),
             min_p=(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), max_overlap=(0.0, 0.25, 0.5))
@@ -502,10 +509,19 @@ def find(pattern):
 splits_dir = find('splits/sentences_split.csv')[0]
 sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+def find_ckpt(run):
+    # 04's output first; a model 04 no longer has is kept in 05's own output; a model from a 04 version that
+    # ended in an error comes as a dataset (kaggle_run.py model-dataset), found by its manifest's run name
+    hits = glob.glob(os.path.join(INPUT, '**', run, 'best.pt'), recursive=True)
+    for mp in [] if hits else glob.glob(os.path.join(INPUT, '**', 'manifest.json'), recursive=True):
+        with open(mp, encoding='utf-8') as f:
+            if json.load(f).get('run') == run and os.path.exists(os.path.join(os.path.dirname(mp), 'best.pt')):
+                hits.append(os.path.join(os.path.dirname(mp), 'best.pt'))
+    return sorted(hits, key=lambda p: '/train/' not in p)[0]
+
 models, ckpts = {}, {}
-for run in MODEL_RUNS:   # 04's output first; a model 04 no longer has is kept in 05's own output
-    ckpt = sorted(glob.glob(os.path.join(INPUT, '**', run, 'best.pt'), recursive=True),
-                  key=lambda p: '/train/' not in p)[0]
+for run in MODEL_RUNS:
+    ckpt = find_ckpt(run)
     ckpts[run] = ckpt
     net, vocab, groups = E.load_net(ckpt, device)
     vocab = [SPELLING.get(v, v) for v in vocab]      # a model trained before the merge: both spellings = one word
@@ -540,6 +556,8 @@ counts
         code("""
 rows, val_t, val_oracle = [], {}, {}
 for run, (scorer, vocab) in models.items():
+    if run in FIXED:                           # its val signers were training data
+        continue
     val_t[run], val_oracle[run], _ = E.evaluate(load, recs('val'), anns, scorer, vocab, FAMILIES,
                                                 cfgs=list(E.configs(GRID)))
     o = val_oracle[run]
@@ -560,6 +578,7 @@ def as_cfg(row):
 
 best_model = grid.iloc[0]['model']
 best_cfg = {run: as_cfg(g.iloc[0]) for run, g in grid.groupby('model')}      # each model's val-best configuration
+best_cfg.update({run: {**SG.SEGMENT, **p, 'lens': tuple(p['lens'])} for run, p in FIXED.items()})
 chosen = {'chosen on val (F1)': best_cfg[best_model],
           f'segment.py v{SG.SEGMENT_VERSION} defaults': dict(SG.SEGMENT)}
 best_model, {r: {k: c[k] for k in ('rest_line', 'lens', 'min_p', 'max_overlap')} for r, c in best_cfg.items()}
@@ -583,7 +602,9 @@ summary = {'models': MODEL_RUNS, 'chosen_model': best_model, 'chosen_by': 'val f
                            **{f'test {r}': o['top1'] / o['n'] for r, (_, o) in test_of.items()},
                            **{f'test_all {r}': o['top1'] / o['n_all'] for r, (_, o) in test_of.items()},
                            'test_merged': test_oracle['top1_m'] / test_oracle['n']},
-           'per_model': {r: {'params': plain(best_cfg[r]), 'val': val_t[r][E.config_key(best_cfg[r])].metrics(),
+           'fixed': {r: plain(p) for r, p in FIXED.items()},
+           'per_model': {r: {'params': plain(best_cfg[r]),
+                             'val': val_t[r][E.config_key(best_cfg[r])].metrics() if r in val_t else None,
                              'test': test_of[r][0][E.config_key(best_cfg[r])].metrics()} for r in models},
            'best_val_per_model': {r: g.iloc[0][['min_p', 'max_overlap', 'precision', 'recall', 'f1', 'recall_all',
                                                 'f1_all', 'wer', 'wer_all']].to_dict()

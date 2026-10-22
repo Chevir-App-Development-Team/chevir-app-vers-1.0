@@ -153,7 +153,11 @@ while the median gloss has 21.
   of real context that augmentation crops inside. With `SIDE`, the same signs from the side camera too.
 - **Val, every epoch:** Words_200 clips of val signers (`W_*`, the benchmark) and sentence-cut
   signs of val signers (`S_*`; `S200` = only those of the 200 words, comparable with runs before 8).
-- **Test, once:** the best-on-val (macro-F1) checkpoint, plain and with mirror test-time augmentation.
+- **Test, once:** the best-on-val checkpoint, plain and with mirror test-time augmentation.
+- **Final model (`TRAIN_ON_VAL`):** once the recipe, the checkpoint epoch and the word-mode settings have
+  been chosen on val, the same recipe is trained on train + val signers and saved at that epoch
+  (`save_epoch`), without looking at any score. Test signers stay unseen. Its word-mode test uses the
+  settings fixed before (`FIXED` in notebook 05). The browser model (run 11) was made this way.
 - **Several experiments per session:** `RUNS` in the notebook (e.g. seeds, feature-group ablations via
   `groups`, longer schedules) share the loaded data; each writes `train/<name>/` plus a line in
   `train/summary.csv`, and keeps its per-sample `predictions.npz` for later analyses.
@@ -169,10 +173,15 @@ Kaggle isolated-sign winners, ~1.7 M parameters. Batches are drawn with weights 
 the class imbalance, with label smoothing 0.1, AdamW and cosine decay. The model is exported to
 ONNX (`train/model.onnx`, checked against PyTorch with onnxruntime).
 
+Kaggle attaches only notebook versions that completed as inputs to other notebooks. If a 04 version
+ends in an error after writing its models, `model-dataset` uploads a run's `best.pt` and manifest as a
+private dataset, and notebook 05 finds it by the manifest's run name.
+
 ```bash
 python ml/kaggle_run.py push 04      # start a run (CLI setup: see kaggle_run.py)
 python ml/kaggle_run.py log 04       # per-epoch lines so far
 python ml/kaggle_run.py results --to run4   # summary, history, metrics, predictions → ml/results/run4/ (--models: + ONNX, best.pt)
+python ml/kaggle_run.py model-dataset ml/results/run11_model/final_side_noface   # see below
 python ml/smoke_train.py             # local check: a few real recordings, 2 epochs on CPU
 ```
 

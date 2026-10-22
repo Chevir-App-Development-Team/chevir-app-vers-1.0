@@ -57,7 +57,8 @@ export class SignToWords {
     this.face = needsFace(this.rec.manifest);
     this.onStatus?.({ stage: 'landmarker', message: `MediaPipe yüklənir (əllər, bədən${this.face ? ', üz' : ''})…` });
     this.lms = await createLandmarkers({ face: this.face });
-    this.onStatus?.({ stage: 'ready', message: `Hazır · ${this.rec.labels.length} söz` });
+    const words = this.rec.labels.length - (this.rec.manifest.unknown_label ? 1 : 0);   // "naməlum" söz deyil
+    this.onStatus?.({ stage: 'ready', message: `Hazır · ${words} söz` });
   }
 
   async start() {

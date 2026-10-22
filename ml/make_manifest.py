@@ -93,16 +93,23 @@ def add_segment(path, manifest, summary_path):
     from azsl import segment as SG
     with open(summary_path, encoding='utf-8') as f:
         s = json.load(f)
-    chosen = s.get('chosen_model', s.get('model'))
-    if chosen != manifest['run']:
-        sys.exit(f'{summary_path} chose {chosen}, not {manifest["run"]}')
-    c = s['configs']['chosen on val (F1)']
-    keep = [k for k in ('precision', 'recall', 'f1', 'wer', 'f1_merged', 'recall_all', 'f1_all', 'wer_all')
-            if k in c['test']]
-    manifest['segment'] = {'version': s['segment_version'], 'params': c['params'],
-                           'chosen_on': 'val sentence recordings (notebook 05)',
-                           'val': {k: round(c['val'][k], 4) for k in keep},
-                           'test': {k: round(c['test'][k], 4) for k in keep}}
+    run = manifest['run']
+    keep = ('precision', 'recall', 'f1', 'wer', 'f1_merged', 'recall_all', 'f1_all', 'wer_all')
+    pick = lambda m: {k: round(m[k], 4) for k in keep if k in m} if m else None   # noqa: E731
+    if run in s.get('fixed', {}):              # trained on val signers too: settings fixed before, test only
+        manifest['segment'] = {'version': s['segment_version'], 'params': s['fixed'][run],
+                               'chosen_on': 'val sentence recordings, with the train-only run of the same recipe '
+                                            '(notebook 05)',
+                               'val': None, 'test': pick(s['per_model'][run]['test'])}
+    else:
+        chosen = s.get('chosen_model', s.get('model'))
+        if chosen != run:
+            sys.exit(f'{summary_path} chose {chosen}, not {run}')
+        c = s['configs']['chosen on val (F1)']
+        manifest['segment'] = {'version': s['segment_version'], 'params': c['params'],
+                               'chosen_on': 'val sentence recordings (notebook 05)',
+                               'val': pick(c['val']), 'test': pick(c['test'])}
+    c = manifest['segment']
     assert s['segment_version'] == SG.SEGMENT_VERSION, 'settings from another segmentation version'
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(manifest, f, ensure_ascii=False, indent=1)

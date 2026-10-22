@@ -49,7 +49,8 @@ UNKNOWN = '<unk>'          # the extra class for out-of-vocabulary signs (last l
 DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label_smoothing=0.1,
                 balance_power=0.5, dim=192, stages=2, convs=3, kernel=17, heads=4, drop=0.2,
                 head_drop=0.4, margin=8, workers=4, seed=0, groups=None,
-                face_drop=0.0,          # P(train clip loses face + blendshapes): one model for both privacy modes
+                face_drop=0.0,          # P(train clip loses face + blendshapes): one model for both privacy modes;
+                                        # 1.0 = face-free (also scored without face)
                 unknown=0.0,            # sampling weight of the UNKNOWN class (0 = known words only)
                 select='words',         # checkpoint on val Words_200 macro-F1; 'open': val open-set accuracy
                 save_epoch=None,        # keep this epoch's weights, no val choice (a final model on train + val signers)
@@ -389,6 +390,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         weights[tr.labels == unk] *= cfg['unknown']          # 0: this run learns the known words only
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights), num_samples=len(tr), replacement=True)
     cols, groups = FT.columns(cfg['groups']), cfg['groups']
+    face = cfg['face_drop'] < 1.0                             # trained with no face at all → scored without it too
     dl = torch.utils.data.DataLoader(SignDataset(tr, train=True, groups=groups, face_drop=cfg['face_drop']),
                                      batch_size=cfg['batch'], sampler=sampler,
                                      num_workers=cfg['workers'], collate_fn=collate, drop_last=True,
@@ -436,7 +438,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
             tl, tc, tn = tl + loss.item() * len(y), tc + int((logits.argmax(1) == y).sum()), tn + len(y)
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / tn, 'train_acc': tc / tn}
         for k, b in evals.items():
-            p = predict(model, b, device, workers=min(2, cfg['workers']), groups=groups)
+            p = predict(model, b, device, workers=min(2, cfg['workers']), groups=groups, face=face)
             if k == 'val_unk':
                 row['val_unk_rejected'] = float((p.argmax(1) == unk).mean())
                 continue
@@ -483,7 +485,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         if bank is None or not len(bank) or (name.endswith('_unk') and unk is None):
             continue
         nw = min(2, cfg['workers'])
-        p = predict(model, bank, device, workers=nw, groups=groups)
+        p = predict(model, bank, device, workers=nw, groups=groups, face=face)
         preds.update({f'{name}_probs': p.astype(np.float16), f'{name}_labels': bank.labels,
                       f'{name}_ids': np.array(bank.ids)})
         if name.endswith('_unk'):                            # out-of-vocabulary signs: rejected?
@@ -502,8 +504,8 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
             pk[:, unk] = 0
             result[name + '_known'] = scores(pk, bank.labels)
         result[name]['majority_acc'] = float((bank.labels == major).mean())
-        result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True, groups=groups), bank.labels)
-        if reads_face(groups):                                      # privacy mode: same model, no face points
+        result[name + '_tta'] = scores(predict(model, bank, device, workers=nw, tta=True, groups=groups, face=face), bank.labels)
+        if reads_face(groups) and face:                             # privacy mode: same model, no face points
             result[name + '_noface'] = scores(predict(model, bank, device, workers=nw, groups=groups, face=False),
                                               bank.labels)
         if name in ('test_words', 'test_signs'):
