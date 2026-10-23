@@ -99,8 +99,9 @@ def _affine(rng, strength=1.0):
     return M, a
 
 
-def augment(raw: dict, rng, aspect: float, core=None) -> dict:
-    """raw: square-space dict (to_square), `core` = (lo, hi) frame range of the sign inside it."""
+def augment(raw: dict, rng, aspect: float, core=None, return_idx=False):
+    """raw: square-space dict (to_square), `core` = (lo, hi) frame range of the sign inside it.
+    return_idx: also the input frame each output frame came from (per-frame labels follow it)."""
     T = raw['hand'].shape[0]
     lo, hi = core if core is not None else (0, T)
     # temporal crop: jitter each boundary by up to ±4 frames inside the stored margin
@@ -138,7 +139,7 @@ def augment(raw: dict, rng, aspect: float, core=None) -> dict:
             st = rng.integers(0, max(1, L - span + 1))
             out['hand'][st:st + span, s] = np.nan
             out['hand_world'][st:st + span, s] = np.nan
-    return out
+    return (out, idx) if return_idx else out
 
 
 def flip(raw: dict, aspect: float) -> dict:
@@ -181,13 +182,14 @@ def _scale(d):
     return float(w) if np.isfinite(w) and w > 1e-3 else 0.3
 
 
-def features(d: dict) -> np.ndarray:
-    """Square-space compact dict → T×N_FEAT float32 (at most MAX_LEN frames, uniformly resampled)."""
+def features(d: dict, max_len=MAX_LEN) -> np.ndarray:
+    """Square-space compact dict → T×N_FEAT float32 (at most max_len frames, uniformly resampled;
+    max_len None = every frame, for the continuous model's windows)."""
     T = d['hand'].shape[0]
-    if T > MAX_LEN:
-        sel = np.round(np.linspace(0, T - 1, MAX_LEN)).astype(int)
+    if max_len and T > max_len:
+        sel = np.round(np.linspace(0, T - 1, max_len)).astype(int)
         d = {k: v[sel] for k, v in d.items()}
-        T = MAX_LEN
+        T = max_len
     c, s = _centre(d), _scale(d)
     hand = d['hand'].copy()
     hand[..., :2] = (hand[..., :2] - c) / s
@@ -214,19 +216,20 @@ def drop_face(d: dict) -> dict:
     return out
 
 
-def preprocess(raw: dict, aspect: float, groups=None, face: bool = True) -> np.ndarray:
+def preprocess(raw: dict, aspect: float, groups=None, face: bool = True, max_len=MAX_LEN) -> np.ndarray:
     """THE entry point from landmarks to model input, the same for training evaluation, the browser
     (ported to JS) and the landmark server.
 
     raw:    compact dict (reduce() layout: hand, hand_world, pose, face, blend), float, NaN = missing.
             Without face points (privacy mode) pass face=False, or NaN face/blend arrays.
     aspect: frame width / height of the camera the landmarks come from.
-    → T'×F float32, T' = min(T, MAX_LEN), F = len(columns(groups)).
+    max_len: longer clips are resampled to this many frames (None: every frame, continuous model).
+    → T'×F float32, T' = min(T, max_len), F = len(columns(groups)).
     """
     d = to_square(raw, aspect)
     if not face:
         d = drop_face(d)
-    x = features(d)
+    x = features(d, max_len)
     return x if not groups else x[:, columns(groups)]
 
 

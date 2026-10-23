@@ -538,6 +538,65 @@ plotting cell, which assumed val curves; the model and every result had been wri
 - **Run 11 is the browser model.** Test Words_200 macro-F1 0.862 (merged 0.903): the 200-word benchmark
   is as high as the best 200-word models while the model knows 756 words.
 
+### Run 12: 10a without the held-out sentences (for E7)
+
+The 49 sentences marked `heldout_sentence` are the unseen-sentence test of word mode (E6) and of the
+continuous model (E7). But every run up to 11 trained on all signs of the train signers, including their
+recordings of those sentences. Run 12 is 10a's recipe without them (notebook 04 v12, `EXCLUDE_HELDOUT`):
+3,446 of the 34,812 frontal train signs (9.9 %) and their side views are left out; the vocabulary (756
+words) stays. 86 min on a T4, best epoch 49.
+
+| Run | Test W top-1 / macro-F1 / balanced | Test S top-1 / top-5 / macro-F1 | Test S, 200 words: top-1 / macro-F1 | Test side view top-1 / macro-F1 | Test open-set accuracy |
+|---|---|---|---|---|---|
+| 10a | 0.839 / 0.850 / 0.856 | 0.850 / 0.977 / 0.815 | 0.840 / 0.850 | 0.797 / 0.756 | 0.847 |
+| 12 (no held-out sentences) | 0.846 / 0.811 / 0.815 | 0.826 / 0.954 / 0.746 | 0.832 / 0.806 | 0.761 / 0.688 | 0.822 |
+
+- Top-1 changes little (S 0.850 → 0.826), macro-F1 drops by 0.04–0.07: the words that occur mostly in the
+  held-out sentences lose most of their training signs. Run 12 is for the comparison in E7 only.
+
+### Forms of one sign, found on val (after run 11)
+
+AzSLD labels Azerbaijani word forms, so some classes are one sign. Nigar Alishzade confirmed 13 families
+(30 forms). To find more, run 10a's predictions on the **val** signers were used (train signers never
+took part in the decision, test signers were not looked at). For every pair of glosses that the model
+confuses (≥ 3 confusions and ≥ 20 % of one gloss's val signs, ≥ 3 val signs each), the two-way balanced
+accuracy says whether the model can tell them apart when only the two are considered (0.5 = not at all):
+
+| Pair | Val signs | Two-way balanced accuracy | Merged? |
+|---|---|---|---|
+| HARA / HARDA | 8 / 37 | 0.552 | yes (new) |
+| İSTƏMƏK / İSTƏYİRƏM | 145 / 44 | 0.607 | confirmed family |
+| YOX / YOXDUR | 34 / 3 | 0.637 | confirmed family |
+| KÖMƏK / YARDİM | 17 / 3 | 0.637 | no: different words (synonyms), to be confirmed |
+| GEDƏ / GETMƏK | 14 / 57 | 0.671 | confirmed family |
+| ORA / ORDA | 18 / 19 | 0.674 | confirmed family |
+| TƏHSİL / ÖYRƏNMƏK | 15 / 17 | 0.690 | no: different words, to be confirmed |
+| O / ONUN | 53 / 15 | 0.701 | confirmed family |
+| YAZI / YAZMAQ | 13 / 6 | 0.712 | yes (new) |
+| BİLMƏK / BİLİR | 27 / 14 | 0.714 | yes (new, joins BİLMƏK) |
+| BURA / BURDA | 17 / 64 | 0.718 | confirmed family |
+| BİZ / MƏN | 39 / 997 | 0.730 | **no**: different signs ("we" / "I"), confused because MƏN is a third of all signs |
+| BİLİR / BİLƏR | 14 / 69 | 0.736 | yes (new) |
+| YAZA / YAZMAQ | 14 / 6 | 0.738 | yes (new) |
+| ALMALIYAM / ALMAQ | 7 / 66 | 0.748 | yes (new) |
+| MƏN / MƏNİM | 997 / 9 | 0.758 | confirmed family |
+| İŞ / İŞLƏMƏK | 43 / 16 | 0.770 | yes (new, joins İŞLƏMƏK) |
+| ALMAQ / ALMIŞAM | 66 / 10 | 0.770 | yes (new) |
+| KƏND / RAYON | 10 / 7 | 0.786 | no: different words, to be confirmed |
+| SƏHƏR / ŞƏHƏR | 18 / 4 | 0.792 | **no**: different words ("morning" / "city") |
+| VAXT / YAŞ | 25 / 34 | 0.802 | no |
+
+Inseparability alone is not enough: the confirmed families score 0.61–0.77, but so do different words
+that the model confuses for other reasons (BİZ / MƏN, SƏHƏR / ŞƏHƏR). **Rule:** a pair is merged when the
+model cannot separate it on val (≤ 0.80) **and** the two are forms of one word (same first three letters,
+or one is the start of the other). The 13 confirmed families stay. This adds HARA, YAZMAQ and ALMAQ, and
+BİLİR and İŞ to their confirmed families: 24 glosses are now counted as their sign
+(`ml/same_sign.csv` + `ml/lemma_groups.csv`). Synonym pairs (KÖMƏK / YARDİM, TƏHSİL / ÖYRƏNMƏK, KƏND / RAYON)
+are listed for Nigar to confirm and are not merged.
+
+From the continuous model on (E7), labels and evaluation use the merged signs; the word-mode numbers
+it is compared with are re-scored the same way.
+
 ---
 
 ## E4 — Browser landmarks vs the training pipeline
@@ -906,4 +965,201 @@ recording ("Sizin adınız nədir?", train split, a mechanism check) is read as 
 AD 0.93 (41–57), NƏDİR 0.93 (65–81); annotated 23–42, 46–57, 61–85. No face tracker is loaded, 756 words
 are listed, 148 frames took 13.9 s (94 ms per frame in the pane).
 
+### Unseen sentences, fairly: run 12 in word mode (notebook 05 v10)
+
+The "unseen sentences" rows above used models trained on the train signers' recordings of those
+sentences. Run 12 (E3) is 10a without them. Notebook 05 v10 chose its settings on val as for 10a
+(p ≥ 0.7, overlap ≤ 25 %, the same windows): val f1_all 0.750, test 0.740, WER 0.346 (spellings merged).
+Re-scored with the same-sign merge (E7), on the test recordings:
+
+| Word model | Seen sentences F1 / WER | Unseen, all signs F1 / WER | Unseen, learnable words only F1 / WER |
+|---|---|---|---|
+| 10a (trained on the held-out sentences) | 0.795 / 0.322 | 0.776 / 0.337 | 0.814 / 0.307 |
+| 12 (not) | 0.795 / 0.290 | **0.572 / 0.526** | **0.702 / 0.423** |
+
+- **The unseen-sentence numbers of word mode above were too high.** On sentences no training recording
+  contains, F1 falls from 0.795 to 0.572, and to 0.702 even when only words with training signs count.
+  A sign in a new sentence context looks different, and other signers' recordings of the same sentence
+  were a large part of what made those sentences easy.
+- On the seen sentences run 12 equals 10a (F1 0.795), so the loss is specific to the left-out sentences.
+
 **Open:** a live-webcam test; live-camera speed (the pane is not a real camera).
+
+---
+
+## E7 — Continuous recognition: a sentence in one run (notebook 06)
+
+Word mode (E6) cuts the stream into windows and asks the isolated-sign model about each; the words of a
+sentence appear when the hands go down. The continuous model labels **every frame** instead: a word, or
+`<blank>` (no sign). It is trained on whole sentence recordings, so it uses all frames, including the
+49 % between signs that no model had used (1.05 M frontal frames + the side camera's), and both cameras.
+In the browser the words come out while the sentence is being signed.
+
+| | |
+|---|---|
+| Model | run 10a's network (Conv1D + Transformer, 1.75 M parameters, 400 features, no face) with a label per frame (`SeqNet`) |
+| Labels | 734: `<blank>`, 732 words (run 10's vocabulary with the 24 same-sign forms merged, E3), `<unk>` |
+| Boundaries | frames within 1 of an annotated boundary are not scored (the annotations are ±1–2 frames uncertain) |
+| Train | 6,358 frontal recordings of train signers (1.39 M frames) + 5,775 aligned side views, random 48–160-frame windows, the isolated-sign augmentation; frames weighted by label frequency^−0.5 |
+| Left out of training | the 49 sentences reserved as unseen (`heldout_sentence`): 717 train recordings |
+| Val / test | 1,545 / 1,484 frontal recordings (166 / 165 of unseen sentences) + their side views |
+| Checkpoint | best val F1 over all annotated signs (default decoding) |
+| As in the browser | the model runs on the last 96 frames every 8 frames; a frame is fixed 24 frames (0.8 s) after it; decode settings chosen on val, test scored once |
+| Word mode, same terms | 10a's test detections (E6 v9) re-scored with the same-sign merge: F1 0.793, WER 0.324; on the unseen sentences F1 0.776, WER 0.337 |
+
+### Notebook 06 v2: from scratch vs from run 10a
+
+Per epoch (seq_init, default decoding, whole recordings): val frame accuracy 0.810 → 0.905, val F1
+0.755 → 0.843 (epoch 1 → 58). From scratch reaches the same by epoch 50 (F1 0.839). 60 epochs, 67–69 min.
+
+| Run | Best epoch | Decoding (val) | Val F1 / WER | Test precision / recall | **Test F1 / WER** | Test frame accuracy | Test side view F1 | **Unseen sentences (test, 165)** F1 / WER |
+|---|---|---|---|---|---|---|---|---|
+| seq_scratch | 50 | smooth 9, p ≥ 0.3, ≥ 4 frames, gap 4 | 0.907 / 0.136 | 0.919 / 0.900 | **0.909 / 0.130** | 0.904 | 0.887 | 0.584 / 0.513 |
+| seq_init (from 10a) | 58 | smooth 5, p ≥ 0.4, ≥ 8 frames, gap 4 | 0.909 / 0.132 | 0.925 / 0.892 | **0.908 / 0.130** | 0.906 | 0.892 | 0.609 / 0.482 |
+| word mode (10a), for comparison | — | — | — | 0.770 / 0.816 | 0.793 / 0.324 | — | — | 0.776 / 0.337 |
+
+Latency on val (seq_init): fixing a frame 12 frames after it gives F1 0.894, 24 frames 0.909, 40 frames
+0.913; the whole recording at once 0.924.
+
+Observations (v2):
+- **On AzSLD's sentences the continuous model is far better than word mode:** test F1 0.908 against
+  0.793, word error rate 0.130 against 0.324, on signers it never saw. The words come out 0.8 s after
+  they are signed, with no pause between them.
+- **On sentences it never trained on it is much worse** (F1 0.61 against 0.78). Two reasons, both
+  measured: 19 % of the signs in those sentences are words with no training sign outside them (word mode
+  had them, the continuous model could not), and that alone explains only part of the drop (frame accuracy
+  would fall to about 0.82; it falls to 0.726). The rest is the model leaning on the word order of the 492
+  training sentences: every test signer signs the same sentences as the train signers.
+- So v2 is a sentence recognizer for AzSLD's sentences, not yet a general one. Real users sign new
+  sentences, so the number that matters is the unseen-sentence one. v3 tries to fix that.
+- Starting from 10a changes little in the end (test F1 0.908 vs 0.909; unseen 0.609 vs 0.584).
+- **Corrected in v5:** the word-mode numbers here come from 10a, which had trained on the held-out
+  sentences. A word model that has not (run 12) gets 0.572 on them, so seq_scratch (0.584) was not behind.
+
+### Notebook 06 v3: spliced sentences and short context, chosen on unseen sentences
+
+Two ways to stop the model leaning on the word order of the 492 sentences, both started from 10a and both
+choosing the checkpoint on the val recordings of the unseen sentences (`select='f1_unseen'`, all signs):
+
+- **seq_splice:** half the training samples are new sentences: 2–6 signs from different recordings of the
+  same camera in random order, moved to the first sign's shoulder position, joined by a 3-frame cross-fade
+  that is not scored.
+- **seq_short:** 24–64-frame training windows (one or two signs of context), streamed with 48-frame
+  windows and a 16-frame (0.53 s) delay.
+
+| Run | Best epoch | Val F1 | Val unseen F1 | Test F1 / WER | Test side view F1 | **Test unseen F1 / WER** | Test unseen, learnable only (notebook) |
+|---|---|---|---|---|---|---|---|
+| seq_splice | 1 | 0.783 | 0.695 | 0.795 / 0.286 | 0.737 | 0.629 / 0.472 | 0.689 |
+| seq_short | 1 | 0.789 | 0.695 | 0.791 / 0.302 | 0.722 | 0.635 / 0.471 | 0.705 |
+
+Per epoch (default decoding), the val unseen F1 is highest at epoch 1 (0.583 / 0.589), falls to
+0.46 / 0.42 by epochs 3–8 and climbs back to 0.53 / 0.52 by epoch 60, while the val F1 over all
+recordings rises to 0.804 / 0.819 (v2: 0.843). So both runs kept epoch 1, which is 10a with one epoch of
+training.
+
+**Why, and what was wrong with the measurement.**
+- **10a has seen the held-out sentences.** Notebook 04 trains on every sign of the train signers,
+  including their recordings of the 49 held-out sentences. A sentence model started from 10a knows those
+  sentences' words at epoch 1, also the 19 % of signs whose word occurs only there, and forgets them while
+  training on sentences that never contain them. Word mode with 10a is not an unseen-sentence test either.
+- **The selection counted unlearnable signs.** With 19 % of the unseen sentences' signs out of reach, the
+  per-epoch score mostly measured that forgetting, not word order.
+- **The "learnable only" filter was too strict for word mode:** it removed the other signs' annotations
+  but kept the detections on them as errors. From v5 on, detections that overlap only removed signs are
+  dropped (`continuous.score(keep=...)`).
+
+Re-scored the same way (test, 165 recordings of unseen sentences, words with ≥ 10 train signs outside the
+held-out sentences; all systems with the same-sign merge):
+
+| System | Seen sentences F1 / WER | Unseen, all signs F1 / WER | **Unseen, learnable only F1 / WER** |
+|---|---|---|---|
+| word mode, 10a (has seen the held-out sentences) | 0.795 / 0.322 | 0.776 / 0.337 | 0.814 / 0.307 |
+| seq_splice (epoch 1, from 10a) | 0.815 / 0.264 | 0.629 / 0.472 | 0.770 / 0.324 |
+| seq_short (epoch 1, from 10a) | 0.809 / 0.281 | 0.635 / 0.471 | 0.773 / 0.330 |
+
+**Sentence suggestion** (`ml/sentence_match.py`: nearest of the 492 sentences, sign sequences from train
+signers' annotations; one test recording = one sentence). With the annotated signs as input (a perfect
+recognizer) it is right for 97.4 % of the test recordings at the browser's threshold (distance ≤ 0.34),
+97.0 % for unseen sentences. With seq_splice's detections: a suggestion for 72.8 % of the recordings,
+95.7 % of them right (69.7 % of all; seen sentences 73.8 %, unseen 37.6 %). The threshold was set before
+and is not tuned on test.
+
+### Notebook 06 v5: a fair test on unseen sentences
+
+Nothing in this comparison has seen the 49 held-out sentences: word mode uses run 12 (E3, scored in E6 by
+notebook 05 v10), and the three continuous runs are trained from scratch. Each continuous run chooses its
+checkpoint and its decoding on the val recordings of the unseen sentences, counting only words with
+≥ 10 train signs outside them (`select='f1_unseen_learnable'`; detections on the other signs are then
+neither right nor wrong). The three runs: v2's recipe (`seq_plain`), half the samples spliced
+(`seq_splice`), 24–64-frame windows with a 48-frame stream (`seq_short`).
+
+| Run | Best epoch | Minutes | Val F1 / WER | Val unseen F1 / WER | **Val unseen, learnable** F1 / WER | Test F1 / WER | Test side view F1 / WER |
+|---|---|---|---|---|---|---|---|
+| seq_plain | 48 | 88 | 0.901 / 0.140 | 0.618 / 0.477 | 0.747 / 0.340 | 0.905 / 0.132 | 0.886 / 0.157 |
+| **seq_splice** | 59 | 97 | 0.886 / 0.158 | 0.668 / 0.408 | **0.811 / 0.247** | 0.893 / 0.143 | 0.859 / 0.189 |
+| seq_short | 57 | 67 | 0.881 / 0.169 | 0.623 / 0.470 | 0.758 / 0.305 | 0.883 / 0.165 | 0.854 / 0.205 |
+
+All three chose decoding with ≥ 10 frames per word, p ≥ 0.3, gap 2 (smoothing 3 / 3 / 1). Per epoch
+(default decoding) every curve now rises to the end (seq_splice val unseen learnable 0.494 at epoch 10,
+0.609 at 39, 0.625 at 59): with nothing seen before, there is nothing to forget.
+
+Test, every system scored the same way (`same_sign` merge; seen = the 1,319 test recordings of the other
+443 sentences, unseen = the 165 of the held-out ones):
+
+| System | Seen sentences F1 / WER | Unseen, all signs F1 / WER | **Unseen, learnable words** F1 / WER |
+|---|---|---|---|
+| word mode, run 12 | 0.795 / 0.290 | 0.572 / 0.526 | 0.702 / 0.423 |
+| seq_plain | **0.941 / 0.087** | 0.581 / 0.505 | 0.718 / 0.369 |
+| **seq_splice** | 0.924 / 0.107 | **0.621 / 0.444** | **0.774 / 0.285** |
+| seq_short | 0.916 / 0.126 | 0.595 / 0.490 | 0.747 / 0.340 |
+
+Sentence suggestion on test (`sentence_match.py`, browser threshold 0.34):
+
+| System | Suggested | Right of suggested | Right of all: seen / unseen sentences |
+|---|---|---|---|
+| seq_plain | 0.887 | 0.960 | 0.925 / 0.267 |
+| seq_splice | 0.879 | 0.957 | 0.899 / 0.382 |
+| seq_short | 0.867 | 0.962 | 0.895 / 0.339 |
+
+Observations (v5):
+- **The continuous model is better than word mode on every part of the test.** On sentences no model has
+  seen, seq_splice gets F1 0.621 against 0.572 (all signs) and 0.774 against 0.702 (learnable words), with a
+  word error rate of 0.285 against 0.423. On the other sentences it is far ahead (0.924 against 0.795).
+- **Splicing helps on new sentences** (val unseen learnable 0.811 against 0.747 without it, test 0.774
+  against 0.718), at a small cost on the known sentences (0.924 against 0.941): the model leans less on
+  the 492 sentences' word order. Short context helps less (0.758 / 0.747) and is the weakest on the
+  known sentences.
+- **Every model is much weaker on new sentences**, word mode included (E6 v10). The v2 and v3 numbers that
+  said otherwise compared with a word model that had trained on those sentences.
+- The suggestion is right for 90 % of known-sentence recordings and rarely wrong when it is shown (96 %).
+  The held-out sentences are in the list (only the model has not trained on them), and there it is right
+  for 38 %, limited by the weaker recognition. A sentence that is not in AzSLD cannot be suggested.
+- **Choice (on val): seq_splice's recipe.** The model in the browser is trained with it on all data (v6).
+
+In the app (dev server, the browser pane, seq_splice installed): the E4 recording (train split, a mechanism
+check) gives SİZ 0.58 (frames 22–42), AD 0.81 (42–59), NƏDİR 0.82 (59–88) in one run, annotated 23–42,
+46–57, 61–85, and the suggestion "Sizin adınız nədir ?" (distance 0). `verify_cont_model.mjs`: logits
+within 4.3e-6 of PyTorch, every frame's argmax equal. 148 frames took 12.9 s in the (hidden) pane.
+
+### Notebook 06 v6: the final model, on all sentences and train + val signers
+
+seq_splice's recipe with everything fixed on val before: 60 epochs, saved at epoch 59, decoding smooth 3,
+p ≥ 0.3, ≥ 10 frames, gap 2. Trained on the train **and** val signers (34) and **every** sentence, the 49
+held-out ones included: about 8,600 frontal recordings and their side views. The 5 test signers stay unseen, so
+its test is still signer-independent, but no test sentence is new to it any more. 94 min on a T4.
+
+| Model | Test precision / recall | **Test F1 / WER** | Test frame accuracy | Test side view F1 / WER | Suggestion right (of all / when shown) |
+|---|---|---|---|---|---|
+| seq_splice (v5: 27 signers, without the held-out sentences) | 0.909 / 0.877 | 0.893 / 0.143 | 0.894 | 0.859 / 0.189 | 0.842 / 0.957 |
+| **final_splice** | 0.939 / 0.915 | **0.927 / 0.105** | 0.916 | **0.897 / 0.144** | **0.912 / 0.977** |
+| word mode, run 11 (the browser's word model; E6 v9, spellings merged, not the same-sign forms) | | 0.768 / 0.350 | | | |
+
+- **final_splice is the browser's sentence model** (`public/tercume/assets/cont_model/`). On AzSLD sentences
+  signed by people it has never seen it finds the words with F1 0.927 and a word error rate of 0.105
+  (word mode: 0.768 / 0.350), and names the right AzSLD sentence for 91 % of the recordings.
+- For sentences outside AzSLD the honest estimate is v5's: F1 about 0.62 over all signs and 0.77 over the
+  words it knows (word mode 0.57 / 0.70). The app says so under the sentence mode.
+- `verify_cont_model.mjs`: logits within 4.3e-6 of PyTorch, argmax equal on every frame. In the app the E4
+  recording gives SİZ 0.56 (22–42), AD 0.82 (42–59), NƏDİR 0.85 (59–88) and "Sizin adınız nədir ?".
+
+**Open:** a live-webcam test of the sentence mode; sentences from outside AzSLD signed by a real user.

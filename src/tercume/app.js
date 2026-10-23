@@ -156,23 +156,61 @@ function initS2T() {
     s2wLoading.catch(() => { s2wLoading = null; });     // xətadan sonra yenidən cəhd etmək olar
     return s2wLoading;
   };
-  const current = () => (state.kind === 'words' ? state.s2w : s2t);
+  // Cümlə rejimi: davamlı model (hər kadra etiket), sözlər fasiləsiz çıxır
+  let s2sLoading = null;
+  const ensureS2S = () => {
+    s2sLoading ??= (async () => {
+      const { SignToSentence } = await import('./s2s.js');
+      const s2s = new SignToSentence({
+        video,
+        onStatus: ({ message, stage }) => setStatus(message, stage),
+        onFrame: ({ frame }) => {
+          const hands = [0, 1].map((s) => slotLandmarks(frame.hand, s)).filter(Boolean);
+          drawOverlay(ctx, canvas, video, hands);
+          state.skelS2T?.setPose(hands[0] ?? null);
+          $('#ring-label').textContent = hands.length ? 'jest' : 'istirahət';
+        },
+        onWords: ({ words, added, sentence, ms }) => {
+          renderSentence(words, added.length, sentence);
+          const last = added[added.length - 1];
+          if (last) renderPredictions([{ label: last.label, p: last.p }]);
+          $('#sentence-info').textContent = `+${added.length} · ${Math.round(ms)} ms`;
+        },
+        onSentence: ({ words, match }) => {
+          const li = document.createElement('li');
+          li.textContent = words.map((w) => w.label).join(' ') + (match ? `  ≈  ${match.text}` : '');
+          $('#sentence-history').prepend(li);
+          renderSentence([], 0, null);
+        },
+      });
+      await s2s.init();
+      const f1 = s2s.rec.manifest.metrics?.test?.f1_all;
+      if (f1) $('#sentence-f1').textContent = f1.toFixed(2);
+      state.s2s = s2s;
+      return s2s;
+    })();
+    s2sLoading.catch(() => { s2sLoading = null; });
+    return s2sLoading;
+  };
+  const current = () => (state.kind === 'words' ? state.s2w : state.kind === 'sentence' ? state.s2s : s2t);
 
   $('#s2t-kind').addEventListener('change', (e) => {
     if (!$('#btn-stop').disabled) $('#btn-stop').click();     // rejim dəyişəndə kamera dayanır
     state.kind = e.target.value;
-    $$('#tab-s2t [data-kind]').forEach((el) => { el.hidden = el.dataset.kind !== state.kind; });
-    $('#pred-grid').classList.toggle('is-words', state.kind === 'words');
-    $('#ring-label').textContent = state.kind === 'words' ? WORD_STATE_LABEL.rest : GATE_LABEL.idle;
+    $$('#tab-s2t [data-kind]').forEach((el) => { el.hidden = !el.dataset.kind.split(' ').includes(state.kind); });
+    $('#pred-grid').classList.toggle('is-words', state.kind !== 'letters');
+    $('#ring-label').textContent = state.kind !== 'letters' ? WORD_STATE_LABEL.rest : GATE_LABEL.idle;
     $('#pred-quality').textContent = '—';
     renderPredictions([]);
     if (state.kind === 'words') ensureS2W().catch((err) => setStatus('Söz modeli yüklənmədi: ' + err.message, 'error'));
+    if (state.kind === 'sentence') ensureS2S().catch((err) => setStatus('Cümlə modeli yüklənmədi: ' + err.message, 'error'));
   });
 
   $('#btn-start').addEventListener('click', async () => {
     $('#btn-start').disabled = true;
     try {
-      await (state.kind === 'words' ? await ensureS2W() : s2t).start();
+      const runner = state.kind === 'words' ? await ensureS2W() : state.kind === 'sentence' ? await ensureS2S() : s2t;
+      await runner.start();
       $('#btn-stop').disabled = false;
     } catch (err) {
       setStatus('Kamera açılmadı: ' + err.message, 'error');
@@ -189,6 +227,7 @@ function initS2T() {
   $('#btn-clear').addEventListener('click', () => {
     current()?.clear();
     renderPredictions([]);
+    if (state.kind === 'sentence') { renderSentence([], 0, null); $('#sentence-history').innerHTML = ''; }
   });
   $('#mode').addEventListener('change', (e) => { s2t.decodeOpts.mode = e.target.value; });
 
@@ -269,6 +308,15 @@ function renderSigns(signs, nNew = 0) {
       return `<span class="${cls}" title="${escapeHtml(alt)}">${escapeHtml(label)}<em>${Math.round(s.p * 100)}%</em></span>`;
     }).join('')
     : '<span class="muted">boş</span>';
+}
+
+function renderSentence(words, nNew, match) {
+  $('#sentence-words').innerHTML = words.length
+    ? words.map((w, i) => `<span class="s${i >= words.length - nNew ? ' new' : ''}">${escapeHtml(w.label)}<em>${Math.round(w.p * 100)}%</em></span>`).join('')
+    : '<span class="muted">boş</span>';
+  const m = $('#sentence-match');
+  m.hidden = !match;
+  if (match) m.textContent = `AzSLD-də ən yaxın cümlə: ${match.text}`;
 }
 
 function renderDecode({ candidates, best, verified, suggestions, letters }) {

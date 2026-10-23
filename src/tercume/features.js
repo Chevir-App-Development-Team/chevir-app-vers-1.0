@@ -79,19 +79,20 @@ export function assertCompatible(manifest) {
  * Landmark-lardan model girişi.
  * @param {{T:number, hand:Float32Array, hand_world:Float32Array, pose:Float32Array, face:Float32Array, blend:Float32Array}} raw
  * @param {number} aspect kadrın eni / hündürlüyü
- * @param {{groups?: string[], face?: boolean}} [opts] face=false — məxfilik rejimi (üz nöqtələri yoxdur)
+ * @param {{groups?: string[], face?: boolean, maxLen?: number | null}} [opts] face=false — məxfilik rejimi
+ *   (üz nöqtələri yoxdur); maxLen=null — kadrlar azaldılmır (davamlı model, features.py max_len=None)
  */
-export function preprocess(raw, aspect, { groups = null, face = true } = {}) {
+export function preprocess(raw, aspect, { groups = null, face = true, maxLen = MAX_LEN } = {}) {
   let T = raw.T;
   for (const [k, n] of Object.entries(SIZES)) {
     if (raw[k].length !== T * n) throw new Error(`${k}: ${raw[k].length} ədəd, ${T}×${n} gözlənilirdi`);
   }
-  // 1. kadr seçimi: MAX_LEN-dən uzun klip bərabər addımla MAX_LEN kadra endirilir
+  // 1. kadr seçimi: maxLen-dən uzun klip bərabər addımla maxLen kadra endirilir
   let sel = Array.from({ length: T }, (_, i) => i);
-  if (T > MAX_LEN) {
-    const step = (T - 1) / (MAX_LEN - 1);
-    sel = Array.from({ length: MAX_LEN }, (_, i) => roundHalfEven(i === MAX_LEN - 1 ? T - 1 : i * step));
-    T = MAX_LEN;
+  if (maxLen && T > maxLen) {
+    const step = (T - 1) / (maxLen - 1);
+    sel = Array.from({ length: maxLen }, (_, i) => roundHalfEven(i === maxLen - 1 ? T - 1 : i * step));
+    T = maxLen;
   }
   // 2. kvadrat fəza: x *= en/hündürlük (float32)
   const a = f32(aspect);

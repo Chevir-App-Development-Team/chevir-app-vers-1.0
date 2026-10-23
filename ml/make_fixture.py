@@ -125,6 +125,54 @@ def segment_cases():
             'activity': act, 'spans': spans, 'windows': wins, 'pick': picks}
 
 
+def continuous_cases():
+    """Golden cases for the browser's continuous mode (continuous.js): the streaming schedule, decode()
+    on synthetic frame probabilities, and features of windows without the 64-frame cap."""
+    from azsl import continuous as CT
+    rng = np.random.default_rng(20261022)
+    blobs, off = [], 0
+
+    def put(a):
+        nonlocal off
+        a = np.asarray(a, np.float32)
+        blobs.append(a.ravel())
+        ref = {'offset': off, 'shape': list(a.shape)}
+        off += a.size
+        return ref
+
+    stream = [{'T': T, **st, 'windows': [list(w) for w in CT.stream_windows(T, **st)]}
+              for T in (1, 7, 24, 95, 96, 97, 150, 333)
+              for st in (CT.STREAM, dict(window=64, stride=4, lookahead=12))]
+    dec = []
+    for i, p in enumerate([CT.DECODE, dict(smooth=1, min_p=0.3, min_len=4, gap=2), dict(smooth=9, min_p=0.35, min_len=8, gap=4),
+                           dict(smooth=3, min_p=0.4, min_len=6, gap=0)]):
+        T, C = 180, 9
+        lab = np.zeros(T, int)
+        t = int(rng.integers(3, 12))
+        while t < T - 5:
+            L = int(rng.integers(4, 30))
+            lab[t:t + L] = rng.integers(1, C)
+            t += L + int(rng.integers(0, 10))
+        logits = rng.normal(0, 1.0, (T, C))
+        logits[np.arange(T), lab] += rng.uniform(0.5, 4.0, T)
+        P = np.exp(logits) / np.exp(logits).sum(1, keepdims=True)
+        unknown = C - 1 if i % 2 else None
+        exp = [[a, b, c, pm] for a, b, c, pm in CT.decode(P.astype(np.float32), p, unknown)]
+        dec.append({'T': T, 'C': C, 'params': dict(p), 'unknown': unknown, 'probs': put(P), 'expected': exp})
+    feats = []
+    for T, aspect in ((96, 16 / 9), (150, 4 / 3)):
+        raw = synthetic(T, rng)
+        raw['hand'][20:31, 0] = np.nan
+        raw['hand_world'][20:31, 0] = np.nan
+        entry = {'T': T, 'aspect': aspect, 'groups': ['hands', 'hand_shape', 'hand_vel', 'flags', 'pose']}
+        for k in KEYS:
+            entry[k] = put(raw[k])
+        entry['expected'] = put(FT.preprocess(raw, aspect, entry['groups'], False, max_len=None))
+        feats.append(entry)
+    return {'continuous_version': CT.CONTINUOUS_VERSION, 'stream': stream, 'decode': dec, 'features': feats,
+            'tolerance': 1e-5}, np.concatenate(blobs).astype('<f4')
+
+
 def _jsonable(p):
     return {k: list(v) if isinstance(v, tuple) else v for k, v in p.items()}
 
@@ -148,7 +196,29 @@ def build():
             'contract': FT.spec(), 'cases': meta, 'hand_slots': hand_slot_cases()},         np.concatenate(blobs).astype('<f4')
 
 
+def check_or_write_continuous(check):
+    from azsl import continuous as CT
+    meta, blob = continuous_cases()
+    stem = os.path.join(OUT, f'continuous_v{CT.CONTINUOUS_VERSION}')
+    if check:
+        if not os.path.exists(stem + '.bin'):
+            sys.exit(f'no fixture for continuous_version {CT.CONTINUOUS_VERSION} — run without --check to create it')
+        with open(stem + '.json', encoding='utf-8') as f:
+            same = json.load(f) == json.loads(json.dumps(meta))
+        ref = np.fromfile(stem + '.bin', dtype='<f4')
+        if not same or ref.shape != blob.shape or not np.allclose(ref, blob, atol=1e-6, equal_nan=True):
+            sys.exit(f'continuous decoding changed but CONTINUOUS_VERSION is still {CT.CONTINUOUS_VERSION}: bump it, '
+                     'update continuous.js and regenerate the fixture')
+        print(f'continuous mode matches fixture v{CT.CONTINUOUS_VERSION}')
+        return
+    blob.tofile(stem + '.bin')
+    with open(stem + '.json', 'w', encoding='utf-8') as f:
+        json.dump(meta, f, separators=(',', ':'))
+    print(f'wrote {stem}.json/.bin ({blob.nbytes / 1024:.0f} KB)')
+
+
 def main():
+    check_or_write_continuous('--check' in sys.argv)
     meta, blob = build()
     stem = os.path.join(OUT, f'features_v{FT.FEATURE_VERSION}')
     seg = json.loads(json.dumps(segment_cases()))

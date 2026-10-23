@@ -16,6 +16,7 @@ Python's protobuf 4.25 breaks it.
                                                    #  latest version, and nothing while one is queued)
     python ml/kaggle_run.py eval --to wordmode1    # 05's eval/ (summary, val grid, test detections;
                                                    #  --models adds the chosen model's files)
+    python ml/kaggle_run.py cont --to cont1 [--models]   # 06's cont/ (continuous recognition runs)
     python ml/kaggle_run.py model-dataset ml/results/run11_model/final_side_noface
                                                    # a run's best.pt + manifest as a private dataset, for a
                                                    # run whose notebook version ended in an error (Kaggle
@@ -45,6 +46,7 @@ NOTEBOOKS = {
     '03': ('03_split_benchmark.ipynb', '03-split-benchmark'),
     '04': ('04_train_words.ipynb', '04-train-words'),
     '05': ('05_eval_word_mode.ipynb', '05-eval-word-mode'),
+    '06': ('06_train_continuous.ipynb', '06-train-continuous'),
 }
 EXTRACTION = ['01'] + [f'02-{k}' for k in range(SHARDS)]
 CAM1 = [f'02c1-{k}' for k in range(SHARDS)]
@@ -57,6 +59,8 @@ SETTINGS = {
     # CPU: ~2 ms/window; its own previous output keeps models that 04 has since replaced
     '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04', '05'],
                datasets=['azsl-model-final-side-noface']),
+    # continuous recognition: whole recordings of both cameras; 04 for run 10a (the starting point)
+    '06': dict(gpu=True, internet=True, sources=[f'02-{k}' for k in range(SHARDS)] + CAM1 + ['03', '04']),
 }
 
 
@@ -128,7 +132,7 @@ def main():
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # Windows console is cp1252; glosses aren't
     ap = argparse.ArgumentParser()
     ap.add_argument('cmd', choices=['whoami', 'push', 'stage', 'status', 'log', 'splits', 'results', 'eval',
-                                    'model-dataset'])
+                                    'model-dataset', 'cont'])
     ap.add_argument('which', nargs='?', default='all')
     ap.add_argument('--smoke', action='store_true', help='push with SMOKE = True (a few files, ~3 min)')
     ap.add_argument('--user', help='Kaggle username (else read from the CLI config)')
@@ -210,6 +214,20 @@ def main():
         shutil.rmtree(tmp, ignore_errors=True)
         print('wrote', dst, os.listdir(dst))
 
+    elif a.cmd == 'cont':                             # 06's cont/ (summary, per run: metrics, history, grid)
+        ref = f'{user}/{NOTEBOOKS["06"][1]}'
+        tmp = tempfile.mkdtemp(prefix='kaggle_cont_')
+        files = r'history\.csv|metrics\.json|manifest\.json|vocab\.json|grid_val\.csv|detections_test\.csv' + (
+            r'|model\.onnx|best\.pt' if a.models else '')
+        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', rf'^cont/(summary\.csv|[^/]+/({files}))$', '-q', check=False)
+        src = os.path.join(tmp, 'cont')
+        if not os.path.isdir(src):
+            sys.exit(f'no cont/ in the output of {ref} yet')
+        dst = os.path.join(HERE, 'results', a.to or 'cont_latest')
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(src, dst)
+        shutil.rmtree(tmp, ignore_errors=True)
+        print('wrote', dst, os.listdir(dst))
     elif a.cmd == 'eval':
         ref = f'{user}/{NOTEBOOKS["05"][1]}'
         tmp = tempfile.mkdtemp(prefix='kaggle_eval_')

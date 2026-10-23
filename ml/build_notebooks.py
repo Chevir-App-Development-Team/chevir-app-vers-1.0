@@ -297,6 +297,22 @@ print('frontal-camera outliers:', bench['frontal_outliers'])
     ])
 
 
+def sign_merge():
+    """One sign, several glosses → {gloss: group}: the confirmed word-form families (ml/lemma_groups.csv)
+    and the forms the models cannot tell apart on val signers (ml/same_sign.csv)."""
+    import csv
+    sys.path.insert(0, HERE)
+    from analyze import load_groups
+    out = dict(load_groups(os.path.join(HERE, 'lemma_groups.csv')))
+    with open(os.path.join(HERE, 'same_sign.csv'), encoding='utf-8') as f:
+        rows = list(csv.DictReader(f))
+    for r in rows:
+        out[r['gloss']] = r['group']
+    for r in rows:                         # a group that joins a confirmed family takes its name
+        out[r['group']] = out.get(r['group'], r['group'])
+    return {g: grp for g, grp in out.items() if g != grp}
+
+
 def spelling():
     """ml/gloss_spelling.csv → {variant: gloss}: the same word typed two ways in the annotations."""
     import csv
@@ -342,16 +358,19 @@ CFG = dict(epochs=60, batch=64, lr=1e-3, dim=192, drop=0.2, margin=8, workers=4,
 # run 9 the "face detected" flag told the model which camera it saw, and without face it lost ~0.05.
 # Run 11: the final model. Run 10a's recipe (chosen in notebook 05 v7, E6) on train + val signers, saved at
 # 10a's best epoch; test signers stay unseen.
+# Run 12: 10a without the train signers' signs of the 49 sentences held out as unseen, so word mode and the
+# continuous model (notebook 06) are compared on sentences neither has seen (10a had them).
 VOCAB_MIN_TRAIN = 10   # a sentence gloss joins the vocabulary with >= 10 signs of train signers (None: 200 words)
 SPELLING = {spelling}   # ml/gloss_spelling.csv: one word typed two ways
 SIDE = True            # load the side camera (Cam1), shifted by each recording's frame offset (per run: side=)
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1     # alignment quality a recording needs (set from 02c1's align.csv)
-TRAIN_ON_VAL = True    # final model: val signers' signs become training data (runs then need save_epoch)
+TRAIN_ON_VAL = False   # final model: val signers' signs become training data (runs then need save_epoch)
+EXCLUDE_HELDOUT = True  # leave out the train signs of the held-out sentences (heldout_sentence); vocabulary unchanged
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
 NO_FACE = HANDS + ['pose']
 BASE = dict(groups=NO_FACE, unknown=4.0, select='open')
 RUNS = {
-    'final_side_noface': dict(BASE, seed=1, side=True, face_drop=1.0, save_epoch=59),
+    'side_noface_s1_noheld': dict(BASE, seed=1, side=True, face_drop=1.0),
 }
 """.replace('{spelling}', json.dumps(spelling(), ensure_ascii=False))),
         code(SETUP),
@@ -396,6 +415,12 @@ vocab = {g: i for i, g in enumerate(vocab_list)}
 print(f'vocabulary: {len(words_list)} words ({len(set(words_list) - set(wsplit.gloss))} beyond the 200), '
       f'covering {tags.gloss.isin(words_list).mean():.3f} of the annotated signs')
 tags = tags[tags.gloss.isin(words_list) | UNKNOWN]
+if EXCLUDE_HELDOUT:
+    sents = pd.read_csv(os.path.join(splits_dir, 'sentences_split.csv'), dtype={'rec_id': str})
+    held = set(sents[sents.heldout_sentence].rec_id)
+    drop = (tags.split == 'train') & tags.rec_id.isin(held)
+    tags = tags[~drop]
+    print(f'held-out sentences: {int(drop.sum())} train signs left out')
 if TRAIN_ON_VAL:       # the vocabulary above is still the train signers' one, as in the runs chosen on val
     tags['split'] = tags.split.replace({'val': 'train'})
     wsplit = wsplit[wsplit.split != 'val']
@@ -480,14 +505,14 @@ compared model's `best.pt`, `model.onnx`, `manifest.json`).
 """),
         code(f"""
 SMOKE = False                  # True: 30 recordings per split, to check the setup
-MODEL_RUNS = ['side_noface_s1',                # 10a: the recipe chosen in v7
-              'final_side_noface']              # run 11: 10a's recipe on train + val signers
+MODEL_RUNS = ['side_noface_s1_noheld']         # run 12: 10a without the held-out sentences (E7)
+# (v8: 10a and run 11 = 10a's recipe on train + val signers, run 11 with FIXED = 10a's val choice below)
 # (v5 compared 7b / 8a / 8b over all signs; best val f1_all 0.779, 8a, p >= 0.7, overlap <= 25 %)
 # (v6 compared 8a / 9a; 9a, spellings merged: val f1_all 0.773)
 # (v7 compared 8a / 10a / 10b; val f1_all 0.779 / 0.767 / 0.759; 10a's recipe chosen for angle robustness)
 # (v3 compared run 6: unk_w1 / unk_w4 / unk_w8; best val F1 0.736, unk_w8, p >= 0.5, overlap <= 25 %)
 # (v4 compared run 7: unk_w1_open / unk_w4_open; best val F1 0.782, unk_w4_open, p >= 0.7, overlap <= 50 %)
-FIXED = {{'final_side_noface': dict(rest_line=1.0, lens=[16, 24, 32], min_p=0.7, max_overlap=0.5)}}   # 10a's val choice
+FIXED = {{}}   # v8: {{'final_side_noface': dict(rest_line=1.0, lens=[16, 24, 32], min_p=0.7, max_overlap=0.5)}}
 # FIXED: run → word-mode settings fixed before; test only (a model trained on val signers has no fair val)
 FACE = False                   # the browser runs these models without the face tracker (s2w.js needsFace)
 GRID = dict(rest_line=(1.0,), lens=((16, 24, 32),),
@@ -634,11 +659,173 @@ pd.DataFrame({**{f'{r} (val-best) | test': {c: round(summary['per_model'][r]['te
     ])
 
 
+def nb06():
+    return notebook([
+        md("""
+# AzSLD 06 — continuous recognition: a sentence in one run
+
+Word mode (05) cuts the landmark stream into windows and asks the isolated-sign model about each one. This
+notebook trains a model that labels **every frame** of a sentence recording: which word, or no sign
+(`<blank>`: rests and transitions). It learns from whole sentences, so it uses all frames (the half
+between signs that the isolated-sign model never saw), the sentence context, and both cameras.
+
+- **Labels:** the vocabulary of run 10 (every gloss with ≥ 10 train signs, spellings merged) with the forms
+  of one sign merged (`ml/lemma_groups.csv` confirmed, `ml/same_sign.csv`); rare glosses → `<unk>`.
+- **Train:** whole recordings of train signers, frontal + side camera, random 48–160-frame windows. The
+  sentences reserved as unseen (`heldout_sentence`, 49 of 492) are left out of training, so the test
+  can say how it does on sentences it never saw.
+- **Checkpoint:** best val word F1 (default decoding) by each run's `select`: over all annotated signs, or
+  on the unseen sentences' recordings, all signs (`f1_unseen`) or only words with training signs outside
+  them (`f1_unseen_learnable`; detections on the other signs are then neither right nor wrong).
+- **Evaluation as in the browser:** the model runs on the last 96 frames every 8 frames; a frame is fixed
+  24 frames (0.8 s) after it. Decoding settings chosen on val; test scored once (all test recordings,
+  the unseen sentences, the side camera).
+
+**Inputs:** 02 shards, 02c1 shards, 03, 04 (run 10a, to start from). **Kaggle:** GPU T4, Internet on.
+**Writes** `cont/<run>/`: history, metrics (val grid, test), best.pt, model.onnx, manifest.json.
+"""),
+        code("""
+SMOKE = False          # True: a few recordings, 2 epochs
+HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
+NO_FACE = HANDS + ['pose']
+BASE = dict(groups=NO_FACE, seed=1, face_drop=1.0, epochs=60, repeats=2, batch=32, workers=4)
+INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train signers only
+# v2: seq_scratch / seq_init (every layer from 10a): test F1 0.909 / 0.908, but 0.584 / 0.609 on the test
+# recordings of sentences left out of training (word mode: 0.776).
+# v3: seq_splice / seq_short from 10a, chosen on val unseen sentences: both chose epoch 1. But 10a was
+# trained on the held-out sentences' signs, and the score counted words with no training sign outside them.
+# v5: from scratch (nothing from 10a), epoch and decoding chosen on val unseen sentences, learnable words only;
+# word mode is compared with run 12 (10a without the held-out sentences).
+# v5 runs: seq_plain (v2's recipe), seq_splice (splice=0.5), seq_short (crop (24, 64), 48-frame stream), all with
+# select='f1_unseen_learnable'. Val unseen learnable F1 0.747 / 0.811 / 0.758 → seq_splice, epoch 59.
+# v6: the final model. seq_splice's recipe on train + val signers and every sentence, saved at epoch 59, with
+# its val decoding; test signers stay unseen (their sentences are no longer unseen).
+RUNS = {
+    'final_splice': dict(BASE, splice=0.5, save_epoch=59, decode=dict(smooth=3, min_p=0.3, min_len=10, gap=2)),
+}
+VOCAB_MIN_TRAIN = 10
+SPELLING = __SPELLING__
+MERGE = __MERGE__
+SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
+EXCLUDE_HELDOUT = False                        # True: unseen sentences stay out of training
+TRAIN_ON_VAL = True                            # final model: val signers too (runs need save_epoch and decode)
+DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
+LOOKAHEADS = (12, 40)                          # val only: shorter / longer delay than the browser's
+                                               # (must stay below window - stride of every run)
+""".replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False)).replace(
+            '__MERGE__', json.dumps(sign_merge(), ensure_ascii=False))),
+        code(SETUP),
+        code("""
+import importlib.util
+missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is None]
+if ON_KAGGLE and missing:
+    subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
+"""),
+        *package_cells(TRAIN_MODULES + ['segment', 'segment_eval', 'continuous']),
+        code("""
+import pandas as pd, numpy as np, torch
+from azsl import train as T, continuous as CT
+INPUT = '/kaggle/input' if ON_KAGGLE else OUT
+
+def find(pattern):
+    return sorted({os.path.dirname(p) for p in glob.glob(os.path.join(INPUT, '**', pattern), recursive=True)})
+
+splits_dir = find('splits/sentences_split.csv')[0]
+sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
+side_dirs = find('landmarks/sentences_cam1/shard*/manifest.csv')
+init = sorted(glob.glob(os.path.join(INPUT, '**', INIT_RUN, 'best.pt'), recursive=True))
+for r in RUNS.values():
+    if r.get('init'):
+        r['init'] = init[0]
+print('splits:', splits_dir, '| frontal shards:', len(sentence_dirs), '| side shards:', len(side_dirs), '| init:', init[:1])
+print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none')
+"""),
+        code("""
+wsplit = pd.read_csv(os.path.join(splits_dir, 'words200_split.csv'), dtype={'key': str, 'rec_id': str})
+tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
+sents = pd.read_csv(os.path.join(splits_dir, 'sentences_split.csv'), dtype={'rec_id': str})
+import hashlib
+with open(os.path.join(splits_dir, 'words200_split.csv'), 'rb') as f:
+    split_id = hashlib.sha1(f.read()).hexdigest()[:10]
+merge = lambda g: MERGE.get(SPELLING.get(g, g), SPELLING.get(g, g))      # noqa: E731
+tags = tags[tags.has_landmarks & tags.split.notna() & tags.start.notna() & tags.end.notna()].copy()
+tags['gloss'] = tags.gloss.map(merge)
+core = {merge(g) for g in wsplit.gloss.unique()}
+words = T.learnable_vocab(tags, core, VOCAB_MIN_TRAIN)
+vocab_list = [CT.BLANK] + words + [T.UNKNOWN]
+index = {g: i for i, g in enumerate(vocab_list)}
+exclude = T.ambiguous_oov(tags.gloss.unique(), set(words))
+anns = {rid: list(zip(t.start, t.end, t.gloss)) for rid, t in tags.groupby('rec_id')}
+recs = sents[sents.split.notna() & sents.rec_id.isin(anns)][['rec_id', 'split', 'heldout_sentence']].copy()
+if TRAIN_ON_VAL:
+    recs['split'] = recs.split.replace({'val': 'train'})
+    assert all(r.get('save_epoch') and r.get('decode') for r in RUNS.values()), 'final runs need save_epoch and decode'
+if EXCLUDE_HELDOUT:
+    recs = recs[~((recs.split == 'train') & recs.heldout_sentence)]
+unseen = set(recs[recs.split.isin(['val', 'test']) & recs.heldout_sentence].rec_id)
+# words a model can know in an unseen sentence: >= 10 train signs outside the held-out sentences
+outside = tags[(tags.split == 'train') & ~tags.rec_id.isin(set(sents[sents.heldout_sentence].rec_id))]
+learnable = set(outside.gloss.value_counts()[lambda c: c >= 10].index)
+if SMOKE:
+    recs = recs.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 60), random_state=0))
+    for r in RUNS.values():
+        r.update(epochs=2)
+    DECODE_GRID = dict(smooth=(1, 5), min_p=(0.5,), min_len=(6,), gap=(3,))
+print(f'{len(words)} words ({len(MERGE)} glosses merged into their sign), {len(exclude)} ambiguous glosses not scored;',
+      'recordings:', recs.split.value_counts().to_dict(), '| unseen-sentence val + test recordings:', len(unseen),
+      f'| {len(learnable)} glosses learnable outside them')
+al = pd.concat([pd.read_csv(os.path.join(d, 'align.csv'), dtype={'id': str}) for d in side_dirs])
+good = al[(al['corr'] >= SIDE_MIN_CORR) & (al.margin >= SIDE_MIN_MARGIN)]
+banks = CT.load_recordings(sentence_dirs, recs, anns, index, unknown=T.UNKNOWN, exclude=exclude,
+                           side=(side_dirs, dict(zip(good.id, good.lag))))
+banks['val_unseen'] = CT.subset(banks['val'], unseen)          # per-epoch score on sentences never trained on
+SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, learnable)}
+"""),
+        md('### Training and evaluation, one run after another'),
+        code("""
+import time
+rows = []
+for name, change in RUNS.items():
+    out = os.path.join(OUT, 'cont', name)
+    cfg = {**change, 'split_id': split_id}
+    print(f'\\n===== {name}: {cfg}')
+    t0 = time.time()
+    net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable)
+    # final model (TRAIN_ON_VAL): decoding fixed before (cfg['decode']), test signers still unseen
+    choose = {'f1_unseen': 'f1_unseen_sentences'}.get(cfg.get('select'), cfg.get('select', 'f1_all'))
+    ev = CT.evaluate(net, banks, anns, vocab_list, cfg['groups'], cfg['face_drop'] < 1, net.head.weight.device,
+                     DECODE_GRID, stream=cfg.get('stream') or CT.STREAM, subsets=SUBSETS if EXCLUDE_HELDOUT else {},
+                     lookaheads=() if TRAIN_ON_VAL else LOOKAHEADS, choose=choose,
+                     fixed=cfg['decode'] if TRAIN_ON_VAL else None)
+    decode_p = ev['decode']
+    pd.DataFrame(ev.pop('test_detections'), columns=['rec_id', 'start0', 'end0', 'word', 'p']).to_csv(
+        os.path.join(out, 'detections_test.csv'), index=False)
+    res.update({k: v for k, v in ev.items() if k != 'val_grid'})
+    if ev['val_grid']:
+        pd.DataFrame(ev['val_grid']).to_csv(os.path.join(out, 'grid_val.csv'), index=False)
+    res['minutes'] = round((time.time() - t0) / 60, 1)
+    ok = T.export_onnx(net, os.path.join(out, 'model.onnx'), n_in=res['n_features'])
+    CT.write_manifest(out, {**CT.DEFAULTS, **cfg}, vocab_list, res, res['n_features'], ok, decode_p,
+                      stream=cfg.get('stream') or CT.STREAM)
+    with open(os.path.join(out, 'metrics.json'), 'w', encoding='utf-8') as f:
+        json.dump(res, f, ensure_ascii=False, indent=1, default=str)
+    row = {'run': name, 'best_epoch': res['best_epoch'], 'minutes': res['minutes']}
+    for k, v in res.items():
+        if isinstance(v, dict) and 'f1_all' in v:
+            row.update({f'{k}_{m}': round(v[m], 4) for m in ('precision', 'recall_all', 'f1_all', 'wer_all', 'frame_acc')})
+    rows.append(row)
+    pd.DataFrame(rows).to_csv(os.path.join(OUT, 'cont', 'summary.csv'), index=False)
+pd.DataFrame(rows).set_index('run').T
+"""),
+    ])
+
+
 def main():
     out = os.path.join(HERE, 'notebooks')
     os.makedirs(out, exist_ok=True)
     books = {'01_index_words200_fingerspelling.ipynb': nb01(), '03_split_benchmark.ipynb': nb03(),
-             '04_train_words.ipynb': nb04(), '05_eval_word_mode.ipynb': nb05()}
+             '04_train_words.ipynb': nb04(), '05_eval_word_mode.ipynb': nb05(),
+             '06_train_continuous.ipynb': nb06()}
     for k in range(NUM_SHARDS):
         books[f'02_sentences_shard{k}.ipynb'] = nb02(k)
         books[f'02_sentences_cam1_shard{k}.ipynb'] = nb02(k, 'Cam1')
