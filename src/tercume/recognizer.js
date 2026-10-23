@@ -92,4 +92,21 @@ export class LocalRecognizer {
     const probs = softmax(logits);
     return { top: topK(probs, this.labels, k), probs, logits, frames: x.T, ms: performance.now() - t0, backend: this.backend };
   }
+
+  /**
+   * Davamlı model (manifest.kind = 'continuous'): pəncərənin HƏR kadrı üçün ehtimallar.
+   * @returns {{ T: number, C: number, probs: Float32Array, ms: number }} probs = T×C, sətir-sətir softmax
+   */
+  async frameProbs(raw, aspect, { face = true } = {}) {
+    const t0 = performance.now();
+    const x = preprocess(raw, aspect, { groups: this.groups, face, maxLen: this.manifest.input.max_len ?? null });
+    const { name: inName, n_features: nf } = this.manifest.input;
+    if (x.F !== nf) throw new Error(`giriş ${x.F} sütun, model ${nf} gözləyir`);
+    const out = await this.session.run({ [inName]: new this.ort.Tensor('float32', x.data, [1, x.T, x.F]) });
+    const logits = out[this.manifest.output.name].data;
+    const C = this.labels.length;
+    const probs = new Float32Array(x.T * C);
+    for (let t = 0; t < x.T; t++) probs.set(softmax(logits.subarray(t * C, (t + 1) * C)), t * C);
+    return { T: x.T, C, probs, ms: performance.now() - t0 };
+  }
 }

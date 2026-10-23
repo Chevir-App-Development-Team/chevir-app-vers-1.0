@@ -56,6 +56,7 @@
             <select id="s2t-kind">
               <option value="letters" selected>hərflər — barmaq əlifbası</option>
               <option value="words">sözlər — AzSLD-nin 756 sözü (sınaq)</option>
+              <option value="sentence">cümlə — fasiləsiz, söz-söz (sınaq)</option>
             </select>
           </label>
           <div class="row">
@@ -81,6 +82,12 @@
             endir: model jestin hamısına baxıb sözləri ayırır. Bədən və əllər kadrda görünməlidir.</p>
           <p class="hint" data-kind="words" hidden>Model AzSLD-də görmədiyi insanlar üzərində yoxlanılıb
             (macro-F1 <b id="words-f1">—</b>), amma canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
+          <p class="hint" data-kind="sentence" hidden>Cümləni fasiləsiz göstər: hər söz göstərildikdən ~1 saniyə sonra
+            yazılır, sözlər arasında əlləri endirmək lazım deyil. Cümlə bitəndə əlləri endir — iki saniyəlik fasilə
+            cümləni bağlayır.</p>
+          <p class="hint" data-kind="sentence" hidden>Model AzSLD-də görmədiyi insanların cümlələri üzərində yoxlanılıb
+            (söz F1 <b id="sentence-f1">—</b>). AzSLD-də olmayan yeni cümlələrdə daha zəifdir (F1 ~0.6, tanıdığı
+            sözlərdə ~0.8). Canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
         </div>
 
         <div class="card">
@@ -93,6 +100,13 @@
         <div class="card" data-kind="words" hidden>
           <div class="card-head"><h2>Tanınan sözlər</h2><span class="badge" id="signs-info">—</span></div>
           <div class="signs" id="signs"><span class="muted">boş</span></div>
+        </div>
+
+        <div class="card" data-kind="sentence" hidden>
+          <div class="card-head"><h2>Cümlə</h2><span class="badge" id="sentence-info">—</span></div>
+          <div class="signs" id="sentence-words"><span class="muted">boş</span></div>
+          <p class="sentence-match" id="sentence-match" hidden></p>
+          <ol class="sentence-history" id="sentence-history"></ol>
         </div>
 
         <div class="card" data-kind="letters">

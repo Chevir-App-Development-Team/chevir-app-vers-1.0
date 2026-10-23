@@ -561,6 +561,29 @@ kbd {
   background: transparent;
 }
 
+/* ── cümlə rejimi ── */
+.sentence-match {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.sentence-history {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.sentence-history:empty {
+  display: none;
+}
+
+.sentence-history li + li {
+  margin-top: 4px;
+}
+
 /* ── hərflər / dekod ── */
 .letters {
   display: flex;
