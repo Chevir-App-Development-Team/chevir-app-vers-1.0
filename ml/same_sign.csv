@@ -1,0 +1,11 @@
+group,gloss,pair_bal_acc,evidence
+HARA,HARA,0.552,HARA / HARDA: two-way balanced accuracy 0.552 on val signers (run 10a); forms of one word
+HARA,HARDA,0.552,HARA / HARDA: two-way balanced accuracy 0.552 on val signers (run 10a); forms of one word
+BİLMƏK,BİLİR,0.714,BİLMƏK / BİLİR 0.714 and BİLİR / BİLƏR 0.736 on val; BİLƏR is in the confirmed BİLMƏK family
+YAZMAQ,YAZMAQ,0.712,YAZI / YAZMAQ 0.712 and YAZA / YAZMAQ 0.738 on val; forms of one word
+YAZMAQ,YAZI,0.712,YAZI / YAZMAQ 0.712 on val
+YAZMAQ,YAZA,0.738,YAZA / YAZMAQ 0.738 on val
+ALMAQ,ALMAQ,0.748,ALMALIYAM / ALMAQ 0.748 and ALMAQ / ALMIŞAM 0.770 on val; forms of one word
+ALMAQ,ALMALIYAM,0.748,ALMALIYAM / ALMAQ 0.748 on val
+ALMAQ,ALMIŞAM,0.770,ALMAQ / ALMIŞAM 0.770 on val
+İŞLƏMƏK,İŞ,0.770,İŞ / İŞLƏMƏK 0.770 on val; İŞLƏMƏK is a confirmed family

@@ -158,6 +158,9 @@ while the median gloss has 21.
   been chosen on val, the same recipe is trained on train + val signers and saved at that epoch
   (`save_epoch`), without looking at any score. Test signers stay unseen. Its word-mode test uses the
   settings fixed before (`FIXED` in notebook 05). The browser model (run 11) was made this way.
+- **Unseen sentences (`EXCLUDE_HELDOUT`):** leaves out the train signers' signs of the 49 sentences marked
+  `heldout_sentence` (vocabulary unchanged), so word mode can be tested on sentences its model has never
+  seen (run 12, E6 / E7). Runs up to 11 trained on them.
 - **Several experiments per session:** `RUNS` in the notebook (e.g. seeds, feature-group ablations via
   `groups`, longer schedules) share the loaded data; each writes `train/<name>/` plus a line in
   `train/summary.csv`, and keeps its per-sample `predictions.npz` for later analyses.
@@ -184,6 +187,45 @@ python ml/kaggle_run.py results --to run4   # summary, history, metrics, predict
 python ml/kaggle_run.py model-dataset ml/results/run11_model/final_side_noface   # see below
 python ml/smoke_train.py             # local check: a few real recordings, 2 epochs on CPU
 ```
+
+## Sentence mode (notebook 06)
+
+`06_train_continuous` (Kaggle **GPU T4**) trains a model that labels every frame of a sentence recording
+with a word or `<blank>` (`azsl/continuous.py`). It learns from whole recordings, so the frames between
+signs and the side camera's views (shifted by their alignment lag) are used too.
+
+- **Labels:** `<blank>`, the word model's vocabulary with the same-sign merges (`ml/lemma_groups.csv`
+  confirmed families + `ml/same_sign.csv`), and `<unk>` for rarer glosses. Frames within 1 of an annotated
+  boundary are not scored.
+- **Network:** the word model's Conv1D + Transformer with a per-frame head (`SeqNet`); `init` starts it
+  from a word-model run. `splice` builds new sentences from signs of different recordings, so the word
+  order of AzSLD's 492 sentences cannot be learned; `crop` sets the training window lengths.
+- **Unseen sentences:** with `EXCLUDE_HELDOUT` the 49 sentences marked `heldout_sentence` stay out of
+  training. Val and test report them separately (`unseen_sentences`, and `unseen_learnable` = only words
+  with training signs outside them). `select='f1_unseen'` chooses the epoch on val's unseen sentences.
+- **As in the browser:** the model runs on the last `window` frames every `stride` frames, and a frame is
+  final `lookahead` frames after it (`STREAM`). Decoding (`DECODE`: smoothing, minimum probability,
+  minimum length, gap joining) is chosen on val from `DECODE_GRID`; test is scored once.
+- **Final model:** `TRAIN_ON_VAL` + `save_epoch`, as for the word model.
+
+```bash
+python ml/kaggle_run.py push 06 [--smoke]
+python ml/kaggle_run.py cont --to cont2 [--models]      # cont/ → ml/results/cont2/ (--models: + best.pt, ONNX)
+python ml/install_continuous.py ml/results/cont2/<run> --install
+node tools/verify_continuous.mjs     # streaming + decoding: JS against continuous_v<N> fixture
+node tools/verify_cont_model.mjs     # installed model: features.js + onnxruntime-web against PyTorch
+```
+
+`install_continuous.py` records PyTorch's per-frame logits on the fixture windows
+(`ml/fixtures/cont_model_ref.json`), writes `sentences.json` (the AzSLD sentences with their sign
+sequences, in the model's labels) and with `--install` copies the model to `public/tercume/assets/cont_model/`.
+`python ml/sentence_match.py <run_dir>` scores the browser's sentence suggestion on a run's test detections,
+with the sentence list built from train signers only.
+
+The browser's sentence model is `final_splice` (notebook 06 v6): spliced training, train + val signers, every
+sentence. Test, signers never seen: word F1 0.927, word error rate 0.105, the right AzSLD sentence suggested
+for 91 % of the recordings. On sentences outside AzSLD expect about F1 0.6 (0.77 on the words it knows),
+measured on 49 sentences left out of training. Results: `EXPERIMENTS.md` E7.
 
 ## Deployment contract: browser and landmark server
 
@@ -231,6 +273,10 @@ models. The server is not built yet. These pieces keep both paths identical:
   (`azsl/segment_eval.py`) scores word mode on the held-out sentence recordings and chooses its
   parameters on val; version 2 uses that choice. Fetch its output with
   `python ml/kaggle_run.py eval --to NAME`. Results: `EXPERIMENTS.md` E6.
+- **Sentence mode in the browser:** `src/tercume/s2s.js` resamples the camera to 30 fps and streams
+  windows into the continuous model (`continuous.js`: `WindowStream`, `decode`, `SentenceStream`, ports of
+  `continuous.py`, checked on `ml/fixtures/continuous_v<N>`). Words are shown when final; 60 blank frames
+  end a sentence, and the nearest AzSLD sentence (`sentences.json`) is suggested under it.
 - **Face tracker in the browser:** word mode loads it only if the model's validation macro-F1
   without face (`val_words_noface` in the manifest) is more than 0.01 below the score with face.
 - **ONNX export:** the exported graph takes any clip length (1 × T × F). Models exported before this
