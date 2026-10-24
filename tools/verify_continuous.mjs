@@ -1,12 +1,12 @@
-// Cümlə rejimini (src/tercume/continuous.js) Python ilə tutuşdurur: ml/fixtures/continuous_v<N>.{json,bin}
+// Cümlə rejimini (src/tercume/continuous.js) Python ilə tutuşdurur: ml/fixtures/continuous_v2.{json,bin}
 // — axın cədvəli, decode() və 64 kadr həddi olmayan pəncərələrin ön emalı. Sonra onlayn hissələr:
 // WindowStream = streamWindows, SentenceStream (hissə-hissə) = decode (bütöv).
 import { readFileSync } from 'node:fs';
 import * as CT from '../src/tercume/continuous.js';
 import { preprocess } from '../src/tercume/features.js';
 
-const meta = JSON.parse(readFileSync(new URL('../ml/fixtures/continuous_v1.json', import.meta.url), 'utf8'));
-const buf = readFileSync(new URL('../ml/fixtures/continuous_v1.bin', import.meta.url));
+const meta = JSON.parse(readFileSync(new URL('../ml/fixtures/continuous_v2.json', import.meta.url), 'utf8'));
+const buf = readFileSync(new URL('../ml/fixtures/continuous_v2.bin', import.meta.url));
 const all = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
 const view = ({ offset, shape }) => all.subarray(offset, offset + shape.reduce((a, b) => a * b, 1));
 let ok = true;
@@ -36,11 +36,12 @@ console.log(`${ok ? '✅' : '❌'} axın cədvəli: ${meta.stream.length} hal`);
 // 2. decode: eyni sözlər, eyni kadrlar, ehtimal 1e-9 dəqiqliklə; hissə-hissə SentenceStream də eyni
 for (const [i, d] of meta.decode.entries()) {
   const P = view(d.probs);
-  const got = CT.decode(P, d.T, d.C, d.params, d.unknown);
+  const short = new Set(d.short);
+  const got = CT.decode(P, d.T, d.C, d.params, d.unknown, short);
   const g = got.map((s) => [s.a, s.b, s.c]), e = d.expected.map((s) => s.slice(0, 3));
   const dp = Math.max(0, ...got.map((s, j) => Math.abs(s.p - (d.expected[j]?.[3] ?? NaN))));
   if (!same(g, e) || !(dp < 1e-9)) fail(`decode ${i}: ${JSON.stringify(g)} vs ${JSON.stringify(e)} (Δp ${dp})`);
-  const ss = new CT.SentenceStream({ C: d.C, decode: d.params, unknown: d.unknown, sentenceGap: 1e9 });
+  const ss = new CT.SentenceStream({ C: d.C, decode: d.params, unknown: d.unknown, short, sentenceGap: 1e9 });
   const words = [];
   for (let t = 0; t < d.T; t += 8) {
     const k = Math.min(8, d.T - t);

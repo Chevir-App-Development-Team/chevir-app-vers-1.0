@@ -1162,4 +1162,110 @@ its test is still signer-independent, but no test sentence is new to it any more
 - `verify_cont_model.mjs`: logits within 4.3e-6 of PyTorch, argmax equal on every frame. In the app the E4
   recording gives SİZ 0.56 (22–42), AD 0.82 (42–59), NƏDİR 0.85 (59–88) and "Sizin adınız nədir ?".
 
+### What the final model still gets wrong (test, frontal camera)
+
+Words_200 clips are cut from the sentence recordings (same recording, same frames, 99 % match an annotation
+within 2 frames), so the continuous model already uses all of AzSLD's sentence data of train and val
+signers; only the 5 test signers are left out, on purpose. Of final_splice's 7,577 annotated test signs:
+
+| Outcome | Share |
+|---|---|
+| right | 0.915 |
+| missed (nothing detected there) | 0.041 |
+| another word detected | 0.034 |
+| not in the vocabulary | 0.010 |
+| detections with no sign there (of the signs) | 0.005 |
+
+- **Short signs are missed:** recall 0.336 for signs under 8 frames (211), 0.89–0.95 for longer ones.
+  The weakest words are fingerspelled letters (E 0.53, N 0.66, İ 0.66, A 0.67, L 0.67; median recall of the
+  97 words with ≥ 15 test signs 0.94). Letters and digits are 9.2 % of all signs, median 13 frames long
+  (words 22), 28 % shorter than the 10 frames that decoding requires (`min_len` 10).
+- **Confusions** are few and mostly between signs that look alike or are forms of one word: MƏN → BİZ (7),
+  SİZ → SƏN, HARA → HANSI, İSTƏMƏK → İSTƏYİR, DOĞMAQ → DOĞULMAQ (3–4 each).
+
+### Notebook 06 v7: a shorter minimum for letters (CPU, no training)
+
+Decoding v2 (`CONTINUOUS_VERSION` 2, `continuous.js` and fixture `continuous_v2` with it) takes an optional
+`min_len_short` for single-character labels: the 33 letters and digits in the vocabulary. It was chosen on
+**all** val recordings with seq_splice (v5, never saw the val signers), v5's other settings kept; then
+final_splice, the browser model, was scored on test with it. Both models came from datasets
+(`kaggle_run.py model-dataset`), evaluated on Kaggle CPU (no GPU quota).
+
+| min_len_short | 3 | 4 | 5 | **6** | 8 | 10 (= v5) |
+|---|---|---|---|---|---|---|
+| seq_splice val F1 | 0.8896 | 0.8899 | 0.8901 | **0.8901** | 0.8895 | 0.8862 |
+
+| Model, test | F1 / WER before | **F1 / WER with min_len_short 6** | Side view F1 / WER |
+|---|---|---|---|
+| seq_splice (v5), all | 0.893 / 0.143 | 0.897 / 0.136 | 0.863 / 0.182 |
+| seq_splice, unseen sentences / learnable words | 0.621 / 0.774 | 0.625 / 0.780 | |
+| **final_splice (browser)** | 0.927 / 0.105 | **0.931 / 0.097** | 0.902 / 0.136 |
+
+- final_splice: signs under 8 frames are found 0.559 of the time instead of 0.336, right 0.924 instead of
+  0.915, missed 0.032 instead of 0.041, detections with no sign there 0.006 instead of 0.005. Letters: L
+  0.667 → 0.857, Ə 0.714 → 0.837, A 0.667 → 0.772, Y 0.750 → 0.821; E, N, İ, R and 2 left the 15 weakest.
+- Installed with `install_continuous.py --eval`: the manifest takes the new decoding and test scores and
+  says `continuous_version` 2 (the browser refuses a model that needs a newer decoding). In the app the E4
+  recording reads as before (SİZ AD NƏDİR); 33 single-character labels get the shorter minimum.
+
+### Notebook 06 v8: more splicing, rarer words in the spliced sentences
+
+Its first push was refused (the weekly GPU quota of 30 h was used up); it ran after the reset. v5's protocol (held-out sentences out of
+training, from scratch, epoch chosen on val unseen sentences, learnable words), decoding chosen on val from
+v5's grid with v7's `min_len_short` 6. Two changes to seq_splice's recipe:
+
+- **splice_75:** three quarters of the samples spliced instead of half.
+- **splice_bal:** half spliced, but the spliced signs drawn with weight (signs of their word)^−0.5
+  (`splice_power`), as the loss weighs frames: MƏN is a third of all signs, and uniformly drawn signs
+  repeat a few frequent words.
+
+| Run | Best epoch | Minutes | Val F1 / WER | **Val unseen, learnable** F1 / WER | Test F1 / WER | Test unseen F1 / learnable F1 | Test side view F1 |
+|---|---|---|---|---|---|---|---|
+| seq_splice (v5, decoded as in v7) | 59 | 97 | **0.890** / 0.152 | **0.811** / 0.248 | **0.897** / 0.136 | 0.625 / 0.780 | 0.863 |
+| splice_75 | 52 | 105 | 0.860 / 0.184 | 0.797 / 0.264 | 0.861 / 0.179 | 0.599 / 0.755 | 0.818 |
+| splice_bal | 52 | 96 | 0.882 / 0.159 | 0.797 / 0.260 | 0.887 / 0.149 | 0.617 / 0.779 | 0.848 |
+
+- **Neither helps.** On val unseen sentences both are 0.014 below seq_splice (one run each, so within
+  what a seed could change, but not better), and both lose on the known sentences: three quarters spliced
+  costs 0.03 F1 there, the balanced draw 0.008. Test agrees. Half of the samples spliced, signs drawn
+  uniformly, stays the recipe; the browser model (final_splice) is unchanged.
+- Per epoch (default decoding) the three runs reach the same val unseen learnable F1 by epoch 55 (0.62),
+  while val F1 over all recordings ends at 0.769 / 0.804 / 0.812: more splicing mostly costs real-sentence
+  context, without gaining on new sentences.
+
+### Speed, and slower cameras (notebook 06 v12)
+
+**Model speed:** `tools/bench_cont_model.mjs` runs the browser model as the app does (features.js →
+onnxruntime-web WASM, one thread, this laptop): 10.7 ms per 96-frame window (p90 11.8 ms). At 30 fps the
+model runs every 8 frames, which leaves 267 ms: the model uses 4 % of it. The landmark trackers (hands,
+body) are the slow part; on a weak device they may deliver 10–20 frames a second, and the browser fills
+the stream back to 30 fps by linear interpolation (`Resampler`).
+
+**Simulated:** `continuous.camera_resample` gives a recording as a camera at a lower frame rate would
+(frames at k/fps, the nearest recorded frame), filled back to 30 fps exactly as the browser does (checked
+against `continuous.js` on the same frames: within 4.8e-7, missing points alike). Notebook 06 v12 scores
+the models at 15 and 10 fps with the decoding chosen at 30, and trains one more run under v5's protocol:
+`splice_fps`, seq_splice's recipe with half the training windows given at a random 8–30 fps
+(`fps_aug` 0.5). (Kaggle versions 9 and 10 of this notebook were killed before writing any output, with no
+message; a smoke run, version 11, completed, and version 12, the same as 10, ran through in 143 min.)
+
+| Model | 30 fps F1 / WER | 15 fps | 10 fps |
+|---|---|---|---|
+| **final_splice (browser), test** | 0.931 / 0.097 | 0.927 / 0.102 | 0.923 / 0.109 |
+| seq_splice (v5), val | 0.890 / 0.153 | 0.887 / 0.155 | 0.886 / 0.156 |
+| splice_fps, val | 0.891 / 0.155 | 0.888 / 0.159 | 0.886 / 0.159 |
+| seq_splice, test | 0.897 / 0.136 | 0.894 / 0.139 | 0.889 / 0.146 |
+| splice_fps, test | 0.897 / 0.137 | 0.897 / 0.138 | 0.892 / 0.147 |
+
+| Model | Best epoch | Val unseen learnable F1 / WER | Test unseen F1 / learnable F1 | Test side view F1 |
+|---|---|---|---|---|
+| seq_splice | 59 | 0.811 / 0.248 | 0.625 / 0.779 | 0.863 |
+| splice_fps | 51 | 0.818 / 0.236 | 0.637 / 0.795 | 0.862 |
+
+- **A slower camera costs little:** from 30 to 10 fps the browser model loses 0.008 F1 on test, the v5
+  model 0.004 on val. The interpolated stream is close enough to what the model was trained on.
+- **Training for it is not needed:** splice_fps is level with seq_splice at every frame rate on val. Its
+  0.007 on the val unseen sentences is within what one seed changes (v8: 0.014 between runs of similar
+  recipes). The browser model is unchanged.
+
 **Open:** a live-webcam test of the sentence mode; sentences from outside AzSLD signed by a real user.

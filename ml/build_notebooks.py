@@ -699,17 +699,46 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # v5 runs: seq_plain (v2's recipe), seq_splice (splice=0.5), seq_short (crop (24, 64), 48-frame stream), all with
 # select='f1_unseen_learnable'. Val unseen learnable F1 0.747 / 0.811 / 0.758 → seq_splice, epoch 59.
 # v6: the final model. seq_splice's recipe on train + val signers and every sentence, saved at epoch 59, with
-# its val decoding; test signers stay unseen (their sentences are no longer unseen).
+# its val decoding; test signers stay unseen (their sentences are no longer unseen):
+#   'final_splice': dict(BASE, splice=0.5, save_epoch=59, decode=dict(smooth=3, min_p=0.3, min_len=10, gap=2))
+# v7 (CPU, no training): fingerspelled letters and digits are short (median 13 frames, 28 % under 10) and
+# min_len 10 drops them. min_len_short (single-character labels) was chosen on all val recordings with
+# seq_splice (v5: never saw the val signers), v5's other decode settings kept (smooth 3, p >= 0.3, min_len 10,
+# gap 2): min_len_short 6. final_splice (the browser model) was then scored on test with it:
+#   'seq_splice': dict(ckpt='seq_splice', select='f1_all'),
+#   'final_splice': dict(ckpt='final_splice', decode_from='seq_splice', unseen=False),
+# v8 (GPU; its first push was refused, the weekly quota was used up): more new sentences, compared with
+# seq_splice (v5, decoded as in v7) under v5's protocol. MƏN is a third of all signs, so uniformly drawn spliced signs repeat a
+# few words; splice_power 0.5 draws them like the loss weights. Val unseen learnable F1 0.797 / 0.797 against
+# seq_splice's 0.811, val F1 0.860 / 0.882 against 0.890: seq_splice's recipe stays (E7):
+#   'splice_75': dict(BASE, splice=0.75, select='f1_unseen_learnable'),
+#   'splice_bal': dict(BASE, splice=0.5, splice_power=0.5, select='f1_unseen_learnable'),
+# v9 (CPU, no training): the browser model at lower camera frame rates. Hand and body trackers may run at
+# 10-20 fps on weaker devices; the browser fills the frames back to 30 fps by linear interpolation. Every test
+# recording as a camera at that rate would give it (continuous.camera_resample), with the model's decoding.
+#   {f'final_fps{f}': dict(ckpt='final_splice', fixed_decode=FINAL_DECODE, fps=f, unseen=False) for f in (30, 20, 15, 10)}
+# (v9 failed on Kaggle before its first cell; v10 includes its question)
+# v10 = v12 (GPU; versions 9 and 10 were killed by Kaggle without output, 11 was a smoke run, 12 ran through):
+# training windows that come as a slower camera gives them (fps_aug: half of them, at 8-30 fps,
+# refilled to 30 fps as the browser does), under v5's protocol. seq_splice (v5's model, loaded) is the
+# baseline; both are also scored at 15 and 10 fps (FPS_CHECKS) with the decoding chosen at 30.
+# final_splice (the browser model) is scored on test at the same rates, with its decoding. Result: from 30 to
+# 10 fps final_splice loses 0.008 test F1; splice_fps is level with seq_splice at every rate on val (E7).
+FPS_CHECKS = (15, 10)
+FINAL_DECODE = dict(smooth=3, min_p=0.3, min_len=10, gap=2, min_len_short=6)
 RUNS = {
-    'final_splice': dict(BASE, splice=0.5, save_epoch=59, decode=dict(smooth=3, min_p=0.3, min_len=10, gap=2)),
+    'final_splice': dict(ckpt='final_splice', fixed_decode=FINAL_DECODE, unseen=False),
+    'seq_splice': dict(ckpt='seq_splice'),
+    'splice_fps': dict(BASE, splice=0.5, fps_aug=0.5, select='f1_unseen_learnable'),
 }
 VOCAB_MIN_TRAIN = 10
 SPELLING = __SPELLING__
 MERGE = __MERGE__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
-EXCLUDE_HELDOUT = False                        # True: unseen sentences stay out of training
-TRAIN_ON_VAL = True                            # final model: val signers too (runs need save_epoch and decode)
+EXCLUDE_HELDOUT = True                         # unseen sentences stay out of training
+TRAIN_ON_VAL = False                           # final model: val signers too (runs need save_epoch and decode)
 DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
+DECODE_GRID['min_len_short'] = (6,)            # v7's choice for letters and digits
 LOOKAHEADS = (12, 40)                          # val only: shorter / longer delay than the browser's
                                                # (must stay below window - stride of every run)
 """.replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False)).replace(
@@ -724,7 +753,7 @@ if ON_KAGGLE and missing:
         *package_cells(TRAIN_MODULES + ['segment', 'segment_eval', 'continuous']),
         code("""
 import pandas as pd, numpy as np, torch
-from azsl import train as T, continuous as CT
+from azsl import train as T, continuous as CT, features as FT
 INPUT = '/kaggle/input' if ON_KAGGLE else OUT
 
 def find(pattern):
@@ -762,6 +791,8 @@ if TRAIN_ON_VAL:
     assert all(r.get('save_epoch') and r.get('decode') for r in RUNS.values()), 'final runs need save_epoch and decode'
 if EXCLUDE_HELDOUT:
     recs = recs[~((recs.split == 'train') & recs.heldout_sentence)]
+if all(r.get('ckpt') for r in RUNS.values()):   # evaluation only: no training recordings needed
+    recs = recs[recs.split != 'train']
 unseen = set(recs[recs.split.isin(['val', 'test']) & recs.heldout_sentence].rec_id)
 # words a model can know in an unseen sentence: >= 10 train signs outside the held-out sentences
 outside = tags[(tags.split == 'train') & ~tags.rec_id.isin(set(sents[sents.heldout_sentence].rec_id))]
@@ -784,29 +815,51 @@ SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, lear
         md('### Training and evaluation, one run after another'),
         code("""
 import time
-rows = []
+rows, decided = [], {}
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+def find_model(run):
+    # a run folder (best.pt + manifest.json) among the inputs, by the manifest's run name
+    for mp in glob.glob(os.path.join(INPUT, '**', 'manifest.json'), recursive=True):
+        with open(mp, encoding='utf-8') as f:
+            if json.load(f).get('run') == run and os.path.exists(os.path.join(os.path.dirname(mp), 'best.pt')):
+                return os.path.join(os.path.dirname(mp), 'best.pt')
+    raise FileNotFoundError(f'no saved model {run} among the inputs')
+
 for name, change in RUNS.items():
     out = os.path.join(OUT, 'cont', name)
+    os.makedirs(out, exist_ok=True)
     cfg = {**change, 'split_id': split_id}
     print(f'\\n===== {name}: {cfg}')
     t0 = time.time()
-    net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable)
-    # final model (TRAIN_ON_VAL): decoding fixed before (cfg['decode']), test signers still unseen
+    if cfg.get('ckpt'):        # evaluation only: a model saved before (a dataset from kaggle_run.py model-dataset)
+        net, saved, labels, epoch = CT.load_checkpoint(find_model(cfg['ckpt']), device)
+        assert labels == vocab_list, 'the saved model has other labels'
+        cfg = {**saved, **cfg}
+        res = {'best_epoch': epoch, 'params': sum(p.numel() for p in net.parameters()),
+               'n_features': len(FT.columns(cfg['groups'])), 'cfg': cfg}
+    else:
+        net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable)
+    # decoding fixed before: a final model (TRAIN_ON_VAL, cfg['decode']) or chosen by an earlier run here
+    fixed = (decided[cfg['decode_from']] if cfg.get('decode_from') else cfg.get('fixed_decode')
+             or (cfg['decode'] if TRAIN_ON_VAL else None))
     choose = {'f1_unseen': 'f1_unseen_sentences'}.get(cfg.get('select'), cfg.get('select', 'f1_all'))
     ev = CT.evaluate(net, banks, anns, vocab_list, cfg['groups'], cfg['face_drop'] < 1, net.head.weight.device,
-                     DECODE_GRID, stream=cfg.get('stream') or CT.STREAM, subsets=SUBSETS if EXCLUDE_HELDOUT else {},
-                     lookaheads=() if TRAIN_ON_VAL else LOOKAHEADS, choose=choose,
-                     fixed=cfg['decode'] if TRAIN_ON_VAL else None)
-    decode_p = ev['decode']
+                     DECODE_GRID, stream=cfg.get('stream') or CT.STREAM,
+                     subsets=SUBSETS if EXCLUDE_HELDOUT and cfg.get('unseen', True) else {},
+                     lookaheads=() if fixed or cfg.get('ckpt') else LOOKAHEADS, choose=choose, fixed=fixed,
+                     fps=cfg.get('fps'), fps_checks=FPS_CHECKS)
+    decode_p = decided[name] = ev['decode']
     pd.DataFrame(ev.pop('test_detections'), columns=['rec_id', 'start0', 'end0', 'word', 'p']).to_csv(
         os.path.join(out, 'detections_test.csv'), index=False)
     res.update({k: v for k, v in ev.items() if k != 'val_grid'})
     if ev['val_grid']:
         pd.DataFrame(ev['val_grid']).to_csv(os.path.join(out, 'grid_val.csv'), index=False)
     res['minutes'] = round((time.time() - t0) / 60, 1)
-    ok = T.export_onnx(net, os.path.join(out, 'model.onnx'), n_in=res['n_features'])
-    CT.write_manifest(out, {**CT.DEFAULTS, **cfg}, vocab_list, res, res['n_features'], ok, decode_p,
-                      stream=cfg.get('stream') or CT.STREAM)
+    if not cfg.get('ckpt'):    # a loaded model keeps its own ONNX file and manifest
+        ok = T.export_onnx(net, os.path.join(out, 'model.onnx'), n_in=res['n_features'])
+        CT.write_manifest(out, {**CT.DEFAULTS, **cfg}, vocab_list, res, res['n_features'], ok, decode_p,
+                          stream=cfg.get('stream') or CT.STREAM)
     with open(os.path.join(out, 'metrics.json'), 'w', encoding='utf-8') as f:
         json.dump(res, f, ensure_ascii=False, indent=1, default=str)
     row = {'run': name, 'best_epoch': res['best_epoch'], 'minutes': res['minutes']}

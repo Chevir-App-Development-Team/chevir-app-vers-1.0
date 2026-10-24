@@ -202,18 +202,25 @@ signs and the side camera's views (shifted by their alignment lag) are used too.
   order of AzSLD's 492 sentences cannot be learned; `crop` sets the training window lengths.
 - **Unseen sentences:** with `EXCLUDE_HELDOUT` the 49 sentences marked `heldout_sentence` stay out of
   training. Val and test report them separately (`unseen_sentences`, and `unseen_learnable` = only words
-  with training signs outside them). `select='f1_unseen'` chooses the epoch on val's unseen sentences.
+  with training signs outside them). `select='f1_unseen_learnable'` chooses the epoch on val's unseen
+  sentences, learnable words only.
 - **As in the browser:** the model runs on the last `window` frames every `stride` frames, and a frame is
   final `lookahead` frames after it (`STREAM`). Decoding (`DECODE`: smoothing, minimum probability,
-  minimum length, gap joining) is chosen on val from `DECODE_GRID`; test is scored once.
-- **Final model:** `TRAIN_ON_VAL` + `save_epoch`, as for the word model.
+  minimum length, gap joining; from `CONTINUOUS_VERSION` 2 an optional shorter `min_len_short` for
+  single-character labels, i.e. fingerspelled letters and digits) is chosen on val from `DECODE_GRID`;
+  test is scored once.
+- **Final model:** `TRAIN_ON_VAL` + `save_epoch` + its `decode`, as for the word model.
+- **Evaluation only:** a run with `ckpt='<run name>'` loads a saved model (uploaded with
+  `kaggle_run.py model-dataset`) instead of training; `decode_from='<run>'` scores test with the decoding
+  an earlier run of the same session chose. Push such a version with `--cpu`: no GPU quota is used.
 
 ```bash
-python ml/kaggle_run.py push 06 [--smoke]
+python ml/kaggle_run.py push 06 [--smoke] [--cpu]
 python ml/kaggle_run.py cont --to cont2 [--models]      # cont/ → ml/results/cont2/ (--models: + best.pt, ONNX)
 python ml/install_continuous.py ml/results/cont2/<run> --install
 node tools/verify_continuous.mjs     # streaming + decoding: JS against continuous_v<N> fixture
 node tools/verify_cont_model.mjs     # installed model: features.js + onnxruntime-web against PyTorch
+node tools/bench_cont_model.mjs      # its time per window (96 frames: ~11 ms; the budget at 30 fps is 267 ms)
 ```
 
 `install_continuous.py` records PyTorch's per-frame logits on the fixture windows

@@ -145,20 +145,23 @@ def continuous_cases():
               for st in (CT.STREAM, dict(window=64, stride=4, lookahead=12))]
     dec = []
     for i, p in enumerate([CT.DECODE, dict(smooth=1, min_p=0.3, min_len=4, gap=2), dict(smooth=9, min_p=0.35, min_len=8, gap=4),
-                           dict(smooth=3, min_p=0.4, min_len=6, gap=0)]):
+                           dict(smooth=3, min_p=0.4, min_len=6, gap=0),
+                           dict(smooth=3, min_p=0.3, min_len=10, gap=2, min_len_short=4)]):   # v2
         T, C = 180, 9
         lab = np.zeros(T, int)
         t = int(rng.integers(3, 12))
         while t < T - 5:
-            L = int(rng.integers(4, 30))
+            L = int(rng.integers(4, 12 if 'min_len_short' in p else 30))     # v2 case: letter-like short signs
             lab[t:t + L] = rng.integers(1, C)
             t += L + int(rng.integers(0, 10))
         logits = rng.normal(0, 1.0, (T, C))
         logits[np.arange(T), lab] += rng.uniform(0.5, 4.0, T)
         P = np.exp(logits) / np.exp(logits).sum(1, keepdims=True)
         unknown = C - 1 if i % 2 else None
-        exp = [[a, b, c, pm] for a, b, c, pm in CT.decode(P.astype(np.float32), p, unknown)]
-        dec.append({'T': T, 'C': C, 'params': dict(p), 'unknown': unknown, 'probs': put(P), 'expected': exp})
+        short = [1, 2, 3] if 'min_len_short' in p else []
+        exp = [[a, b, c, pm] for a, b, c, pm in CT.decode(P.astype(np.float32), p, unknown, set(short))]
+        dec.append({'T': T, 'C': C, 'params': dict(p), 'unknown': unknown, 'short': short, 'probs': put(P),
+                    'expected': exp})
     feats = []
     for T, aspect in ((96, 16 / 9), (150, 4 / 3)):
         raw = synthetic(T, rng)

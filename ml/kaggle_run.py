@@ -60,7 +60,9 @@ SETTINGS = {
     '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04', '05'],
                datasets=['azsl-model-final-side-noface']),
     # continuous recognition: whole recordings of both cameras; 04 for run 10a (the starting point)
-    '06': dict(gpu=True, internet=True, sources=[f'02-{k}' for k in range(SHARDS)] + CAM1 + ['03', '04']),
+    # datasets: models kept for evaluation-only runs (kaggle_run.py model-dataset)
+    '06': dict(gpu=True, internet=True, sources=[f'02-{k}' for k in range(SHARDS)] + CAM1 + ['03', '04'],
+               datasets=['azsl-model-seq-splice', 'azsl-model-final-splice']),
 }
 
 
@@ -89,7 +91,7 @@ def username():
     sys.exit('Could not tell the Kaggle username from the token — run with KAGGLE_USERNAME=<name> set.\n' + out)
 
 
-def stage(key, user, smoke):
+def stage(key, user, smoke, cpu=False):
     file, slug = NOTEBOOKS[key]
     d = os.path.join(STAGE, slug)
     shutil.rmtree(d, ignore_errors=True)
@@ -104,6 +106,8 @@ def stage(key, user, smoke):
     with open(os.path.join(d, file), 'w', encoding='utf-8') as f:
         json.dump(nb, f, ensure_ascii=False, indent=1)
     st = SETTINGS.get(key, dict(gpu=False, internet=True, sources=[]))
+    if cpu:                                     # e.g. 06 evaluating saved models: no GPU quota
+        st = dict(st, gpu=False)
     meta = {
         'id': f'{user}/{slug}', 'title': os.path.splitext(file)[0], 'code_file': file, 'language': 'python', 'kernel_type': 'notebook',
         'is_private': 'true', 'enable_gpu': str(st['gpu']).lower(), 'enable_internet': str(st['internet']).lower(),
@@ -135,6 +139,7 @@ def main():
                                     'model-dataset', 'cont'])
     ap.add_argument('which', nargs='?', default='all')
     ap.add_argument('--smoke', action='store_true', help='push with SMOKE = True (a few files, ~3 min)')
+    ap.add_argument('--cpu', action='store_true', help='push without a GPU (evaluation only)')
     ap.add_argument('--user', help='Kaggle username (else read from the CLI config)')
     ap.add_argument('--to', help='results: folder name under ml/results/ (default: latest)')
     ap.add_argument('--models', action='store_true', help='results: also best.pt + model.onnx (bigger downloads)')
@@ -161,7 +166,7 @@ def main():
         print(kg('kernels', 'list', '--mine', '--page-size', '5', check=False))
     elif a.cmd in ('stage', 'push'):
         for k in keys(a.which):
-            d, ref = stage(k, user or 'USERNAME', a.smoke)
+            d, ref = stage(k, user or 'USERNAME', a.smoke, a.cpu)
             if a.cmd == 'push':
                 print(f'push {ref}{" (SMOKE)" if a.smoke else ""}:', kg('kernels', 'push', '-p', d).strip())
             else:
