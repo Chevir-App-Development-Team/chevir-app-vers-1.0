@@ -40,6 +40,7 @@ DEFAULTS = dict(TR.DEFAULTS, epochs=80, batch=32, crop=(48, 160), repeats=2, edg
                 splice_power=0.0,    # spliced signs drawn with weight (signs of their word)^-power; 0 = uniform
                 fps_aug=0.0,         # P(a training window comes as a slower camera gives it, refilled to 30 fps)
                 fps_min=8.0,         # its frame rate: uniform in [fps_min, 30]
+                spell=0.0,           # P(a training sample is a spelled sequence: 3-8 letter signs of other recordings)
                 stream=None)         # browser streaming (window, stride, lookahead); None = STREAM
 
 
@@ -179,22 +180,27 @@ class SeqDataset(torch.utils.data.Dataset):
     """Train: a random window of each recording, augmented like the isolated signs (the labels follow the
     resampled frames). With `splice`, a sample is instead a new sentence: 2–6 signs (each with its
     transition) from random recordings of the same camera, moved to one body position and joined with a
-    3-frame cross-fade, so the model cannot lean on the 492 sentences' word order. Eval: the whole
-    recording through features.preprocess (no length cap)."""
+    3-frame cross-fade, so the model cannot lean on the 492 sentences' word order. With `spell`, a sample is
+    a spelled sequence the same way, 3–8 signs of the `short` labels (fingerspelled letters and digits), drawn
+    with weight (signs of their letter)^-0.5: fast letter-to-letter runs are where letters are lost. Eval: the
+    whole recording through features.preprocess (no length cap)."""
 
     def __init__(self, bank, train=False, groups=None, face=True, crop=(48, 160), face_drop=0.0, splice=0.0,
-                 splice_power=0.0, fps_aug=0.0, fps_min=8.0):
+                 splice_power=0.0, fps_aug=0.0, fps_min=8.0, spell=0.0, short=()):
         self.bank, self.train, self.groups, self.face, self.crop, self.face_drop = bank, train, groups, face, crop, face_drop
         self.fps_aug, self.fps_min = fps_aug, fps_min
         self.cols = FT.columns(groups) if groups else None
-        self.splice = splice
-        self.units = sign_units(bank) if train and splice else None
+        self.splice, self.spell = splice, spell
+        self.units = sign_units(bank) if train and (splice or spell) else None
         self.cdf = {k: unit_cdf(u, splice_power) for k, u in self.units.items()} if self.units else None
+        if self.units and spell:
+            self.letters = {k: [x for x in u if x[3] in short] for k, u in self.units.items()}
+            self.letter_cdf = {k: unit_cdf(u, 0.5) for k, u in self.letters.items()}
 
-    def _spliced(self, rng, side):
-        units, cdf = self.units[side], self.cdf[side]
+    def _spliced(self, rng, side, letters=False):
+        units, cdf = (self.letters[side], self.letter_cdf[side]) if letters else (self.units[side], self.cdf[side])
         parts, ys, aspect, ref = [], [], None, None
-        for _ in range(int(rng.integers(2, 7))):
+        for _ in range(int(rng.integers(3, 9) if letters else rng.integers(2, 7))):
             i, a, b, _ = units[min(int(np.searchsorted(cdf, rng.random(), side='right')), len(units) - 1)]
             raw, y, asp, _ = self.bank.get(i)
             raw = {k: v[a:b].astype(np.float32) for k, v in raw.items()}
@@ -221,8 +227,10 @@ class SeqDataset(torch.utils.data.Dataset):
         if not self.train:
             return torch.from_numpy(FT.preprocess(raw, aspect, self.groups, self.face, max_len=None)), torch.from_numpy(y)
         rng = np.random.default_rng()
-        if self.units and rng.random() < self.splice:
-            side = bool(self.units[True]) and '|side' in self.bank.get(i)[3]
+        side = bool(self.units) and bool(self.units[True]) and '|side' in self.bank.get(i)[3]
+        if self.units and self.spell and self.letters[side] and rng.random() < self.spell:
+            raw, y, aspect = self._spliced(rng, side, letters=True)
+        elif self.units and self.splice and rng.random() < self.splice:
             raw, y, aspect = self._spliced(rng, side)
         T, L = len(y), int(rng.integers(self.crop[0], self.crop[1] + 1))
         if T > L:
@@ -497,7 +505,8 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
     dl = torch.utils.data.DataLoader(SeqDataset(tr, train=True, groups=groups, face=face, crop=tuple(cfg['crop']),
                                                 face_drop=cfg['face_drop'], splice=cfg['splice'],
                                                 splice_power=cfg['splice_power'], fps_aug=cfg['fps_aug'],
-                                                fps_min=cfg['fps_min']),
+                                                fps_min=cfg['fps_min'], spell=cfg['spell'],
+                                                short=short_classes(vocab_list)),
                                      batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
                                      collate_fn=collate, drop_last=True, persistent_workers=cfg['workers'] > 0,
                                      pin_memory=device.type == 'cuda')

@@ -723,13 +723,17 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # refilled to 30 fps as the browser does), under v5's protocol. seq_splice (v5's model, loaded) is the
 # baseline; both are also scored at 15 and 10 fps (FPS_CHECKS) with the decoding chosen at 30.
 # final_splice (the browser model) is scored on test at the same rates, with its decoding. Result: from 30 to
-# 10 fps final_splice loses 0.008 test F1; splice_fps is level with seq_splice at every rate on val (E7).
-FPS_CHECKS = (15, 10)
-FINAL_DECODE = dict(smooth=3, min_p=0.3, min_len=10, gap=2, min_len_short=6)
+# 10 fps final_splice loses 0.008 test F1; splice_fps is level with seq_splice at every rate on val (E7):
+#   'splice_fps': dict(BASE, splice=0.5, fps_aug=0.5, select='f1_unseen_learnable'),
+# v13 (GPU): letters. In sentences they are rarely taken for another letter (0.5 % of test letters) but lost in
+# fast spelled runs (A-D-A, M-E-S-S-İ): 5.4 % absorbed by a neighbour, 2.6 % missed. AzSLD's fingerspelling photos
+# only teach hand shapes, so instead spell = P(a sample is 3-8 letter signs of other recordings in a row), taken
+# before the splice draw. Scored also on 'letters' (recordings with letters, letter signs only).
+FPS_CHECKS = ()
 RUNS = {
-    'final_splice': dict(ckpt='final_splice', fixed_decode=FINAL_DECODE, unseen=False),
     'seq_splice': dict(ckpt='seq_splice'),
-    'splice_fps': dict(BASE, splice=0.5, fps_aug=0.5, select='f1_unseen_learnable'),
+    'splice_spell15': dict(BASE, splice=0.5, spell=0.15, select='f1_unseen_learnable'),
+    'splice_spell30': dict(BASE, splice=0.5, spell=0.3, select='f1_unseen_learnable'),
 }
 VOCAB_MIN_TRAIN = 10
 SPELLING = __SPELLING__
@@ -811,6 +815,8 @@ banks = CT.load_recordings(sentence_dirs, recs, anns, index, unknown=T.UNKNOWN, 
                            side=(side_dirs, dict(zip(good.id, good.lag))))
 banks['val_unseen'] = CT.subset(banks['val'], unseen)          # per-epoch score on sentences never trained on
 SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, learnable)}
+letters = {g for g in words if len(g) == 1}                 # fingerspelled letters and digits
+SUBSETS['letters'] = (set(tags[tags.gloss.isin(letters)].rec_id), letters)   # their recordings, letters only
 """),
         md('### Training and evaluation, one run after another'),
         code("""
