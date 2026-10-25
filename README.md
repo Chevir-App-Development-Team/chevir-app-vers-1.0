@@ -12,14 +12,14 @@ Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında tərcümə: lay
 | Modul | Nə edir |
 |---|---|
 | **Jest → Mətn** | Veb-kamera → MediaPipe Hands → 20×63 → model → beam search + leksikon → Azərbaycan sözü |
-| **Mətn → Jest** | Mətn → söz işarələri (292 söz) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
+| **Mətn → Jest** | Mətn → söz işarələri (786 söz, söz formaları ilə) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
 
 Tərcümə üçün server yoxdur: video cihazdan çıxmır, gecikmə minimaldır, sayt statik fayl
 kimi hər yerdə host oluna bilər (jest dili videosu istifadəçinin üzünü daşıyır — məxfilik
 təsadüfi seçim deyil).
 
 > **Hazırkı həcm:** kamera yalnız barmaq əlifbasını tanıyır — 32 hərf və boşluq / enter /
-> backspace. Avatar isə 292 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
+> backspace. Avatar isə 786 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
 > Kameradan söz səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
 
 ## İşə salmaq
@@ -80,6 +80,7 @@ src/
     hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
     s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
     words.js             söz lüğəti: mətni söz / ifadə / hərflərə bölür, sözü lazım olanda yükləyir
+    morph.js             söz formaları: şəkilçili sözü lüğətin sözünə gətirir (evdə → ev)
     skeleton.js          Three.js cyber skeleton (UnrealBloom)
     retarget.js          landmark → avatar: əl oriyentasiyası, qol IK, oynaq həddləri
     vrm.js               VRM 1.0 avatar: yaylı animasiya, nəfəs, göz qırpma, istirahət
@@ -98,7 +99,11 @@ tools/
   build_lexicon.py       model/lexicon.txt → bigram DM + lüğət + prefikslər
   build_poses.py         AzSLD şəkilləri → poses.json (+ model yoxlaması)
   build_words.py         AzSLD söz videoları → public/tercume/words/ (poza + iki əl)
-  build_sentence_words.py  AzSLD Sentences-dən yeni sözlər kəsib lüğətə əlavə edir
+  build_sentence_words.py  AzSLD Sentences-dən yeni sözlər kəsib lüğətə əlavə edir (HTTP range ilə)
+  build_avatar_words.py  yerli AzSLD-dən bütün işarələr → public/tercume/words/ (poza, iki əl, üz)
+  azsld_zip.py           AzSLD zip-indən tək videonu açmadan oxuyur
+  stereo_depth.py        yan kamera ilə yoxlama: pose lite / heavy-nin dərinliyi hansı düzgündür
+  eval_text_gloss.mjs    mətn → işarə ardıcıllığı, AzSLD-nin 492 cümləsi üzərində
   verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
                          verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch;
                          verify_segment.mjs: söz rejiminin bölücüsü ↔ Python)
@@ -128,6 +133,7 @@ python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt
 .venv/bin/python tools/build_poses.py      # AzSLD şəkilləri → poses.json
 .venv/bin/python tools/build_words.py      # AzSLD söz videoları → public/tercume/words/
 .venv/bin/python tools/build_sentence_words.py --count 100   # cümlələrdən yeni sözlər
+.venv/bin/python -I tools/build_avatar_words.py   # yerli data/azsld/-dən bütün lüğət (~1 saat, 22 proses)
 ```
 
 `build_poses.py` üçün AzSLD Fingerspelling datasetini (Zenodo 14222948, ~1.1 GB)
@@ -262,9 +268,25 @@ yana və ya arxaya bükülmə anatomik mümkün deyilsə, avatar onu təkrarlam�
 
 ## Söz işarələri
 
-292 söz və ifadə (AzSLD, CC BY 4.0; tək hərfli etiketlər barmaq əlifbası ilə qarışdığı üçün
-buraxılıb). Mətn sözlərə bölünür və ən uzun uyğunluq axtarılır: "zəhmət olmasa", "bu gün"
-bütöv işarədir, lüğətdə olmayan söz hərf-hərf göstərilir.
+786 söz və ifadə (AzSLD, CC BY 4.0): cümlə datasetində ən azı 3 dəfə annotasiya olunmuş hər işarə
+(tək hərflər barmaq əlifbasıdır, "o" isə əvəzlikdir). Mətn sözlərə bölünür və ən uzun uyğunluq
+axtarılır: "zəhmət olmasa", "bu gün" bütöv işarədir, lüğətdə olmayan söz hərf-hərf göstərilir.
+
+**Lüğətin qurulması** (`tools/build_avatar_words.py`, dataset yerli `data/azsld/`-dədir). Hər işarə
+üçün 8-ə qədər fərqli siqnalçının nümunəsi emal olunur (MediaPipe Pose lite + Hands + Face, VIDEO
+rejimi — kadrdan kadra izləmə, titrəmə iki dəfə az) və ən tipik təmiz nümunə seçilir: keyfiyyəti
+yaxşı olanlardan digərlərinə DTW ilə ən yaxın olan (medoid). Annotasiyadakı yazı xətaları
+(YARDİM → yardım, QİRMİZİ → qırmızı) cümlə mətnlərinin sözləri ilə düzəldilir. Pose heavy şəkildə
+biləyi daha dəqiq tapır və yan kamera ilə yoxlamada (`tools/stereo_depth.py`, E11) əlin bədəndən nə
+qədər irəlidə olduğunu düzgün görən odur: öndən və yandan təxminləri uyğun gəlir (r 0.79), lite-ninki
+isə demək olar sabit təxmindir (r 0.06). Lüğət hələlik lite ilədir: avatarın qol həlli ona
+uyğundur, heavy ilə isə (sinə təması ilə də) əllər və qollar gövdəyə daha tez-tez girir (E12).
+Heavy variantının kodu hazırdır: `build_avatar_words.py --pose-model data/models/pose_landmarker_heavy.task
+--chest` sinə xəttini lüğətin özündən ölçür (index.json-da `chest`), avatar isə gövdə önündə
+dərinliyi siqnalçının sinəsindən ölçür və sinəyə toxunan əli öz sinəsinə köçürür. Hər kadrda üz də saxlanılır: 51 blendshape və
+başın fırlanması (`f`); avatar onları VRM ifadələrinə (ağız formaları, göz, qaşlar) və başın
+hərəkətinə çevirir. Standart avatarın (`avatar.vrm`) üzündə morph target yoxdur, ona görə üz
+ifadəsi yalnız qadın avatarında görünür.
 
 İki mənbə var: **Words 200** (təkbaşına çəkilmiş kliplər) və **Sentences** (cümlə videoları,
 hər sözün kadr aralığı etiketlənib — 10 104 cümlə, ~49 000 söz nümunəsi, 841 fərqli söz).
@@ -272,6 +294,14 @@ hər sözün kadr aralığı etiketlənib — 10 104 cümlə, ~49 000 söz nümu
 43.8 GB-lıq arxiv endirilmir, zip-in kataloqu oxunub yalnız lazımi fayllar HTTP range ilə
 götürülür (Cam2 — 1280×960, annotasiyadakı kadr nömrələri ona aiddir). Hər sözün faylında
 mənbə qeydi saxlanılır: hansı cümlədən, hansı kadr aralığından kəsilib.
+
+**Söz formaları.** Mətndəki söz çox vaxt şəkilçilidir ("evdə", "anam", "yaşayıram"), işarə isə
+sözün lüğət formasıdır. `src/tercume/morph.js` sözü sağdan şəkilçilərə bölür (sıra gözlənilir: zaman,
+cəm, mənsubiyyət, hal, xəbərlik, şəxs, sual), səs dəyişmələrini bərpa edir (uşağ → uşaq, ged → get,
+oğl → oğul) və kökü lüğətin sözləri ilə tutuşdurur: evdə → ev, yaşayıram → yaşamaq. İnkarlı fel
+ayrıca işarədir və ayrıca qalır: bilmirəm → bilmir. Kiçik hərfli mətndə böyük hərflərlə yazılmış
+qısaltma (DOST) hərf-hərf göstərilir. AzSLD-nin 492 cümləsində sözlərin 47 %-i əvəzinə 75–77 %-i
+işarə ilə göstərilir (`node tools/eval_text_gloss.mjs`, nəticələr: `ml/EXPERIMENTS.md` E9).
 
 Söz id-ləri fayl adı və URL üçün yalnız `[a-z0-9-]` olur; transliterasiya iki sözü eyni id-yə
 gətirəndə (şəhər və səhər → `seher`) sıra nömrəsi əlavə olunur (`seher-2`), göstərilən mətn
@@ -297,9 +327,15 @@ Avatarda (`vrm.js`, `setWordPose`) hər iki qol birlikdə qurulur:
 5. Dizin üstündə dayanan (işarədə iştirak etməyən) əl istirahətə enir; baza əl qalır.
 6. Kamera bütün işarəni — hər iki əlin bütün kadrlarını — kadra sığdırır.
 
-292 söz üzrə brauzerdə ölçülüb: ovucun hədəfdən məsafəsi median 2 sm (90% — 7 sm-dən az),
-barmaqların başa və gövdəyə girməsi ≤ 1 sm (hər biri 1 sözdə), kadrdan çıxan əl yoxdur,
-bilək həddini azca aşan söz 6. Söz fayllarının formatı və mətnin bölünməsi:
+Əllərin bir-birinə toxunduğu işarələrdə (BİRLİKDƏ, TƏZYİQ, KİTAB, MƏSƏLƏ; 38 söz, sözün
+siqnalçılarının çoxunda barmaqlar 1.6 sm-dən yaxındır, `contact`) barmaqlar bir-birinin arasından
+keçir, ovuc o biri əlin üstündə olur. Avatar belə sözdə siqnalçının öz əllərinin üst-üstə düşməsinə
+(2.5 sm-ə qədər) icazə verir və iki ovucun nisbətini qoruyur; qalan sözlərdə əllər bir-birinə keçmir (E13).
+
+786 söz üzrə brauzerdə ölçülüb (`node tools/measure_hands.mjs`): ovucun hədəfdən məsafəsi median
+1.2 sm (90% — 3.7 sm-dən az), ovucu gövdəyə 5 mm-dən çox girən söz 302, əli kadrdan çıxan söz 16,
+biləyin sərt həddini aşan söz 20, iki əlin siqnalçınınkından dərin bir-birinə keçdiyi söz 3 (heavy
+və sinə təması ilə: ovuc gövdədə 442, kadrdan çıxan 13, bilək 39; E12). Söz fayllarının formatı və mətnin bölünməsi:
 
 ```bash
 node tools/verify_words.mjs

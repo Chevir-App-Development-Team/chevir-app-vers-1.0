@@ -28,6 +28,7 @@ await server.listen();
 const url = server.resolvedUrls.local[0];
 const browser = await puppeteer.launch({
   headless: true,
+  protocolTimeout: 60 * 60 * 1000,      // bütün lüğət bir page.evaluate-dir (786 söz ~ dəqiqələr)
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=1280,900'],
   defaultViewport: { width: 1280, height: 900 },
 });

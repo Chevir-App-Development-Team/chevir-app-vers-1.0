@@ -28,6 +28,20 @@ const PAUSE_TO_REST = 0.9;   // s — yeni poza gəlməsə qol aşağı enir
 const BODY = ['spine', 'chest', 'upperChest', 'neck', 'head'];
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
 const DEG = Math.PI / 180;
+// Söz işarəsinin üzü (tools/build_avatar_words.py, kadrın `f` sahəsi): MediaPipe-in blendshape-ləri
+// VRM-in standart ifadələrinə. Hər blendshape lüğətdəki öz diapazonuna görə ölçülür: median
+// (siqnalçıların sakit üzü) → 0, 99-cu faiz → tam (MediaPipe-in dəyərləri sıxılmışdır: ağzın
+// geniş açılması belə jawOpen ≈ 0.16). Ağız formaları (aa, ih, ou, ee, oh) dodaqların hərəkətidir;
+// surprised / angry yalnız qaşlar üçündür, bütün üzü dəyişdikləri üçün zəif saxlanılır.
+const FACE_MAP = {
+  aa: [['jawOpen'], 0.8], oh: [['mouthFunnel'], 0.6], ou: [['mouthPucker'], 0.6],
+  ee: [['mouthStretchLeft', 'mouthStretchRight'], 0.5], ih: [['mouthSmileLeft', 'mouthSmileRight'], 0.6],
+  blink: [['eyeBlinkLeft', 'eyeBlinkRight'], 1],
+  surprised: [['browInnerUp', 'browOuterUpLeft', 'browOuterUpRight'], 0.6],
+  angry: [['browDownLeft', 'browDownRight'], 0.5],
+};
+const VISEMES = ['aa', 'ih', 'ou', 'ee', 'oh'];
+const HEAD_MAX = 20 * DEG;      // başın sözdəki hərəkəti (baş sallama, yelləmə) bu həddə qədər
 
 const CONTACT = [4, 8, 12, 16, 20, 5, 17];   // üzə toxuna bilən əl nöqtələri: barmaq ucları və ovucun kənarları
 const TIP_BONES = ['ThumbDistal', 'IndexDistal', 'MiddleDistal', 'RingDistal', 'LittleDistal'];
@@ -44,6 +58,9 @@ const R_FOREARM = 0.030;
 const R_UPPERARM = 0.040;
 // Oynatmada əllərin bir-birinə girməsinə icazə (metr): səthlər toxuna bilər, keçə bilməz
 const GUARD_SLACK = 0.003;
+// Əllərin toxunduğu işarədə (sözün `contact` işarəsi) siqnalçının barmaqları bir-birinin arasından
+// keçə, ovucu o biri əlin üstündə ola bilər: avatar da siqnalçının özü qədər üst-üstə düşür, ən çoxu bu qədər
+const OVERLAP_MAX = 0.025;
 
 const FINGER_BONE_NAMES = {
   Thumb: ['Metacarpal', 'Proximal', 'Distal'],
@@ -245,6 +262,9 @@ export class VrmAvatar {
     this.life = true;              // false → nəfəs/baş/göz qırpma söndürülür (ölçmə üçün)
     this.guard = true;             // false → oynatmada əllər arası qoruyucu söndürülür (ölçmə üçün)
     this.blink = { next: 1.5 + Math.random() * 2, t: -1 };
+    // Üz: hədəf və cari ifadə çəkiləri, başın sözdəki fırlanması (radian, x/y/z)
+    this.face = { target: {}, cur: {}, head: [0, 0, 0], headCur: [0, 0, 0] };
+    this.faceCache = new WeakMap();
     this.lastPose = null;
     this.last = null;              // son həll (sazlama və ölçmə üçün)
     this.lastTime = performance.now();
@@ -435,6 +455,45 @@ export class VrmAvatar {
     this.idle = 0;
     this.last = { word, frame, ...sol };
     this.#frameCamera('word', this.#wordBounds(word));
+    const face = this.#wordFace(word)[frame];
+    this.face.target = face?.w ?? {};
+    this.face.head = face?.h ?? [0, 0, 0];
+  }
+
+  /**
+   * Sözün kadrlarında üz: ifadə çəkiləri və başın fırlanması. Blendshape lüğət üzrə medianı
+   * (`faceNeutral`, sakit üz) ilə 99-cu faizi (`faceFull`) arasında ölçülür. Başın fırlanmasından
+   * sözün öz medianı çıxılır: kameraya görə duruş siqnalçıdan asılıdır, sözün içindəki
+   * hərəkət (baş sallama, yelləmə, əyilmə) isə işarəyə aiddir.
+   */
+  #wordFace(word) {
+    if (this.faceCache.has(word)) return this.faceCache.get(word);
+    const keys = word.faceKeys ?? [];
+    const idx = new Map(keys.map((k, i) => [k, i]));
+    const neutral = word.faceNeutral ?? keys.map(() => 0);
+    const full = word.faceFull ?? keys.map(() => 100);
+    const heads = word.frames.filter((fr) => fr.f).map((fr) => fr.f.h);
+    const med = [0, 1, 2].map((k) => {
+      const v = heads.map((h) => h[k]).sort((a, b) => a - b);
+      return v.length ? v[v.length >> 1] : 0;
+    });
+    const out = word.frames.map((fr) => {
+      if (!fr.f || !keys.length) return null;
+      const val = (k) => {
+        const i = idx.get(k);
+        return i == null ? 0 : Math.min(1, Math.max(0, (fr.f.s[i] - neutral[i]) / Math.max(5, full[i] - neutral[i])));
+      };
+      const w = {};
+      for (const [name, [src, cap]] of Object.entries(FACE_MAP)) {
+        w[name] = cap * src.reduce((a, k) => a + val(k), 0) / src.length;
+      }
+      const lips = VISEMES.reduce((a, k) => a + w[k], 0);
+      if (lips > 1) for (const k of VISEMES) w[k] /= lips;
+      const h = fr.f.h.map((v, k) => Math.max(-HEAD_MAX, Math.min(HEAD_MAX, (v - med[k]) * DEG)));
+      return { w, h };
+    });
+    this.faceCache.set(word, out);
+    return out;
   }
 
   /** Sözü əvvəlcədən həll edir (oynatmadan qabaq, ilk kadrda ləngimə olmasın). */
@@ -499,7 +558,7 @@ export class VrmAvatar {
     let sol = this.#words.get(word);
     if (sol) return sol;
     sol = word.frames.map(() => ({ left: null, right: null }));
-    const places = word.frames.map((fr) => (fr.b ? this.#signerToAvatar(fr.b) : null));
+    const places = word.frames.map((fr) => (fr.b ? this.#signerToAvatar(fr.b, word.chest) : null));
     const scale = this.#wordScale(word);
     const avoid = this.#avoidBody();
     const ang = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b))));   // iki dönmə arasında bucaq
@@ -529,7 +588,7 @@ export class VrmAvatar {
         const frameGap = 2 * Math.acos(Math.min(1, Math.abs(target.R.clone().multiply(target.shapeRinv).w)));
         if (frameGap > 50 * DEG) target = handTarget(rig, { norm, size: word.size, flipDepth: flipN });
         let anchor = this.#keepOut(this.#wordPalm(place, fr.b[wrist], hand.w, flip, rig, scale));
-        const elbow = place.body(fr.b[wrist - 2]);
+        const elbow = this.#elbowOut(place.raw(fr.b[wrist - 2]));
         let arm = solveArm(rig, target.R, anchor, null, { elbow, shiftCost: 300, avoid });
         // Barmaqların forması metrik landmark-lardan məcburi götürülür (əlin tərəfi düzgün
         // olsun), oriyentasiya isə şəkil landmark-larının dərinliyindən gəlir və o, səs-küylü
@@ -618,6 +677,13 @@ export class VrmAvatar {
       const fr = word.frames[f];
       if (!L || !R || !fr.L || !fr.R || !fr.b) continue;
       const place = places[f];
+      // Hədəf aralıq datadan: əllərin toxunduğu sözdə siqnalçının əlləri bu kadrda bir-birinə
+      // keçirsə (barmaqlar arası, ovuc ovucun üstündə), avatar da o qədər keçə bilər; qalan
+      // hallarda səthlər toxunur, datada aralıdırsa tam aralıq
+      const sb = signerGap(fr, L.flip, R.flip, this.handShape, scale);
+      const overlap = word.contact === true && sb < -MESH;
+      const want = overlap ? Math.max(sb, -OVERLAP_MAX) : THREE.MathUtils.clamp(sb, MESH, FULL);
+      sol[f].allow = overlap ? want : null;
 
       // 1. Nisbi həndəsə: siqnalçının ovucları arasındakı vektor əl ölçüsünə görə köçürülür
       const sg = handGap(fr);
@@ -631,7 +697,10 @@ export class VrmAvatar {
         // Hər əl ən çoxu 4 sm tərpənir: data ilə bədən xəritəsi arasındakı böyük fərq
         // adətən pozanın səhvidir. İstisna: data əlləri indikindən açıq-aşkar aralı
         // göstərirsə, pozanı qorumaq əlləri bir-birinin içində saxlamaq deməkdir.
-        const cap = rel.length() - L.anchor.distanceTo(R.anchor) > 0.03 ? 0.07 : 0.04;
+        // Əllərin toxunduğu sözdə (sözün `contact` işarəsi) iki ovucun bir-birinə nisbəti işarənin
+        // özüdür (ovuc ovucun üstündə, barmaqlar arası): hər əl 10 sm-ə qədər tərpənə bilər. Əks
+        // halda üzə yaxın əl üzə, o biri bədənə görə yerləşir və toxunan əllər aralanır.
+        const cap = word.contact === true ? 0.10 : rel.length() - L.anchor.distanceTo(R.anchor) > 0.03 ? 0.07 : 0.04;
         if (wantL.distanceTo(L.anchor) < cap && wantR.distanceTo(R.anchor) < cap) {
           this.#reanchor(L, 'left', wantL);
           this.#reanchor(R, 'right', wantR);
@@ -655,7 +724,7 @@ export class VrmAvatar {
         return this.#bodyGap('left', L).gap >= bodyFloor.left && this.#bodyGap('right', R).gap >= bodyFloor.right;
       };
       const probe0 = this.#probeGap(L, R);
-      if (probe0 && probe0.gap < 0) {
+      if (probe0 && probe0.gap < Math.min(0, want)) {
         bodyOk();                                     // başlanğıc bədən aralığı yadda saxlanır
         for (const [side, c, oside, other] of [['left', L, 'right', R], ['right', R, 'left', L]]) {
           const caps = prepareCapsules(
@@ -679,8 +748,6 @@ export class VrmAvatar {
       //    toxunan işarədə yalnız həndəsənin tələb etdiyi qədər (barmaq üst-üstə düşməsin),
       //    datada aralı olan işarədə tam aralıq. Ayırma oxu iki ovucun arasıdır: ən yaxın
       //    nöqtələrin oxu əli bədənə və ya arxaya itələyə bilər.
-      const sb = signerGap(fr, L.flip, R.flip, this.handShape, scale);
-      const want = THREE.MathUtils.clamp(sb, MESH, FULL);
       const palmAxis = R.anchor.clone().sub(L.anchor);
       if (palmAxis.lengthSq() < 1e-8) continue;
       palmAxis.normalize();
@@ -1184,10 +1251,13 @@ export class VrmAvatar {
       const PL = this.#handPoints('left'), PR = this.#handPoints('right');
       const parts = { left: this.#contactParts('left', PL), right: this.#contactParts('right', PR) };
       const hit = closestParts(parts.left, parts.right, armOnly);
-      // Toxunmaq olar (aralıq ≈ 0 — toxunan işarələr belə qalır), bir-birinə keçmək olmaz
-      if (!hit || hit.gap >= -GUARD_SLACK) return;
+      // Toxunmaq olar (aralıq ≈ 0 — toxunan işarələr belə qalır), bir-birinə keçmək olmaz; əllərin
+      // toxunduğu sözdə isə siqnalçının özü qədər keçmək olar (bu kadrın `allow`-u, #fixTwoHanded)
+      const allow = this.mode === 'sign' && this.last?.allow != null ? this.last.allow : 0;
+      const slack = Math.max(GUARD_SLACK, -allow + GUARD_SLACK);
+      if (!hit || hit.gap >= -slack) return;
       // Bir addımda ən çoxu 2 sm (üç qatı 6 sm): daha böyük girmə yayın deyil, həllin səhvidir
-      const need = Math.min(-GUARD_SLACK - hit.gap + 0.001, 0.02);
+      const need = Math.min(-slack - hit.gap + 0.001, 0.02);
       const S = { left: shoulder.left.getWorldPosition(new THREE.Vector3()),
                   right: shoulder.right.getWorldPosition(new THREE.Vector3()) };
       const contact = { left: hit.pa, right: hit.pb };
@@ -1240,7 +1310,7 @@ export class VrmAvatar {
       let best = null;
       for (const k of [1, 2, 3]) {
         best = trial(dir, k);
-        if (best.gap >= -GUARD_SLACK) break;
+        if (best.gap >= -slack) break;
       }
       if (best.gap <= hit.gap + 0.0005) return;                   // heç bir istiqamət açmır
       let moved = false;
@@ -1327,8 +1397,14 @@ export class VrmAvatar {
    * yaxın nöqtə (yanaq, çənə, qulaq) burundan ölçülüb avatarın üzünə köçürülür;
    * arada iki yerləşmə məsafəyə görə qarışdırılır. Pozanın dərinliyi zəifdir
    * (qulaqdakı əl burundan önə düşür), ona görə üzə yaxın dərinlik yarıya sıxılır.
+   *
+   * Gövdə önündə dərinlik siqnalçının SİNƏSİNDƏN ölçülür (`chest`, lüğətdən: sinə xətti
+   * çiyin enləri ilə, irəli = a + b × hündürlük; oturan siqnalçı kameraya əyilir, ona görə
+   * xətt mailidir) və avatarın ölçülmüş gövdə səthinin önünə köçürülür: sinəyə toxunan əl
+   * avatarın sinəsinə toxunur, içinə girmir. Çiyinlərdən yuxarıda və gövdənin yanlarında
+   * köhnə (çiyinlərə nisbətən) yerləşmə qalır.
    */
-  #signerToAvatar(b) {
+  #signerToAvatar(b, chest = null) {
     const P = b.map(([x, y, z]) => new THREE.Vector3(x, -y, -z));
     const mid = P[1].clone().add(P[2]).multiplyScalar(0.5);
     const ax = P[1].clone().sub(P[2]);
@@ -1339,9 +1415,28 @@ export class VrmAvatar {
     const fwd = new THREE.Vector3().crossVectors(ax, up);
     const vec = ([x, y, z]) => new THREE.Vector3(x, -y, -z);
     const local = (d, depth = 1) => new THREE.Vector3(d.dot(ax), d.dot(up), depth * d.dot(fwd));
+    const sw = this.body.shoulderWidth / k;                     // siqnalçının çiyin eni (m)
+    const raw = (q) => local(vec(q).sub(mid)).multiplyScalar(k).add(this.body.mid);
+    /** Siqnalçının sinəsindən irəli (m); sinə xətti yoxdursa Infinity. */
+    const chestGap = (q) => {
+      if (!chest) return Infinity;
+      const l = local(vec(q).sub(mid));
+      return l.z - (chest.a + chest.b * l.y / sw) * sw;
+    };
+    /** Gövdə önündə dərinlik sinədən: siqnalçının sinəsindən aralıq avatarın sinəsinin önünə (+margin). */
+    const onChest = (q, margin = 0) => {
+      const p = raw(q);
+      const front = chest && this.#torsoFront(p);
+      if (!front) return p;
+      p.z += (front.z + Math.max(0, chestGap(q)) * k + margin - p.z) * front.w;
+      return p;
+    };
     return {
-      /** Çiyinlərə nisbətən yer (dirsək, gövdə önündəki əl). */
-      body: (q) => local(vec(q).sub(mid)).multiplyScalar(k).add(this.body.mid),
+      /** Çiyinlərə nisbətən yer (dirsək). */
+      raw,
+      /** Gövdə önündəki nöqtə: dərinlik sinədən ölçülür (sinə xətti varsa). */
+      body: (q, margin = 0) => onChest(q, margin),
+      chestGap,
       /** Burundan ölçülən yer, dərinlik yarıya sıxılır. */
       face: (q) => local(vec(q).sub(P[0]), 0.5).multiplyScalar(k).add(this.body.nose),
       /** Üzə yaxınlıq: 1 — üzdə, 0 — ≥26 sm uzaqda. */
@@ -1361,7 +1456,22 @@ export class VrmAvatar {
    */
   #wordPalm(map, wrist, hand, flip, rig, scale) {
     const palm = signerPoint(wrist, hand, 'palm', flip);
-    const body = map.body(palm);
+    let body = map.body(palm);
+    // Sinəyə toxunan işarədə (MƏN — barmaq sinədə) sinəyə ən yaxın əl nöqtəsi avatarın sinəsinə
+    // qoyulur (barmağın qalınlığı qədər önə) və ovuc ondan əlin öz ölçüsü ilə geri hesablanır.
+    let tip = null, tipGap = map.chestGap(palm);
+    for (const j of CONTACT) {
+      const q = signerPoint(wrist, hand, j, flip);
+      const g = map.chestGap(q);
+      if (g < tipGap) { tipGap = g; tip = q; }
+    }
+    if (tip && Number.isFinite(tipGap)) {
+      const w = 1 - THREE.MathUtils.smoothstep(tipGap, 0.04, 0.10);
+      if (w > 0) {
+        const back = map.dir(palm.map((v, k) => v - tip[k])).multiplyScalar(scale);
+        body = body.lerp(map.body(tip, R_FINGER + 0.004).add(back), w);
+      }
+    }
     let contact = palm, near = map.near(palm);
     for (const j of CONTACT) {
       const q = signerPoint(wrist, hand, j, flip);
@@ -1480,6 +1590,41 @@ export class VrmAvatar {
     return { slices: smooth, yMin, yMax, head };
   }
 
+  /**
+   * Avatarın gövdəsinin ön səthi nöqtənin hündürlüyündə və yanında: {z, w}. w — çəki: gövdənin
+   * önündə 1, çiyinlərdən yuxarı və gövdənin yanlarından kənarda 0-a enir. Gövdə ölçülməyibsə null.
+   */
+  #torsoFront(p) {
+    const s = this.solid;
+    if (!s) return null;
+    const sl = s.slices;
+    let i = sl.findIndex((c) => c.y >= p.y);
+    if (i < 0) i = sl.length - 1;
+    const a = sl[Math.max(0, i - 1)], c = sl[i];
+    const t = c.y === a.y ? 0 : Math.min(1, Math.max(0, (p.y - a.y) / (c.y - a.y)));
+    const lerp = (key) => a[key] + (c[key] - a[key]) * t;
+    const cx = lerp('cx'), cz = lerp('cz'), rx = lerp('rx'), rz = lerp('rz');
+    const u = Math.abs(p.x - cx) / rx;
+    const z = cz + rz * Math.sqrt(Math.max(0, 1 - Math.min(1, u) ** 2));
+    const smooth = THREE.MathUtils.smoothstep;
+    const w = (1 - smooth(u, 0.7, 1.2)) * (1 - smooth(p.y, s.yMax - 0.06, s.yMax + 0.02)) * smooth(p.y, s.yMin, s.yMin + 0.05);
+    return { z, w };
+  }
+
+  /**
+   * Dirsəyin hədəfi gövdədən kənarda olsun. Oturan siqnalçı dirsəklərini bədənə yaxın saxlayır
+   * (pose heavy bunu görür) və avatarın gövdəsi çiyin eninə görə daha enlidir: hədəflərin 29 %-i
+   * gövdənin içinə düşürdü və IK qolu bədənə çəkirdi. Hədəf səthdən bazunun qalınlığı qədər
+   * bayıra çıxarılır.
+   */
+  #elbowOut(p) {
+    if (!this.solid) return p;
+    const hit = this.#solidDistance(p);
+    const need = R_UPPERARM + 0.01;
+    if (hit.dist < need) p.addScaledVector(hit.normal, need - hit.dist);
+    return p;
+  }
+
   /** Nöqtəni gövdənin ÖN səthinə çıxarmaq üçün lazım olan z-addımı. */
   #frontPush(p) {
     const s = this.solid;
@@ -1576,6 +1721,8 @@ export class VrmAvatar {
     this.#toRest(this.hand === 'left' ? 'right' : 'left');   // sözdən sonra ikinci əl də enir
     this.mode = 'pause';
     this.idle = 0;
+    this.face.target = {};
+    this.face.head = [0, 0, 0];
   }
 
   /** Yayları dərhal hədəfə qoyur (ilk kadr və ölçmə üçün). */
@@ -1684,6 +1831,14 @@ export class VrmAvatar {
       for (const side of SIDES) this.#toRest(side);
       this.mode = 'rest';
     }
+    if (this.mode !== 'sign') { this.face.target = {}; this.face.head = [0, 0, 0]; }
+    const kf = 1 - Math.exp(-14 * dt);
+    for (const name of Object.keys(FACE_MAP)) {
+      const c = this.face.cur[name] ?? 0;
+      this.face.cur[name] = c + ((this.face.target[name] ?? 0) - c) * kf;
+      if (name !== 'blink') this.vrm.expressionManager?.setValue(name, this.face.cur[name]);
+    }
+    for (let k = 0; k < 3; k++) this.face.headCur[k] += (this.face.head[k] - this.face.headCur[k]) * kf;
     this.#animateLife(dt);
     this.#stepSprings(dt);
     this.#guardHands(dt);
@@ -1715,8 +1870,10 @@ export class VrmAvatar {
     off('chest', 0.008 * breath, 0.015 * active * toward, 0);
     off('upperChest', 0.010 * breath, 0, 0);
     off('neck', 0.012 * n2, 0.015 * n1, 0);
-    // işarə edəndə baş azca ələ tərəf dönür və əyilir
-    off('head', 0.02 * n2 + 0.03 * active, 0.03 * n1 + 0.05 * active * toward, -0.035 * active * toward);
+    // işarə edəndə baş azca ələ tərəf dönür və əyilir; üstəlik siqnalçının sözdəki baş hərəkəti
+    const [hx, hy, hz] = this.face.headCur;
+    off('head', 0.02 * n2 + 0.03 * active + hx, 0.03 * n1 + 0.05 * active * toward + hy,
+      -0.035 * active * toward + hz);
     for (const side of SIDES) {
       const ph = side === 'left' ? 1.7 : 0;
       const k = on ? 1 : 0;
@@ -1738,7 +1895,7 @@ export class VrmAvatar {
         b.next = Math.random() < 0.15 ? 0.18 : 2.2 + Math.random() * 3.5;   // bəzən qoşa qırpma
       }
     }
-    this.vrm.expressionManager?.setValue('blink', on ? v : 0);
+    this.vrm.expressionManager?.setValue('blink', Math.max(on ? v : 0, this.face.cur.blink ?? 0));
   }
 
   /**

@@ -1387,3 +1387,304 @@ still-hand limit 0.05 (val mean 0.581 against 0.622 with the old rules). Test, o
 
 **Open:** a live-webcam test of the letter mode; the control gestures (backspace, enter, space) exist
 only as buttons and keys with the new model.
+
+
+---
+
+## E9 — Text → sign: Azerbaijani word forms to the avatar's signs (no training)
+
+The text-to-sign mode (`src/tercume/t2s.js`) shows a word as a whole sign only if its spelling is in the
+avatar lexicon (`public/tercume/words/`, 292 AzSLD signs); every other word is fingerspelled. Azerbaijani is
+agglutinative, so most words in a text are inflected: on AzSLD's own 492 sentence texts **47 % of the words
+became signs and the rest were spelled letter by letter**, although 74 % of the signs annotated in those
+sentences are in the lexicon ("evdə", "anam", "yaşayıram", "sənədləri", "bilərəm" were all spelled).
+
+AzSLD signs a word in its dictionary form (evdə → EV, yaşayıram → YAŞAMAQ), but a negated verb is a sign
+of its own (bilmirəm → BİLMİR, düşmürəm → DÜŞMƏMƏK, sevmirəm → SEVMİRƏM). `src/tercume/morph.js` therefore
+maps a word to a key = root + negation:
+
+- the word is cut from the right in suffix order (stem, negation, tense / infinitive / participle, plural,
+  possessive, case, copula, person, question), and candidate roots are tried longest first against roots
+  taken from the lexicon itself: infinitives give verb roots (yaşamaq → yaşa), an inflected verb entry gives
+  its verb's key (bilmir → bil-, istəyir → istə), an entry that is a longer form of another (mənim ← mən)
+  joins it;
+- sound changes are undone: uşağ → uşaq, köynəy → köynək, istəy → istə, verbs ged → get, nouns oğl → oğul;
+  pronouns by table (onun, ona → o; burda → bura);
+- guards found on dev sentences: function words are not cut (ilə ≠ il, kimi ≠ kim), a bare short verb stem
+  is not its verb ("it" is the dog, not itmək), d → t only in verbs (yadımda ≠ yatmaq), and a capitalised
+  acronym in lower-case text is spelled (DOST, the agency, is not "dost", friend);
+- among entries with one key: the one the word continues (istəyirsən → istəyir), else the dictionary form
+  (olan → olmaq, not olar "may"), else the most similar. Phrases ("ad günü") match word by word.
+
+`WordLexicon.segment` uses it after the exact spelling (`via: 'text' | 'lemma'`). Cases in
+`tools/verify_words.mjs`.
+
+**Evaluation** (`tools/eval_text_gloss.mjs`): for each of the 492 sentences, the reference is the sign
+sequence most signers used (median agreement of the signers with it 0.90); fingerspelled letters are left
+out of it. The predicted signs are compared with it in order (LCS): precision, recall, F1. "Same gloss" uses
+the gloss merges of the word model (`gloss_spelling`, `same_sign`, confirmed `lemma_groups`); "same word"
+also counts forms of one word as one sign (EDİB = ETMƏK, BALACADIR = BALACA; negated forms stay apart).
+The rules were written looking only at the 443 dev sentences; the 49 held-out sentences (the word model's
+unseen-sentence test) were scored at the end. "Before" is the code before this change.
+
+| Lexicon | Text → signs | Sentences | Words as signs | Letters spelled | Same gloss P / R / F1 | Same word P / R / F1 |
+|---|---|---|---|---|---|---|
+| avatar (292 signs) | before | dev | 46.7 % | 8,126 | 0.910 / 0.438 / 0.591 | 0.933 / 0.449 / 0.606 |
+| | **word forms** | dev | **74.6 %** | 3,844 | 0.883 / 0.675 / 0.765 | 0.919 / 0.702 / 0.796 |
+| | before | test | 47.6 % | 849 | 0.916 / 0.464 / 0.616 | 0.925 / 0.469 / 0.623 |
+| | **word forms** | test | **77.1 %** | 363 | 0.855 / 0.697 / 0.768 | 0.895 / **0.730** / **0.804** |
+| every AzSLD gloss (740) | before | test | 55.5 % | 715 | 0.886 / 0.517 / 0.653 | 0.902 / 0.526 / 0.665 |
+| | **word forms** | test | **89.0 %** | 150 | 0.862 / 0.796 / 0.828 | 0.897 / **0.829** / **0.862** |
+
+- Recall goes from 0.47 to 0.73 on unseen sentences with the same 292 clips; letters spelled drop 57 %.
+  Precision falls 0.03: some forms now reach a wrong sign (below).
+- The last two rows assume a clip for every AzSLD gloss: the lexicon is the larger lever once word forms
+  work (recall 0.83).
+- What is left (dev): idioms (anadan olmaq → DOĞMAQ, rəhmətə getmək → ÖLMƏK, yerinə yetirmək), the
+  pronoun "o" that signers point instead of signing, light verbs signed or not (müraciət etmək vs
+  istirahət etmək), homonyms that only the full lexicon separates (tələbə → TƏLƏB "demand", Adası → AD).
+
+
+---
+
+## E10 — The avatar lexicon from every AzSLD sign (local, no training)
+
+The full AzSLD is now downloaded locally (`tools/download_azsld.py data/azsld`, the four Zenodo zips,
+46.9 GB, md5 equal to Zenodo's). Words_100 is a subset of Words_200 (all 7,248 clips), and Words_200 clips are cut from the
+Sentences recordings (Cam2), so the Sentences zip is the only source; only UĞUR's 19 Words_200 clips have no
+sentence annotation.
+
+**Builder** (`tools/build_avatar_words.py`, reads single videos out of the zip with `tools/azsld_zip.py`):
+
+- every gloss with ≥ 3 annotated signs; single letters are fingerspelling, "O" counts as the pronoun when
+  no other letter is within 15 frames (395 signs); the annotators' spelling is fixed against the sentence
+  texts when a label is not a known word form (İ for ı, g for ğ, c for ç…: 53 labels, e.g. YARDİM →
+  yardım, QİRMİZİ → qırmızı, ALİM → alım "let me receive", İT / IT → it); signs that share a spelling merge;
+- up to 8 candidates from different signers, facing the camera and of typical length; MediaPipe pose +
+  hands + face in VIDEO mode (tracking), annotated range ± 3 frames, 15 fps;
+- choice: the candidates with a quality (`build_words.trim_and_score`) ≥ 85 % of the best, and among them
+  the medoid: the smallest mean DTW distance to all candidates (hand place relative to the shoulders +
+  hand shape). An idiosyncratic or left-handed performance is not picked.
+
+### Which pose model (40 signs, 37 signers, `tools/compare_pose_models.py`)
+
+Wrist error: pixel distance between the pose wrist and the hand landmarker's wrist; jitter: mean |second
+difference| of the world wrist and elbow.
+
+| Pose model | Mode | Wrist error px, median / p90 | Jitter mm/frame² | ms/frame (8 in parallel) |
+|---|---|---|---|---|
+| lite | IMAGE (the old lexicon) | 18.2 / 40.0 | 36.3 | 41 |
+| lite | VIDEO | 20.5 / 41.9 | **15.7** | 21 |
+| full | IMAGE | 15.8 / 33.2 | 37.7 | 51 |
+| full | VIDEO | 17.3 / 35.9 | 15.9 | 31 |
+| heavy | IMAGE | **13.6 / 29.3** | 41.8 | 134 |
+| heavy | VIDEO | 15.5 / 30.9 | 18.6 | 108 |
+
+VIDEO mode halves the jitter. Heavy finds the wrist best in the image, so the first build used heavy VIDEO;
+in the avatar it was worse (table below). The cause is depth: heavy puts the wrist **0.68 shoulder widths in
+front of the shoulders (median; 10th percentile 0.21)**, lite 0.88 (0.64), and lower. The avatar's arm solver
+(`vrm.js`) was tuned on lite, and with heavy the hands go into the body. The lexicon uses **lite in VIDEO
+mode**. The side camera later showed that heavy's depth is the right one (E11).
+
+### The avatar on the new lexicon (`node tools/measure_hands.mjs`)
+
+| | Old (292, lite IMAGE, best of 6 clips) | Lite VIDEO, same 292 | Heavy VIDEO, same 292 | **New, all 786** |
+|---|---|---|---|---|
+| Palm from its target, median / p90 | 1.1 / 3.9 cm | 1.2 / **3.6** cm | 1.4 / 4.9 cm | 1.2 / 3.7 cm |
+| IK reach error p90 | 2.0 cm | **1.8** cm | 3.9 cm | 1.9 cm |
+| Words with the palm in the body (> 5 mm) | 110 (38 %) | **106 (36 %)** | 189 | 310 (39 %) |
+| Words with the arm in the body | 107 | 119 | 240 | 385 (49 %) |
+| Words with a hand out of the frame | 4 | 5 | 2 | 14 (1.8 %) |
+| Words with the wrist > 5° past its limit | 119 | 144 | 199 | 413 |
+| Words past the wrist's hard ceiling | 9 | **4** | 14 | 21 (2.7 %) |
+| Hands through each other in playback | 4 | **2** | 3 | 12 |
+| Palm jump per update in playback, p90 | 10.1 cm | **8.7** cm | 8.7 cm | 8.7 cm |
+
+On the same words the new lexicon is as good or better than the old one except the mild wrist limit
+(144 against 119 words), and the motion is smoother. The 786 signs behave like the 292.
+
+**Text → sign** (E9's evaluation, the same word-form code, 786 signs instead of 292):
+
+| Sentences | Words as signs | Letters spelled | Same gloss P / R / F1 | Same word P / R / F1 |
+|---|---|---|---|---|
+| dev (443) | 92.4 % | 1,168 | 0.866 / 0.825 / 0.845 | 0.893 / 0.851 / 0.872 |
+| test (49 held out) | **92.6 %** | 103 | 0.873 / 0.844 / 0.858 | 0.902 / **0.872** / **0.887** |
+
+Against the morning (exact spelling, 292 signs): words as signs 47.6 % → 92.6 %, letters spelled 849 → 103,
+same-word F1 0.623 → 0.887 on the held-out sentences.
+
+**Face.** Each frame also stores the 51 face blendshapes (0–100) and the head rotation (`f`). MediaPipe's
+values are compressed (jawOpen reaches 16 in the top 1 % of frames), so the avatar scales each one between
+its lexicon median (`faceNeutral`, the signers' resting face) and 99th percentile (`faceFull`) into the VRM
+expressions: mouth shapes aa / ih / ou / ee / oh, blink, brows up (surprised) and down (angry), and adds the
+sign's own head movement (rotation minus the word's median). The female avatar shows it; **the default
+avatar (`avatar.vrm`) has no face morph targets at all** (its expressions are bound to nothing, it cannot
+even blink), so it only gets the head movement.
+
+Size: 786 word files, 23 MB (the 292 were 7.6 MB); coordinates are stored at 1 mm / 0.001.
+
+**Open:** the avatar on heavy's depth (E11); the default avatar's face; sentence-level non-manuals (question
+brows over the whole question, negation head shake); transitions and timing between signs.
+
+
+---
+
+## E11 — Which single-camera depth is right? The side camera decides (no training)
+
+E10 found that pose heavy puts the wrists much closer to the shoulders' plane than pose lite, and that the
+avatar looks better with lite. Which depth is true cannot be told from one camera. AzSLD films every
+sentence a second time from the signer's right, above (Cam1), so `tools/stereo_depth.py` takes 12 random
+sessions × 10 recordings (120 recordings, both cameras, pose lite and heavy + hands, VIDEO mode; frames
+paired with `azsl/views.py`'s lag).
+
+**Triangulation was tried first and does not work on this data:**
+
+| Test | Result |
+|---|---|
+| Points fitting one fundamental matrix per recording (RANSAC, 4 px) | slow body points (nose, ears, shoulders) 56-84 %; hand landmarks 19-57 %; hands still in both views (< 3-6 px per frame) 57-100 % |
+| Sub-frame shift of the hand tracks (−1.5 … +1.5 frames) under the slow points' geometry | hand points stay 17-79 px from their epipolar lines at every shift |
+| Focal length per session (rigid hand bones as the check) | estimates 600-3,000 px, camera angle 16-110°; bone variation 0.07-0.10 with no minimum over 700-1,400 px |
+| Audio sync / camera model | audio tracks are silent; the files name no camera |
+
+The cameras are not frame-locked (a moving hand is 10-30 px off between the views), their focal lengths
+are unknown and barely observable when both cameras aim at one spot, and the slow body points lie too close
+together to fix the geometry where the hands are.
+
+**Cross-view check instead (no calibration):** the same moment must give the same wrist position in a frame
+built from the body itself (shoulder axis, "up" from the shoulders toward the ears, forward = axis × up). From
+the side, the hands' distance in front of the body lies in the image plane, so a model that perceives depth
+gives the same answer from both views.
+
+| Forward depth, shoulder widths | Front view (Cam2) | Side view (Cam1) | \|front − side\| | Correlation front ↔ side |
+|---|---|---|---|---|
+| pose lite (45,484 wrist moments) | 0.81 [0.60, 1.03] | 0.87 [0.66, 1.05] | 0.14 | **0.21** |
+| pose heavy (35,569) | 1.00 [0.74, 1.37] | 1.10 [0.80, 1.38] | 0.12 | **0.79** |
+
+On the 34,983 moments all four estimates have (correlation of the forward depth):
+
+| | lite front | lite side | heavy front | heavy side |
+|---|---|---|---|---|
+| lite front | 1 | 0.06 | −0.26 | −0.44 |
+| lite side | 0.06 | 1 | −0.10 | 0.07 |
+| heavy front | −0.26 | −0.10 | 1 | **0.79** |
+| heavy side | −0.44 | 0.07 | **0.79** | 1 |
+
+Height and the sideways position agree for both models (r 0.89-0.94). Per session heavy's front and side
+medians are 0.00-0.19 apart.
+
+- **Heavy perceives how far the hands are in front of the body; lite does not.** Lite's forward depth is
+  close to a fixed guess plus noise: it does not follow its own side view (0.06) and runs against heavy's.
+- Lite looked better in the avatar (E10) because the arm solver (`vrm.js`) was tuned on it: a near-constant
+  depth keeps the hands about one shoulder width in front of the chest, so they never meet the body. With
+  heavy, hands touch the chest as the signer's do, and the avatar's torso, with other proportions, takes
+  them in.
+- Next: the avatar maps chest contacts onto its own torso (as it does for the face), and the lexicon is
+  rebuilt with heavy (E12).
+
+
+---
+
+## E12 — The avatar on heavy's depth: chest contacts (no training)
+
+E11 showed that pose heavy sees how far the hands are in front of the body. With heavy, signers' hands come
+close to their chest, and the avatar's arm solver (`vrm.js`), tuned on lite's near-constant depth, put hands
+and forearms into the avatar's torso. Three changes:
+
+- **The signers' chest line**, measured from the lexicon itself (`build_avatar_words.py` → `index.json`
+  `chest`): hands stop at the body, so the 3rd percentile of the palm's distance in front of the shoulders
+  at each height (palm in front of the torso) traces the chest; a line through it. Heavy: forward =
+  0.616 + 0.424 × height (shoulder widths): it slants because seated signers lean toward the camera.
+  (Lite: 1.036 + 0.636 × height, about a third of a shoulder width further forward.)
+- **Depth from the chest** (`#signerToAvatar`): in front of the torso the palm's distance from the signer's
+  chest line is placed the same (scaled) distance in front of the avatar's measured torso surface, at that
+  height and sideways position; above the shoulders and beside the torso the old shoulder-relative placement
+  stays. When a fingertip or palm edge is within 4-10 cm of the chest (MƏN: the finger on the chest), that
+  point goes onto the avatar's chest (plus the finger's thickness) and the palm follows it.
+- **Elbow targets out of the torso** (`#elbowOut`): seated signers keep their elbows near the body, and
+  29 % of heavy's elbow targets fell inside the avatar's torso (lite: 3 %); they are moved out by the upper
+  arm's thickness.
+
+**Where it fails** (every third word, per hand and frame; lite against heavy with the chest mapping):
+
+| | lite | heavy + chest |
+|---|---|---|
+| Hand in the body (> 5 mm) | 3.2 % | 7.6 % |
+| Arm in the body | 6.4 % | 13.4 % |
+| … with the hand at upper-chest height (0-0.4 shoulder widths below the shoulders) | 2.9 % | 29.5 % |
+| Wrist > 5° past its limit | 7.0 % | 12.5 % |
+| IK misses its target by > 3 cm | 4.2 % | 12.4 % |
+
+**All 786 signs** (`node tools/measure_hands.mjs`):
+
+| | lite | lite + chest | heavy | **heavy + chest + elbows** |
+|---|---|---|---|---|
+| Palm from its target, median / p90 | 1.2 / 3.7 cm | 1.4 / 4.5 cm | 1.5 / 4.9 cm | 1.3 / 4.6 cm |
+| IK reach error p90 | 1.9 cm | 2.4 cm | 3.9 cm | 3.5 cm |
+| Words with the palm in the body (> 5 mm) / deepest | 310 / 5.8 cm | 474 / 4.3 cm | 522 / 7.6 cm | 442 / 6.8 cm |
+| Words with the arm in the body / deepest | 385 / 5.6 cm | 640 / 4.8 cm | 651 / 8.0 cm | 501 / 5.5 cm |
+| Words with a hand out of the frame | 14 | 19 | 9 | 13 |
+| Words with the wrist > 5° past its limit / past the hard ceiling | 413 / 21 | 368 / 19 | 540 / 36 | 579 / 39 |
+| Hands through each other in playback | 12 | 19 | 8 | 9 |
+| Palm jump per update in playback, p90 | 8.7 cm | 9.1 cm | 8.7 cm | 8.8 cm |
+
+- The chest mapping and the elbow fix recover part of heavy's loss (palm in the body 522 → 442 words, arm
+  651 → 501, deepest arm 8.0 → 5.5 cm), but heavy stays behind lite on every count of the body and the wrist.
+- Lite with the chest mapping is also worse than plain lite (474 against 310 words): anything that brings
+  the hands to the body, the true depth or a chest-relative placement, makes the current solver push hands
+  and forearms into the avatar more often, though less deeply. Lite's clean numbers come from hands that
+  never reach the body: MƏN's finger stays in front of the chest, and no measure counts a missed contact.
+- Side by side (MƏN, EV, the middle frame) both look plausible; heavy puts the hands nearer the body. The
+  lexicons pick different signers for some words, so frames are not one-to-one.
+
+**The lexicon goes back to lite** (`build_avatar_words.py` default, no chest line; the word files are
+byte-identical to E10's). The elbow fix stays, as it helps lite a little: palm in the body 304 against 310
+words, arm 380 against 385, wrist past its limit 409 against 413, hands through each other 10 against 12
+(a hand out of the frame 16 against 14). Heavy with the chest line stays one command away:
+`--pose-model data/models/pose_landmarker_heavy.task --chest`. **Next:** the arm solver for real depth: the forearm at upper-chest height (most of the arm
+penetrations), and the avatar's arm proportions against the signers' (IK misses tripled).
+
+
+---
+
+## E13 — Hands that touch each other: contact signs (no training)
+
+In some signs the two hands' fingers pass between each other or one hand lies on the other. The avatar
+treated every overlap of the two hands' capsules as an error: the two-hand fix (`#fixTwoHanded`) pushed the
+hands apart until 2 mm separated them (with up to 8 cm of movement), the playback guard (`#guardHands`)
+did the same on every update, and the step that restores the signer's palm-to-palm vector was skipped when
+a hand had to move more than 4 cm (7 cm if the data shows the hands further apart).
+
+**Data.** For each of the 556 two-handed words and each of its candidate signers: the share of frames in
+which a finger of one hand is within 1.6 cm (bone axes) of a finger of the other. Most signers agree on
+MƏSƏLƏ (8 of 8 signers), FİLM (7/8), BİRLİKDƏ (4/5), BİTKİLƏRİ, GÖSTƏRMƏK, TƏZYİQ, … The signer's video
+frame next to the avatar's at the moment the signer's hands are closest: BİRLİKDƏ clasped vs side by side,
+TƏZYİQ one palm on the other hand vs ~10 cm apart, KİTAB palms together vs a roof, GÖSTƏRMƏK fingers on
+the other hand vs apart; MƏSƏLƏ, FİLM and BALIQ (crossed, overlapping hands) roughly right.
+
+**Changes.**
+- `build_avatar_words.py`: `contact` on a two-handed word when at least half of its signers have the
+  fingers closer than 1.6 cm in more than a quarter of the frames (38 words); a single signer's depth error
+  does not count.
+- `vrm.js`, contact words only: in a frame where the signer's own hands overlap, the two-hand fix and the
+  playback guard allow the same overlap (at most 2.5 cm) instead of pushing the hands apart; the palm-to-palm
+  vector is restored even when a hand has to move up to 10 cm.
+- `measure_hands.js`: `handInHandBeyond`, words whose hands overlap more than 5 mm deeper than the
+  signer's own (overlap in a contact sign is the sign, not an error).
+
+**Result** (all 786 words; the other 748 are unchanged by construction):
+
+| | Before | After |
+|---|---|---|
+| Hands overlapping > 5 mm (words) | 1 | 23 |
+| … deeper than the signer's own hands by > 5 mm | 1 | 3 |
+| … during playback | 10 | 29 (19 contact words) |
+| A hand in the other forearm | 3 | 12 |
+| Palm in the body / arm in the body | 304 / 380 | 302 / 381 |
+| Wrist past its hard ceiling | 21 | 20 |
+| Palm from its target median / p90 | 1.2 / 3.7 cm | 1.2 / 3.7 cm |
+
+The closest the two hands come, avatar before → after (signer): BİRLİKDƏ 0.3 → −0.9 cm (−1.1), TƏZYİQ 0.3 →
+−2.1 (−2.1), MƏSƏLƏ 0.1 → −1.5 (−1.6), GÖSTƏRMƏK 0.9 → −0.4 (−0.6). In the frames: TƏZYİQ now has one hand
+on the other and GÖSTƏRMƏK the fingers on the other hand. **Open:** BİRLİKDƏ's hands touch but are not
+clasped, and KİTAB's palms face down in a roof instead of facing each other: the hand orientation, not the
+distance.
