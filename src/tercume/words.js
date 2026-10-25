@@ -16,9 +16,10 @@ const EDGE_PUNCT = /^[.,!?;:"'“”‘’«»()[\]…–—-]+|[.,!?;:"'“”�
 export class WordLexicon {
   constructor(index) {
     this.entries = index?.words ?? [];
-    // Üz blendshape-lərinin adları və siqnalçıların sakit üzü (avatarın üz ifadəsi üçün)
-    this.face = { faceKeys: index?.face ?? null, faceNeutral: index?.faceNeutral ?? null,
-      faceFull: index?.faceFull ?? null };
+    // Lüğət üzrə ölçülər hər sözə qoşulur: üz blendshape-lərinin adları və diapazonu (avatarın
+    // üz ifadəsi), siqnalçıların sinə xətti (sinəyə toxunan əl avatarın sinəsinə köçürülür)
+    this.shared = { faceKeys: index?.face ?? null, faceNeutral: index?.faceNeutral ?? null,
+      faceFull: index?.faceFull ?? null, chest: index?.chest ?? null };
     // Açar kiçik hərflə saxlanır: xüsusi adlar lüğətdə böyük hərflə yazılır (Bakı,
     // Azərbaycan), mətndən gələn token isə həmişə kiçik hərfdədir. `alt` — eyni işarənin
     // digər yazılışları (danışıq forması: burada/burda).
@@ -130,7 +131,7 @@ export class WordLexicon {
     if (!this.cache.has(id)) {
       this.cache.set(id, fetch(`${WORDS_BASE}${id}.json`).then((r) => {
         if (!r.ok) throw new Error(`${id}.json yüklənmədi (${r.status})`);
-        return r.json().then((w) => (this.face.faceKeys ? { ...w, ...this.face } : w));
+        return r.json().then((w) => ({ ...w, ...this.shared }));
       }));
     }
     return this.cache.get(id);

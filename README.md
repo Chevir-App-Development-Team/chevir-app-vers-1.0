@@ -102,6 +102,7 @@ tools/
   build_sentence_words.py  AzSLD Sentences-dən yeni sözlər kəsib lüğətə əlavə edir (HTTP range ilə)
   build_avatar_words.py  yerli AzSLD-dən bütün işarələr → public/tercume/words/ (poza, iki əl, üz)
   azsld_zip.py           AzSLD zip-indən tək videonu açmadan oxuyur
+  stereo_depth.py        yan kamera ilə yoxlama: pose lite / heavy-nin dərinliyi hansı düzgündür
   eval_text_gloss.mjs    mətn → işarə ardıcıllığı, AzSLD-nin 492 cümləsi üzərində
   verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
                          verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch;
@@ -276,8 +277,13 @@ axtarılır: "zəhmət olmasa", "bu gün" bütöv işarədir, lüğətdə olmaya
 rejimi — kadrdan kadra izləmə, titrəmə iki dəfə az) və ən tipik təmiz nümunə seçilir: keyfiyyəti
 yaxşı olanlardan digərlərinə DTW ilə ən yaxın olan (medoid). Annotasiyadakı yazı xətaları
 (YARDİM → yardım, QİRMİZİ → qırmızı) cümlə mətnlərinin sözləri ilə düzəldilir. Pose heavy şəkildə
-biləyi daha dəqiq tapır, amma əlləri bədənə iki dəfə yaxın qoyur və avatarda əllər gövdəyə girir —
-ona görə lite (ölçmələr: `ml/EXPERIMENTS.md` E10). Hər kadrda üz də saxlanılır: 51 blendshape və
+biləyi daha dəqiq tapır və yan kamera ilə yoxlamada (`tools/stereo_depth.py`, E11) əlin bədəndən nə
+qədər irəlidə olduğunu düzgün görən odur: öndən və yandan təxminləri uyğun gəlir (r 0.79), lite-ninki
+isə demək olar sabit təxmindir (r 0.06). Lüğət hələlik lite ilədir: avatarın qol həlli ona
+uyğundur, heavy ilə isə (sinə təması ilə də) əllər və qollar gövdəyə daha tez-tez girir (E12).
+Heavy variantının kodu hazırdır: `build_avatar_words.py --pose-model data/models/pose_landmarker_heavy.task
+--chest` sinə xəttini lüğətin özündən ölçür (index.json-da `chest`), avatar isə gövdə önündə
+dərinliyi siqnalçının sinəsindən ölçür və sinəyə toxunan əli öz sinəsinə köçürür. Hər kadrda üz də saxlanılır: 51 blendshape və
 başın fırlanması (`f`); avatar onları VRM ifadələrinə (ağız formaları, göz, qaşlar) və başın
 hərəkətinə çevirir. Standart avatarın (`avatar.vrm`) üzündə morph target yoxdur, ona görə üz
 ifadəsi yalnız qadın avatarında görünür.
@@ -322,8 +328,9 @@ Avatarda (`vrm.js`, `setWordPose`) hər iki qol birlikdə qurulur:
 6. Kamera bütün işarəni — hər iki əlin bütün kadrlarını — kadra sığdırır.
 
 786 söz üzrə brauzerdə ölçülüb (`node tools/measure_hands.mjs`): ovucun hədəfdən məsafəsi median
-1.2 sm (90% — 3.7 sm-dən az), əli kadrdan çıxan söz 14, biləyin sərt həddini aşan söz 21, oynatmada
-iki əlin bir-birindən keçdiyi söz 12. Söz fayllarının formatı və mətnin bölünməsi:
+1.2 sm (90% — 3.7 sm-dən az), ovucu gövdəyə 5 mm-dən çox girən söz 304, əli kadrdan çıxan söz 16,
+biləyin sərt həddini aşan söz 21, oynatmada iki əlin bir-birindən keçdiyi söz 10 (heavy və sinə
+təması ilə: 442, 13, 39, 9; E12). Söz fayllarının formatı və mətnin bölünməsi:
 
 ```bash
 node tools/verify_words.mjs

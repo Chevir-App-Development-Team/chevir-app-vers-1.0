@@ -1483,8 +1483,8 @@ difference| of the world wrist and elbow.
 VIDEO mode halves the jitter. Heavy finds the wrist best in the image, so the first build used heavy VIDEO;
 in the avatar it was worse (table below). The cause is depth: heavy puts the wrist **0.68 shoulder widths in
 front of the shoulders (median; 10th percentile 0.21)**, lite 0.88 (0.64), and lower. The avatar's arm solver
-(`vrm.js`) was tuned on lite, and with heavy the hands go into the body. Which depth is right cannot be
-told from one camera; the side camera (Cam1) could decide it. The lexicon uses **lite in VIDEO mode**.
+(`vrm.js`) was tuned on lite, and with heavy the hands go into the body. The lexicon uses **lite in VIDEO
+mode**. The side camera later showed that heavy's depth is the right one (E11).
 
 ### The avatar on the new lexicon (`node tools/measure_hands.mjs`)
 
@@ -1523,5 +1523,122 @@ even blink), so it only gets the head movement.
 
 Size: 786 word files, 23 MB (the 292 were 7.6 MB); coordinates are stored at 1 mm / 0.001.
 
-**Open:** the right depth (two cameras); the default avatar's face; sentence-level non-manuals (question
+**Open:** the avatar on heavy's depth (E11); the default avatar's face; sentence-level non-manuals (question
 brows over the whole question, negation head shake); transitions and timing between signs.
+
+
+---
+
+## E11 — Which single-camera depth is right? The side camera decides (no training)
+
+E10 found that pose heavy puts the wrists much closer to the shoulders' plane than pose lite, and that the
+avatar looks better with lite. Which depth is true cannot be told from one camera. AzSLD films every
+sentence a second time from the signer's right, above (Cam1), so `tools/stereo_depth.py` takes 12 random
+sessions × 10 recordings (120 recordings, both cameras, pose lite and heavy + hands, VIDEO mode; frames
+paired with `azsl/views.py`'s lag).
+
+**Triangulation was tried first and does not work on this data:**
+
+| Test | Result |
+|---|---|
+| Points fitting one fundamental matrix per recording (RANSAC, 4 px) | slow body points (nose, ears, shoulders) 56-84 %; hand landmarks 19-57 %; hands still in both views (< 3-6 px per frame) 57-100 % |
+| Sub-frame shift of the hand tracks (−1.5 … +1.5 frames) under the slow points' geometry | hand points stay 17-79 px from their epipolar lines at every shift |
+| Focal length per session (rigid hand bones as the check) | estimates 600-3,000 px, camera angle 16-110°; bone variation 0.07-0.10 with no minimum over 700-1,400 px |
+| Audio sync / camera model | audio tracks are silent; the files name no camera |
+
+The cameras are not frame-locked (a moving hand is 10-30 px off between the views), their focal lengths
+are unknown and barely observable when both cameras aim at one spot, and the slow body points lie too close
+together to fix the geometry where the hands are.
+
+**Cross-view check instead (no calibration):** the same moment must give the same wrist position in a frame
+built from the body itself (shoulder axis, "up" from the shoulders toward the ears, forward = axis × up). From
+the side, the hands' distance in front of the body lies in the image plane, so a model that perceives depth
+gives the same answer from both views.
+
+| Forward depth, shoulder widths | Front view (Cam2) | Side view (Cam1) | \|front − side\| | Correlation front ↔ side |
+|---|---|---|---|---|
+| pose lite (45,484 wrist moments) | 0.81 [0.60, 1.03] | 0.87 [0.66, 1.05] | 0.14 | **0.21** |
+| pose heavy (35,569) | 1.00 [0.74, 1.37] | 1.10 [0.80, 1.38] | 0.12 | **0.79** |
+
+On the 34,983 moments all four estimates have (correlation of the forward depth):
+
+| | lite front | lite side | heavy front | heavy side |
+|---|---|---|---|---|
+| lite front | 1 | 0.06 | −0.26 | −0.44 |
+| lite side | 0.06 | 1 | −0.10 | 0.07 |
+| heavy front | −0.26 | −0.10 | 1 | **0.79** |
+| heavy side | −0.44 | 0.07 | **0.79** | 1 |
+
+Height and the sideways position agree for both models (r 0.89-0.94). Per session heavy's front and side
+medians are 0.00-0.19 apart.
+
+- **Heavy perceives how far the hands are in front of the body; lite does not.** Lite's forward depth is
+  close to a fixed guess plus noise: it does not follow its own side view (0.06) and runs against heavy's.
+- Lite looked better in the avatar (E10) because the arm solver (`vrm.js`) was tuned on it: a near-constant
+  depth keeps the hands about one shoulder width in front of the chest, so they never meet the body. With
+  heavy, hands touch the chest as the signer's do, and the avatar's torso, with other proportions, takes
+  them in.
+- Next: the avatar maps chest contacts onto its own torso (as it does for the face), and the lexicon is
+  rebuilt with heavy (E12).
+
+
+---
+
+## E12 — The avatar on heavy's depth: chest contacts (no training)
+
+E11 showed that pose heavy sees how far the hands are in front of the body. With heavy, signers' hands come
+close to their chest, and the avatar's arm solver (`vrm.js`), tuned on lite's near-constant depth, put hands
+and forearms into the avatar's torso. Three changes:
+
+- **The signers' chest line**, measured from the lexicon itself (`build_avatar_words.py` → `index.json`
+  `chest`): hands stop at the body, so the 3rd percentile of the palm's distance in front of the shoulders
+  at each height (palm in front of the torso) traces the chest; a line through it. Heavy: forward =
+  0.616 + 0.424 × height (shoulder widths): it slants because seated signers lean toward the camera.
+  (Lite: 1.036 + 0.636 × height, about a third of a shoulder width further forward.)
+- **Depth from the chest** (`#signerToAvatar`): in front of the torso the palm's distance from the signer's
+  chest line is placed the same (scaled) distance in front of the avatar's measured torso surface, at that
+  height and sideways position; above the shoulders and beside the torso the old shoulder-relative placement
+  stays. When a fingertip or palm edge is within 4-10 cm of the chest (MƏN: the finger on the chest), that
+  point goes onto the avatar's chest (plus the finger's thickness) and the palm follows it.
+- **Elbow targets out of the torso** (`#elbowOut`): seated signers keep their elbows near the body, and
+  29 % of heavy's elbow targets fell inside the avatar's torso (lite: 3 %); they are moved out by the upper
+  arm's thickness.
+
+**Where it fails** (every third word, per hand and frame; lite against heavy with the chest mapping):
+
+| | lite | heavy + chest |
+|---|---|---|
+| Hand in the body (> 5 mm) | 3.2 % | 7.6 % |
+| Arm in the body | 6.4 % | 13.4 % |
+| … with the hand at upper-chest height (0-0.4 shoulder widths below the shoulders) | 2.9 % | 29.5 % |
+| Wrist > 5° past its limit | 7.0 % | 12.5 % |
+| IK misses its target by > 3 cm | 4.2 % | 12.4 % |
+
+**All 786 signs** (`node tools/measure_hands.mjs`):
+
+| | lite | lite + chest | heavy | **heavy + chest + elbows** |
+|---|---|---|---|---|
+| Palm from its target, median / p90 | 1.2 / 3.7 cm | 1.4 / 4.5 cm | 1.5 / 4.9 cm | 1.3 / 4.6 cm |
+| IK reach error p90 | 1.9 cm | 2.4 cm | 3.9 cm | 3.5 cm |
+| Words with the palm in the body (> 5 mm) / deepest | 310 / 5.8 cm | 474 / 4.3 cm | 522 / 7.6 cm | 442 / 6.8 cm |
+| Words with the arm in the body / deepest | 385 / 5.6 cm | 640 / 4.8 cm | 651 / 8.0 cm | 501 / 5.5 cm |
+| Words with a hand out of the frame | 14 | 19 | 9 | 13 |
+| Words with the wrist > 5° past its limit / past the hard ceiling | 413 / 21 | 368 / 19 | 540 / 36 | 579 / 39 |
+| Hands through each other in playback | 12 | 19 | 8 | 9 |
+| Palm jump per update in playback, p90 | 8.7 cm | 9.1 cm | 8.7 cm | 8.8 cm |
+
+- The chest mapping and the elbow fix recover part of heavy's loss (palm in the body 522 → 442 words, arm
+  651 → 501, deepest arm 8.0 → 5.5 cm), but heavy stays behind lite on every count of the body and the wrist.
+- Lite with the chest mapping is also worse than plain lite (474 against 310 words): anything that brings
+  the hands to the body, the true depth or a chest-relative placement, makes the current solver push hands
+  and forearms into the avatar more often, though less deeply. Lite's clean numbers come from hands that
+  never reach the body: MƏN's finger stays in front of the chest, and no measure counts a missed contact.
+- Side by side (MƏN, EV, the middle frame) both look plausible; heavy puts the hands nearer the body. The
+  lexicons pick different signers for some words, so frames are not one-to-one.
+
+**The lexicon goes back to lite** (`build_avatar_words.py` default, no chest line; the word files are
+byte-identical to E10's). The elbow fix stays, as it helps lite a little: palm in the body 304 against 310
+words, arm 380 against 385, wrist past its limit 409 against 413, hands through each other 10 against 12
+(a hand out of the frame 16 against 14). Heavy with the chest line stays one command away:
+`--pose-model data/models/pose_landmarker_heavy.task --chest`. **Next:** the arm solver for real depth: the forearm at upper-chest height (most of the arm
+penetrations), and the avatar's arm proportions against the signers' (IK misses tripled).

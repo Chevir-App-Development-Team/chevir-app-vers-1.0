@@ -555,7 +555,7 @@ export class VrmAvatar {
     let sol = this.#words.get(word);
     if (sol) return sol;
     sol = word.frames.map(() => ({ left: null, right: null }));
-    const places = word.frames.map((fr) => (fr.b ? this.#signerToAvatar(fr.b) : null));
+    const places = word.frames.map((fr) => (fr.b ? this.#signerToAvatar(fr.b, word.chest) : null));
     const scale = this.#wordScale(word);
     const avoid = this.#avoidBody();
     const ang = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b))));   // iki dönmə arasında bucaq
@@ -585,7 +585,7 @@ export class VrmAvatar {
         const frameGap = 2 * Math.acos(Math.min(1, Math.abs(target.R.clone().multiply(target.shapeRinv).w)));
         if (frameGap > 50 * DEG) target = handTarget(rig, { norm, size: word.size, flipDepth: flipN });
         let anchor = this.#keepOut(this.#wordPalm(place, fr.b[wrist], hand.w, flip, rig, scale));
-        const elbow = place.body(fr.b[wrist - 2]);
+        const elbow = this.#elbowOut(place.raw(fr.b[wrist - 2]));
         let arm = solveArm(rig, target.R, anchor, null, { elbow, shiftCost: 300, avoid });
         // Barmaqların forması metrik landmark-lardan məcburi götürülür (əlin tərəfi düzgün
         // olsun), oriyentasiya isə şəkil landmark-larının dərinliyindən gəlir və o, səs-küylü
@@ -1383,8 +1383,14 @@ export class VrmAvatar {
    * yaxın nöqtə (yanaq, çənə, qulaq) burundan ölçülüb avatarın üzünə köçürülür;
    * arada iki yerləşmə məsafəyə görə qarışdırılır. Pozanın dərinliyi zəifdir
    * (qulaqdakı əl burundan önə düşür), ona görə üzə yaxın dərinlik yarıya sıxılır.
+   *
+   * Gövdə önündə dərinlik siqnalçının SİNƏSİNDƏN ölçülür (`chest`, lüğətdən: sinə xətti
+   * çiyin enləri ilə, irəli = a + b × hündürlük; oturan siqnalçı kameraya əyilir, ona görə
+   * xətt mailidir) və avatarın ölçülmüş gövdə səthinin önünə köçürülür: sinəyə toxunan əl
+   * avatarın sinəsinə toxunur, içinə girmir. Çiyinlərdən yuxarıda və gövdənin yanlarında
+   * köhnə (çiyinlərə nisbətən) yerləşmə qalır.
    */
-  #signerToAvatar(b) {
+  #signerToAvatar(b, chest = null) {
     const P = b.map(([x, y, z]) => new THREE.Vector3(x, -y, -z));
     const mid = P[1].clone().add(P[2]).multiplyScalar(0.5);
     const ax = P[1].clone().sub(P[2]);
@@ -1395,9 +1401,28 @@ export class VrmAvatar {
     const fwd = new THREE.Vector3().crossVectors(ax, up);
     const vec = ([x, y, z]) => new THREE.Vector3(x, -y, -z);
     const local = (d, depth = 1) => new THREE.Vector3(d.dot(ax), d.dot(up), depth * d.dot(fwd));
+    const sw = this.body.shoulderWidth / k;                     // siqnalçının çiyin eni (m)
+    const raw = (q) => local(vec(q).sub(mid)).multiplyScalar(k).add(this.body.mid);
+    /** Siqnalçının sinəsindən irəli (m); sinə xətti yoxdursa Infinity. */
+    const chestGap = (q) => {
+      if (!chest) return Infinity;
+      const l = local(vec(q).sub(mid));
+      return l.z - (chest.a + chest.b * l.y / sw) * sw;
+    };
+    /** Gövdə önündə dərinlik sinədən: siqnalçının sinəsindən aralıq avatarın sinəsinin önünə (+margin). */
+    const onChest = (q, margin = 0) => {
+      const p = raw(q);
+      const front = chest && this.#torsoFront(p);
+      if (!front) return p;
+      p.z += (front.z + Math.max(0, chestGap(q)) * k + margin - p.z) * front.w;
+      return p;
+    };
     return {
-      /** Çiyinlərə nisbətən yer (dirsək, gövdə önündəki əl). */
-      body: (q) => local(vec(q).sub(mid)).multiplyScalar(k).add(this.body.mid),
+      /** Çiyinlərə nisbətən yer (dirsək). */
+      raw,
+      /** Gövdə önündəki nöqtə: dərinlik sinədən ölçülür (sinə xətti varsa). */
+      body: (q, margin = 0) => onChest(q, margin),
+      chestGap,
       /** Burundan ölçülən yer, dərinlik yarıya sıxılır. */
       face: (q) => local(vec(q).sub(P[0]), 0.5).multiplyScalar(k).add(this.body.nose),
       /** Üzə yaxınlıq: 1 — üzdə, 0 — ≥26 sm uzaqda. */
@@ -1417,7 +1442,22 @@ export class VrmAvatar {
    */
   #wordPalm(map, wrist, hand, flip, rig, scale) {
     const palm = signerPoint(wrist, hand, 'palm', flip);
-    const body = map.body(palm);
+    let body = map.body(palm);
+    // Sinəyə toxunan işarədə (MƏN — barmaq sinədə) sinəyə ən yaxın əl nöqtəsi avatarın sinəsinə
+    // qoyulur (barmağın qalınlığı qədər önə) və ovuc ondan əlin öz ölçüsü ilə geri hesablanır.
+    let tip = null, tipGap = map.chestGap(palm);
+    for (const j of CONTACT) {
+      const q = signerPoint(wrist, hand, j, flip);
+      const g = map.chestGap(q);
+      if (g < tipGap) { tipGap = g; tip = q; }
+    }
+    if (tip && Number.isFinite(tipGap)) {
+      const w = 1 - THREE.MathUtils.smoothstep(tipGap, 0.04, 0.10);
+      if (w > 0) {
+        const back = map.dir(palm.map((v, k) => v - tip[k])).multiplyScalar(scale);
+        body = body.lerp(map.body(tip, R_FINGER + 0.004).add(back), w);
+      }
+    }
     let contact = palm, near = map.near(palm);
     for (const j of CONTACT) {
       const q = signerPoint(wrist, hand, j, flip);
@@ -1534,6 +1574,41 @@ export class VrmAvatar {
       head = { center: c, radius: q(headPts.map((p) => p.distanceTo(c)), 0.85), nose: nose.clone() };
     }
     return { slices: smooth, yMin, yMax, head };
+  }
+
+  /**
+   * Avatarın gövdəsinin ön səthi nöqtənin hündürlüyündə və yanında: {z, w}. w — çəki: gövdənin
+   * önündə 1, çiyinlərdən yuxarı və gövdənin yanlarından kənarda 0-a enir. Gövdə ölçülməyibsə null.
+   */
+  #torsoFront(p) {
+    const s = this.solid;
+    if (!s) return null;
+    const sl = s.slices;
+    let i = sl.findIndex((c) => c.y >= p.y);
+    if (i < 0) i = sl.length - 1;
+    const a = sl[Math.max(0, i - 1)], c = sl[i];
+    const t = c.y === a.y ? 0 : Math.min(1, Math.max(0, (p.y - a.y) / (c.y - a.y)));
+    const lerp = (key) => a[key] + (c[key] - a[key]) * t;
+    const cx = lerp('cx'), cz = lerp('cz'), rx = lerp('rx'), rz = lerp('rz');
+    const u = Math.abs(p.x - cx) / rx;
+    const z = cz + rz * Math.sqrt(Math.max(0, 1 - Math.min(1, u) ** 2));
+    const smooth = THREE.MathUtils.smoothstep;
+    const w = (1 - smooth(u, 0.7, 1.2)) * (1 - smooth(p.y, s.yMax - 0.06, s.yMax + 0.02)) * smooth(p.y, s.yMin, s.yMin + 0.05);
+    return { z, w };
+  }
+
+  /**
+   * Dirsəyin hədəfi gövdədən kənarda olsun. Oturan siqnalçı dirsəklərini bədənə yaxın saxlayır
+   * (pose heavy bunu görür) və avatarın gövdəsi çiyin eninə görə daha enlidir: hədəflərin 29 %-i
+   * gövdənin içinə düşürdü və IK qolu bədənə çəkirdi. Hədəf səthdən bazunun qalınlığı qədər
+   * bayıra çıxarılır.
+   */
+  #elbowOut(p) {
+    if (!this.solid) return p;
+    const hit = this.#solidDistance(p);
+    const need = R_UPPERARM + 0.01;
+    if (hit.dist < need) p.addScaledVector(hit.normal, need - hit.dist);
+    return p;
   }
 
   /** Nöqtəni gövdənin ÖN səthinə çıxarmaq üçün lazım olan z-addımı. */

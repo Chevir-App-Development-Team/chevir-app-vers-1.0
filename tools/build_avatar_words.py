@@ -4,8 +4,11 @@ AzSLD-nin bütün işarələrindən avatar lüğəti — yerli datasetdən (data
 Hər glos üçün (ən azı --min-instances nümunə, tək hərflər barmaq əlifbasındadır) bir neçə
 siqnalçının nümunəsi emal olunur və ən tipik təmiz nümunə seçilir:
   - MediaPipe Pose lite + Hands + Face, VIDEO rejimi (kadrdan kadra izləmə): IMAGE rejiminə görə
-    titrəmə iki dəfə az. Pose heavy şəkildə biləyi dəqiq tapır, amma 3B-də əlləri bədənə ~2 dəfə
-    yaxın qoyur və avatarda əllər gövdəyə girir; lite ilə avatarın ölçüləri ən yaxşıdır (EXPERIMENTS E10).
+    titrəmə iki dəfə az. Əlin bədəndən nə qədər irəlidə olduğunu heavy görür, lite isə demək olar
+    sabit təxmin edir (yan kamera ilə yoxlanılıb, EXPERIMENTS E11). Avatarın qol həlli hələ lite-yə
+    uyğundur: heavy ilə əllər və qollar gövdəyə daha tez-tez girir, ona görə lüğət lite ilədir.
+    Heavy variantı: --pose-model .../pose_landmarker_heavy.task --chest (siqnalçıların sinə xətti
+    lüğətin özündən ölçülür, `chest` index.json-da, və avatar sinəyə toxunan əli öz sinəsinə köçürür; E12).
   - keyfiyyət: build_words.trim_and_score (poza, işarə məkanında əllərin tapılması, uzunluq);
   - tipiklik: namizədlər arasında DTW məsafəsi (əlin bədənə görə yeri + əlin forması). Keyfiyyəti
     ən yaxşınınkının 85 %-indən aşağı olmayanlardan bütün namizədlərə ən yaxını (medoid) seçilir —
@@ -275,6 +278,48 @@ def features(rec):
     return np.asarray(out)
 
 
+def chest_line(words):
+    """
+    The signers' chest surface in the avatar's frame (vrm.js #signerToAvatar: shoulder axis, camera
+    vertical, forward; shoulder widths): hands stop at the body, so the 3rd percentile of the palm's
+    forward distance at each height (palm in front of the torso) traces it. Seated signers lean toward
+    the camera, so the line slants: forward = a + b × height. → {a, b} or None.
+    """
+    pts = []
+    for w in words:
+        for fr in w['frames']:
+            b = fr.get('b')
+            if not b:
+                continue
+            P = np.asarray(b, float) * [1, -1, -1]
+            mid, ax = (P[1] + P[2]) / 2, P[1] - P[2]
+            sw = np.linalg.norm(ax)
+            ax = ax / sw
+            up = np.array([0, 1.0, 0]) - ax[1] * ax
+            up /= np.linalg.norm(up)
+            fwd = np.cross(ax, up)
+            for s, wi in (('L', 5), ('R', 6)):
+                h = fr.get(s)
+                if h:
+                    W = np.asarray(h['w'], float)
+                    q = (np.asarray(b[wi], float) + W[[0, 5, 9, 17]].mean(0) - W[0]) * [1, -1, -1] - mid
+                    pts.append((q @ ax / sw, q @ up / sw, q @ fwd / sw))
+    pts = np.asarray(pts)
+    if not len(pts):
+        return None
+    pts = pts[np.abs(pts[:, 0]) < 0.45]
+    hs, fs = [], []
+    for lo in np.arange(-1.3, -0.2, 0.1):
+        m = (pts[:, 1] >= lo) & (pts[:, 1] < lo + 0.1)
+        if m.sum() >= 150:
+            hs.append(lo + 0.05)
+            fs.append(np.percentile(pts[m, 2], 3))
+    if len(hs) < 4:
+        return None
+    b, a = np.polyfit(hs, fs, 1)
+    return {'a': round(float(a), 3), 'b': round(float(b), 3)}
+
+
 def dtw(x, y):
     d = np.linalg.norm(x[:, None, :] - y[None, :, :], axis=2)
     acc = np.full((len(x) + 1, len(y) + 1), np.inf)
@@ -309,7 +354,10 @@ def main():
     ap.add_argument('--words200', default=str(ROOT / 'data' / 'azsld' / 'AzSLD_Words_200.zip'),
                     help='cümlələrdə olmayan sözlər üçün kliplər (boş — istifadə olunmur)')
     ap.add_argument('--splits', type=Path, default=ROOT / 'ml' / 'splits')
-    ap.add_argument('--pose-model', type=Path, default=ROOT / 'public' / 'tercume' / 'assets' / 'pose_landmarker_lite.task')
+    ap.add_argument('--pose-model', type=Path, default=ROOT / 'public' / 'tercume' / 'assets' / 'pose_landmarker_lite.task',
+                    help='heavy: data/models/pose_landmarker_heavy.task (float16/1 relizi)')
+    ap.add_argument('--chest', action='store_true',
+                    help='siqnalçıların sinə xəttini index.json-a yaz: avatar dərinliyi sinədən ölçür (heavy ilə; E12)')
     ap.add_argument('--out-dir', type=Path, default=ROOT / 'public' / 'tercume' / 'words')
     ap.add_argument('--cache', type=Path, default=ROOT / 'data' / 'azsld' / 'lexicon_cache')
     ap.add_argument('--candidates', type=int, default=8)
@@ -391,17 +439,19 @@ def main():
                                              encoding='utf8')
         index.append(entry)
     index.sort(key=lambda w: w['text'])
+    words = [json.loads(p.read_text(encoding='utf8')) for p in out_dir.glob('*.json') if p.name != 'index.json']
+    chest = chest_line(words) if args.chest else None
     # Hər blendshape-in diapazonu lüğətin bütün kadrları üzrə: median — siqnalçıların sakit üzü,
     # 99-cu faiz — güclü ifadə (avatar bu aralığı öz ifadəsinin 0…tam aralığına çevirir)
-    faces = np.asarray([fr['f']['s'] for p in out_dir.glob('*.json') if p.name != 'index.json'
-                        for fr in json.loads(p.read_text(encoding='utf8'))['frames'] if fr.get('f')])
+    faces = np.asarray([fr['f']['s'] for w in words for fr in w['frames'] if fr.get('f')])
     face_neutral = [int(v) for v in np.median(faces, axis=0)] if len(faces) else None
     face_full = [int(v) for v in np.percentile(faces, 99, axis=0)] if len(faces) else None
     (out_dir / 'index.json').write_text(json.dumps({
         'source': f'{SOURCE} — hər işarə üçün bir neçə siqnalçının ən tipik təmiz nümunəsi '
-                  f'(MediaPipe Pose lite + Hands + Face, VIDEO rejimi; tools/build_avatar_words.py)',
+                  f'(MediaPipe Pose {args.pose_model.stem.split("_")[-1]} + Hands + Face, VIDEO rejimi; '
+                  f'tools/build_avatar_words.py)',
         'count': len(index), 'face': face_keys, 'faceNeutral': face_neutral, 'faceFull': face_full,
-        'words': index,
+        'chest': chest, 'words': index,
     }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
     total = sum(p.stat().st_size for p in out_dir.glob('*.json'))
     print(f'{len(index)} söz yazıldı ({total / 1e6:.1f} MB), {len(dropped)} söz atıldı: {dropped[:20]}')
