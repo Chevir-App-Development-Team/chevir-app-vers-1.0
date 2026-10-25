@@ -880,12 +880,162 @@ pd.DataFrame(rows).set_index('run').T
     ])
 
 
+def nb07():
+    return notebook([
+        md("""
+# AzSLD 07 — fingerspelled letters for the letter mode
+
+The app's letter mode types a word letter by letter with the hand tracker alone. Its model so far (a dense
+network on one hand's image coordinates) types static letters only while the hand is still, and its own
+evaluation on AzSLD's photos is 78 % on static letters and 2 % on the 8 moving ones. This notebook trains a
+letter model on the landmark pipeline (`azsl/letters.py`) from every AzSLD source of letters:
+
+- **sentences:** the letter signs annotated in the sentence recordings, frontal and side camera, the signer
+  split (an "O" counts as a letter only next to another spelled letter: alone it is the pronoun "o");
+- **photos:** AzSLD_Fingerspelling's static letters (24 letters × 40 photos), split by contributor;
+- **clips:** its moving letters (8 letters, frames sampled from clips, filled back in between);
+- **`<none>`:** gaps between annotated signs, so the model can say that no letter is shown.
+
+The model reads only the hand (no body, no face: most photos have none, and the browser runs no body
+tracker here). The epoch is chosen on val macro-F1 over the letters; test is scored once, per source, for
+the new models and for the old one on the same samples.
+
+**Inputs:** 01 (fingerspelling landmarks), 02 shards (both cameras), 03 (splits), the old model as a dataset.
+**Kaggle:** GPU T4. **Writes** `letters/<run>/`: history, metrics, predictions, best.pt, model.onnx, manifest.json.
+"""),
+        code("""
+SMOKE = False          # True: a few hundred samples, 2 epochs
+SPELLING = __SPELLING__
+SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
+NONE_PER_LETTER = 1.0   # <none> samples per letter sign of the sentences, per split
+TRAIN_ON_VAL = False    # final model: val signers / contributors too (runs then need save_epoch)
+# v1: hand shape + movement only, or with the hand's position in the image and the presence flags
+RUNS = {
+    'hand': dict(seed=1, groups=['hand_shape', 'hand_vel']),
+    'hand_pos': dict(seed=1, groups=['hands', 'hand_shape', 'hand_vel', 'flags']),
+}
+""".replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False))),
+        code(SETUP),
+        code("""
+import importlib.util
+missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is None]
+if ON_KAGGLE and missing:
+    subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
+"""),
+        *package_cells(TRAIN_MODULES + ['letters']),
+        code("""
+import numpy as np, pandas as pd, torch
+from azsl import train as T, letters as L
+INPUT = '/kaggle/input' if ON_KAGGLE else OUT
+
+def find(pattern):
+    return sorted({os.path.dirname(p) for p in glob.glob(os.path.join(INPUT, '**', pattern), recursive=True)})
+
+splits_dir = find('splits/glosses_split.csv')[0]
+sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
+side_dirs = find('landmarks/sentences_cam1/shard*/manifest.csv')
+fs_dirs = find('landmarks/fingerspelling/manifest.csv')
+old_meta = [p for p in glob.glob(os.path.join(INPUT, '**', 'model.json'), recursive=True)
+            if os.path.exists(os.path.join(os.path.dirname(p), 'model.bin'))]
+import hashlib
+with open(os.path.join(splits_dir, 'words200_split.csv'), 'rb') as f:
+    split_id = hashlib.sha1(f.read()).hexdigest()[:10]
+print('splits:', splits_dir, '| frontal shards:', len(sentence_dirs), '| side shards:', len(side_dirs),
+      '| fingerspelling:', fs_dirs, '| old model:', old_meta[:1])
+print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none')
+"""),
+        code("""
+rng = np.random.default_rng(0)
+tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
+tags = tags[tags.has_landmarks & tags.split.notna() & tags.start.notna() & tags.end.notna()
+            & ~tags.dup.astype(bool)].copy()
+tags['gloss'] = tags.gloss.replace(SPELLING)
+fsplit = pd.read_csv(os.path.join(splits_dir, 'fingerspelling_split.csv'))
+if TRAIN_ON_VAL:
+    tags['split'] = tags.split.replace({'val': 'train'})
+    fsplit['split'] = fsplit.split.replace({'val': 'train'})
+    assert all(r.get('save_epoch') for r in RUNS.values()), 'without val, every run needs a fixed save_epoch'
+lt = L.letter_tags(tags)
+if SMOKE:
+    lt = lt.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 150), random_state=0))
+    fsplit = fsplit.groupby(['kind', 'split'], group_keys=False).apply(lambda d: d.head(80))
+    for r in RUNS.values():
+        r.update(epochs=2)
+n_letters = lt.split.value_counts()
+nt = L.none_tags(tags, {s: int(n * NONE_PER_LETTER) for s, n in n_letters.items()}, rng)
+print('letter signs in the sentences:', n_letters.to_dict(), '| <none> gaps:', nt.split.value_counts().to_dict())
+index = {g: i for i, g in enumerate(L.LABELS)}
+al = pd.concat([pd.read_csv(os.path.join(d, 'align.csv'), dtype={'id': str}) for d in side_dirs])
+good = al[(al['corr'] >= SIDE_MIN_CORR) & (al.margin >= SIDE_MIN_MARGIN)]
+sb = L.load_sentences(sentence_dirs, pd.concat([lt, nt], ignore_index=True), index, L.DEFAULTS['margin'],
+                      side=(side_dirs, dict(zip(good.id, good.lag))))
+pb = L.load_photos(fs_dirs, fsplit, index)
+cb = L.load_clips(fs_dirs, fsplit, index)
+banks = {}
+for s in ('train', 'val', 'test'):
+    b = T.Bank.merge(T.Bank.merge(sb[s], sb.get(f'{s}_side', T.Bank().done())), T.Bank.merge(pb[s], cb[s]))
+    banks[s] = b
+    src = pd.Series([L.source_of(i) for i in b.ids])
+    print(s, len(b), src.value_counts().to_dict(), '| letters with samples:',
+          len(set(b.labels.tolist()) - {index[L.NONE]}))
+"""),
+        md('### Training, then val and test per source; the old model on the same samples'),
+        code("""
+import time
+rows = []
+for name, change in RUNS.items():
+    out = os.path.join(OUT, 'letters', name)
+    cfg = {**change, 'split_id': split_id}
+    print(f'\\n===== {name}: {cfg}')
+    t0 = time.time()
+    net, res = L.fit(cfg, banks, out)
+    device = next(net.parameters()).device
+    for part in ('val', 'test'):
+        if len(banks[part]):
+            p = L.predict(net, banks[part], device, res['cfg']['groups'])
+            res[part] = L.letter_scores(p, banks[part].labels, banks[part].ids)
+            np.savez_compressed(os.path.join(out, f'predictions_{part}.npz'), probs=p, labels=banks[part].labels,
+                                ids=np.array(banks[part].ids))
+            print(part, {k: (round(v['top1'], 4), round(v['macro_f1'], 4)) if isinstance(v, dict) else round(v, 4)
+                         for k, v in res[part].items()})
+    res['minutes'] = round((time.time() - t0) / 60, 1)
+    ok = T.export_onnx(net, os.path.join(out, 'model.onnx'), n_in=res['n_features'])
+    L.write_manifest(out, {**L.DEFAULTS, **res['cfg']}, res, ok)
+    with open(os.path.join(out, 'metrics.json'), 'w', encoding='utf-8') as f:
+        json.dump(res, f, ensure_ascii=False, indent=1, default=str)
+    row = {'run': name, 'best_epoch': res['best_epoch'], 'minutes': res['minutes']}
+    for part in ('val', 'test'):
+        for k, v in res.get(part, {}).items():
+            row.update({f'{part}_{k}_{m}': round(v[m], 4) for m in ('top1', 'macro_f1')} if isinstance(v, dict)
+                       else {f'{part}_{k}': round(v, 4)})
+    rows.append(row)
+    pd.DataFrame(rows).to_csv(os.path.join(OUT, 'letters', 'summary.csv'), index=False)
+if old_meta:
+    old = L.OldModel(old_meta[0], os.path.join(os.path.dirname(old_meta[0]), 'model.bin'))
+    res, row = {}, {'run': 'old_model'}
+    for part in ('val', 'test'):
+        if len(banks[part]):
+            res[part] = L.letter_scores(old.predict_bank(banks[part]), banks[part].labels, banks[part].ids)
+            row.update({f'{part}_{k}_{m}': round(v[m], 4) for k, v in res[part].items() if isinstance(v, dict)
+                        for m in ('top1', 'macro_f1')})
+            print('old model', part, {k: (round(v['top1'], 4), round(v['macro_f1'], 4))
+                                      for k, v in res[part].items() if isinstance(v, dict)})
+    os.makedirs(os.path.join(OUT, 'letters', 'old_model'), exist_ok=True)
+    with open(os.path.join(OUT, 'letters', 'old_model', 'metrics.json'), 'w', encoding='utf-8') as f:
+        json.dump(res, f, ensure_ascii=False, indent=1)
+    rows.append(row)
+    pd.DataFrame(rows).to_csv(os.path.join(OUT, 'letters', 'summary.csv'), index=False)
+pd.DataFrame(rows).set_index('run').T
+"""),
+    ])
+
+
 def main():
     out = os.path.join(HERE, 'notebooks')
     os.makedirs(out, exist_ok=True)
     books = {'01_index_words200_fingerspelling.ipynb': nb01(), '03_split_benchmark.ipynb': nb03(),
              '04_train_words.ipynb': nb04(), '05_eval_word_mode.ipynb': nb05(),
-             '06_train_continuous.ipynb': nb06()}
+             '06_train_continuous.ipynb': nb06(), '07_train_letters.ipynb': nb07()}
     for k in range(NUM_SHARDS):
         books[f'02_sentences_shard{k}.ipynb'] = nb02(k)
         books[f'02_sentences_cam1_shard{k}.ipynb'] = nb02(k, 'Cam1')
