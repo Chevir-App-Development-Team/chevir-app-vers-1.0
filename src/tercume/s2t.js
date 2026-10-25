@@ -16,8 +16,14 @@
  *
  * Əlavə: aşkarlanan landmark-lar canlı olaraq cyber skeletə də verilir,
  * beləcə modelin gördüyü şey ekranda görünür.
+ *
+ * Model iki cürdür. Köhnə model (model.js, FingerspellModel) 20 kadrın xam əl koordinatlarını
+ * oxuyur. Landmark modeli (letters.js, LetterModel, notebook 07) əlin formasını və hərəkətini oxuyur,
+ * '<none>' (hərf yoxdur) deyə bilir və hərəkətli hərfləri (ç, d, g, k, ö, ü, y, z) də tanıyır: onlar
+ * üçün "əl sabit olmalıdır" şərti tətbiq olunmur, eyni hərfin təkrarı isə proqnoz dəyişəndə açılır.
  */
 import { createHandLandmarker, extractKeypoints, FrameWindow } from './hands.js';
+import { frameFromResults, LandmarkClip } from './landmarks.js';
 
 /** Hədlər ölçülərək seçilib (bax yuxarıdaki şərh); runtime-da dəyişdirilə bilər. */
 export const DEFAULT_GATE = {
@@ -32,6 +38,9 @@ export const DEFAULT_GATE = {
   releaseMotion: 0.06,  // eyni hərfin təkrarı üçün əl pozadan bu qədər çıxmalıdır
 };
 
+/** Landmark modeli üçün: '<none>' sinfi keçidləri özü tutur, ona görə əminlik həddi bir az yuxarıdır. */
+export const LETTER_GATE = { ...DEFAULT_GATE, minConfidence: 0.5 };
+
 export class SignToText {
   constructor({ model, decoder, video, onFrame, onPrediction, onDecode, onStatus } = {}) {
     this.model = model;
@@ -42,8 +51,11 @@ export class SignToText {
     this.onDecode = onDecode;
     this.onStatus = onStatus;
 
-    this.gate = { ...DEFAULT_GATE };
+    this.landmarkModel = model?.kind === 'letters';
+    this.gate = { ...(this.landmarkModel ? LETTER_GATE : DEFAULT_GATE) };
     this.win = new FrameWindow({ take: 20 });
+    this.clip = this.landmarkModel ? new LandmarkClip(model.window + 8) : null;
+    this.pending = null;      // landmark modelinin gözlənilən proqnozu (onnxruntime asinxrondur)
     this.steps = [];          // [{label,p}[]] — beam üçün toplanan proqnozlar
     this.letters = [];        // qəbul edilmiş hərflər
     this.beamWidth = 3;
@@ -117,6 +129,7 @@ export class SignToText {
       this.video.load();
     }
     this.win.reset();
+    this.clip?.reset();
     this.#resetGate();
     this.onStatus?.({ stage: 'stopped', message: 'Dayandırıldı' });
   }
@@ -125,6 +138,7 @@ export class SignToText {
     this.steps = [];
     this.letters = [];
     this.win.reset();
+    this.clip?.reset();
     this.#resetGate();
     this.onDecode?.({ candidates: [], best: null, verified: null, suggestions: [], letters: [] });
   }
@@ -152,17 +166,21 @@ export class SignToText {
    * Bir kadr əlavə edir və şərtlər ödənəndə hərfi yazır.
    * Kameradan asılı deyil — sınaqda süni ardıcıllıqla da çağırıla bilər.
    * @param {Float32Array|null} keypoints 63 ölçülü vektor (əl yoxdursa null)
+   * @param {object|null} frame landmark modeli üçün kadr (landmarks.js frameFromResults; bədənsiz)
+   * @param {number} aspect kadrın eni / hündürlüyü
    */
-  pushFrame(keypoints) {
+  pushFrame(keypoints, frame = null, aspect = 4 / 3) {
     this.win.push(keypoints);
+    if (this.clip && frame) this.clip.push(frame);
     this.frameNo++;
 
     const { gate } = this;
     const presence = this.win.presence;
     const motion = this.win.motion;
 
-    // Əl pozadan çıxdı (tərpəndi və ya kadrdan getdi) → eyni hərf yenidən yazıla bilər
-    if (presence < 1 || motion > gate.releaseMotion) this.locked = null;
+    // Əl pozadan çıxdı (tərpəndi və ya kadrdan getdi) → eyni hərf yenidən yazıla bilər.
+    // Hərəkətli hərf özü tərpənir: onun təkrarını yalnız əlin getməsi və ya başqa proqnoz açır.
+    if (presence < 1 || (motion > gate.releaseMotion && !this.#dynamic(this.locked))) this.locked = null;
 
     if (!this.win.full || this.frameNo % gate.stride) return this.#status();
 
@@ -171,19 +189,49 @@ export class SignToText {
       this.dwellLabel = null; this.dwellCount = 0;
       return this.#status();
     }
+    if (this.landmarkModel) {
+      if (!this.pending && this.clip.length) {
+        const raw = this.clip.toRaw(Math.max(0, this.clip.length - this.model.window));
+        this.pending = this.model.predictRaw(raw, aspect)
+          .then((probs) => this.#decide(this.model.topK(probs, Math.max(this.beamWidth, 3) + 1), presence, motion))
+          .catch((err) => console.warn('hərf proqnozu alınmadı:', err))
+          .finally(() => { this.pending = null; });
+      }
+      return this.#status();
+    }
     if (motion > gate.maxMotion) {
       this.state = 'moving';
       this.dwellLabel = null; this.dwellCount = 0;
       return this.#status();
     }
+    this.#decide(this.model.topK(this.model.predict(this.win.flat()), Math.max(this.beamWidth, 3)), presence, motion);
+    return this.#status();
+  }
 
-    const top = this.model.topK(this.model.predict(this.win.flat()), Math.max(this.beamWidth, 3));
-    this.onPrediction?.({ top, quality: presence, motion });
+  #dynamic(label) {
+    return !!label && this.landmarkModel && this.model.dynamic.has(label);
+  }
+
+  /** Proqnoz → şərtlər (əminlik, sabitlik, təsdiq) → hərf. */
+  #decide(top, presence, motion) {
+    const { gate } = this;
+    const none = this.landmarkModel ? this.model.none : null;
+    const letters = top.filter((t) => t.label !== none);
+    this.onPrediction?.({ top: letters, quality: presence, motion });
     const best = top[0];
-    if (!best || best.p < gate.minConfidence) {
+    if (!best || best.label === none || best.p < gate.minConfidence) {
+      if (best?.label === none) this.locked = null;      // hərf bitdi
       this.state = 'unsure';
       this.dwellLabel = null; this.dwellCount = 0;
-      return this.#status();
+      return;
+    }
+    if (this.landmarkModel) {
+      if (!this.#dynamic(best.label) && motion > gate.maxMotion) {
+        this.state = 'moving';
+        this.dwellLabel = null; this.dwellCount = 0;
+        return;
+      }
+      if (this.locked && best.label !== this.locked) this.locked = null;   // başqa hərf: əvvəlki bitib
     }
 
     if (best.label === this.dwellLabel) this.dwellCount++;
@@ -193,9 +241,8 @@ export class SignToText {
     if (this.locked !== best.label && this.dwellCount >= gate.dwell) {
       this.locked = best.label;
       this.state = 'typed';
-      this.#handle(top);
+      this.#handle(letters);
     }
-    return this.#status();
   }
 
   #tick = () => {
@@ -211,7 +258,9 @@ export class SignToText {
   #process(v, extra = {}) {
     const result = this.landmarker.detectForVideo(v, performance.now());
     const landmarks = result?.landmarks?.[0] ?? null;
-    const status = this.pushFrame(extractKeypoints(result));
+    const aspect = (v.videoWidth || 4) / (v.videoHeight || 3);
+    const frame = this.landmarkModel ? frameFromResults(result, null, null, aspect) : null;
+    const status = this.pushFrame(extractKeypoints(result), frame, aspect);
     this.onFrame?.({ landmarks, ...status, ...extra });
   }
 

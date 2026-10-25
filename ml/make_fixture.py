@@ -220,8 +220,68 @@ def check_or_write_continuous(check):
     print(f'wrote {stem}.json/.bin ({blob.nbytes / 1024:.0f} KB)')
 
 
+def letters_cases():
+    """Golden cases for the browser's letter mode (letters.js): strip, canonical and the hand-only features
+    of letter windows: one hand in the left slot, both hands, a hand that comes and goes, no hand."""
+    from azsl import letters as L
+    rng = np.random.default_rng(20261025)
+    blobs, off, cases = [], 0, []
+
+    def put(a):
+        nonlocal off
+        a = np.asarray(a, np.float32)
+        blobs.append(a.ravel())
+        ref = {'offset': off, 'shape': list(a.shape)}
+        off += a.size
+        return ref
+
+    for name, T, aspect in (('left_only', 24, 16 / 9), ('both', 24, 4 / 3), ('comes_goes', 30, 3 / 4), ('none', 8, 4 / 3)):
+        raw = synthetic(T, rng)
+        if name == 'left_only':
+            raw['hand'][:, 0] = np.nan
+            raw['hand_world'][:, 0] = np.nan
+        elif name == 'comes_goes':
+            raw['hand'][:10, 0] = np.nan
+            raw['hand_world'][:10, 0] = np.nan
+            raw['hand'][5:, 1] = np.nan
+            raw['hand_world'][5:, 1] = np.nan
+        elif name == 'none':
+            raw['hand'][:] = np.nan
+            raw['hand_world'][:] = np.nan
+        entry = {'name': name, 'T': T, 'aspect': aspect}
+        for k in KEYS:
+            entry[k] = put(raw[k])
+        for groups in (L.GROUPS, ['hands', 'hand_shape', 'hand_vel', 'flags']):
+            entry['expected_' + '+'.join(groups)] = put(L.preprocess(raw, aspect, groups))
+        cases.append(entry)
+    return {'letters_version': L.LETTERS_VERSION, 'groups': [L.GROUPS, ['hands', 'hand_shape', 'hand_vel', 'flags']],
+            'cases': cases, 'tolerance': 1e-5}, np.concatenate(blobs).astype('<f4')
+
+
+def check_or_write_letters(check):
+    from azsl import letters as L
+    meta, blob = letters_cases()
+    stem = os.path.join(OUT, f'letters_v{L.LETTERS_VERSION}')
+    if check:
+        if not os.path.exists(stem + '.bin'):
+            sys.exit(f'no fixture for letters_version {L.LETTERS_VERSION} — run without --check to create it')
+        with open(stem + '.json', encoding='utf-8') as f:
+            same = json.load(f) == json.loads(json.dumps(meta))
+        ref = np.fromfile(stem + '.bin', dtype='<f4')
+        if not same or ref.shape != blob.shape or not np.allclose(ref, blob, atol=1e-6, equal_nan=True):
+            sys.exit(f'letter preprocessing changed but LETTERS_VERSION is still {L.LETTERS_VERSION}: bump it, '
+                     'update letters.js and regenerate the fixture')
+        print(f'letters match fixture v{L.LETTERS_VERSION}')
+        return
+    blob.tofile(stem + '.bin')
+    with open(stem + '.json', 'w', encoding='utf-8') as f:
+        json.dump(meta, f, separators=(',', ':'))
+    print(f'wrote {stem}.json/.bin ({blob.nbytes / 1024:.0f} KB)')
+
+
 def main():
     check_or_write_continuous('--check' in sys.argv)
+    check_or_write_letters('--check' in sys.argv)
     meta, blob = build()
     stem = os.path.join(OUT, f'features_v{FT.FEATURE_VERSION}')
     seg = json.loads(json.dumps(segment_cases()))

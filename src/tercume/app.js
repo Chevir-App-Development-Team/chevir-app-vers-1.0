@@ -7,7 +7,7 @@
  */
 import { ASSET_BASE, WORDS_BASE } from './paths.js';
 import { WordLexicon, azLower } from './words.js';
-import { FingerspellModel } from './model.js';
+import { loadLetterModel } from './letters.js';
 import { LexiconDecoder } from './decoder.js';
 import { CyberHand } from './skeleton.js';
 import { SignToText } from './s2t.js';
@@ -47,7 +47,7 @@ async function boot() {
   try {
     setStatus('Model yüklənir…');
     const [model, decoder, poses, evalData, lexicon] = await Promise.all([
-      FingerspellModel.load(`${ASSET_BASE}model.json`, `${ASSET_BASE}model.bin`),
+      loadLetterModel({ assetBase: ASSET_BASE }),
       LexiconDecoder.load(`${ASSET_BASE}lm.json`, `${ASSET_BASE}vocab.json`, `${ASSET_BASE}prefixes.json`),
       loadPoses(`${ASSET_BASE}poses.json`),
       fetch(`${ASSET_BASE}eval.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
@@ -478,6 +478,7 @@ function initT2S() {
 
 /* ══════════════════ MODEL sənədi ══════════════════ */
 function renderAbout() {
+  if (state.model.kind === 'letters') return renderAboutLetters();
   const e = state.eval;
   const m = state.model.meta;
   const arch = m.layers.map((l) => `${l.in}→${l.out}`).join(' · ');
@@ -535,6 +536,64 @@ function renderAbout() {
     <h3>Statik hərflər üzrə dəqiqlik</h3>
     ${bars(e.perLetter.filter((r) => r.type === 'static').map((r) => [r.letter, r.acc]))}
     ` : ''}
+
+    <h3>Niyə hər şey brauzerdə</h3>
+    <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və sistem statik fayl kimi
+    hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil —
+    jest dili videosu istifadəçinin üzünü və kimliyini daşıyır.</p>`;
+}
+
+/** Landmark hərf modeli (notebook 07): manifest-dəki ölçmələr, köhnə modelin eyni nümunələrdəki nəticəsi ilə. */
+function renderAboutLetters() {
+  const m = state.model.manifest;
+  const test = m.metrics?.test ?? {};
+  const old = m.old_model?.test ?? {};
+  const pct = (v) => (v === undefined ? '—' : `${(v * 100).toFixed(1)}%`);
+  const SOURCES = [['sentence', 'AzSLD cümlələrindəki hərflər, ön kamera'], ['side', 'eyni hərflər, yan kamera'],
+    ['photo', 'Fingerspelling şəkilləri (statik hərflər)'], ['clip', 'Fingerspelling klipləri (hərəkətli hərflər)'],
+    ['all', 'hamısı']];
+  const rows = SOURCES.filter(([k]) => test[k]).map(([k, name]) =>
+    `<tr><td>${name}</td><td class="n">${test[k].n}</td><td class="n">${pct(test[k].top1)}</td>`
+    + `<td class="n">${pct(test[k].macro_f1)}</td><td class="n">${pct(old[k]?.top1)}</td></tr>`).join('');
+  const per = Object.entries(m.test_per_letter ?? {}).sort((a, b) => a[0].localeCompare(b[0], 'az'));
+  const bars = per.length ? `<h3>Hərf üzrə test (görmədiyi insanlar)</h3><div class="bars">${per.map(([ch, r]) =>
+    `<div><span>${escapeHtml(ch)}</span><u><i style="width:${(r.recall * 100).toFixed(1)}%"></i></u>`
+    + `<em>${(r.recall * 100).toFixed(0)}%</em></div>`).join('')}</div>` : '';
+  $('#doc').innerHTML = `
+    <h2>Model və ölçmələr</h2>
+    <p>Barmaq əlifbası modeli MediaPipe əl nöqtələrindən <b>əlin formasını</b> (metrlə, kameradan və əlin
+    kadrdakı yerindən asılı deyil) və <b>hərəkətini</b> oxuyur, son ${m.input.window} kadra baxır (30 fps-də
+    ${(m.input.window / 30).toFixed(1)} s). Bədən və üz istifadə olunmur. 32 hərfin hamısını, hərəkətli hərfləri
+    (${m.dynamic.join(', ')}) də tanıyır və “hərf yoxdur” (<code>${escapeHtml(m.none_label)}</code>) deyə bilir.</p>
+
+    <h3>Memarlıq</h3>
+    <table>
+      <tr><th>Model</th><td class="n">Conv1D + Transformer, ${(m.params / 1e6).toFixed(2)} M parametr</td></tr>
+      <tr><th>Giriş</th><td class="n">${m.input.n_features} xüsusiyyət × kadr (${m.input.groups.join(', ')})</td></tr>
+      <tr><th>Sinif</th><td class="n">${m.labels.length} (32 hərf + hərf yoxdur)</td></tr>
+      <tr><th>Təlim</th><td class="n">AzSLD: cümlələrdəki hərflər (iki kamera), Fingerspelling şəkilləri və klipləri</td></tr>
+    </table>
+
+    <h3>Test: modelin görmədiyi insanlar</h3>
+    <table>
+      <tr><th>Mənbə</th><th>Nümunə</th><th>Top-1</th><th>Makro-F1</th><th>Köhnə model, top-1</th></tr>
+      ${rows}
+    </table>
+    <div class="note">Köhnə model (20 kadrın xam əl koordinatları, 4 qatlı şəbəkə) eyni test nümunələrində
+    ölçülüb. Fingerspelling şəkilləri ona təlimdə tanış ola bilər — həmin sətirdə onun nəticəsi optimistdir.</div>
+    ${bars}
+
+    <h3>Hərf nə vaxt yazılır</h3>
+    <p>Model hər 4 kadrdan bir proqnoz verir. Hərf əl pəncərənin hər kadrında görünəndə, model ən azı
+    <b>${Math.round(state.s2t?.gate?.minConfidence * 100 || 50)}%</b> əmin olanda və eyni hərf ardıcıl
+    ${state.s2t?.gate?.dwell ?? 3} proqnozda təsdiqlənəndə yazılır. Statik hərflərdə əl sabit olmalıdır;
+    hərəkətli hərflərdə bu şərt yoxdur. Eyni hərfi təkrar yazmaq üçün əli pozadan çıxar və ya başqa hərf göstər.</p>
+
+    <h3>Dekoder</h3>
+    <p>Hər proqnozdan ən yaxşı 3 hərf beam-ə düşür. Namizədlər hərf-bigram dil modeli ilə
+    çəkilir (leksikondan: ${state.decoder.words.length.toLocaleString('az')} unikal söz,
+    ${state.decoder.prefixes.size.toLocaleString('az')} prefiks). Sonda lüğət yoxlaması:
+    tam uyğunluq bonus alır, uyğunluq yoxdursa redaktə məsafəsi ilə ən yaxın real sözlər təklif olunur.</p>
 
     <h3>Niyə hər şey brauzerdə</h3>
     <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və sistem statik fayl kimi
