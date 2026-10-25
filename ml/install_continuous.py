@@ -2,6 +2,10 @@
 
     python ml/install_continuous.py ml/results/cont2/seq_splice            # reference + sentences.json
     python ml/install_continuous.py ml/results/cont2/seq_splice --install  # + copy to the browser assets
+    python ml/install_continuous.py ml/results/cont_final/final_splice --eval ml/results/cont_v7/final_splice --install
+
+- --eval: an evaluation-only run of the same model (notebook 06, ckpt=...) re-chose its decoding: its
+  decode and test scores replace the manifest's (the run folder's manifest.json is updated).
 
 - Reference: best.pt (torch, the training forward pass) on the windows of the golden fixture
   (ml/fixtures/continuous_v<N>) → ml/fixtures/cont_model_ref.json. tools/verify_cont_model.mjs feeds the
@@ -89,10 +93,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('run_dir', help='a notebook 06 run folder: manifest.json, best.pt, model.onnx')
     ap.add_argument('--install', action='store_true', help=f'copy model + manifest + sentences.json to {ASSETS}')
+    ap.add_argument('--eval', help='an evaluation-only notebook 06 run of this model: its decode and test scores')
     a = ap.parse_args()
     with open(os.path.join(a.run_dir, 'manifest.json'), encoding='utf-8') as f:
         manifest = json.load(f)
     assert manifest.get('kind') == 'continuous', 'not a continuous model'
+    if a.eval:
+        with open(os.path.join(a.eval, 'metrics.json'), encoding='utf-8') as f:
+            ev = json.load(f)
+        assert ev['cfg'].get('ckpt') == manifest['run'], f'{a.eval} evaluated {ev["cfg"].get("ckpt")}, not {manifest["run"]}'
+        manifest['decode'] = ev['decode']
+        manifest['metrics'].update({k: v for k, v in ev.items() if k.startswith('test')})
+        manifest['decode_source'] = {'eval': os.path.basename(os.path.normpath(a.eval)),
+                                     'decode_from': ev['cfg'].get('decode_from')}
+        manifest['continuous_version'] = CT.CONTINUOUS_VERSION
+        with open(os.path.join(a.run_dir, 'manifest.json'), 'w', encoding='utf-8') as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=1)
+        print(f'decode {ev["decode"]} (chosen by {ev["cfg"].get("decode_from")}), test f1_all {ev["test"]["f1_all"]:.4f}')
     net = load_net(a.run_dir, manifest)
     onnx = os.path.join(a.run_dir, manifest['model_file'])
     with open(onnx, 'rb') as f:

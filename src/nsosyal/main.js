@@ -434,11 +434,11 @@ function closeShare() {
 
 function ensureS2T() {
   share.loading ??= (async () => {
-    const [{ FingerspellModel }, { LexiconDecoder }, { SignToText }] = await Promise.all([
-      import('../tercume/model.js'), import('../tercume/decoder.js'), import('../tercume/s2t.js'),
+    const [{ loadLetterModel }, { LexiconDecoder }, { SignToText }] = await Promise.all([
+      import('../tercume/letters.js'), import('../tercume/decoder.js'), import('../tercume/s2t.js'),
     ])
     const [model, decoder] = await Promise.all([
-      FingerspellModel.load(`${ASSET_BASE}model.json`, `${ASSET_BASE}model.bin`),
+      loadLetterModel({ assetBase: ASSET_BASE }),
       LexiconDecoder.load(`${ASSET_BASE}lm.json`, `${ASSET_BASE}vocab.json`, `${ASSET_BASE}prefixes.json`),
     ])
     share.s2t = new SignToText({

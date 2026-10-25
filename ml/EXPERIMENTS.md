@@ -1162,4 +1162,228 @@ its test is still signer-independent, but no test sentence is new to it any more
 - `verify_cont_model.mjs`: logits within 4.3e-6 of PyTorch, argmax equal on every frame. In the app the E4
   recording gives SİZ 0.56 (22–42), AD 0.82 (42–59), NƏDİR 0.85 (59–88) and "Sizin adınız nədir ?".
 
+### What the final model still gets wrong (test, frontal camera)
+
+Words_200 clips are cut from the sentence recordings (same recording, same frames, 99 % match an annotation
+within 2 frames), so the continuous model already uses all of AzSLD's sentence data of train and val
+signers; only the 5 test signers are left out, on purpose. Of final_splice's 7,577 annotated test signs:
+
+| Outcome | Share |
+|---|---|
+| right | 0.915 |
+| missed (nothing detected there) | 0.041 |
+| another word detected | 0.034 |
+| not in the vocabulary | 0.010 |
+| detections with no sign there (of the signs) | 0.005 |
+
+- **Short signs are missed:** recall 0.336 for signs under 8 frames (211), 0.89–0.95 for longer ones.
+  The weakest words are fingerspelled letters (E 0.53, N 0.66, İ 0.66, A 0.67, L 0.67; median recall of the
+  97 words with ≥ 15 test signs 0.94). Letters and digits are 9.2 % of all signs, median 13 frames long
+  (words 22), 28 % shorter than the 10 frames that decoding requires (`min_len` 10).
+- **Confusions** are few and mostly between signs that look alike or are forms of one word: MƏN → BİZ (7),
+  SİZ → SƏN, HARA → HANSI, İSTƏMƏK → İSTƏYİR, DOĞMAQ → DOĞULMAQ (3–4 each).
+
+### Notebook 06 v7: a shorter minimum for letters (CPU, no training)
+
+Decoding v2 (`CONTINUOUS_VERSION` 2, `continuous.js` and fixture `continuous_v2` with it) takes an optional
+`min_len_short` for single-character labels: the 33 letters and digits in the vocabulary. It was chosen on
+**all** val recordings with seq_splice (v5, never saw the val signers), v5's other settings kept; then
+final_splice, the browser model, was scored on test with it. Both models came from datasets
+(`kaggle_run.py model-dataset`), evaluated on Kaggle CPU (no GPU quota).
+
+| min_len_short | 3 | 4 | 5 | **6** | 8 | 10 (= v5) |
+|---|---|---|---|---|---|---|
+| seq_splice val F1 | 0.8896 | 0.8899 | 0.8901 | **0.8901** | 0.8895 | 0.8862 |
+
+| Model, test | F1 / WER before | **F1 / WER with min_len_short 6** | Side view F1 / WER |
+|---|---|---|---|
+| seq_splice (v5), all | 0.893 / 0.143 | 0.897 / 0.136 | 0.863 / 0.182 |
+| seq_splice, unseen sentences / learnable words | 0.621 / 0.774 | 0.625 / 0.780 | |
+| **final_splice (browser)** | 0.927 / 0.105 | **0.931 / 0.097** | 0.902 / 0.136 |
+
+- final_splice: signs under 8 frames are found 0.559 of the time instead of 0.336, right 0.924 instead of
+  0.915, missed 0.032 instead of 0.041, detections with no sign there 0.006 instead of 0.005. Letters: L
+  0.667 → 0.857, Ə 0.714 → 0.837, A 0.667 → 0.772, Y 0.750 → 0.821; E, N, İ, R and 2 left the 15 weakest.
+- Installed with `install_continuous.py --eval`: the manifest takes the new decoding and test scores and
+  says `continuous_version` 2 (the browser refuses a model that needs a newer decoding). In the app the E4
+  recording reads as before (SİZ AD NƏDİR); 33 single-character labels get the shorter minimum.
+
+### Notebook 06 v8: more splicing, rarer words in the spliced sentences
+
+Its first push was refused (the weekly GPU quota of 30 h was used up); it ran after the reset. v5's protocol (held-out sentences out of
+training, from scratch, epoch chosen on val unseen sentences, learnable words), decoding chosen on val from
+v5's grid with v7's `min_len_short` 6. Two changes to seq_splice's recipe:
+
+- **splice_75:** three quarters of the samples spliced instead of half.
+- **splice_bal:** half spliced, but the spliced signs drawn with weight (signs of their word)^−0.5
+  (`splice_power`), as the loss weighs frames: MƏN is a third of all signs, and uniformly drawn signs
+  repeat a few frequent words.
+
+| Run | Best epoch | Minutes | Val F1 / WER | **Val unseen, learnable** F1 / WER | Test F1 / WER | Test unseen F1 / learnable F1 | Test side view F1 |
+|---|---|---|---|---|---|---|---|
+| seq_splice (v5, decoded as in v7) | 59 | 97 | **0.890** / 0.152 | **0.811** / 0.248 | **0.897** / 0.136 | 0.625 / 0.780 | 0.863 |
+| splice_75 | 52 | 105 | 0.860 / 0.184 | 0.797 / 0.264 | 0.861 / 0.179 | 0.599 / 0.755 | 0.818 |
+| splice_bal | 52 | 96 | 0.882 / 0.159 | 0.797 / 0.260 | 0.887 / 0.149 | 0.617 / 0.779 | 0.848 |
+
+- **Neither helps.** On val unseen sentences both are 0.014 below seq_splice (one run each, so within
+  what a seed could change, but not better), and both lose on the known sentences: three quarters spliced
+  costs 0.03 F1 there, the balanced draw 0.008. Test agrees. Half of the samples spliced, signs drawn
+  uniformly, stays the recipe; the browser model (final_splice) is unchanged.
+- Per epoch (default decoding) the three runs reach the same val unseen learnable F1 by epoch 55 (0.62),
+  while val F1 over all recordings ends at 0.769 / 0.804 / 0.812: more splicing mostly costs real-sentence
+  context, without gaining on new sentences.
+
+### Speed, and slower cameras (notebook 06 v12)
+
+**Model speed:** `tools/bench_cont_model.mjs` runs the browser model as the app does (features.js →
+onnxruntime-web WASM, one thread, this laptop): 10.7 ms per 96-frame window (p90 11.8 ms). At 30 fps the
+model runs every 8 frames, which leaves 267 ms: the model uses 4 % of it. The landmark trackers (hands,
+body) are the slow part; on a weak device they may deliver 10–20 frames a second, and the browser fills
+the stream back to 30 fps by linear interpolation (`Resampler`).
+
+**Simulated:** `continuous.camera_resample` gives a recording as a camera at a lower frame rate would
+(frames at k/fps, the nearest recorded frame), filled back to 30 fps exactly as the browser does (checked
+against `continuous.js` on the same frames: within 4.8e-7, missing points alike). Notebook 06 v12 scores
+the models at 15 and 10 fps with the decoding chosen at 30, and trains one more run under v5's protocol:
+`splice_fps`, seq_splice's recipe with half the training windows given at a random 8–30 fps
+(`fps_aug` 0.5). (Kaggle versions 9 and 10 of this notebook were killed before writing any output, with no
+message; a smoke run, version 11, completed, and version 12, the same as 10, ran through in 143 min.)
+
+| Model | 30 fps F1 / WER | 15 fps | 10 fps |
+|---|---|---|---|
+| **final_splice (browser), test** | 0.931 / 0.097 | 0.927 / 0.102 | 0.923 / 0.109 |
+| seq_splice (v5), val | 0.890 / 0.153 | 0.887 / 0.155 | 0.886 / 0.156 |
+| splice_fps, val | 0.891 / 0.155 | 0.888 / 0.159 | 0.886 / 0.159 |
+| seq_splice, test | 0.897 / 0.136 | 0.894 / 0.139 | 0.889 / 0.146 |
+| splice_fps, test | 0.897 / 0.137 | 0.897 / 0.138 | 0.892 / 0.147 |
+
+| Model | Best epoch | Val unseen learnable F1 / WER | Test unseen F1 / learnable F1 | Test side view F1 |
+|---|---|---|---|---|
+| seq_splice | 59 | 0.811 / 0.248 | 0.625 / 0.779 | 0.863 |
+| splice_fps | 51 | 0.818 / 0.236 | 0.637 / 0.795 | 0.862 |
+
+- **A slower camera costs little:** from 30 to 10 fps the browser model loses 0.008 F1 on test, the v5
+  model 0.004 on val. The interpolated stream is close enough to what the model was trained on.
+- **Training for it is not needed:** splice_fps is level with seq_splice at every frame rate on val. Its
+  0.007 on the val unseen sentences is within what one seed changes (v8: 0.014 between runs of similar
+  recipes). The browser model is unchanged.
+
+### Fingerspelled letters in sentences (notebook 06 v14)
+
+**AzSLD's fingerspelling set** (`fingerspelling_split.csv`, landmarks from notebook 01) is 959 phone photos
+of 24 static letters (40 each, from 21–32 contributors per letter except A and B, one each) and 6,400 frames
+of 8 moving letters sampled from clips (a median of 6 frames per clip over 34 frames, too sparse to rebuild
+the movement). The photos are portrait close-ups: a hand in 94 %, a body in 30 % of the static ones, a face
+almost never. They can teach hand shapes, from another camera and framing than the sentences.
+
+**How the browser model loses letters** (final_splice, decoding v7, test; 759 letter and digit signs, 90.3 %
+right): taken for another letter 4 (0.5 %), absorbed by a neighbouring detection 41 (5.4 %: 22 by another
+letter in fast spelled runs such as A-D-A, O-N-L-A-Y-N, M-E-S-S-İ-N-İ-N, 10 by the same letter doubled, 9 by a
+word), nothing detected 20 (2.6 %), taken for a word 9 (1.2 %, mostly names annotated as one gloss, e.g.
+HƏLİMƏ). Hand shapes are not the problem, so the photos would not help here.
+
+**Spelled sequences in training** (`spell`: a share of the samples are 3–8 letter signs of other recordings
+in a row, letters drawn with weight n^−0.5, taken before the splice draw), v5's protocol. The `letters` score
+counts only letter signs, on the recordings that have them.
+
+| Run | Best epoch | Val F1 | Val unseen learnable F1 | **Val letters** F1 (P / R) | Test F1 | Test letters F1 (P / R) |
+|---|---|---|---|---|---|---|
+| seq_splice (v5) | 59 | **0.890** | 0.811 | **0.853** (0.871 / 0.836) | **0.897** | **0.875** (0.902 / 0.850) |
+| splice_spell15 | 47 | 0.884 | 0.793 | 0.832 (0.853 / 0.812) | 0.889 | 0.857 (0.878 / 0.837) |
+| splice_spell30 | 44 | 0.882 | 0.815 | 0.831 (0.863 / 0.801) | 0.892 | 0.867 (0.887 / 0.848) |
+
+- **Spliced letter runs make letters worse,** on val by 0.02 F1, and the known sentences a little too.
+  Letters joined from different recordings do not move like real fast fingerspelling, where the hand
+  flows from shape to shape in one place.
+- **Decoding is not the limit either:** on seq_splice's val grid, letters F1 is 0.855 without smoothing,
+  0.853 with the chosen smoothing 3, 0.846 / 0.839 with 5 / 9.
+- What is left is fast spelled runs; more real fingerspelled sentences would be the remedy.
+- **Isolated letters are another matter:** run 10a's per-class test recall on letter signs cut from the
+  sentences is 0.9–1.0 for most letters, the moving ones included (D 0.98, Y 0.96, K 1.00, Z 0.80, Ü 0.80).
+  The app's letter mode uses an older model (`public/tercume/assets/model.json`: one hand, 20 frames,
+  a dense network, 35 labels with backspace / enter / space), whose own evaluation on the AzSLD photos
+  (`eval.json`) is 77.7 % on static letters and 1.9 % on the 8 moving letters.
+
 **Open:** a live-webcam test of the sentence mode; sentences from outside AzSLD signed by a real user.
+
+
+---
+
+## E8 — Letter mode: fingerspelling on the landmark pipeline (notebook 07)
+
+The app's default mode types a word letter by letter with the hand tracker alone. Its model until now
+(`public/tercume/assets/model.json` + `model.bin`, `src/tercume/model.js`) is a dense network on 20 frames ×
+the first hand's 21 raw image points, with 32 letters and three control gestures (backspace, enter, space;
+the page also has buttons and keys for them). It types a letter only while the hand is still.
+
+**Data** (`azsl/letters.py`): every AzSLD source of letters, the hand alone (body, face and blendshapes
+removed, as the letter mode runs no body tracker and most photos show none):
+
+| Source | What | Split | Train / val / test letters |
+|---|---|---|---|
+| sentences | letter signs annotated in the sentence recordings, frontal + side camera; "O" only next to another spelled letter (alone it is the pronoun "o": 279 of 672 kept) | signers | 2,408 / 415 / 588 frontal, side views alike |
+| photos | AzSLD_Fingerspelling static letters, one image repeated 24 frames | contributor | 671 / 144 / 144 photos (143 / 135 val / test with a hand) |
+| clips | its moving letters (8), frames put back on their frame numbers and filled in, cut where > 12 frames apart | clip run | from 380 / 52 / 48 runs: 110 / 102 val / test clips |
+| `<none>` | gaps of ≥ 12 frames between annotated signs, as many as letter signs | signers | |
+
+Each letter has training data (g, ğ, ö and x only from photos or clips). Slots: the hand present in more
+frames of a window is slot 0 (`canonical`), so a lone hand, a right-handed and a left-handed letter look
+alike to the model. Model: run 10a's Conv1D + Transformer with dim 128 (0.73 M parameters), 60 epochs,
+classes balanced n^−0.5; checkpoint on val macro-F1 over the letters. The old model is scored on the same
+samples through a numpy port (`letters.OldModel`, equal to `model.js` within 1.8e-7), its argmax among the
+32 letters. Scores: top-1 / macro-F1 over the letters (a letter sample is never answered `<none>`).
+
+### Notebook 07 v2: hand shape + movement, with or without the hand's place in the image
+
+| Run | Features | Best epoch | Val top-1 / macro-F1 | Val photos | Test all | Test sentences | Test side view | Test photos | Test clips (moving letters) |
+|---|---|---|---|---|---|---|---|---|---|
+| **hand** | hand_shape + hand_vel (252) | 51 | 0.922 / 0.907 | **0.902** / 0.897 | **0.918** / 0.872 | 0.951 / 0.887 | 0.902 / 0.807 | 0.837 / 0.799 | 0.922 / 0.887 |
+| hand_pos | + hands, flags (382) | 49 | 0.925 / 0.913 | 0.888 / 0.881 | 0.920 / 0.872 | 0.951 / 0.889 | 0.902 / 0.809 | 0.837 / 0.799 | 0.951 / 0.930 |
+| old model | 20 × the first hand's image points | — | 0.309 / 0.294 | 0.832 / 0.764 | 0.214 / 0.278 | 0.167 / 0.177 | 0.121 / 0.139 | **0.830** / 0.809 | 0.196 / 0.166 |
+
+- **The new model reads letters the old one could not:** 0.951 of the letters in the test signers' sentences
+  against 0.167, the moving letters 0.922 against 0.196. On the photos both are near 0.84: the old model is
+  as good as the new one only there, and the photos may have been its training data.
+- The two feature sets are level on val (0.006); `hand` is better on the val photos, which are taken at
+  another camera distance, and needs no image position (distance-independent): `hand` is chosen.
+- Gaps between signs: 11 % of `<none>` samples get a letter as argmax, 2 % of letters get `<none>`.
+
+### Notebook 07 v3: the final model, and the letter mode in the browser
+
+`hand` on train + val (signers, contributors, clip runs), saved at epoch 51 (`final_hand`, 7 min on a T4).
+Test, everything still unseen: **top-1 0.933, macro-F1 0.893** (sentences 0.963 / 0.923, side view 0.921 /
+0.858, photos 0.852 / 0.810, clips 0.931 / 0.923). The weakest test letters: p 0.50 (4 signs), c 0.69 (13),
+l 0.71 (49), j 0.79 (14), m 0.82 (38).
+
+In the browser (`src/tercume/letters.js`, `SignToText` with `LetterModel`): the hand tracker's frames,
+`strip` → `canonical` → `features.preprocess`, the last 24 frames, every `stride` frames, asynchronous.
+Moving letters (ç, d, g, k, ö, ü, y, z) skip the "hand still" rule; a typed letter can be typed again when the
+prediction changes, `<none>` comes, or the hand leaves. `verify_letters.mjs`: letters.js equals Python on
+fixture `letters_v1` (within 1.1e-6), and the installed model equals PyTorch (within 1.8e-7). In the app the
+E4 recording (no fingerspelling in it) types nothing: `<none>` keeps every letter's probability near 0.
+`loadLetterModel` falls back to the old model if the new one is missing (checked); the NSosyal page uses it too.
+
+### Typing rules, on spelled words (notebook 07 v4, `tools/letters_tune.mjs`)
+
+Every spelled word (≥ 3 letters, ≤ 20 frames apart) of val (67 words, 415 letters) and test signers (104
+words, 574 letters), run frame by frame through `SignToText` itself: at the sentences' speed (letters
+~13 frames) and slowed 2.5× (linear in between, close to holding each letter ~1 s). Letter error = edit
+distance between the typed and the annotated letters / annotated letters. The rules (window 12 / 16 / 24,
+stride 2 / 4, dwell 2 / 3, still-hand limit 0.05 / 0.1 / 0.2 / none, confidence 0.5 / 0.6 / 0.7) were chosen
+on val with v2's `hand` (it never saw the val signers): window 24, **stride 2, dwell 2, confidence ≥ 0.7**,
+still-hand limit 0.05 (val mean 0.581 against 0.622 with the old rules). Test, once:
+
+| Letter mode | At the sentences' speed | Slowed 2.5× |
+|---|---|---|
+| old model, its rules | 0.997 | 0.932 |
+| final_hand, the old rules (stride 4, dwell 3, ≥ 0.5) | 0.730 | 0.389 |
+| **final_hand, the rules chosen on val** | **0.643** | **0.368** |
+
+- With deliberate spelling about two thirds of the letters are typed right, against almost none before.
+- **Fast, natural spelling is beyond a letter-by-letter typing mode** whatever the rules (the best val
+  setting still types 0.2 letters per letter): one window holds two or three letters, so short letters are
+  covered by their neighbours. Inside fluent signing, the sentence model finds 90 % of letters (E7).
+- Relaxing the still-hand limit does not help at either speed: transitions then become letters.
+
+**Open:** a live-webcam test of the letter mode; the control gestures (backspace, enter, space) exist
+only as buttons and keys with the new model.

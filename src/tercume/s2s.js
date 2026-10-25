@@ -9,7 +9,9 @@
 import { createLandmarkers, detectFrame, LandmarkClip } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
 import { CONT_MODEL_BASE } from './paths.js';
-import { DECODE, nearestSentence, Resampler, SentenceStream, STREAM, WindowStream } from './continuous.js';
+import {
+  CONTINUOUS_VERSION, DECODE, nearestSentence, Resampler, SentenceStream, shortClasses, STREAM, WindowStream,
+} from './continuous.js';
 
 export class SignToSentence {
   /**
@@ -33,6 +35,9 @@ export class SignToSentence {
     this.rec = await LocalRecognizer.load(this.base);
     const m = this.rec.manifest;
     if (m.kind !== 'continuous') throw new Error('bu model davamlı tanıma üçün deyil');
+    if ((m.continuous_version ?? 1) > CONTINUOUS_VERSION) {
+      throw new Error(`model continuous_version ${m.continuous_version} istəyir, brauzer ${CONTINUOUS_VERSION}-dir`);
+    }
     this.p = { ...STREAM, ...m.stream };
     this.dp = { ...DECODE, ...m.decode };
     this.face = !m.works_without_face;
@@ -119,7 +124,8 @@ export class SignToSentence {
   #reset() {
     this.clip = new LandmarkClip(this.p.window + 32);
     this.ws = new WindowStream(this.p);
-    this.ss = new SentenceStream({ C: this.rec.labels.length, decode: this.dp, unknown: this.unk });
+    this.ss = new SentenceStream({ C: this.rec.labels.length, decode: this.dp, unknown: this.unk,
+      short: shortClasses(this.rec.labels) });
     this.resampler = new Resampler(30);
     this.busy = Promise.resolve();
     this._lastVideoTime = -1;

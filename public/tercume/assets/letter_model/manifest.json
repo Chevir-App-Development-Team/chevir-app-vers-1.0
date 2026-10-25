@@ -1,0 +1,558 @@
+{
+ "kind": "letters",
+ "feature_version": 1,
+ "letters_version": 1,
+ "model_file": "model.onnx",
+ "opset": 17,
+ "labels": [
+  "a",
+  "b",
+  "c",
+  "ç",
+  "d",
+  "e",
+  "ə",
+  "f",
+  "g",
+  "ğ",
+  "h",
+  "ı",
+  "i",
+  "j",
+  "k",
+  "l",
+  "m",
+  "n",
+  "o",
+  "ö",
+  "p",
+  "q",
+  "r",
+  "s",
+  "ş",
+  "t",
+  "u",
+  "ü",
+  "v",
+  "x",
+  "y",
+  "z",
+  "<none>"
+ ],
+ "none_label": "<none>",
+ "dynamic": [
+  "d",
+  "g",
+  "k",
+  "y",
+  "z",
+  "ç",
+  "ö",
+  "ü"
+ ],
+ "input": {
+  "name": "x",
+  "shape": [
+   1,
+   "T",
+   252
+  ],
+  "dtype": "float32",
+  "n_features": 252,
+  "groups": [
+   "hand_shape",
+   "hand_vel"
+  ],
+  "max_len": 64,
+  "window": 24,
+  "body": "none (pose, face and blendshapes are NaN)",
+  "slots": "canonical: the hand present in more frames of the window is slot 0"
+ },
+ "output": {
+  "name": "logits",
+  "shape": [
+   1,
+   33
+  ],
+  "note": "softmax not applied"
+ },
+ "contract": {
+  "feature_version": 1,
+  "raw": {
+   "hand": [
+    2,
+    21,
+    3
+   ],
+   "hand_world": [
+    2,
+    21,
+    3
+   ],
+   "pose": [
+    9,
+    3
+   ],
+   "face": [
+    102,
+    2
+   ],
+   "blend": [
+    52
+   ]
+  },
+  "raw_notes": "per frame; image coords x, y in [0, 1] of the frame (x NOT pre-multiplied by width/height), hand slot 0 = signer's right hand (pose wrists decide), pose = MediaPipe pose landmarks POSE_IDX with (x, y, z; only x, y are used), face = face-mesh FACE_IDX (x, y), blend = face blendshapes in BLEND_NAMES order, NaN = not detected",
+  "pose_idx": [
+   0,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   23,
+   24
+  ],
+  "face_idx": [
+   61,
+   185,
+   40,
+   39,
+   37,
+   0,
+   267,
+   269,
+   270,
+   409,
+   291,
+   146,
+   91,
+   181,
+   84,
+   17,
+   314,
+   405,
+   321,
+   375,
+   78,
+   191,
+   80,
+   81,
+   82,
+   13,
+   312,
+   311,
+   310,
+   415,
+   95,
+   88,
+   178,
+   87,
+   14,
+   317,
+   402,
+   318,
+   324,
+   308,
+   263,
+   249,
+   390,
+   373,
+   374,
+   380,
+   381,
+   382,
+   362,
+   466,
+   388,
+   387,
+   386,
+   385,
+   384,
+   398,
+   33,
+   7,
+   163,
+   144,
+   145,
+   153,
+   154,
+   155,
+   133,
+   246,
+   161,
+   160,
+   159,
+   158,
+   157,
+   173,
+   276,
+   283,
+   282,
+   295,
+   285,
+   300,
+   293,
+   334,
+   296,
+   336,
+   46,
+   53,
+   52,
+   65,
+   55,
+   70,
+   63,
+   105,
+   66,
+   107,
+   1,
+   2,
+   98,
+   327,
+   10,
+   152,
+   234,
+   454,
+   468,
+   473
+  ],
+  "blend_names": [
+   "_neutral",
+   "browDownLeft",
+   "browDownRight",
+   "browInnerUp",
+   "browOuterUpLeft",
+   "browOuterUpRight",
+   "cheekPuff",
+   "cheekSquintLeft",
+   "cheekSquintRight",
+   "eyeBlinkLeft",
+   "eyeBlinkRight",
+   "eyeLookDownLeft",
+   "eyeLookDownRight",
+   "eyeLookInLeft",
+   "eyeLookInRight",
+   "eyeLookOutLeft",
+   "eyeLookOutRight",
+   "eyeLookUpLeft",
+   "eyeLookUpRight",
+   "eyeSquintLeft",
+   "eyeSquintRight",
+   "eyeWideLeft",
+   "eyeWideRight",
+   "jawForward",
+   "jawLeft",
+   "jawOpen",
+   "jawRight",
+   "mouthClose",
+   "mouthDimpleLeft",
+   "mouthDimpleRight",
+   "mouthFrownLeft",
+   "mouthFrownRight",
+   "mouthFunnel",
+   "mouthLeft",
+   "mouthLowerDownLeft",
+   "mouthLowerDownRight",
+   "mouthPressLeft",
+   "mouthPressRight",
+   "mouthPucker",
+   "mouthRight",
+   "mouthRollLower",
+   "mouthRollUpper",
+   "mouthShrugLower",
+   "mouthShrugUpper",
+   "mouthSmileLeft",
+   "mouthSmileRight",
+   "mouthStretchLeft",
+   "mouthStretchRight",
+   "mouthUpperUpLeft",
+   "mouthUpperUpRight",
+   "noseSneerLeft",
+   "noseSneerRight"
+  ],
+  "n_features": 656,
+  "groups": {
+   "hands": [
+    0,
+    126
+   ],
+   "hand_shape": [
+    126,
+    252
+   ],
+   "hand_vel": [
+    252,
+    378
+   ],
+   "pose": [
+    378,
+    396
+   ],
+   "face": [
+    396,
+    600
+   ],
+   "blend": [
+    600,
+    652
+   ],
+   "flags": [
+    652,
+    656
+   ]
+  },
+  "max_len": 64,
+  "resample": "clips longer than max_len are uniformly resampled to max_len frames",
+  "train_fps": 30,
+  "normalization": "x *= width/height; centre = median mid-shoulder, unit = median shoulder width (fallbacks: mean hand point, 0.3); hand xy, z, velocity, pose xy, face xy are (p - centre) / unit; hand_world * 10; NaN → 0; clip to ±10"
+ },
+ "run": "final_hand",
+ "seed": 1,
+ "split_id": "23179a6aad",
+ "best_epoch": 51,
+ "params": 729919,
+ "metrics": {
+  "test": {
+   "all": {
+    "top1": 0.9325681492109039,
+    "top5": 0.9835007173601148,
+    "macro_f1": 0.8932224730184775,
+    "balanced_acc": 0.9007132281852461,
+    "n": 1394
+   },
+   "sentence": {
+    "top1": 0.9625850340136054,
+    "top5": 0.9914965986394558,
+    "macro_f1": 0.9225525916930203,
+    "balanced_acc": 0.9244357757870708,
+    "n": 588
+   },
+   "side": {
+    "top1": 0.9209138840070299,
+    "top5": 0.9859402460456942,
+    "macro_f1": 0.8581265569692922,
+    "balanced_acc": 0.8518759650615152,
+    "n": 569
+   },
+   "photo": {
+    "top1": 0.8518518518518519,
+    "top5": 0.9333333333333333,
+    "macro_f1": 0.8100572083262768,
+    "balanced_acc": 0.8215728715728716,
+    "n": 135
+   },
+   "clip": {
+    "top1": 0.9313725490196079,
+    "top5": 0.9901960784313726,
+    "macro_f1": 0.9229525115018592,
+    "balanced_acc": 0.9556568050561185,
+    "n": 102
+   },
+   "none_as_letter": 0.11450381679389313,
+   "letter_as_none": 0.021520803443328552
+  }
+ },
+ "cfg": {
+  "epochs": 60,
+  "batch": 64,
+  "lr": 0.001,
+  "weight_decay": 0.05,
+  "warmup": 3,
+  "label_smoothing": 0.1,
+  "balance_power": 0.5,
+  "dim": 128,
+  "stages": 2,
+  "convs": 3,
+  "kernel": 17,
+  "heads": 4,
+  "drop": 0.2,
+  "head_drop": 0.4,
+  "margin": 6,
+  "workers": 4,
+  "seed": 1,
+  "groups": [
+   "hand_shape",
+   "hand_vel"
+  ],
+  "face_drop": 0.0,
+  "unknown": 0.0,
+  "select": "letters_f1",
+  "save_epoch": 51,
+  "side": true,
+  "fold": null,
+  "split_id": "23179a6aad",
+  "none_per_letter": 1.0
+ },
+ "old_model": {
+  "test": {
+   "all": {
+    "top1": 0.21449067431850788,
+    "top5": 0.4878048780487805,
+    "macro_f1": 0.27760027401220805,
+    "balanced_acc": 0.35802139924635834,
+    "n": 1394
+   },
+   "sentence": {
+    "top1": 0.16666666666666666,
+    "top5": 0.45068027210884354,
+    "macro_f1": 0.1768399376590646,
+    "balanced_acc": 0.23413653029881096,
+    "n": 588
+   },
+   "side": {
+    "top1": 0.12126537785588752,
+    "top5": 0.437609841827768,
+    "macro_f1": 0.1387500027437232,
+    "balanced_acc": 0.1787456857632296,
+    "n": 569
+   },
+   "photo": {
+    "top1": 0.8296296296296296,
+    "top5": 0.9555555555555556,
+    "macro_f1": 0.809119754774835,
+    "balanced_acc": 0.8237012987012988,
+    "n": 135
+   },
+   "clip": {
+    "top1": 0.19607843137254902,
+    "top5": 0.3627450980392157,
+    "macro_f1": 0.16574074074074072,
+    "balanced_acc": 0.15668700737350622,
+    "n": 102
+   },
+   "none_as_letter": 1.0,
+   "letter_as_none": 0.0
+  }
+ },
+ "test_per_letter": {
+  "a": {
+   "recall": 0.9910714285714286,
+   "n": 112
+  },
+  "b": {
+   "recall": 0.875,
+   "n": 32
+  },
+  "c": {
+   "recall": 0.6923076923076923,
+   "n": 13
+  },
+  "ç": {
+   "recall": 1.0,
+   "n": 9
+  },
+  "d": {
+   "recall": 0.9541984732824428,
+   "n": 131
+  },
+  "e": {
+   "recall": 0.9743589743589743,
+   "n": 39
+  },
+  "ə": {
+   "recall": 0.9714285714285714,
+   "n": 105
+  },
+  "f": {
+   "recall": 0.9375,
+   "n": 16
+  },
+  "g": {
+   "recall": 0.8695652173913043,
+   "n": 23
+  },
+  "ğ": {
+   "recall": 1.0,
+   "n": 8
+  },
+  "h": {
+   "recall": 0.8181818181818182,
+   "n": 11
+  },
+  "ı": {
+   "recall": 1.0,
+   "n": 17
+  },
+  "i": {
+   "recall": 0.925531914893617,
+   "n": 94
+  },
+  "j": {
+   "recall": 0.7857142857142857,
+   "n": 14
+  },
+  "k": {
+   "recall": 0.8888888888888888,
+   "n": 9
+  },
+  "l": {
+   "recall": 0.7142857142857143,
+   "n": 49
+  },
+  "m": {
+   "recall": 0.8157894736842105,
+   "n": 38
+  },
+  "n": {
+   "recall": 0.975,
+   "n": 80
+  },
+  "o": {
+   "recall": 0.9615384615384616,
+   "n": 104
+  },
+  "ö": {
+   "recall": 0.8947368421052632,
+   "n": 19
+  },
+  "p": {
+   "recall": 0.5,
+   "n": 4
+  },
+  "q": {
+   "recall": 0.875,
+   "n": 16
+  },
+  "r": {
+   "recall": 0.9142857142857143,
+   "n": 35
+  },
+  "s": {
+   "recall": 0.9548872180451128,
+   "n": 133
+  },
+  "ş": {
+   "recall": 0.9090909090909091,
+   "n": 11
+  },
+  "t": {
+   "recall": 0.9259259259259259,
+   "n": 108
+  },
+  "u": {
+   "recall": 0.9411764705882353,
+   "n": 17
+  },
+  "ü": {
+   "recall": 0.8666666666666667,
+   "n": 15
+  },
+  "v": {
+   "recall": 1.0,
+   "n": 25
+  },
+  "x": {
+   "recall": 1.0,
+   "n": 6
+  },
+  "y": {
+   "recall": 0.974025974025974,
+   "n": 77
+  },
+  "z": {
+   "recall": 0.9166666666666666,
+   "n": 24
+  }
+ }
+}

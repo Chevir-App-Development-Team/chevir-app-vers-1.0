@@ -9,10 +9,12 @@
  *   SentenceStream                bərkimiş kadrlar → yeni yekun sözlər; uzun fasilə cümləni bağlayır
  *   Resampler                     kamera kadrları (dəyişkən sürət) → 30 fps (model 30 fps-də öyrədilib)
  *
- * tools/verify_continuous.mjs bunları ml/fixtures/continuous_v1.json üzərində Python ilə tutuşdurur.
+ * tools/verify_continuous.mjs bunları ml/fixtures/continuous_v2.json üzərində Python ilə tutuşdurur
+ * (v2: barmaq əlifbası hərfləri və rəqəmlər, yəni bir simvollu etiketlər üçün ayrıca min_len_short).
  */
 import { FRAME_SIZES } from './landmarks.js';
 
+export const CONTINUOUS_VERSION = 2;   // continuous.py CONTINUOUS_VERSION: bu fayl onun qaydalarını izləyir
 export const STREAM = { window: 96, stride: 8, lookahead: 24 };
 export const DECODE = { smooth: 5, min_p: 0.5, min_len: 6, gap: 3 };
 
@@ -81,7 +83,12 @@ export function smooth(P, T, C, k) {
  * Kadr ehtimalları (T×C, sütun 0 = <blank>) → [{a, b, c, p}], kadrlar [a, b).
  * continuous.py decode ilə eyni.
  */
-export function decode(P, T, C, p = DECODE, unknown = null) {
+/** continuous.py short_classes: bir simvollu etiketlər (hərflər, rəqəmlər) sözlərdən qısadır. */
+export function shortClasses(labels) {
+  return new Set(labels.flatMap((g, i) => ([...g].length === 1 ? [i] : [])));
+}
+
+export function decode(P, T, C, p = DECODE, unknown = null, short = null) {
   const Ps = smooth(P, T, C, p.smooth | 0);
   const lab = new Int32Array(T);
   for (let t = 0; t < T; t++) {
@@ -107,7 +114,8 @@ export function decode(P, T, C, p = DECODE, unknown = null) {
     let s = 0;
     for (let t = a; t < b; t++) s += Ps[t * C + c];
     const pm = s / (b - a);
-    if (b - a >= p.min_len && pm >= p.min_p && c !== unknown) out.push({ a, b, c, p: pm });
+    const need = short?.has(c) && p.min_len_short != null ? p.min_len_short : p.min_len;
+    if (b - a >= need && pm >= p.min_p && c !== unknown) out.push({ a, b, c, p: pm });
   }
   return out;
 }
@@ -119,8 +127,8 @@ export function decode(P, T, C, p = DECODE, unknown = null) {
  * kadr qalır: təzə başlayan işarənin əvvəli itməsin).
  */
 export class SentenceStream {
-  constructor({ C, decode: dp = DECODE, unknown = null, sentenceGap = 60, maxFrames = 3000, keep = 30 }) {
-    Object.assign(this, { C, dp, unknown, sentenceGap, maxFrames, keep });
+  constructor({ C, decode: dp = DECODE, unknown = null, short = null, sentenceGap = 60, maxFrames = 3000, keep = 30 }) {
+    Object.assign(this, { C, dp, unknown, short, sentenceGap, maxFrames, keep });
     this.rows = [];             // hər bərkimiş kadr üçün Float32Array(C)
     this.emitted = 0;           // bu cümlədə çıxmış söz sayı
     this.lastEnd = 0;           // sonuncu sözün sonu (cümlənin kadrlarında)
@@ -139,7 +147,7 @@ export class SentenceStream {
     const T = this.rows.length, C = this.C;
     const P = new Float32Array(T * C);
     this.rows.forEach((r, t) => P.set(r, t * C));
-    const segs = decode(P, T, C, this.dp, this.unknown);
+    const segs = decode(P, T, C, this.dp, this.unknown, this.short);
     const k = this.dp.smooth | 0;
     const lag = this.dp.gap + Math.max(1, k - Math.floor(k / 2));
     const force = final || T >= this.maxFrames;

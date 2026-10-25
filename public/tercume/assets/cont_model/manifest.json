@@ -778,7 +778,8 @@
   "smooth": 3,
   "min_p": 0.3,
   "min_len": 10,
-  "gap": 2
+  "gap": 2,
+  "min_len_short": 6
  },
  "face_drop": 1.0,
  "works_without_face": true,
@@ -1020,48 +1021,48 @@
  "params": 1750076,
  "metrics": {
   "test": {
-   "precision": 0.9387782744141948,
-   "recall": 0.9235176548967355,
-   "f1": 0.9310854379365933,
-   "recall_all": 0.9147419823149003,
-   "f1_all": 0.9266042780748663,
-   "wer_all": 0.10492279266200343,
-   "precision_inv": 0.9438921421762223,
-   "wer": 0.10126582278481013,
-   "wer_inv": 0.09646902065289807,
-   "precision_merged": 0.9387782744141948,
-   "recall_merged": 0.9235176548967355,
-   "f1_merged": 0.9310854379365933,
-   "wer_merged": 0.10126582278481013,
-   "start_err_frames": 2.0614629923531957,
-   "end_err_frames": 2.3592555186841726,
-   "detections": 7383,
+   "precision": 0.9375753516409913,
+   "recall": 0.9325782811459027,
+   "f1": 0.9350701402805611,
+   "recall_all": 0.9237165104922793,
+   "f1_all": 0.9305943358595932,
+   "wer_all": 0.09726804804012142,
+   "precision_inv": 0.9428802371009026,
+   "wer": 0.09393737508327782,
+   "wer_inv": 0.08860759493670886,
+   "precision_merged": 0.9375753516409913,
+   "recall_merged": 0.9325782811459027,
+   "f1_merged": 0.9350701402805611,
+   "wer_merged": 0.09393737508327782,
+   "start_err_frames": 2.050007143877697,
+   "end_err_frames": 2.3489069867123873,
+   "detections": 7465,
    "annotated_in_vocab": 7505,
    "annotated": 7577,
-   "matched": 6931,
-   "frame_acc": 0.9162670483066506
+   "matched": 6999,
+   "frame_acc": 0.9162706083811273
   },
   "test_side": {
-   "precision": 0.9141667862781685,
-   "recall": 0.8902711769639362,
-   "f1": 0.9020607605693647,
-   "recall_all": 0.881400498200941,
-   "f1_all": 0.8974846755442824,
-   "wer_all": 0.14378632715195128,
-   "precision_inv": 0.9193129330254042,
-   "wer": 0.14090019569471623,
-   "wer_inv": 0.13614760972882303,
-   "precision_merged": 0.9141667862781685,
-   "recall_merged": 0.8902711769639362,
-   "f1_merged": 0.9020607605693647,
-   "wer_merged": 0.14090019569471623,
-   "start_err_frames": 3.0007850525985242,
-   "end_err_frames": 2.5393311351860577,
-   "detections": 6967,
+   "precision": 0.91268603827073,
+   "recall": 0.9000559127760693,
+   "f1": 0.9063269758603703,
+   "recall_all": 0.8910877387212842,
+   "f1_all": 0.9017575800014004,
+   "wer_all": 0.13548297813451426,
+   "precision_inv": 0.9178902352102637,
+   "wer": 0.13279284316466314,
+   "wer_inv": 0.1279004752585966,
+   "precision_merged": 0.91268603827073,
+   "recall_merged": 0.9000559127760693,
+   "f1_merged": 0.9063269758603703,
+   "wer_merged": 0.13279284316466314,
+   "start_err_frames": 2.988507532225501,
+   "end_err_frames": 2.5333126261841903,
+   "detections": 7055,
    "annotated_in_vocab": 7154,
    "annotated": 7226,
-   "matched": 6369,
-   "frame_acc": 0.8913097609561753
+   "matched": 6439,
+   "frame_acc": 0.8913173065314499
   }
  },
  "cfg": {
@@ -1111,5 +1112,10 @@
    "min_len": 10,
    "gap": 2
   }
- }
+ },
+ "decode_source": {
+  "eval": "final_splice",
+  "decode_from": "seq_splice"
+ },
+ "continuous_version": 2
 }

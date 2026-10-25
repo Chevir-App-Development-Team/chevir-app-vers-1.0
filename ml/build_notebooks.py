@@ -699,17 +699,51 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # v5 runs: seq_plain (v2's recipe), seq_splice (splice=0.5), seq_short (crop (24, 64), 48-frame stream), all with
 # select='f1_unseen_learnable'. Val unseen learnable F1 0.747 / 0.811 / 0.758 → seq_splice, epoch 59.
 # v6: the final model. seq_splice's recipe on train + val signers and every sentence, saved at epoch 59, with
-# its val decoding; test signers stay unseen (their sentences are no longer unseen).
+# its val decoding; test signers stay unseen (their sentences are no longer unseen):
+#   'final_splice': dict(BASE, splice=0.5, save_epoch=59, decode=dict(smooth=3, min_p=0.3, min_len=10, gap=2))
+# v7 (CPU, no training): fingerspelled letters and digits are short (median 13 frames, 28 % under 10) and
+# min_len 10 drops them. min_len_short (single-character labels) was chosen on all val recordings with
+# seq_splice (v5: never saw the val signers), v5's other decode settings kept (smooth 3, p >= 0.3, min_len 10,
+# gap 2): min_len_short 6. final_splice (the browser model) was then scored on test with it:
+#   'seq_splice': dict(ckpt='seq_splice', select='f1_all'),
+#   'final_splice': dict(ckpt='final_splice', decode_from='seq_splice', unseen=False),
+# v8 (GPU; its first push was refused, the weekly quota was used up): more new sentences, compared with
+# seq_splice (v5, decoded as in v7) under v5's protocol. MƏN is a third of all signs, so uniformly drawn spliced signs repeat a
+# few words; splice_power 0.5 draws them like the loss weights. Val unseen learnable F1 0.797 / 0.797 against
+# seq_splice's 0.811, val F1 0.860 / 0.882 against 0.890: seq_splice's recipe stays (E7):
+#   'splice_75': dict(BASE, splice=0.75, select='f1_unseen_learnable'),
+#   'splice_bal': dict(BASE, splice=0.5, splice_power=0.5, select='f1_unseen_learnable'),
+# v9 (CPU, no training): the browser model at lower camera frame rates. Hand and body trackers may run at
+# 10-20 fps on weaker devices; the browser fills the frames back to 30 fps by linear interpolation. Every test
+# recording as a camera at that rate would give it (continuous.camera_resample), with the model's decoding.
+#   {f'final_fps{f}': dict(ckpt='final_splice', fixed_decode=FINAL_DECODE, fps=f, unseen=False) for f in (30, 20, 15, 10)}
+# (v9 failed on Kaggle before its first cell; v10 includes its question)
+# v10 = v12 (GPU; versions 9 and 10 were killed by Kaggle without output, 11 was a smoke run, 12 ran through):
+# training windows that come as a slower camera gives them (fps_aug: half of them, at 8-30 fps,
+# refilled to 30 fps as the browser does), under v5's protocol. seq_splice (v5's model, loaded) is the
+# baseline; both are also scored at 15 and 10 fps (FPS_CHECKS) with the decoding chosen at 30.
+# final_splice (the browser model) is scored on test at the same rates, with its decoding. Result: from 30 to
+# 10 fps final_splice loses 0.008 test F1; splice_fps is level with seq_splice at every rate on val (E7):
+#   'splice_fps': dict(BASE, splice=0.5, fps_aug=0.5, select='f1_unseen_learnable'),
+# v14 (GPU; v13 was its CPU smoke run): letters. In sentences they are rarely taken for another letter (0.5 % of test letters) but lost in
+# fast spelled runs (A-D-A, M-E-S-S-İ): 5.4 % absorbed by a neighbour, 2.6 % missed. AzSLD's fingerspelling photos
+# only teach hand shapes, so instead spell = P(a sample is 3-8 letter signs of other recordings in a row), taken
+# before the splice draw. Scored also on 'letters' (recordings with letters, letter signs only). Result: val
+# letters F1 0.832 / 0.831 against seq_splice's 0.853, val F1 0.884 / 0.882 against 0.890: no (E7).
+FPS_CHECKS = ()
 RUNS = {
-    'final_splice': dict(BASE, splice=0.5, save_epoch=59, decode=dict(smooth=3, min_p=0.3, min_len=10, gap=2)),
+    'seq_splice': dict(ckpt='seq_splice'),
+    'splice_spell15': dict(BASE, splice=0.5, spell=0.15, select='f1_unseen_learnable'),
+    'splice_spell30': dict(BASE, splice=0.5, spell=0.3, select='f1_unseen_learnable'),
 }
 VOCAB_MIN_TRAIN = 10
 SPELLING = __SPELLING__
 MERGE = __MERGE__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
-EXCLUDE_HELDOUT = False                        # True: unseen sentences stay out of training
-TRAIN_ON_VAL = True                            # final model: val signers too (runs need save_epoch and decode)
+EXCLUDE_HELDOUT = True                         # unseen sentences stay out of training
+TRAIN_ON_VAL = False                           # final model: val signers too (runs need save_epoch and decode)
 DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
+DECODE_GRID['min_len_short'] = (6,)            # v7's choice for letters and digits
 LOOKAHEADS = (12, 40)                          # val only: shorter / longer delay than the browser's
                                                # (must stay below window - stride of every run)
 """.replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False)).replace(
@@ -724,7 +758,7 @@ if ON_KAGGLE and missing:
         *package_cells(TRAIN_MODULES + ['segment', 'segment_eval', 'continuous']),
         code("""
 import pandas as pd, numpy as np, torch
-from azsl import train as T, continuous as CT
+from azsl import train as T, continuous as CT, features as FT
 INPUT = '/kaggle/input' if ON_KAGGLE else OUT
 
 def find(pattern):
@@ -762,6 +796,8 @@ if TRAIN_ON_VAL:
     assert all(r.get('save_epoch') and r.get('decode') for r in RUNS.values()), 'final runs need save_epoch and decode'
 if EXCLUDE_HELDOUT:
     recs = recs[~((recs.split == 'train') & recs.heldout_sentence)]
+if all(r.get('ckpt') for r in RUNS.values()):   # evaluation only: no training recordings needed
+    recs = recs[recs.split != 'train']
 unseen = set(recs[recs.split.isin(['val', 'test']) & recs.heldout_sentence].rec_id)
 # words a model can know in an unseen sentence: >= 10 train signs outside the held-out sentences
 outside = tags[(tags.split == 'train') & ~tags.rec_id.isin(set(sents[sents.heldout_sentence].rec_id))]
@@ -780,33 +816,57 @@ banks = CT.load_recordings(sentence_dirs, recs, anns, index, unknown=T.UNKNOWN, 
                            side=(side_dirs, dict(zip(good.id, good.lag))))
 banks['val_unseen'] = CT.subset(banks['val'], unseen)          # per-epoch score on sentences never trained on
 SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, learnable)}
+letters = {g for g in words if len(g) == 1}                 # fingerspelled letters and digits
+SUBSETS['letters'] = (set(tags[tags.gloss.isin(letters)].rec_id), letters)   # their recordings, letters only
 """),
         md('### Training and evaluation, one run after another'),
         code("""
 import time
-rows = []
+rows, decided = [], {}
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+def find_model(run):
+    # a run folder (best.pt + manifest.json) among the inputs, by the manifest's run name
+    for mp in glob.glob(os.path.join(INPUT, '**', 'manifest.json'), recursive=True):
+        with open(mp, encoding='utf-8') as f:
+            if json.load(f).get('run') == run and os.path.exists(os.path.join(os.path.dirname(mp), 'best.pt')):
+                return os.path.join(os.path.dirname(mp), 'best.pt')
+    raise FileNotFoundError(f'no saved model {run} among the inputs')
+
 for name, change in RUNS.items():
     out = os.path.join(OUT, 'cont', name)
+    os.makedirs(out, exist_ok=True)
     cfg = {**change, 'split_id': split_id}
     print(f'\\n===== {name}: {cfg}')
     t0 = time.time()
-    net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable)
-    # final model (TRAIN_ON_VAL): decoding fixed before (cfg['decode']), test signers still unseen
+    if cfg.get('ckpt'):        # evaluation only: a model saved before (a dataset from kaggle_run.py model-dataset)
+        net, saved, labels, epoch = CT.load_checkpoint(find_model(cfg['ckpt']), device)
+        assert labels == vocab_list, 'the saved model has other labels'
+        cfg = {**saved, **cfg}
+        res = {'best_epoch': epoch, 'params': sum(p.numel() for p in net.parameters()),
+               'n_features': len(FT.columns(cfg['groups'])), 'cfg': cfg}
+    else:
+        net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable)
+    # decoding fixed before: a final model (TRAIN_ON_VAL, cfg['decode']) or chosen by an earlier run here
+    fixed = (decided[cfg['decode_from']] if cfg.get('decode_from') else cfg.get('fixed_decode')
+             or (cfg['decode'] if TRAIN_ON_VAL else None))
     choose = {'f1_unseen': 'f1_unseen_sentences'}.get(cfg.get('select'), cfg.get('select', 'f1_all'))
     ev = CT.evaluate(net, banks, anns, vocab_list, cfg['groups'], cfg['face_drop'] < 1, net.head.weight.device,
-                     DECODE_GRID, stream=cfg.get('stream') or CT.STREAM, subsets=SUBSETS if EXCLUDE_HELDOUT else {},
-                     lookaheads=() if TRAIN_ON_VAL else LOOKAHEADS, choose=choose,
-                     fixed=cfg['decode'] if TRAIN_ON_VAL else None)
-    decode_p = ev['decode']
+                     DECODE_GRID, stream=cfg.get('stream') or CT.STREAM,
+                     subsets=SUBSETS if EXCLUDE_HELDOUT and cfg.get('unseen', True) else {},
+                     lookaheads=() if fixed or cfg.get('ckpt') else LOOKAHEADS, choose=choose, fixed=fixed,
+                     fps=cfg.get('fps'), fps_checks=FPS_CHECKS)
+    decode_p = decided[name] = ev['decode']
     pd.DataFrame(ev.pop('test_detections'), columns=['rec_id', 'start0', 'end0', 'word', 'p']).to_csv(
         os.path.join(out, 'detections_test.csv'), index=False)
     res.update({k: v for k, v in ev.items() if k != 'val_grid'})
     if ev['val_grid']:
         pd.DataFrame(ev['val_grid']).to_csv(os.path.join(out, 'grid_val.csv'), index=False)
     res['minutes'] = round((time.time() - t0) / 60, 1)
-    ok = T.export_onnx(net, os.path.join(out, 'model.onnx'), n_in=res['n_features'])
-    CT.write_manifest(out, {**CT.DEFAULTS, **cfg}, vocab_list, res, res['n_features'], ok, decode_p,
-                      stream=cfg.get('stream') or CT.STREAM)
+    if not cfg.get('ckpt'):    # a loaded model keeps its own ONNX file and manifest
+        ok = T.export_onnx(net, os.path.join(out, 'model.onnx'), n_in=res['n_features'])
+        CT.write_manifest(out, {**CT.DEFAULTS, **cfg}, vocab_list, res, res['n_features'], ok, decode_p,
+                          stream=cfg.get('stream') or CT.STREAM)
     with open(os.path.join(out, 'metrics.json'), 'w', encoding='utf-8') as f:
         json.dump(res, f, ensure_ascii=False, indent=1, default=str)
     row = {'run': name, 'best_epoch': res['best_epoch'], 'minutes': res['minutes']}
@@ -820,12 +880,201 @@ pd.DataFrame(rows).set_index('run').T
     ])
 
 
+def nb07():
+    return notebook([
+        md("""
+# AzSLD 07 — fingerspelled letters for the letter mode
+
+The app's letter mode types a word letter by letter with the hand tracker alone. Its model so far (a dense
+network on one hand's image coordinates) types static letters only while the hand is still, and its own
+evaluation on AzSLD's photos is 78 % on static letters and 2 % on the 8 moving ones. This notebook trains a
+letter model on the landmark pipeline (`azsl/letters.py`) from every AzSLD source of letters:
+
+- **sentences:** the letter signs annotated in the sentence recordings, frontal and side camera, the signer
+  split (an "O" counts as a letter only next to another spelled letter: alone it is the pronoun "o");
+- **photos:** AzSLD_Fingerspelling's static letters (24 letters × 40 photos), split by contributor;
+- **clips:** its moving letters (8 letters, frames sampled from clips, filled back in between);
+- **`<none>`:** gaps between annotated signs, so the model can say that no letter is shown.
+
+The model reads only the hand (no body, no face: most photos have none, and the browser runs no body
+tracker here). The epoch is chosen on val macro-F1 over the letters; test is scored once, per source, for
+the new models and for the old one on the same samples.
+
+**Inputs:** 01 (fingerspelling landmarks), 02 shards (both cameras), 03 (splits), the old model as a dataset.
+**Kaggle:** GPU T4. **Writes** `letters/<run>/`: history, metrics, predictions, best.pt, model.onnx, manifest.json.
+"""),
+        code("""
+SMOKE = False          # True: a few hundred samples, 2 epochs
+SPELLING = __SPELLING__
+SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
+NONE_PER_LETTER = 1.0   # <none> samples per letter sign of the sentences, per split
+TRAIN_ON_VAL = False    # final model: val signers / contributors too (runs then need save_epoch)
+# v2: hand shape + movement only ('hand') or with the hand's place in the image and the presence flags
+# ('hand_pos'): val macro-F1 0.907 / 0.913, top-1 0.922 / 0.925, val photos (another camera distance)
+# 0.902 / 0.888 → 'hand', best epoch 51 (test top-1 0.918; the old model 0.214 on the same samples).
+#   'hand': dict(seed=1, groups=['hand_shape', 'hand_vel']),
+#   'hand_pos': dict(seed=1, groups=['hands', 'hand_shape', 'hand_vel', 'flags']),
+# v3: the final model, 'hand' on train + val (TRAIN_ON_VAL), saved at epoch 51; test signers, contributors and clips
+# unseen: test top-1 0.933, macro-F1 0.893.
+#   'final_hand': dict(seed=1, groups=['hand_shape', 'hand_vel'], save_epoch=51),
+# v4 (CPU, no training): every spelled word (>= 3 letters in a row) of val and test signers, for tuning the
+# letter mode's typing rules on val (tools/letters_tune.mjs, with v2's 'hand': it never saw val) and testing them.
+RUNS = {}
+DEMO_SPLITS = ('val', 'test')
+""".replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False))),
+        code(SETUP),
+        code("""
+import importlib.util
+missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is None]
+if ON_KAGGLE and missing:
+    subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
+"""),
+        *package_cells(TRAIN_MODULES + ['letters']),
+        code("""
+import numpy as np, pandas as pd, torch
+from azsl import train as T, letters as L
+INPUT = '/kaggle/input' if ON_KAGGLE else OUT
+
+def find(pattern):
+    return sorted({os.path.dirname(p) for p in glob.glob(os.path.join(INPUT, '**', pattern), recursive=True)})
+
+splits_dir = find('splits/glosses_split.csv')[0]
+sentence_dirs = find('landmarks/sentences_cam2/shard*/manifest.csv')
+side_dirs = find('landmarks/sentences_cam1/shard*/manifest.csv')
+fs_dirs = find('landmarks/fingerspelling/manifest.csv')
+old_meta = [p for p in glob.glob(os.path.join(INPUT, '**', 'model.json'), recursive=True)
+            if os.path.exists(os.path.join(os.path.dirname(p), 'model.bin'))]
+import hashlib
+with open(os.path.join(splits_dir, 'words200_split.csv'), 'rb') as f:
+    split_id = hashlib.sha1(f.read()).hexdigest()[:10]
+print('splits:', splits_dir, '| frontal shards:', len(sentence_dirs), '| side shards:', len(side_dirs),
+      '| fingerspelling:', fs_dirs, '| old model:', old_meta[:1])
+print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none')
+"""),
+        code("""
+rng = np.random.default_rng(0)
+tags = pd.read_csv(os.path.join(splits_dir, 'glosses_split.csv'), dtype={'key': str, 'rec_id': str})
+tags = tags[tags.has_landmarks & tags.split.notna() & tags.start.notna() & tags.end.notna()
+            & ~tags.dup.astype(bool)].copy()
+tags['gloss'] = tags.gloss.replace(SPELLING)
+fsplit = pd.read_csv(os.path.join(splits_dir, 'fingerspelling_split.csv'))
+if TRAIN_ON_VAL:
+    tags['split'] = tags.split.replace({'val': 'train'})
+    fsplit['split'] = fsplit.split.replace({'val': 'train'})
+    assert all(r.get('save_epoch') for r in RUNS.values()), 'without val, every run needs a fixed save_epoch'
+lt = L.letter_tags(tags)
+if SMOKE:
+    lt = lt.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 150), random_state=0))
+    fsplit = fsplit.groupby(['kind', 'split'], group_keys=False).apply(lambda d: d.head(80))
+    for r in RUNS.values():
+        r.update(epochs=2)
+n_letters = lt.split.value_counts()
+nt = L.none_tags(tags, {s: int(n * NONE_PER_LETTER) for s, n in n_letters.items()}, rng)
+print('letter signs in the sentences:', n_letters.to_dict(), '| <none> gaps:', nt.split.value_counts().to_dict())
+index = {g: i for i, g in enumerate(L.LABELS)}
+al = pd.concat([pd.read_csv(os.path.join(d, 'align.csv'), dtype={'id': str}) for d in side_dirs])
+good = al[(al['corr'] >= SIDE_MIN_CORR) & (al.margin >= SIDE_MIN_MARGIN)]
+sb = L.load_sentences(sentence_dirs, pd.concat([lt, nt], ignore_index=True), index, L.DEFAULTS['margin'],
+                      side=(side_dirs, dict(zip(good.id, good.lag))))
+pb = L.load_photos(fs_dirs, fsplit, index)
+cb = L.load_clips(fs_dirs, fsplit, index)
+banks = {}
+for s in ('train', 'val', 'test'):
+    b = T.Bank.merge(T.Bank.merge(sb[s], sb.get(f'{s}_side', T.Bank().done())), T.Bank.merge(pb[s], cb[s]))
+    banks[s] = b
+    src = pd.Series([L.source_of(i) for i in b.ids])
+    print(s, len(b), src.value_counts().to_dict(), '| letters with samples:',
+          len(set(b.labels.tolist()) - {index[L.NONE]}))
+"""),
+        md('### Training, then val and test per source; the old model on the same samples'),
+        code("""
+import time
+rows = []
+for name, change in RUNS.items():
+    out = os.path.join(OUT, 'letters', name)
+    cfg = {**change, 'split_id': split_id}
+    print(f'\\n===== {name}: {cfg}')
+    t0 = time.time()
+    net, res = L.fit(cfg, banks, out)
+    device = next(net.parameters()).device
+    for part in ('val', 'test'):
+        if len(banks[part]):
+            p = L.predict(net, banks[part], device, res['cfg']['groups'])
+            res[part] = L.letter_scores(p, banks[part].labels, banks[part].ids)
+            np.savez_compressed(os.path.join(out, f'predictions_{part}.npz'), probs=p, labels=banks[part].labels,
+                                ids=np.array(banks[part].ids))
+            print(part, {k: (round(v['top1'], 4), round(v['macro_f1'], 4)) if isinstance(v, dict) else round(v, 4)
+                         for k, v in res[part].items()})
+    res['minutes'] = round((time.time() - t0) / 60, 1)
+    ok = T.export_onnx(net, os.path.join(out, 'model.onnx'), n_in=res['n_features'])
+    L.write_manifest(out, {**L.DEFAULTS, **res['cfg']}, res, ok)
+    with open(os.path.join(out, 'metrics.json'), 'w', encoding='utf-8') as f:
+        json.dump(res, f, ensure_ascii=False, indent=1, default=str)
+    row = {'run': name, 'best_epoch': res['best_epoch'], 'minutes': res['minutes']}
+    for part in ('val', 'test'):
+        for k, v in res.get(part, {}).items():
+            row.update({f'{part}_{k}_{m}': round(v[m], 4) for m in ('top1', 'macro_f1')} if isinstance(v, dict)
+                       else {f'{part}_{k}': round(v, 4)})
+    rows.append(row)
+    pd.DataFrame(rows).to_csv(os.path.join(OUT, 'letters', 'summary.csv'), index=False)
+if old_meta:
+    old = L.OldModel(old_meta[0], os.path.join(os.path.dirname(old_meta[0]), 'model.bin'))
+    res, row = {}, {'run': 'old_model'}
+    for part in ('val', 'test'):
+        if len(banks[part]):
+            res[part] = L.letter_scores(old.predict_bank(banks[part]), banks[part].labels, banks[part].ids)
+            row.update({f'{part}_{k}_{m}': round(v[m], 4) for k, v in res[part].items() if isinstance(v, dict)
+                        for m in ('top1', 'macro_f1')})
+            print('old model', part, {k: (round(v['top1'], 4), round(v['macro_f1'], 4))
+                                      for k, v in res[part].items() if isinstance(v, dict)})
+    os.makedirs(os.path.join(OUT, 'letters', 'old_model'), exist_ok=True)
+    with open(os.path.join(OUT, 'letters', 'old_model', 'metrics.json'), 'w', encoding='utf-8') as f:
+        json.dump(res, f, ensure_ascii=False, indent=1)
+    rows.append(row)
+    pd.DataFrame(rows).to_csv(os.path.join(OUT, 'letters', 'summary.csv'), index=False)
+pd.DataFrame(rows).set_index('run').T
+"""),
+        md('### Spelled words of val and test signers (tools/letters_tune.mjs)'),
+        code("""
+from azsl import features as FT
+from azsl.store import LandmarkStore
+store = LandmarkStore(sentence_dirs)
+os.makedirs(os.path.join(OUT, 'letters'), exist_ok=True)
+for split in DEMO_SPLITS:
+    words, arrays = [], {}
+    for rid, t in lt[lt.split == split].sort_values(['rec_id', 'start']).groupby('rec_id'):
+        if rid not in store.index.index:
+            continue
+        # spelled words: letters with at most 20 frames between them, at least 3 in a row
+        gap = t.start.to_numpy()[1:] - t.end.to_numpy()[:-1]
+        cut = np.flatnonzero(gap > 20) + 1
+        parts = [p for p in np.split(np.arange(len(t)), cut) if len(p) >= 3]
+        if not parts:
+            continue
+        raw = FT.reduce(store.get(rid, dtype=np.float16))
+        for p in parts:
+            w = t.iloc[p]
+            lo, hi = max(0, int(w.start.iloc[0]) - 46), min(raw['hand'].shape[0], int(w.end.iloc[-1]) + 45)
+            k = len(words)
+            arrays[f'{k}_hand'] = raw['hand'][lo:hi]
+            arrays[f'{k}_world'] = raw['hand_world'][lo:hi]
+            words.append({'rec_id': rid, 'aspect': float(store.index.at[rid, 'width']) / float(store.index.at[rid, 'height']),
+                          'T': hi - lo, 'letters': [[int(a) - 1 - lo, int(b) - lo, l] for a, b, l in zip(w.start, w.end, w.letter)]})
+    np.savez_compressed(os.path.join(OUT, 'letters', f'spelled_{split}.npz'), **arrays)
+    with open(os.path.join(OUT, 'letters', f'spelled_{split}.json'), 'w', encoding='utf-8') as f:
+        json.dump(words, f, ensure_ascii=False)
+    print(split, len(words), 'spelled words,', sum(len(w['letters']) for w in words), 'letters, e.g.',
+          [''.join(l for _, _, l in w['letters']) for w in words[:5]])
+"""),
+    ])
+
+
 def main():
     out = os.path.join(HERE, 'notebooks')
     os.makedirs(out, exist_ok=True)
     books = {'01_index_words200_fingerspelling.ipynb': nb01(), '03_split_benchmark.ipynb': nb03(),
              '04_train_words.ipynb': nb04(), '05_eval_word_mode.ipynb': nb05(),
-             '06_train_continuous.ipynb': nb06()}
+             '06_train_continuous.ipynb': nb06(), '07_train_letters.ipynb': nb07()}
     for k in range(NUM_SHARDS):
         books[f'02_sentences_shard{k}.ipynb'] = nb02(k)
         books[f'02_sentences_cam1_shard{k}.ipynb'] = nb02(k, 'Cam1')

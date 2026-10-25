@@ -28,7 +28,8 @@ from . import segment_eval as SE
 from . import train as TR
 from .store import LandmarkStore
 
-CONTINUOUS_VERSION = 1    # streaming schedule + decode(); continuous.js and ml/fixtures/continuous_v<N> follow it
+CONTINUOUS_VERSION = 2    # streaming schedule + decode(); continuous.js and ml/fixtures/continuous_v<N> follow it
+                          # v2: decode's optional min_len_short for single-character labels (fingerspelled letters)
 BLANK = '<blank>'
 IGNORE = -100
 STREAM = dict(window=96, stride=8, lookahead=24)        # browser: 3.2 s of context, a word 0.8 s after it ends
@@ -36,6 +37,10 @@ DECODE = dict(smooth=5, min_p=0.5, min_len=6, gap=3)     # defaults; notebook 06
 DEFAULTS = dict(TR.DEFAULTS, epochs=80, batch=32, crop=(48, 160), repeats=2, edge=1, init=None,
                 balance_power=0.5, select='f1_all',
                 splice=0.0,          # P(a training sample is a sentence spliced from signs of other recordings)
+                splice_power=0.0,    # spliced signs drawn with weight (signs of their word)^-power; 0 = uniform
+                fps_aug=0.0,         # P(a training window comes as a slower camera gives it, refilled to 30 fps)
+                fps_min=8.0,         # its frame rate: uniform in [fps_min, 30]
+                spell=0.0,           # P(a training sample is a spelled sequence: 3-8 letter signs of other recordings)
                 stream=None)         # browser streaming (window, stride, lookahead); None = STREAM
 
 
@@ -128,8 +133,8 @@ def load_recordings(sentence_dirs, recs, anns, index, unknown=None, exclude=(), 
 
 
 def sign_units(bank, edge=2):
-    """Every annotated sign of a bank with the transition after it: (recording, a, b), a..b frames from
-    `edge` frames before the sign to `edge` frames before the next one. Units of the side camera are
+    """Every annotated sign of a bank with the transition after it: (recording, a, b, label), a..b frames
+    from `edge` frames before the sign to `edge` frames before the next one. Units of the side camera are
     kept apart (a spliced sentence never mixes the two views)."""
     out = {False: [], True: []}
     for i in range(len(bank)):
@@ -138,8 +143,17 @@ def sign_units(bank, edge=2):
         starts = np.flatnonzero(sign & ~np.r_[False, sign[:-1]])
         for k, a in enumerate(starts):
             b = starts[k + 1] if k + 1 < len(starts) else len(y)
-            out['|side' in rid].append((i, max(0, int(a) - edge), max(int(a) + 1, int(b) - edge)))
+            out['|side' in rid].append((i, max(0, int(a) - edge), max(int(a) + 1, int(b) - edge), int(y[a])))
     return out
+
+
+def unit_cdf(units, power):
+    """Cumulative sampling weights of sign units: (signs of the unit's word)^-power (0 = uniform)."""
+    if not units:
+        return np.zeros(0)
+    lab = np.array([u[3] for u in units])
+    w = np.bincount(lab)[lab].astype(np.float64) ** -power
+    return np.cumsum(w / w.sum())
 
 
 def _shoulders(raw):
@@ -166,20 +180,28 @@ class SeqDataset(torch.utils.data.Dataset):
     """Train: a random window of each recording, augmented like the isolated signs (the labels follow the
     resampled frames). With `splice`, a sample is instead a new sentence: 2–6 signs (each with its
     transition) from random recordings of the same camera, moved to one body position and joined with a
-    3-frame cross-fade, so the model cannot lean on the 492 sentences' word order. Eval: the whole
-    recording through features.preprocess (no length cap)."""
+    3-frame cross-fade, so the model cannot lean on the 492 sentences' word order. With `spell`, a sample is
+    a spelled sequence the same way, 3–8 signs of the `short` labels (fingerspelled letters and digits), drawn
+    with weight (signs of their letter)^-0.5: fast letter-to-letter runs are where letters are lost. Eval: the
+    whole recording through features.preprocess (no length cap)."""
 
-    def __init__(self, bank, train=False, groups=None, face=True, crop=(48, 160), face_drop=0.0, splice=0.0):
+    def __init__(self, bank, train=False, groups=None, face=True, crop=(48, 160), face_drop=0.0, splice=0.0,
+                 splice_power=0.0, fps_aug=0.0, fps_min=8.0, spell=0.0, short=()):
         self.bank, self.train, self.groups, self.face, self.crop, self.face_drop = bank, train, groups, face, crop, face_drop
+        self.fps_aug, self.fps_min = fps_aug, fps_min
         self.cols = FT.columns(groups) if groups else None
-        self.splice = splice
-        self.units = sign_units(bank) if train and splice else None
+        self.splice, self.spell = splice, spell
+        self.units = sign_units(bank) if train and (splice or spell) else None
+        self.cdf = {k: unit_cdf(u, splice_power) for k, u in self.units.items()} if self.units else None
+        if self.units and spell:
+            self.letters = {k: [x for x in u if x[3] in short] for k, u in self.units.items()}
+            self.letter_cdf = {k: unit_cdf(u, 0.5) for k, u in self.letters.items()}
 
-    def _spliced(self, rng, side):
-        units = self.units[side]
+    def _spliced(self, rng, side, letters=False):
+        units, cdf = (self.letters[side], self.letter_cdf[side]) if letters else (self.units[side], self.cdf[side])
         parts, ys, aspect, ref = [], [], None, None
-        for _ in range(int(rng.integers(2, 7))):
-            i, a, b = units[int(rng.integers(len(units)))]
+        for _ in range(int(rng.integers(3, 9) if letters else rng.integers(2, 7))):
+            i, a, b, _ = units[min(int(np.searchsorted(cdf, rng.random(), side='right')), len(units) - 1)]
             raw, y, asp, _ = self.bank.get(i)
             raw = {k: v[a:b].astype(np.float32) for k, v in raw.items()}
             c, w = _shoulders(raw)
@@ -205,13 +227,17 @@ class SeqDataset(torch.utils.data.Dataset):
         if not self.train:
             return torch.from_numpy(FT.preprocess(raw, aspect, self.groups, self.face, max_len=None)), torch.from_numpy(y)
         rng = np.random.default_rng()
-        if self.units and rng.random() < self.splice:
-            side = bool(self.units[True]) and '|side' in self.bank.get(i)[3]
+        side = bool(self.units) and bool(self.units[True]) and '|side' in self.bank.get(i)[3]
+        if self.units and self.spell and self.letters[side] and rng.random() < self.spell:
+            raw, y, aspect = self._spliced(rng, side, letters=True)
+        elif self.units and self.splice and rng.random() < self.splice:
             raw, y, aspect = self._spliced(rng, side)
         T, L = len(y), int(rng.integers(self.crop[0], self.crop[1] + 1))
         if T > L:
             s = int(rng.integers(0, T - L + 1))
             raw, y = {k: v[s:s + L] for k, v in raw.items()}, y[s:s + L]
+        if self.fps_aug and rng.random() < self.fps_aug:     # landmarks at a lower frame rate, as in a slow browser
+            raw = camera_resample(raw, float(rng.uniform(self.fps_min, 30.0)))
         d, idx = FT.augment(FT.to_square(raw, aspect), rng, aspect, return_idx=True)
         if not self.face or (self.face_drop and rng.random() < self.face_drop):
             d = FT.drop_face(d)
@@ -238,6 +264,17 @@ class SeqNet(TR.Net):
         for b in self.blocks:
             h = b(h, valid)
         return self.head(self.drop(self.norm(h)))
+
+
+def load_checkpoint(path, device='cpu'):
+    """A saved best.pt → (SeqNet in eval mode, its training cfg, its labels, its epoch)."""
+    ck = torch.load(path, map_location=device, weights_only=False)
+    cfg = {**DEFAULTS, **ck['cfg']}
+    assert ck.get('feature_version') == FT.FEATURE_VERSION, 'checkpoint from another feature version'
+    net = SeqNet(len(FT.columns(cfg['groups'])), len(ck['vocab']), cfg['dim'], cfg['stages'], cfg['convs'],
+                 cfg['kernel'], cfg['heads'], cfg['drop'], cfg['head_drop']).to(device)
+    net.load_state_dict(ck['model'])
+    return net.eval(), cfg, list(ck['vocab']), ck.get('epoch')
 
 
 def init_from(model, ckpt_path, vocab_list, log=print):
@@ -283,10 +320,16 @@ def smooth(P, k):
     return (c[hi] - c[lo]) / (hi - lo)[:, None]
 
 
-def decode(P, p=DECODE, unknown=None):
+def short_classes(labels):
+    """Indices of the single-character labels: fingerspelled letters and digits, shorter than words."""
+    return {i for i, g in enumerate(labels) if len(g) == 1}
+
+
+def decode(P, p=DECODE, unknown=None, short=()):
     """T×C frame probabilities (column 0 = BLANK) → [(a, b, label index, mean probability)], frames
     [a, b). Runs of one label (after smoothing), joined across gaps of at most `gap` frames, at least
-    `min_len` frames long and `min_p` probable on average; UNKNOWN runs are dropped."""
+    `min_len` frames long (labels in `short`: `min_len_short`, if p has it) and `min_p` probable on
+    average; UNKNOWN runs are dropped."""
     Ps = smooth(P, int(p['smooth']))
     lab = Ps.argmax(1)
     runs, t, T = [], 0, len(lab)
@@ -306,7 +349,8 @@ def decode(P, p=DECODE, unknown=None):
     out = []
     for a, b, c in joined:
         pm = float(Ps[a:b, c].mean())
-        if b - a >= p['min_len'] and pm >= p['min_p'] and c != unknown:
+        need = p['min_len_short'] if c in short and 'min_len_short' in p else p['min_len']
+        if b - a >= need and pm >= p['min_p'] and c != unknown:
             out.append((a, b, c, pm))
     return out
 
@@ -331,6 +375,38 @@ def window_probs(net, x, wins, device, batch=64):
         for r, i in enumerate(idx):
             out[i] = p[r, :len(feats[i])]
     return out
+
+
+def camera_resample(raw, fps, src_fps=30.0):
+    """The recording as a camera (or landmark tracker) at `fps` delivers it, filled back to 30 fps as the
+    browser does (continuous.js Resampler: linear interpolation onto the 30 fps grid). The end is held at
+    the last delivered frame, so the result keeps the recording's length and its frame labels."""
+    T = raw['hand'].shape[0]
+    if fps >= src_fps:
+        return raw
+    dt = 1000.0 / src_fps
+    out, prev, nxt, k = {key: [] for key in raw}, None, None, 0
+    while True:
+        ts = k * 1000.0 / fps
+        i = int(np.floor(ts / dt + 0.5))                 # Math.round, as the browser's frame times would
+        if i >= T:
+            break
+        fr = {key: raw[key][i].astype(np.float32) for key in raw}
+        if prev is None:
+            for key in raw:
+                out[key].append(fr[key])
+            nxt = ts + dt
+        else:
+            fa, ta = prev
+            while nxt <= ts:
+                w = 1.0 if ts == ta else (nxt - ta) / (ts - ta)
+                for key in raw:
+                    out[key].append(fa[key] + (fr[key] - fa[key]) * w)
+                nxt += dt
+        prev, k = (fr, ts), k + 1
+    for key in raw:
+        out[key] += [out[key][-1]] * (T - len(out[key]))
+    return {key: np.stack(v[:T]) for key, v in out.items()}
 
 
 def stream_probs(net, raw, aspect, groups, face, device, window=96, stride=8, lookahead=24):
@@ -378,6 +454,7 @@ def score(probs, bank, anns, vocab_list, decode_p, unknown, fam=None, keep=None,
     of every detection."""
     tally, right, total = SE.Tally(), 0, 0
     known = set(vocab_list) - {BLANK, TR.UNKNOWN}
+    short = short_classes(vocab_list)
     hits = lambda a, b, xs: any(min(b, e) - max(a, s) > 0 for s, e, _, _ in xs)      # noqa: E731
     for i, P in enumerate(probs):
         _, y, _, rid = bank.get(i)
@@ -386,7 +463,7 @@ def score(probs, bank, anns, vocab_list, decode_p, unknown, fam=None, keep=None,
         right, total = right + int((P.argmax(1)[ok] == y[ok]).sum()), total + int(ok.sum())
         T = len(P)
         a_ = [(max(0, int(s) - 1), min(int(e), T), g, g in known) for s, e, g in anns.get(rid, [])]
-        found = decode(P, decode_p, unknown)
+        found = decode(P, decode_p, unknown, short)
         dets = [(a, b, vocab_list[c]) for a, b, c, _ in found]
         if keep is not None:
             gone = [x for x in a_ if x[2] not in keep]
@@ -426,7 +503,10 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
         init_from(model, cfg['init'], vocab_list, log)
     sampler = torch.utils.data.RandomSampler(tr, replacement=True, num_samples=len(tr) * cfg['repeats'])
     dl = torch.utils.data.DataLoader(SeqDataset(tr, train=True, groups=groups, face=face, crop=tuple(cfg['crop']),
-                                                face_drop=cfg['face_drop'], splice=cfg['splice']),
+                                                face_drop=cfg['face_drop'], splice=cfg['splice'],
+                                                splice_power=cfg['splice_power'], fps_aug=cfg['fps_aug'],
+                                                fps_min=cfg['fps_min'], spell=cfg['spell'],
+                                                short=short_classes(vocab_list)),
                                      batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
                                      collate_fn=collate, drop_last=True, persistent_workers=cfg['workers'] > 0,
                                      pin_memory=device.type == 'cuda')
@@ -501,7 +581,7 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
 def write_manifest(out_dir, cfg, vocab_list, result, n_in, onnx_ok, decode_p, stream=STREAM):
     """manifest.json next to model.onnx for the browser's continuous mode."""
     m = {
-        'kind': 'continuous', 'feature_version': FT.FEATURE_VERSION,
+        'kind': 'continuous', 'feature_version': FT.FEATURE_VERSION, 'continuous_version': CONTINUOUS_VERSION,
         'model_file': 'model.onnx' if onnx_ok else None, 'opset': 17,
         'labels': vocab_list, 'blank_label': BLANK,
         'unknown_label': TR.UNKNOWN if TR.UNKNOWN in vocab_list else None,
@@ -530,21 +610,24 @@ def decode_grid(grid):
 
 
 def evaluate(net, banks, anns, vocab_list, groups, face, device, grid, stream=STREAM, subsets=None,
-             lookaheads=(), log=print, choose='f1_all', fixed=None):
+             lookaheads=(), log=print, choose='f1_all', fixed=None, fps=None, fps_checks=()):
     """Streaming probabilities of every val / test recording (as the browser fixes them) → decode settings
     chosen on val (`choose`: 'f1_all' on all val recordings, or 'f1_<subset name>', e.g.
     'f1_unseen_learnable') → test scored once with them. subsets {name: (rec_ids, glosses or None)}: val and
     test scores on those recordings too, counting only those glosses' annotations if given.
     lookaheads: val scores with other delays. fixed: decode settings chosen before (no val is used).
+    fps: every recording as a camera at that frame rate gives it (camera_resample). fps_checks: val and
+    test scores again at these frame rates, with the decoding chosen at the normal one.
     Test detections are returned in out['test_detections']."""
     unk = vocab_list.index(TR.UNKNOWN) if TR.UNKNOWN in vocab_list else None
     net.eval()
     t0 = time.time()
 
-    def probs(bank, **st):
+    def probs(bank, at=fps, **st):
         out = []
         for i in range(len(bank)):
             raw, _, aspect, _ = bank.get(i)
+            raw = camera_resample(raw, at) if at else raw
             out.append(stream_probs(net, raw, aspect, groups, face, device, **st))
         return out
 
@@ -593,6 +676,10 @@ def evaluate(net, banks, anns, vocab_list, groups, face, device, grid, stream=ST
         out[f'test_{name}']['recordings'] = len(Pt)
     if len(banks.get('test_side', [])):
         out['test_side'] = score(probs(banks['test_side'], **stream), banks['test_side'], anns, vocab_list, best, unk)
+    for f in fps_checks:
+        for part_name in ('val', 'test') if not fixed else ('test',):
+            out[f'{part_name}_fps{f}'] = score(probs(banks[part_name], at=f, **stream), banks[part_name], anns,
+                                               vocab_list, best, unk)
     log('test, streaming: ' + ', '.join(f'{k} f1_all {v["f1_all"]:.4f} wer_all {v["wer_all"]:.4f}'
                                        for k, v in out.items() if k.startswith('test') and isinstance(v, dict)))
     return out

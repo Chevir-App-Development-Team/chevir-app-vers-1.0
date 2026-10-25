@@ -47,6 +47,7 @@ NOTEBOOKS = {
     '04': ('04_train_words.ipynb', '04-train-words'),
     '05': ('05_eval_word_mode.ipynb', '05-eval-word-mode'),
     '06': ('06_train_continuous.ipynb', '06-train-continuous'),
+    '07': ('07_train_letters.ipynb', '07-train-letters'),
 }
 EXTRACTION = ['01'] + [f'02-{k}' for k in range(SHARDS)]
 CAM1 = [f'02c1-{k}' for k in range(SHARDS)]
@@ -60,7 +61,12 @@ SETTINGS = {
     '05': dict(gpu=False, internet=False, sources=[f'02-{k}' for k in range(SHARDS)] + ['03', '04', '05'],
                datasets=['azsl-model-final-side-noface']),
     # continuous recognition: whole recordings of both cameras; 04 for run 10a (the starting point)
-    '06': dict(gpu=True, internet=True, sources=[f'02-{k}' for k in range(SHARDS)] + CAM1 + ['03', '04']),
+    # datasets: models kept for evaluation-only runs (kaggle_run.py model-dataset)
+    '06': dict(gpu=True, internet=True, sources=[f'02-{k}' for k in range(SHARDS)] + CAM1 + ['03', '04'],
+               datasets=['azsl-model-seq-splice', 'azsl-model-final-splice']),
+    # letters: fingerspelling landmarks (01), letter signs of both cameras, the app's old letter model to compare
+    '07': dict(gpu=True, internet=True, sources=['01'] + [f'02-{k}' for k in range(SHARDS)] + CAM1 + ['03'],
+               datasets=['chevir-letter-model-old']),
 }
 
 
@@ -89,7 +95,7 @@ def username():
     sys.exit('Could not tell the Kaggle username from the token — run with KAGGLE_USERNAME=<name> set.\n' + out)
 
 
-def stage(key, user, smoke):
+def stage(key, user, smoke, cpu=False):
     file, slug = NOTEBOOKS[key]
     d = os.path.join(STAGE, slug)
     shutil.rmtree(d, ignore_errors=True)
@@ -104,6 +110,8 @@ def stage(key, user, smoke):
     with open(os.path.join(d, file), 'w', encoding='utf-8') as f:
         json.dump(nb, f, ensure_ascii=False, indent=1)
     st = SETTINGS.get(key, dict(gpu=False, internet=True, sources=[]))
+    if cpu:                                     # e.g. 06 evaluating saved models: no GPU quota
+        st = dict(st, gpu=False)
     meta = {
         'id': f'{user}/{slug}', 'title': os.path.splitext(file)[0], 'code_file': file, 'language': 'python', 'kernel_type': 'notebook',
         'is_private': 'true', 'enable_gpu': str(st['gpu']).lower(), 'enable_internet': str(st['internet']).lower(),
@@ -132,13 +140,15 @@ def main():
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # Windows console is cp1252; glosses aren't
     ap = argparse.ArgumentParser()
     ap.add_argument('cmd', choices=['whoami', 'push', 'stage', 'status', 'log', 'splits', 'results', 'eval',
-                                    'model-dataset', 'cont'])
+                                    'model-dataset', 'cont', 'letters', 'files-dataset'])
     ap.add_argument('which', nargs='?', default='all')
     ap.add_argument('--smoke', action='store_true', help='push with SMOKE = True (a few files, ~3 min)')
+    ap.add_argument('--cpu', action='store_true', help='push without a GPU (evaluation only)')
     ap.add_argument('--user', help='Kaggle username (else read from the CLI config)')
     ap.add_argument('--to', help='results: folder name under ml/results/ (default: latest)')
     ap.add_argument('--models', action='store_true', help='results: also best.pt + model.onnx (bigger downloads)')
     ap.add_argument('--run', help='results: only this run of the batch (e.g. no_face), to save bandwidth')
+    ap.add_argument('files', nargs='*', help='files-dataset: the files to upload (which = the dataset slug)')
     a = ap.parse_args()
     user = a.user or (None if a.cmd == 'stage' else username())
 
@@ -156,12 +166,24 @@ def main():
         exists = 'ref' in kg('datasets', 'list', '--mine', '-s', slug, check=False).lower() and slug in             kg('datasets', 'list', '--mine', '-s', slug, check=False)
         out = kg('datasets', 'version', '-p', d, '-m', 'update', check=False) if exists else             kg('datasets', 'create', '-p', d, check=False)            # private unless --public
         print(f'{user}/{slug}:', out.strip()[-300:])
+    elif a.cmd == 'files-dataset':                    # which = slug; files → a private dataset of them
+        d = os.path.join(STAGE, a.which)
+        shutil.rmtree(d, ignore_errors=True)
+        os.makedirs(d)
+        for name in a.files:
+            shutil.copy2(name, d)
+        with open(os.path.join(d, 'dataset-metadata.json'), 'w', encoding='utf-8') as f:
+            json.dump({'title': a.which, 'id': f'{user}/{a.which}', 'licenses': [{'name': 'other'}]}, f)
+        exists = a.which in kg('datasets', 'list', '--mine', '-s', a.which, check=False)
+        out = kg('datasets', 'version', '-p', d, '-m', 'update', check=False) if exists else \
+            kg('datasets', 'create', '-p', d, check=False)
+        print(f'{user}/{a.which}:', out.strip()[-300:])
     elif a.cmd == 'whoami':
         print('kaggle user:', user)
         print(kg('kernels', 'list', '--mine', '--page-size', '5', check=False))
     elif a.cmd in ('stage', 'push'):
         for k in keys(a.which):
-            d, ref = stage(k, user or 'USERNAME', a.smoke)
+            d, ref = stage(k, user or 'USERNAME', a.smoke, a.cpu)
             if a.cmd == 'push':
                 print(f'push {ref}{" (SMOKE)" if a.smoke else ""}:', kg('kernels', 'push', '-p', d).strip())
             else:
@@ -224,6 +246,23 @@ def main():
         if not os.path.isdir(src):
             sys.exit(f'no cont/ in the output of {ref} yet')
         dst = os.path.join(HERE, 'results', a.to or 'cont_latest')
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(src, dst)
+        shutil.rmtree(tmp, ignore_errors=True)
+        print('wrote', dst, os.listdir(dst))
+    elif a.cmd == 'letters':                          # 07's letters/ (summary, per run: metrics, history, predictions)
+        ref = f'{user}/{NOTEBOOKS["07"][1]}'
+        tmp = tempfile.mkdtemp(prefix='kaggle_letters_')
+        files = r'history\.csv|metrics\.json|manifest\.json|predictions_[a-z]+\.npz' + (
+            r'|model\.onnx|best\.pt' if a.models else '')
+        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern',
+           rf'^letters/(summary\.csv|spelled_[a-z]+\.(npz|json)|[^/]+/({files}))$',
+           '-q',
+           check=False)
+        src = os.path.join(tmp, 'letters')
+        if not os.path.isdir(src):
+            sys.exit(f'no letters/ in the output of {ref} yet')
+        dst = os.path.join(HERE, 'results', a.to or 'letters_latest')
         shutil.rmtree(dst, ignore_errors=True)
         shutil.copytree(src, dst)
         shutil.rmtree(tmp, ignore_errors=True)

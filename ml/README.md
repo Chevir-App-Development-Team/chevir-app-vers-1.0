@@ -202,18 +202,25 @@ signs and the side camera's views (shifted by their alignment lag) are used too.
   order of AzSLD's 492 sentences cannot be learned; `crop` sets the training window lengths.
 - **Unseen sentences:** with `EXCLUDE_HELDOUT` the 49 sentences marked `heldout_sentence` stay out of
   training. Val and test report them separately (`unseen_sentences`, and `unseen_learnable` = only words
-  with training signs outside them). `select='f1_unseen'` chooses the epoch on val's unseen sentences.
+  with training signs outside them). `select='f1_unseen_learnable'` chooses the epoch on val's unseen
+  sentences, learnable words only.
 - **As in the browser:** the model runs on the last `window` frames every `stride` frames, and a frame is
   final `lookahead` frames after it (`STREAM`). Decoding (`DECODE`: smoothing, minimum probability,
-  minimum length, gap joining) is chosen on val from `DECODE_GRID`; test is scored once.
-- **Final model:** `TRAIN_ON_VAL` + `save_epoch`, as for the word model.
+  minimum length, gap joining; from `CONTINUOUS_VERSION` 2 an optional shorter `min_len_short` for
+  single-character labels, i.e. fingerspelled letters and digits) is chosen on val from `DECODE_GRID`;
+  test is scored once.
+- **Final model:** `TRAIN_ON_VAL` + `save_epoch` + its `decode`, as for the word model.
+- **Evaluation only:** a run with `ckpt='<run name>'` loads a saved model (uploaded with
+  `kaggle_run.py model-dataset`) instead of training; `decode_from='<run>'` scores test with the decoding
+  an earlier run of the same session chose. Push such a version with `--cpu`: no GPU quota is used.
 
 ```bash
-python ml/kaggle_run.py push 06 [--smoke]
+python ml/kaggle_run.py push 06 [--smoke] [--cpu]
 python ml/kaggle_run.py cont --to cont2 [--models]      # cont/ → ml/results/cont2/ (--models: + best.pt, ONNX)
 python ml/install_continuous.py ml/results/cont2/<run> --install
 node tools/verify_continuous.mjs     # streaming + decoding: JS against continuous_v<N> fixture
 node tools/verify_cont_model.mjs     # installed model: features.js + onnxruntime-web against PyTorch
+node tools/bench_cont_model.mjs      # its time per window (96 frames: ~11 ms; the budget at 30 fps is 267 ms)
 ```
 
 `install_continuous.py` records PyTorch's per-frame logits on the fixture windows
@@ -226,6 +233,29 @@ The browser's sentence model is `final_splice` (notebook 06 v6): spliced trainin
 sentence. Test, signers never seen: word F1 0.927, word error rate 0.105, the right AzSLD sentence suggested
 for 91 % of the recordings. On sentences outside AzSLD expect about F1 0.6 (0.77 on the words it knows),
 measured on 49 sentences left out of training. Results: `EXPERIMENTS.md` E7.
+
+## Letter mode (notebook 07)
+
+`07_train_letters` (Kaggle **GPU T4**, ~10 min a run) trains the letter mode's model on the landmark pipeline
+(`azsl/letters.py`) from every AzSLD source of letters: the letter signs annotated in the sentences (both
+cameras, signer split; an "O" counts only next to another spelled letter), the fingerspelling photos (static
+letters, split by contributor), the moving-letter clips (frames filled back in) and `<none>` from the gaps
+between signs. The model reads only the hand (`hand_shape` + `hand_vel`): body, face and blendshapes are removed
+(`strip`), and the hand present in more frames is slot 0 (`canonical`). The old letter model is scored on the
+same samples (`letters.OldModel`, a numpy port of `src/tercume/model.js`).
+
+```bash
+python ml/kaggle_run.py files-dataset chevir-letter-model-old public/tercume/assets/model.json public/tercume/assets/model.bin
+python ml/kaggle_run.py push 07 [--smoke] [--cpu]
+python ml/kaggle_run.py letters --to letters2 [--models]   # letters/ → ml/results/letters2/ (+ spelled words)
+python ml/install_letters.py ml/results/letters2/final_hand --install
+node tools/verify_letters.mjs        # letters.js against Python (fixture letters_v<N>) and the model against PyTorch
+node tools/letters_tune.mjs <model dir> <spelled dir> grid   # the typing rules on spelled words (val), or one set
+```
+
+The browser's letter model is `final_hand` (train + val, epoch 51): test top-1 0.933 (letters in the test
+signers' sentences 0.963, moving letters 0.931; the old model 0.214 on the same samples). The typing rules
+(`LETTER_GATE` in `s2t.js`) were chosen on val signers' spelled words. Results: `EXPERIMENTS.md` E8.
 
 ## Deployment contract: browser and landmark server
 
@@ -277,6 +307,10 @@ models. The server is not built yet. These pieces keep both paths identical:
   windows into the continuous model (`continuous.js`: `WindowStream`, `decode`, `SentenceStream`, ports of
   `continuous.py`, checked on `ml/fixtures/continuous_v<N>`). Words are shown when final; 60 blank frames
   end a sentence, and the nearest AzSLD sentence (`sentences.json`) is suggested under it.
+- **Letter mode in the browser:** `src/tercume/letters.js` (`LetterModel`, `strip`, `canonical`) runs the
+  letter model on the hand tracker's last 24 frames (`landmarks.js frameFromResults` without body); `s2t.js`
+  types a letter when the rules hold. `loadLetterModel` falls back to the old model (`model.js`) if
+  `public/tercume/assets/letter_model/` is missing; `LETTERS_VERSION` guards the preprocessing.
 - **Face tracker in the browser:** word mode loads it only if the model's validation macro-F1
   without face (`val_words_noface` in the manifest) is more than 0.01 below the score with face.
 - **ONNX export:** the exported graph takes any clip length (1 × T × F). Models exported before this
