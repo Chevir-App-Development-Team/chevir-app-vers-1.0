@@ -385,6 +385,8 @@ export function summarize(id, text, res) {
     skel: two.length ? Math.min(...two.map((r) => r.skel ?? Infinity)) : null,
     skelRaw: two.length ? Math.min(...two.map((r) => r.skelRaw ?? Infinity)) : null,
     deep: two.filter((r) => r.gap < -0.005).length,           // >5 mm girmə olan kadrlar
+    // siqnalçının öz əllərindən 5 mm-dən çox dərin girmə (toxunan işarədə siqnalçı da keçir)
+    beyond: two.length ? Math.min(...two.map((r) => r.gap - Math.min(0, r.signer ?? 0))) : null,
     armGap: two.length ? Math.min(...two.map((r) => r.arm)) : null,
     playGap: res.play.length ? Math.min(...res.play.map((r) => r.gap)) : null,
     playStep: res.play.length ? Math.max(...res.play.map((r) => r.step)) : null,
@@ -428,6 +430,7 @@ export function totals(rows) {
     twoHanded: two.length,
     handInHand: count((r) => r.gap != null && r.gap < -0.005),          // >5 mm
     handInHand10: count((r) => r.gap != null && r.gap < -0.010),        // >1 sm
+    handInHandBeyond: count((r) => r.beyond != null && r.beyond < -0.005), // siqnalçıdan 5 mm-dən dərin
     handInHandPlay: count((r) => r.playGap != null && r.playGap < -0.005),
     deepFrames: rows.reduce((a, r) => a + r.deep, 0),
     playStepMaxCm: cm(Math.max(...rows.map((r) => r.playStep ?? 0))),

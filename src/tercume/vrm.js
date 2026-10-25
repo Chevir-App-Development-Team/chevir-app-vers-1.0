@@ -58,6 +58,9 @@ const R_FOREARM = 0.030;
 const R_UPPERARM = 0.040;
 // Oynatmada əllərin bir-birinə girməsinə icazə (metr): səthlər toxuna bilər, keçə bilməz
 const GUARD_SLACK = 0.003;
+// Əllərin toxunduğu işarədə (sözün `contact` işarəsi) siqnalçının barmaqları bir-birinin arasından
+// keçə, ovucu o biri əlin üstündə ola bilər: avatar da siqnalçının özü qədər üst-üstə düşür, ən çoxu bu qədər
+const OVERLAP_MAX = 0.025;
 
 const FINGER_BONE_NAMES = {
   Thumb: ['Metacarpal', 'Proximal', 'Distal'],
@@ -674,6 +677,13 @@ export class VrmAvatar {
       const fr = word.frames[f];
       if (!L || !R || !fr.L || !fr.R || !fr.b) continue;
       const place = places[f];
+      // Hədəf aralıq datadan: əllərin toxunduğu sözdə siqnalçının əlləri bu kadrda bir-birinə
+      // keçirsə (barmaqlar arası, ovuc ovucun üstündə), avatar da o qədər keçə bilər; qalan
+      // hallarda səthlər toxunur, datada aralıdırsa tam aralıq
+      const sb = signerGap(fr, L.flip, R.flip, this.handShape, scale);
+      const overlap = word.contact === true && sb < -MESH;
+      const want = overlap ? Math.max(sb, -OVERLAP_MAX) : THREE.MathUtils.clamp(sb, MESH, FULL);
+      sol[f].allow = overlap ? want : null;
 
       // 1. Nisbi həndəsə: siqnalçının ovucları arasındakı vektor əl ölçüsünə görə köçürülür
       const sg = handGap(fr);
@@ -687,7 +697,10 @@ export class VrmAvatar {
         // Hər əl ən çoxu 4 sm tərpənir: data ilə bədən xəritəsi arasındakı böyük fərq
         // adətən pozanın səhvidir. İstisna: data əlləri indikindən açıq-aşkar aralı
         // göstərirsə, pozanı qorumaq əlləri bir-birinin içində saxlamaq deməkdir.
-        const cap = rel.length() - L.anchor.distanceTo(R.anchor) > 0.03 ? 0.07 : 0.04;
+        // Əllərin toxunduğu sözdə (sözün `contact` işarəsi) iki ovucun bir-birinə nisbəti işarənin
+        // özüdür (ovuc ovucun üstündə, barmaqlar arası): hər əl 10 sm-ə qədər tərpənə bilər. Əks
+        // halda üzə yaxın əl üzə, o biri bədənə görə yerləşir və toxunan əllər aralanır.
+        const cap = word.contact === true ? 0.10 : rel.length() - L.anchor.distanceTo(R.anchor) > 0.03 ? 0.07 : 0.04;
         if (wantL.distanceTo(L.anchor) < cap && wantR.distanceTo(R.anchor) < cap) {
           this.#reanchor(L, 'left', wantL);
           this.#reanchor(R, 'right', wantR);
@@ -711,7 +724,7 @@ export class VrmAvatar {
         return this.#bodyGap('left', L).gap >= bodyFloor.left && this.#bodyGap('right', R).gap >= bodyFloor.right;
       };
       const probe0 = this.#probeGap(L, R);
-      if (probe0 && probe0.gap < 0) {
+      if (probe0 && probe0.gap < Math.min(0, want)) {
         bodyOk();                                     // başlanğıc bədən aralığı yadda saxlanır
         for (const [side, c, oside, other] of [['left', L, 'right', R], ['right', R, 'left', L]]) {
           const caps = prepareCapsules(
@@ -735,8 +748,6 @@ export class VrmAvatar {
       //    toxunan işarədə yalnız həndəsənin tələb etdiyi qədər (barmaq üst-üstə düşməsin),
       //    datada aralı olan işarədə tam aralıq. Ayırma oxu iki ovucun arasıdır: ən yaxın
       //    nöqtələrin oxu əli bədənə və ya arxaya itələyə bilər.
-      const sb = signerGap(fr, L.flip, R.flip, this.handShape, scale);
-      const want = THREE.MathUtils.clamp(sb, MESH, FULL);
       const palmAxis = R.anchor.clone().sub(L.anchor);
       if (palmAxis.lengthSq() < 1e-8) continue;
       palmAxis.normalize();
@@ -1240,10 +1251,13 @@ export class VrmAvatar {
       const PL = this.#handPoints('left'), PR = this.#handPoints('right');
       const parts = { left: this.#contactParts('left', PL), right: this.#contactParts('right', PR) };
       const hit = closestParts(parts.left, parts.right, armOnly);
-      // Toxunmaq olar (aralıq ≈ 0 — toxunan işarələr belə qalır), bir-birinə keçmək olmaz
-      if (!hit || hit.gap >= -GUARD_SLACK) return;
+      // Toxunmaq olar (aralıq ≈ 0 — toxunan işarələr belə qalır), bir-birinə keçmək olmaz; əllərin
+      // toxunduğu sözdə isə siqnalçının özü qədər keçmək olar (bu kadrın `allow`-u, #fixTwoHanded)
+      const allow = this.mode === 'sign' && this.last?.allow != null ? this.last.allow : 0;
+      const slack = Math.max(GUARD_SLACK, -allow + GUARD_SLACK);
+      if (!hit || hit.gap >= -slack) return;
       // Bir addımda ən çoxu 2 sm (üç qatı 6 sm): daha böyük girmə yayın deyil, həllin səhvidir
-      const need = Math.min(-GUARD_SLACK - hit.gap + 0.001, 0.02);
+      const need = Math.min(-slack - hit.gap + 0.001, 0.02);
       const S = { left: shoulder.left.getWorldPosition(new THREE.Vector3()),
                   right: shoulder.right.getWorldPosition(new THREE.Vector3()) };
       const contact = { left: hit.pa, right: hit.pb };
@@ -1296,7 +1310,7 @@ export class VrmAvatar {
       let best = null;
       for (const k of [1, 2, 3]) {
         best = trial(dir, k);
-        if (best.gap >= -GUARD_SLACK) break;
+        if (best.gap >= -slack) break;
       }
       if (best.gap <= hit.gap + 0.0005) return;                   // heç bir istiqamət açmır
       let moved = false;

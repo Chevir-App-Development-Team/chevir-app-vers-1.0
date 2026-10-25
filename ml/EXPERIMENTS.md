@@ -1642,3 +1642,49 @@ words, arm 380 against 385, wrist past its limit 409 against 413, hands through 
 (a hand out of the frame 16 against 14). Heavy with the chest line stays one command away:
 `--pose-model data/models/pose_landmarker_heavy.task --chest`. **Next:** the arm solver for real depth: the forearm at upper-chest height (most of the arm
 penetrations), and the avatar's arm proportions against the signers' (IK misses tripled).
+
+
+---
+
+## E13 — Hands that touch each other: contact signs (no training)
+
+In some signs the two hands' fingers pass between each other or one hand lies on the other. The avatar
+treated every overlap of the two hands' capsules as an error: the two-hand fix (`#fixTwoHanded`) pushed the
+hands apart until 2 mm separated them (with up to 8 cm of movement), the playback guard (`#guardHands`)
+did the same on every update, and the step that restores the signer's palm-to-palm vector was skipped when
+a hand had to move more than 4 cm (7 cm if the data shows the hands further apart).
+
+**Data.** For each of the 556 two-handed words and each of its candidate signers: the share of frames in
+which a finger of one hand is within 1.6 cm (bone axes) of a finger of the other. Most signers agree on
+MƏSƏLƏ (8 of 8 signers), FİLM (7/8), BİRLİKDƏ (4/5), BİTKİLƏRİ, GÖSTƏRMƏK, TƏZYİQ, … The signer's video
+frame next to the avatar's at the moment the signer's hands are closest: BİRLİKDƏ clasped vs side by side,
+TƏZYİQ one palm on the other hand vs ~10 cm apart, KİTAB palms together vs a roof, GÖSTƏRMƏK fingers on
+the other hand vs apart; MƏSƏLƏ, FİLM and BALIQ (crossed, overlapping hands) roughly right.
+
+**Changes.**
+- `build_avatar_words.py`: `contact` on a two-handed word when at least half of its signers have the
+  fingers closer than 1.6 cm in more than a quarter of the frames (38 words); a single signer's depth error
+  does not count.
+- `vrm.js`, contact words only: in a frame where the signer's own hands overlap, the two-hand fix and the
+  playback guard allow the same overlap (at most 2.5 cm) instead of pushing the hands apart; the palm-to-palm
+  vector is restored even when a hand has to move up to 10 cm.
+- `measure_hands.js`: `handInHandBeyond`, words whose hands overlap more than 5 mm deeper than the
+  signer's own (overlap in a contact sign is the sign, not an error).
+
+**Result** (all 786 words; the other 748 are unchanged by construction):
+
+| | Before | After |
+|---|---|---|
+| Hands overlapping > 5 mm (words) | 1 | 23 |
+| … deeper than the signer's own hands by > 5 mm | 1 | 3 |
+| … during playback | 10 | 29 (19 contact words) |
+| A hand in the other forearm | 3 | 12 |
+| Palm in the body / arm in the body | 304 / 380 | 302 / 381 |
+| Wrist past its hard ceiling | 21 | 20 |
+| Palm from its target median / p90 | 1.2 / 3.7 cm | 1.2 / 3.7 cm |
+
+The closest the two hands come, avatar before → after (signer): BİRLİKDƏ 0.3 → −0.9 cm (−1.1), TƏZYİQ 0.3 →
+−2.1 (−2.1), MƏSƏLƏ 0.1 → −1.5 (−1.6), GÖSTƏRMƏK 0.9 → −0.4 (−0.6). In the frames: TƏZYİQ now has one hand
+on the other and GÖSTƏRMƏK the fingers on the other hand. **Open:** BİRLİKDƏ's hands touch but are not
+clasped, and KİTAB's palms face down in a roof instead of facing each other: the hand orientation, not the
+distance.

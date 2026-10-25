@@ -278,6 +278,29 @@ def features(rec):
     return np.asarray(out)
 
 
+FINGER_SEGS = [(a, b) for f in ((1, 2, 3, 4), (5, 6, 7, 8), (9, 10, 11, 12), (13, 14, 15, 16), (17, 18, 19, 20))
+               for a, b in zip(f[:-1], f[1:])]
+_T = np.linspace(0, 1, 5)[:, None]
+
+
+def fingers_close(rec, limit=0.016):
+    """Share of two-handed frames in which a finger of one hand is within `limit` (m, bone axes) of a
+    finger of the other: the signer's metric hands (pose wrist + hand world landmarks)."""
+    n = close = 0
+    for fr in rec['frames']:
+        if not (fr.get('L') and fr.get('R') and fr.get('b')):
+            continue
+        pts = []
+        for s, wi in (('L', 5), ('R', 6)):
+            W = np.asarray(fr[s]['w'], float)
+            P = np.asarray(fr['b'][wi], float) + W - W[0]
+            pts.append(np.concatenate([P[a] + _T * (P[b] - P[a]) for a, b in FINGER_SEGS]))
+        d = np.linalg.norm(pts[0][:, None] - pts[1][None], axis=-1).min()
+        n += 1
+        close += d < limit
+    return close / n if n else 0.0
+
+
 def chest_line(words):
     """
     The signers' chest surface in the avatar's frame (vrm.js #signerToAvatar: shoulder axis, camera
@@ -432,6 +455,13 @@ def main():
                  if c['rec'] else {'video': c['member'], 'source': 'AzSLD Words 200 (Zenodo 14222948, CC BY 4.0)'})
         data = {'id': wid, 'text': text, 'label': label, **rec, **where,
                 'quality': round(res[j]['score'], 3), 'candidates': len(cands), 'typicality': typ}
+        # Əllərin bir-birinə toxunduğu işarə (BİRLİKDƏ, TƏZYİQ, KİTAB): sözün siqnalçılarının çoxunda
+        # barmaqlar kadrların dörddə birindən çoxunda 1.6 sm-dən yaxındır. Avatar belə sözdə
+        # siqnalçının öz əllərinin üst-üstə düşməsinə icazə verir (barmaqlar bir-birinin arasından
+        # keçir, ovuc ovucun üstündədir); təsadüfi bir siqnalçının dərinlik xətası səs vermir.
+        two = [r for r in res if r['rec'] and r['rec']['hands'] == 'LR']
+        if len(two) >= 3 and rec['hands'] == 'LR':
+            data['contact'] = bool(sum(fingers_close(r['rec']) > 0.25 for r in two) / len(two) >= 0.5)
         entry = {'id': wid, 'text': text, 'hands': rec['hands'], 'frames': len(rec['frames'])}
         if text in ALT:
             data['alt'] = entry['alt'] = ALT[text]

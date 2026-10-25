@@ -327,10 +327,15 @@ Avatarda (`vrm.js`, `setWordPose`) hər iki qol birlikdə qurulur:
 5. Dizin üstündə dayanan (işarədə iştirak etməyən) əl istirahətə enir; baza əl qalır.
 6. Kamera bütün işarəni — hər iki əlin bütün kadrlarını — kadra sığdırır.
 
+Əllərin bir-birinə toxunduğu işarələrdə (BİRLİKDƏ, TƏZYİQ, KİTAB, MƏSƏLƏ; 38 söz, sözün
+siqnalçılarının çoxunda barmaqlar 1.6 sm-dən yaxındır, `contact`) barmaqlar bir-birinin arasından
+keçir, ovuc o biri əlin üstündə olur. Avatar belə sözdə siqnalçının öz əllərinin üst-üstə düşməsinə
+(2.5 sm-ə qədər) icazə verir və iki ovucun nisbətini qoruyur; qalan sözlərdə əllər bir-birinə keçmir (E13).
+
 786 söz üzrə brauzerdə ölçülüb (`node tools/measure_hands.mjs`): ovucun hədəfdən məsafəsi median
-1.2 sm (90% — 3.7 sm-dən az), ovucu gövdəyə 5 mm-dən çox girən söz 304, əli kadrdan çıxan söz 16,
-biləyin sərt həddini aşan söz 21, oynatmada iki əlin bir-birindən keçdiyi söz 10 (heavy və sinə
-təması ilə: 442, 13, 39, 9; E12). Söz fayllarının formatı və mətnin bölünməsi:
+1.2 sm (90% — 3.7 sm-dən az), ovucu gövdəyə 5 mm-dən çox girən söz 302, əli kadrdan çıxan söz 16,
+biləyin sərt həddini aşan söz 20, iki əlin siqnalçınınkından dərin bir-birinə keçdiyi söz 3 (heavy
+və sinə təması ilə: ovuc gövdədə 442, kadrdan çıxan 13, bilək 39; E12). Söz fayllarının formatı və mətnin bölünməsi:
 
 ```bash
 node tools/verify_words.mjs
