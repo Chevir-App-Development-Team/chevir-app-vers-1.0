@@ -1523,7 +1523,10 @@ export class VrmAvatar {
     const raw = (n) => humanoid.getRawBoneNode(n);
     const group = (names) => new Set(names.map(raw).filter(Boolean));
     const torso = group(['hips', 'spine', 'chest', 'upperChest']);
-    const headSet = group(['head', 'neck']);
+    // Başın altındakı bütün sümüklər də (gözlər, üz rigi: yanaq, dodaq, qaş): üzü olan avatarda
+    // üzün vertexləri bunlara bağlıdır, yalnız head götürülsə burun yerinə qaş tapılır.
+    const headSet = group(['neck']);
+    raw('head')?.traverse((b) => headSet.add(b));
     const pts = [], headPts = [];
     const v = new THREE.Vector3();
     this.vrm.scene.traverse((m) => {
