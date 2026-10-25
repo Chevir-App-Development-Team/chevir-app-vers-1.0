@@ -1688,3 +1688,44 @@ The closest the two hands come, avatar before → after (signer): BİRLİKDƏ 0.
 on the other and GÖSTƏRMƏK the fingers on the other hand. **Open:** BİRLİKDƏ's hands touch but are not
 clasped, and KİTAB's palms face down in a roof instead of facing each other: the hand orientation, not the
 distance.
+
+---
+
+## E14 — New default avatar with a face rig (no training)
+
+The team's new `avatar.vrm` is the same model on the same skeleton (bone positions equal, torso slices
+within 3 mm) with a face: a Rigify face rig (87 bones under the head: cheeks, lips, brows, lids, eyes),
+29 morph targets bound to the VRM expressions (aa / ih / ou / ee / oh, blink, happy, angry, sad, relaxed,
+surprised) and eye bones. The feet meshes are gone (never in frame) and the textures are WebP. Two versions
+came the same day: the first (8.2 MB) and an optimized one with about half the vertices in the hair,
+lashes, shirt and torso (6.1 MB, shipped; the old model was 17.5 MB).
+
+**Fix.** `vrm.js #measureSolid` measured the head from vertices skinned to the head and neck bones only.
+On the new model the face is skinned to the face-rig bones, so the face was missing: the "nose" became a
+brow (6 cm higher, 1.7 cm back) and the head centre moved 6 cm back. Every bone under the head now counts.
+Nose: old model 1.679 m / 16.0 cm forward, new 1.682 / 15.9. Head centre and radius (vertex centroid, 85th
+percentile): old 5.6 cm forward / 13.9 cm, first version 2.9 / 12.4, shipped 4.1 / 13.1; the old model's
+dense eyelashes pulled its centroid forward.
+
+**Face.** The word's face now shows on the default avatar (headless render: SALAM brows down and eyes
+narrowed, NƏ mouth shape), so both avatars have it (E10).
+
+**Hands** (all 786 words, `node tools/measure_hands.mjs`; the old model re-measured on the same code gives
+the E13 numbers exactly):
+
+| | Old model | Face, first | Face, optimized (shipped) |
+|---|---|---|---|
+| Palm in the body > 5 mm (words) | 302 | 312 | 321 |
+| Arm in the body (words) | 381 | 375 | 400 |
+| Hands overlapping > 5 mm / deeper than the signer's | 23 / 3 | 26 / 4 | 27 / 4 |
+| Hands through each other in playback | 29 | 29 | 35 |
+| Wrist past its hard ceiling | 20 | 20 | 19 |
+| Palm from its target median / p90 | 1.2 / 3.7 cm | 1.2 / 3.7 cm | 1.2 / 3.7 cm |
+| Out of frame | 16 | 15 | 16 |
+
+Shipped vs old, per word: 83 words have the palm more than 1 cm further from the body (mostly signs at the
+face: GÖZ, BAŞ, HƏKİM, FİKİR, ANASI; the old head sphere was too large and pushed hands near the face down
+to the chest), 25 more than 1 cm deeper (8 +3.9 cm, ƏRZAQ +3.3, HÖRMƏT +2.4, KÖNÜLLÜ +2.4). The optimized
+mesh is coarser: its lower torso measures 5 mm deeper and the forearm 1 mm thicker than the old model's, so
+the arm touches the body in 25 more words than on the first version. **Open:** if that shows, the solver's body margin can grow
+by the same few millimetres.

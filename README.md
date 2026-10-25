@@ -285,8 +285,8 @@ Heavy variantının kodu hazırdır: `build_avatar_words.py --pose-model data/mo
 --chest` sinə xəttini lüğətin özündən ölçür (index.json-da `chest`), avatar isə gövdə önündə
 dərinliyi siqnalçının sinəsindən ölçür və sinəyə toxunan əli öz sinəsinə köçürür. Hər kadrda üz də saxlanılır: 51 blendshape və
 başın fırlanması (`f`); avatar onları VRM ifadələrinə (ağız formaları, göz, qaşlar) və başın
-hərəkətinə çevirir. Standart avatarın (`avatar.vrm`) üzündə morph target yoxdur, ona görə üz
-ifadəsi yalnız qadın avatarında görünür.
+hərəkətinə çevirir. Üz hər iki avatarda görünür: standart avatarın (`avatar.vrm`) yeni versiyasında
+üz rigi var (ağız formaları, göz qırpma, qaşlar üçün 29 morph target, göz sümükləri; E14).
 
 İki mənbə var: **Words 200** (təkbaşına çəkilmiş kliplər) və **Sentences** (cümlə videoları,
 hər sözün kadr aralığı etiketlənib — 10 104 cümlə, ~49 000 söz nümunəsi, 841 fərqli söz).
