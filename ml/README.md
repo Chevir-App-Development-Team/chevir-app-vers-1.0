@@ -234,6 +234,29 @@ sentence. Test, signers never seen: word F1 0.927, word error rate 0.105, the ri
 for 91 % of the recordings. On sentences outside AzSLD expect about F1 0.6 (0.77 on the words it knows),
 measured on 49 sentences left out of training. Results: `EXPERIMENTS.md` E7.
 
+## Letter mode (notebook 07)
+
+`07_train_letters` (Kaggle **GPU T4**, ~10 min a run) trains the letter mode's model on the landmark pipeline
+(`azsl/letters.py`) from every AzSLD source of letters: the letter signs annotated in the sentences (both
+cameras, signer split; an "O" counts only next to another spelled letter), the fingerspelling photos (static
+letters, split by contributor), the moving-letter clips (frames filled back in) and `<none>` from the gaps
+between signs. The model reads only the hand (`hand_shape` + `hand_vel`): body, face and blendshapes are removed
+(`strip`), and the hand present in more frames is slot 0 (`canonical`). The old letter model is scored on the
+same samples (`letters.OldModel`, a numpy port of `src/tercume/model.js`).
+
+```bash
+python ml/kaggle_run.py files-dataset chevir-letter-model-old public/tercume/assets/model.json public/tercume/assets/model.bin
+python ml/kaggle_run.py push 07 [--smoke] [--cpu]
+python ml/kaggle_run.py letters --to letters2 [--models]   # letters/ → ml/results/letters2/ (+ spelled words)
+python ml/install_letters.py ml/results/letters2/final_hand --install
+node tools/verify_letters.mjs        # letters.js against Python (fixture letters_v<N>) and the model against PyTorch
+node tools/letters_tune.mjs <model dir> <spelled dir> grid   # the typing rules on spelled words (val), or one set
+```
+
+The browser's letter model is `final_hand` (train + val, epoch 51): test top-1 0.933 (letters in the test
+signers' sentences 0.963, moving letters 0.931; the old model 0.214 on the same samples). The typing rules
+(`LETTER_GATE` in `s2t.js`) were chosen on val signers' spelled words. Results: `EXPERIMENTS.md` E8.
+
 ## Deployment contract: browser and landmark server
 
 The recognizer is meant to run in two places: **in the browser** (the default and the fallback) and
@@ -284,6 +307,10 @@ models. The server is not built yet. These pieces keep both paths identical:
   windows into the continuous model (`continuous.js`: `WindowStream`, `decode`, `SentenceStream`, ports of
   `continuous.py`, checked on `ml/fixtures/continuous_v<N>`). Words are shown when final; 60 blank frames
   end a sentence, and the nearest AzSLD sentence (`sentences.json`) is suggested under it.
+- **Letter mode in the browser:** `src/tercume/letters.js` (`LetterModel`, `strip`, `canonical`) runs the
+  letter model on the hand tracker's last 24 frames (`landmarks.js frameFromResults` without body); `s2t.js`
+  types a letter when the rules hold. `loadLetterModel` falls back to the old model (`model.js`) if
+  `public/tercume/assets/letter_model/` is missing; `LETTERS_VERSION` guards the preprocessing.
 - **Face tracker in the browser:** word mode loads it only if the model's validation macro-F1
   without face (`val_words_noface` in the manifest) is more than 0.01 below the score with face.
 - **ONNX export:** the exported graph takes any clip length (1 × T × F). Models exported before this

@@ -584,7 +584,7 @@ function renderAboutLetters() {
     ${bars}
 
     <h3>Hərf nə vaxt yazılır</h3>
-    <p>Model hər 4 kadrdan bir proqnoz verir. Hərf əl pəncərənin hər kadrında görünəndə, model ən azı
+    <p>Model hər ${state.s2t?.gate?.stride ?? 2} kadrdan bir proqnoz verir. Hərf əl pəncərənin hər kadrında görünəndə, model ən azı
     <b>${Math.round(state.s2t?.gate?.minConfidence * 100 || 50)}%</b> əmin olanda və eyni hərf ardıcıl
     ${state.s2t?.gate?.dwell ?? 3} proqnozda təsdiqlənəndə yazılır. Statik hərflərdə əl sabit olmalıdır;
     hərəkətli hərflərdə bu şərt yoxdur. Eyni hərfi təkrar yazmaq üçün əli pozadan çıxar və ya başqa hərf göstər.</p>

@@ -255,7 +255,9 @@ def main():
         tmp = tempfile.mkdtemp(prefix='kaggle_letters_')
         files = r'history\.csv|metrics\.json|manifest\.json|predictions_[a-z]+\.npz' + (
             r'|model\.onnx|best\.pt' if a.models else '')
-        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern', rf'^letters/(summary\.csv|[^/]+/({files}))$', '-q',
+        kg('kernels', 'output', ref, '-p', tmp, '--file-pattern',
+           rf'^letters/(summary\.csv|spelled_[a-z]+\.(npz|json)|[^/]+/({files}))$',
+           '-q',
            check=False)
         src = os.path.join(tmp, 'letters')
         if not os.path.isdir(src):

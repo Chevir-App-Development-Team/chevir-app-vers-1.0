@@ -1305,3 +1305,85 @@ counts only letter signs, on the recordings that have them.
   (`eval.json`) is 77.7 % on static letters and 1.9 % on the 8 moving letters.
 
 **Open:** a live-webcam test of the sentence mode; sentences from outside AzSLD signed by a real user.
+
+
+---
+
+## E8 — Letter mode: fingerspelling on the landmark pipeline (notebook 07)
+
+The app's default mode types a word letter by letter with the hand tracker alone. Its model until now
+(`public/tercume/assets/model.json` + `model.bin`, `src/tercume/model.js`) is a dense network on 20 frames ×
+the first hand's 21 raw image points, with 32 letters and three control gestures (backspace, enter, space;
+the page also has buttons and keys for them). It types a letter only while the hand is still.
+
+**Data** (`azsl/letters.py`): every AzSLD source of letters, the hand alone (body, face and blendshapes
+removed, as the letter mode runs no body tracker and most photos show none):
+
+| Source | What | Split | Train / val / test letters |
+|---|---|---|---|
+| sentences | letter signs annotated in the sentence recordings, frontal + side camera; "O" only next to another spelled letter (alone it is the pronoun "o": 279 of 672 kept) | signers | 2,408 / 415 / 588 frontal, side views alike |
+| photos | AzSLD_Fingerspelling static letters, one image repeated 24 frames | contributor | 671 / 144 / 144 photos (143 / 135 val / test with a hand) |
+| clips | its moving letters (8), frames put back on their frame numbers and filled in, cut where > 12 frames apart | clip run | from 380 / 52 / 48 runs: 110 / 102 val / test clips |
+| `<none>` | gaps of ≥ 12 frames between annotated signs, as many as letter signs | signers | |
+
+Each letter has training data (g, ğ, ö and x only from photos or clips). Slots: the hand present in more
+frames of a window is slot 0 (`canonical`), so a lone hand, a right-handed and a left-handed letter look
+alike to the model. Model: run 10a's Conv1D + Transformer with dim 128 (0.73 M parameters), 60 epochs,
+classes balanced n^−0.5; checkpoint on val macro-F1 over the letters. The old model is scored on the same
+samples through a numpy port (`letters.OldModel`, equal to `model.js` within 1.8e-7), its argmax among the
+32 letters. Scores: top-1 / macro-F1 over the letters (a letter sample is never answered `<none>`).
+
+### Notebook 07 v2: hand shape + movement, with or without the hand's place in the image
+
+| Run | Features | Best epoch | Val top-1 / macro-F1 | Val photos | Test all | Test sentences | Test side view | Test photos | Test clips (moving letters) |
+|---|---|---|---|---|---|---|---|---|---|
+| **hand** | hand_shape + hand_vel (252) | 51 | 0.922 / 0.907 | **0.902** / 0.897 | **0.918** / 0.872 | 0.951 / 0.887 | 0.902 / 0.807 | 0.837 / 0.799 | 0.922 / 0.887 |
+| hand_pos | + hands, flags (382) | 49 | 0.925 / 0.913 | 0.888 / 0.881 | 0.920 / 0.872 | 0.951 / 0.889 | 0.902 / 0.809 | 0.837 / 0.799 | 0.951 / 0.930 |
+| old model | 20 × the first hand's image points | — | 0.309 / 0.294 | 0.832 / 0.764 | 0.214 / 0.278 | 0.167 / 0.177 | 0.121 / 0.139 | **0.830** / 0.809 | 0.196 / 0.166 |
+
+- **The new model reads letters the old one could not:** 0.951 of the letters in the test signers' sentences
+  against 0.167, the moving letters 0.922 against 0.196. On the photos both are near 0.84: the old model is
+  as good as the new one only there, and the photos may have been its training data.
+- The two feature sets are level on val (0.006); `hand` is better on the val photos, which are taken at
+  another camera distance, and needs no image position (distance-independent): `hand` is chosen.
+- Gaps between signs: 11 % of `<none>` samples get a letter as argmax, 2 % of letters get `<none>`.
+
+### Notebook 07 v3: the final model, and the letter mode in the browser
+
+`hand` on train + val (signers, contributors, clip runs), saved at epoch 51 (`final_hand`, 7 min on a T4).
+Test, everything still unseen: **top-1 0.933, macro-F1 0.893** (sentences 0.963 / 0.923, side view 0.921 /
+0.858, photos 0.852 / 0.810, clips 0.931 / 0.923). The weakest test letters: p 0.50 (4 signs), c 0.69 (13),
+l 0.71 (49), j 0.79 (14), m 0.82 (38).
+
+In the browser (`src/tercume/letters.js`, `SignToText` with `LetterModel`): the hand tracker's frames,
+`strip` → `canonical` → `features.preprocess`, the last 24 frames, every `stride` frames, asynchronous.
+Moving letters (ç, d, g, k, ö, ü, y, z) skip the "hand still" rule; a typed letter can be typed again when the
+prediction changes, `<none>` comes, or the hand leaves. `verify_letters.mjs`: letters.js equals Python on
+fixture `letters_v1` (within 1.1e-6), and the installed model equals PyTorch (within 1.8e-7). In the app the
+E4 recording (no fingerspelling in it) types nothing: `<none>` keeps every letter's probability near 0.
+`loadLetterModel` falls back to the old model if the new one is missing (checked); the NSosyal page uses it too.
+
+### Typing rules, on spelled words (notebook 07 v4, `tools/letters_tune.mjs`)
+
+Every spelled word (≥ 3 letters, ≤ 20 frames apart) of val (67 words, 415 letters) and test signers (104
+words, 574 letters), run frame by frame through `SignToText` itself: at the sentences' speed (letters
+~13 frames) and slowed 2.5× (linear in between, close to holding each letter ~1 s). Letter error = edit
+distance between the typed and the annotated letters / annotated letters. The rules (window 12 / 16 / 24,
+stride 2 / 4, dwell 2 / 3, still-hand limit 0.05 / 0.1 / 0.2 / none, confidence 0.5 / 0.6 / 0.7) were chosen
+on val with v2's `hand` (it never saw the val signers): window 24, **stride 2, dwell 2, confidence ≥ 0.7**,
+still-hand limit 0.05 (val mean 0.581 against 0.622 with the old rules). Test, once:
+
+| Letter mode | At the sentences' speed | Slowed 2.5× |
+|---|---|---|
+| old model, its rules | 0.997 | 0.932 |
+| final_hand, the old rules (stride 4, dwell 3, ≥ 0.5) | 0.730 | 0.389 |
+| **final_hand, the rules chosen on val** | **0.643** | **0.368** |
+
+- With deliberate spelling about two thirds of the letters are typed right, against almost none before.
+- **Fast, natural spelling is beyond a letter-by-letter typing mode** whatever the rules (the best val
+  setting still types 0.2 letters per letter): one window holds two or three letters, so short letters are
+  covered by their neighbours. Inside fluent signing, the sentence model finds 90 % of letters (E7).
+- Relaxing the still-hand limit does not help at either speed: transitions then become letters.
+
+**Open:** a live-webcam test of the letter mode; the control gestures (backspace, enter, space) exist
+only as buttons and keys with the new model.

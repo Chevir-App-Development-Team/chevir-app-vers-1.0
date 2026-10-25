@@ -909,11 +909,18 @@ SPELLING = __SPELLING__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
 NONE_PER_LETTER = 1.0   # <none> samples per letter sign of the sentences, per split
 TRAIN_ON_VAL = False    # final model: val signers / contributors too (runs then need save_epoch)
-# v1: hand shape + movement only, or with the hand's position in the image and the presence flags
-RUNS = {
-    'hand': dict(seed=1, groups=['hand_shape', 'hand_vel']),
-    'hand_pos': dict(seed=1, groups=['hands', 'hand_shape', 'hand_vel', 'flags']),
-}
+# v2: hand shape + movement only ('hand') or with the hand's place in the image and the presence flags
+# ('hand_pos'): val macro-F1 0.907 / 0.913, top-1 0.922 / 0.925, val photos (another camera distance)
+# 0.902 / 0.888 → 'hand', best epoch 51 (test top-1 0.918; the old model 0.214 on the same samples).
+#   'hand': dict(seed=1, groups=['hand_shape', 'hand_vel']),
+#   'hand_pos': dict(seed=1, groups=['hands', 'hand_shape', 'hand_vel', 'flags']),
+# v3: the final model, 'hand' on train + val (TRAIN_ON_VAL), saved at epoch 51; test signers, contributors and clips
+# unseen: test top-1 0.933, macro-F1 0.893.
+#   'final_hand': dict(seed=1, groups=['hand_shape', 'hand_vel'], save_epoch=51),
+# v4 (CPU, no training): every spelled word (>= 3 letters in a row) of val and test signers, for tuning the
+# letter mode's typing rules on val (tools/letters_tune.mjs, with v2's 'hand': it never saw val) and testing them.
+RUNS = {}
+DEMO_SPLITS = ('val', 'test')
 """.replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False))),
         code(SETUP),
         code("""
@@ -1026,6 +1033,38 @@ if old_meta:
     rows.append(row)
     pd.DataFrame(rows).to_csv(os.path.join(OUT, 'letters', 'summary.csv'), index=False)
 pd.DataFrame(rows).set_index('run').T
+"""),
+        md('### Spelled words of val and test signers (tools/letters_tune.mjs)'),
+        code("""
+from azsl import features as FT
+from azsl.store import LandmarkStore
+store = LandmarkStore(sentence_dirs)
+os.makedirs(os.path.join(OUT, 'letters'), exist_ok=True)
+for split in DEMO_SPLITS:
+    words, arrays = [], {}
+    for rid, t in lt[lt.split == split].sort_values(['rec_id', 'start']).groupby('rec_id'):
+        if rid not in store.index.index:
+            continue
+        # spelled words: letters with at most 20 frames between them, at least 3 in a row
+        gap = t.start.to_numpy()[1:] - t.end.to_numpy()[:-1]
+        cut = np.flatnonzero(gap > 20) + 1
+        parts = [p for p in np.split(np.arange(len(t)), cut) if len(p) >= 3]
+        if not parts:
+            continue
+        raw = FT.reduce(store.get(rid, dtype=np.float16))
+        for p in parts:
+            w = t.iloc[p]
+            lo, hi = max(0, int(w.start.iloc[0]) - 46), min(raw['hand'].shape[0], int(w.end.iloc[-1]) + 45)
+            k = len(words)
+            arrays[f'{k}_hand'] = raw['hand'][lo:hi]
+            arrays[f'{k}_world'] = raw['hand_world'][lo:hi]
+            words.append({'rec_id': rid, 'aspect': float(store.index.at[rid, 'width']) / float(store.index.at[rid, 'height']),
+                          'T': hi - lo, 'letters': [[int(a) - 1 - lo, int(b) - lo, l] for a, b, l in zip(w.start, w.end, w.letter)]})
+    np.savez_compressed(os.path.join(OUT, 'letters', f'spelled_{split}.npz'), **arrays)
+    with open(os.path.join(OUT, 'letters', f'spelled_{split}.json'), 'w', encoding='utf-8') as f:
+        json.dump(words, f, ensure_ascii=False)
+    print(split, len(words), 'spelled words,', sum(len(w['letters']) for w in words), 'letters, e.g.',
+          [''.join(l for _, _, l in w['letters']) for w in words[:5]])
 """),
     ])
 

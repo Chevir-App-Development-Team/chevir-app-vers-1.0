@@ -38,8 +38,11 @@ export const DEFAULT_GATE = {
   releaseMotion: 0.06,  // eyni hərfin təkrarı üçün əl pozadan bu qədər çıxmalıdır
 };
 
-/** Landmark modeli üçün: '<none>' sinfi keçidləri özü tutur, ona görə əminlik həddi bir az yuxarıdır. */
-export const LETTER_GATE = { ...DEFAULT_GATE, minConfidence: 0.5 };
+/**
+ * Landmark modeli üçün, test siqnalçılarından kənar (val) hərf-hərf yazılmış sözlərdə seçilib
+ * (tools/letters_tune.mjs): hər 2 kadrda proqnoz, 2 təsdiq, əminlik ≥ 0.7. '<none>' sinfi keçidləri tutur.
+ */
+export const LETTER_GATE = { ...DEFAULT_GATE, stride: 2, dwell: 2, minConfidence: 0.7 };
 
 export class SignToText {
   constructor({ model, decoder, video, onFrame, onPrediction, onDecode, onStatus } = {}) {
