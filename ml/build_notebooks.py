@@ -728,7 +728,8 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # v14 (GPU; v13 was its CPU smoke run): letters. In sentences they are rarely taken for another letter (0.5 % of test letters) but lost in
 # fast spelled runs (A-D-A, M-E-S-S-İ): 5.4 % absorbed by a neighbour, 2.6 % missed. AzSLD's fingerspelling photos
 # only teach hand shapes, so instead spell = P(a sample is 3-8 letter signs of other recordings in a row), taken
-# before the splice draw. Scored also on 'letters' (recordings with letters, letter signs only).
+# before the splice draw. Scored also on 'letters' (recordings with letters, letter signs only). Result: val
+# letters F1 0.832 / 0.831 against seq_splice's 0.853, val F1 0.884 / 0.882 against 0.890: no (E7).
 FPS_CHECKS = ()
 RUNS = {
     'seq_splice': dict(ckpt='seq_splice'),

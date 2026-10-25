@@ -1268,4 +1268,40 @@ message; a smoke run, version 11, completed, and version 12, the same as 10, ran
   0.007 on the val unseen sentences is within what one seed changes (v8: 0.014 between runs of similar
   recipes). The browser model is unchanged.
 
+### Fingerspelled letters in sentences (notebook 06 v14)
+
+**AzSLD's fingerspelling set** (`fingerspelling_split.csv`, landmarks from notebook 01) is 959 phone photos
+of 24 static letters (40 each, from 21–32 contributors per letter except A and B, one each) and 6,400 frames
+of 8 moving letters sampled from clips (a median of 6 frames per clip over 34 frames, too sparse to rebuild
+the movement). The photos are portrait close-ups: a hand in 94 %, a body in 30 % of the static ones, a face
+almost never. They can teach hand shapes, from another camera and framing than the sentences.
+
+**How the browser model loses letters** (final_splice, decoding v7, test; 759 letter and digit signs, 90.3 %
+right): taken for another letter 4 (0.5 %), absorbed by a neighbouring detection 41 (5.4 %: 22 by another
+letter in fast spelled runs such as A-D-A, O-N-L-A-Y-N, M-E-S-S-İ-N-İ-N, 10 by the same letter doubled, 9 by a
+word), nothing detected 20 (2.6 %), taken for a word 9 (1.2 %, mostly names annotated as one gloss, e.g.
+HƏLİMƏ). Hand shapes are not the problem, so the photos would not help here.
+
+**Spelled sequences in training** (`spell`: a share of the samples are 3–8 letter signs of other recordings
+in a row, letters drawn with weight n^−0.5, taken before the splice draw), v5's protocol. The `letters` score
+counts only letter signs, on the recordings that have them.
+
+| Run | Best epoch | Val F1 | Val unseen learnable F1 | **Val letters** F1 (P / R) | Test F1 | Test letters F1 (P / R) |
+|---|---|---|---|---|---|---|
+| seq_splice (v5) | 59 | **0.890** | 0.811 | **0.853** (0.871 / 0.836) | **0.897** | **0.875** (0.902 / 0.850) |
+| splice_spell15 | 47 | 0.884 | 0.793 | 0.832 (0.853 / 0.812) | 0.889 | 0.857 (0.878 / 0.837) |
+| splice_spell30 | 44 | 0.882 | 0.815 | 0.831 (0.863 / 0.801) | 0.892 | 0.867 (0.887 / 0.848) |
+
+- **Spliced letter runs make letters worse,** on val by 0.02 F1, and the known sentences a little too.
+  Letters joined from different recordings do not move like real fast fingerspelling, where the hand
+  flows from shape to shape in one place.
+- **Decoding is not the limit either:** on seq_splice's val grid, letters F1 is 0.855 without smoothing,
+  0.853 with the chosen smoothing 3, 0.846 / 0.839 with 5 / 9.
+- What is left is fast spelled runs; more real fingerspelled sentences would be the remedy.
+- **Isolated letters are another matter:** run 10a's per-class test recall on letter signs cut from the
+  sentences is 0.9–1.0 for most letters, the moving ones included (D 0.98, Y 0.96, K 1.00, Z 0.80, Ü 0.80).
+  The app's letter mode uses an older model (`public/tercume/assets/model.json`: one hand, 20 frames,
+  a dense network, 35 labels with backspace / enter / space), whose own evaluation on the AzSLD photos
+  (`eval.json`) is 77.7 % on static letters and 1.9 % on the 8 moving letters.
+
 **Open:** a live-webcam test of the sentence mode; sentences from outside AzSLD signed by a real user.
