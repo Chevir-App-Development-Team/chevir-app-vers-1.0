@@ -1387,3 +1387,141 @@ still-hand limit 0.05 (val mean 0.581 against 0.622 with the old rules). Test, o
 
 **Open:** a live-webcam test of the letter mode; the control gestures (backspace, enter, space) exist
 only as buttons and keys with the new model.
+
+
+---
+
+## E9 — Text → sign: Azerbaijani word forms to the avatar's signs (no training)
+
+The text-to-sign mode (`src/tercume/t2s.js`) shows a word as a whole sign only if its spelling is in the
+avatar lexicon (`public/tercume/words/`, 292 AzSLD signs); every other word is fingerspelled. Azerbaijani is
+agglutinative, so most words in a text are inflected: on AzSLD's own 492 sentence texts **47 % of the words
+became signs and the rest were spelled letter by letter**, although 74 % of the signs annotated in those
+sentences are in the lexicon ("evdə", "anam", "yaşayıram", "sənədləri", "bilərəm" were all spelled).
+
+AzSLD signs a word in its dictionary form (evdə → EV, yaşayıram → YAŞAMAQ), but a negated verb is a sign
+of its own (bilmirəm → BİLMİR, düşmürəm → DÜŞMƏMƏK, sevmirəm → SEVMİRƏM). `src/tercume/morph.js` therefore
+maps a word to a key = root + negation:
+
+- the word is cut from the right in suffix order (stem, negation, tense / infinitive / participle, plural,
+  possessive, case, copula, person, question), and candidate roots are tried longest first against roots
+  taken from the lexicon itself: infinitives give verb roots (yaşamaq → yaşa), an inflected verb entry gives
+  its verb's key (bilmir → bil-, istəyir → istə), an entry that is a longer form of another (mənim ← mən)
+  joins it;
+- sound changes are undone: uşağ → uşaq, köynəy → köynək, istəy → istə, verbs ged → get, nouns oğl → oğul;
+  pronouns by table (onun, ona → o; burda → bura);
+- guards found on dev sentences: function words are not cut (ilə ≠ il, kimi ≠ kim), a bare short verb stem
+  is not its verb ("it" is the dog, not itmək), d → t only in verbs (yadımda ≠ yatmaq), and a capitalised
+  acronym in lower-case text is spelled (DOST, the agency, is not "dost", friend);
+- among entries with one key: the one the word continues (istəyirsən → istəyir), else the dictionary form
+  (olan → olmaq, not olar "may"), else the most similar. Phrases ("ad günü") match word by word.
+
+`WordLexicon.segment` uses it after the exact spelling (`via: 'text' | 'lemma'`). Cases in
+`tools/verify_words.mjs`.
+
+**Evaluation** (`tools/eval_text_gloss.mjs`): for each of the 492 sentences, the reference is the sign
+sequence most signers used (median agreement of the signers with it 0.90); fingerspelled letters are left
+out of it. The predicted signs are compared with it in order (LCS): precision, recall, F1. "Same gloss" uses
+the gloss merges of the word model (`gloss_spelling`, `same_sign`, confirmed `lemma_groups`); "same word"
+also counts forms of one word as one sign (EDİB = ETMƏK, BALACADIR = BALACA; negated forms stay apart).
+The rules were written looking only at the 443 dev sentences; the 49 held-out sentences (the word model's
+unseen-sentence test) were scored at the end. "Before" is the code before this change.
+
+| Lexicon | Text → signs | Sentences | Words as signs | Letters spelled | Same gloss P / R / F1 | Same word P / R / F1 |
+|---|---|---|---|---|---|---|
+| avatar (292 signs) | before | dev | 46.7 % | 8,126 | 0.910 / 0.438 / 0.591 | 0.933 / 0.449 / 0.606 |
+| | **word forms** | dev | **74.6 %** | 3,844 | 0.883 / 0.675 / 0.765 | 0.919 / 0.702 / 0.796 |
+| | before | test | 47.6 % | 849 | 0.916 / 0.464 / 0.616 | 0.925 / 0.469 / 0.623 |
+| | **word forms** | test | **77.1 %** | 363 | 0.855 / 0.697 / 0.768 | 0.895 / **0.730** / **0.804** |
+| every AzSLD gloss (740) | before | test | 55.5 % | 715 | 0.886 / 0.517 / 0.653 | 0.902 / 0.526 / 0.665 |
+| | **word forms** | test | **89.0 %** | 150 | 0.862 / 0.796 / 0.828 | 0.897 / **0.829** / **0.862** |
+
+- Recall goes from 0.47 to 0.73 on unseen sentences with the same 292 clips; letters spelled drop 57 %.
+  Precision falls 0.03: some forms now reach a wrong sign (below).
+- The last two rows assume a clip for every AzSLD gloss: the lexicon is the larger lever once word forms
+  work (recall 0.83).
+- What is left (dev): idioms (anadan olmaq → DOĞMAQ, rəhmətə getmək → ÖLMƏK, yerinə yetirmək), the
+  pronoun "o" that signers point instead of signing, light verbs signed or not (müraciət etmək vs
+  istirahət etmək), homonyms that only the full lexicon separates (tələbə → TƏLƏB "demand", Adası → AD).
+
+
+---
+
+## E10 — The avatar lexicon from every AzSLD sign (local, no training)
+
+The full AzSLD is now downloaded locally (`tools/download_azsld.py data/azsld`, the four Zenodo zips,
+46.9 GB, md5 equal to Zenodo's). Words_100 is a subset of Words_200 (all 7,248 clips), and Words_200 clips are cut from the
+Sentences recordings (Cam2), so the Sentences zip is the only source; only UĞUR's 19 Words_200 clips have no
+sentence annotation.
+
+**Builder** (`tools/build_avatar_words.py`, reads single videos out of the zip with `tools/azsld_zip.py`):
+
+- every gloss with ≥ 3 annotated signs; single letters are fingerspelling, "O" counts as the pronoun when
+  no other letter is within 15 frames (395 signs); the annotators' spelling is fixed against the sentence
+  texts when a label is not a known word form (İ for ı, g for ğ, c for ç…: 53 labels, e.g. YARDİM →
+  yardım, QİRMİZİ → qırmızı, ALİM → alım "let me receive", İT / IT → it); signs that share a spelling merge;
+- up to 8 candidates from different signers, facing the camera and of typical length; MediaPipe pose +
+  hands + face in VIDEO mode (tracking), annotated range ± 3 frames, 15 fps;
+- choice: the candidates with a quality (`build_words.trim_and_score`) ≥ 85 % of the best, and among them
+  the medoid: the smallest mean DTW distance to all candidates (hand place relative to the shoulders +
+  hand shape). An idiosyncratic or left-handed performance is not picked.
+
+### Which pose model (40 signs, 37 signers, `tools/compare_pose_models.py`)
+
+Wrist error: pixel distance between the pose wrist and the hand landmarker's wrist; jitter: mean |second
+difference| of the world wrist and elbow.
+
+| Pose model | Mode | Wrist error px, median / p90 | Jitter mm/frame² | ms/frame (8 in parallel) |
+|---|---|---|---|---|
+| lite | IMAGE (the old lexicon) | 18.2 / 40.0 | 36.3 | 41 |
+| lite | VIDEO | 20.5 / 41.9 | **15.7** | 21 |
+| full | IMAGE | 15.8 / 33.2 | 37.7 | 51 |
+| full | VIDEO | 17.3 / 35.9 | 15.9 | 31 |
+| heavy | IMAGE | **13.6 / 29.3** | 41.8 | 134 |
+| heavy | VIDEO | 15.5 / 30.9 | 18.6 | 108 |
+
+VIDEO mode halves the jitter. Heavy finds the wrist best in the image, so the first build used heavy VIDEO;
+in the avatar it was worse (table below). The cause is depth: heavy puts the wrist **0.68 shoulder widths in
+front of the shoulders (median; 10th percentile 0.21)**, lite 0.88 (0.64), and lower. The avatar's arm solver
+(`vrm.js`) was tuned on lite, and with heavy the hands go into the body. Which depth is right cannot be
+told from one camera; the side camera (Cam1) could decide it. The lexicon uses **lite in VIDEO mode**.
+
+### The avatar on the new lexicon (`node tools/measure_hands.mjs`)
+
+| | Old (292, lite IMAGE, best of 6 clips) | Lite VIDEO, same 292 | Heavy VIDEO, same 292 | **New, all 786** |
+|---|---|---|---|---|
+| Palm from its target, median / p90 | 1.1 / 3.9 cm | 1.2 / **3.6** cm | 1.4 / 4.9 cm | 1.2 / 3.7 cm |
+| IK reach error p90 | 2.0 cm | **1.8** cm | 3.9 cm | 1.9 cm |
+| Words with the palm in the body (> 5 mm) | 110 (38 %) | **106 (36 %)** | 189 | 310 (39 %) |
+| Words with the arm in the body | 107 | 119 | 240 | 385 (49 %) |
+| Words with a hand out of the frame | 4 | 5 | 2 | 14 (1.8 %) |
+| Words with the wrist > 5° past its limit | 119 | 144 | 199 | 413 |
+| Words past the wrist's hard ceiling | 9 | **4** | 14 | 21 (2.7 %) |
+| Hands through each other in playback | 4 | **2** | 3 | 12 |
+| Palm jump per update in playback, p90 | 10.1 cm | **8.7** cm | 8.7 cm | 8.7 cm |
+
+On the same words the new lexicon is as good or better than the old one except the mild wrist limit
+(144 against 119 words), and the motion is smoother. The 786 signs behave like the 292.
+
+**Text → sign** (E9's evaluation, the same word-form code, 786 signs instead of 292):
+
+| Sentences | Words as signs | Letters spelled | Same gloss P / R / F1 | Same word P / R / F1 |
+|---|---|---|---|---|
+| dev (443) | 92.4 % | 1,168 | 0.866 / 0.825 / 0.845 | 0.893 / 0.851 / 0.872 |
+| test (49 held out) | **92.6 %** | 103 | 0.873 / 0.844 / 0.858 | 0.902 / **0.872** / **0.887** |
+
+Against the morning (exact spelling, 292 signs): words as signs 47.6 % → 92.6 %, letters spelled 849 → 103,
+same-word F1 0.623 → 0.887 on the held-out sentences.
+
+**Face.** Each frame also stores the 51 face blendshapes (0–100) and the head rotation (`f`). MediaPipe's
+values are compressed (jawOpen reaches 16 in the top 1 % of frames), so the avatar scales each one between
+its lexicon median (`faceNeutral`, the signers' resting face) and 99th percentile (`faceFull`) into the VRM
+expressions: mouth shapes aa / ih / ou / ee / oh, blink, brows up (surprised) and down (angry), and adds the
+sign's own head movement (rotation minus the word's median). The female avatar shows it; **the default
+avatar (`avatar.vrm`) has no face morph targets at all** (its expressions are bound to nothing, it cannot
+even blink), so it only gets the head movement.
+
+Size: 786 word files, 23 MB (the 292 were 7.6 MB); coordinates are stored at 1 mm / 0.001.
+
+**Open:** the right depth (two cameras); the default avatar's face; sentence-level non-manuals (question
+brows over the whole question, negation head shake); transitions and timing between signs.

@@ -47,7 +47,7 @@ ALIAS = {
     'COX': 'çox', 'DOVLƏT': 'dövlət', 'SAGLAM': 'sağlam', 'IL': 'il', 'PENİSYA': 'pensiya',
     'QARABAQ': 'Qarabağ', 'KECİR': 'keçir', 'YAZA': 'yaza', 'EDE': 'edə', 'YARDIM': 'yardım',
     'YARDIMI': 'yardımı', 'VALİDEYİN': 'valideyn', 'RAZ': 'razı', 'KİM?': 'kim',
-    'OLMUSUZ': 'olmusunuz', 'AGIRDI': 'ağırdır', 'ABŞERON RAYON': 'Abşeron rayonu',
+    'OLMUSUZ': 'olmusunuz', 'AGIRDI': 'ağırdır', 'AĞIRDI': 'ağırdır', 'ABŞERON RAYON': 'Abşeron rayonu',
     # Xüsusi adlar böyük hərflə, danışıq formaları ədəbi yazılışla
     'AZƏRBAYCAN': 'Azərbaycan', 'BAKI': 'Bakı', 'QARABAĞ': 'Qarabağ', 'COVİD': 'Covid',
     'BURDA': 'burada', 'ORDA': 'orada', 'HARDA': 'harada',

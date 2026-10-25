@@ -28,6 +28,20 @@ const PAUSE_TO_REST = 0.9;   // s — yeni poza gəlməsə qol aşağı enir
 const BODY = ['spine', 'chest', 'upperChest', 'neck', 'head'];
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
 const DEG = Math.PI / 180;
+// Söz işarəsinin üzü (tools/build_avatar_words.py, kadrın `f` sahəsi): MediaPipe-in blendshape-ləri
+// VRM-in standart ifadələrinə. Hər blendshape lüğətdəki öz diapazonuna görə ölçülür: median
+// (siqnalçıların sakit üzü) → 0, 99-cu faiz → tam (MediaPipe-in dəyərləri sıxılmışdır: ağzın
+// geniş açılması belə jawOpen ≈ 0.16). Ağız formaları (aa, ih, ou, ee, oh) dodaqların hərəkətidir;
+// surprised / angry yalnız qaşlar üçündür, bütün üzü dəyişdikləri üçün zəif saxlanılır.
+const FACE_MAP = {
+  aa: [['jawOpen'], 0.8], oh: [['mouthFunnel'], 0.6], ou: [['mouthPucker'], 0.6],
+  ee: [['mouthStretchLeft', 'mouthStretchRight'], 0.5], ih: [['mouthSmileLeft', 'mouthSmileRight'], 0.6],
+  blink: [['eyeBlinkLeft', 'eyeBlinkRight'], 1],
+  surprised: [['browInnerUp', 'browOuterUpLeft', 'browOuterUpRight'], 0.6],
+  angry: [['browDownLeft', 'browDownRight'], 0.5],
+};
+const VISEMES = ['aa', 'ih', 'ou', 'ee', 'oh'];
+const HEAD_MAX = 20 * DEG;      // başın sözdəki hərəkəti (baş sallama, yelləmə) bu həddə qədər
 
 const CONTACT = [4, 8, 12, 16, 20, 5, 17];   // üzə toxuna bilən əl nöqtələri: barmaq ucları və ovucun kənarları
 const TIP_BONES = ['ThumbDistal', 'IndexDistal', 'MiddleDistal', 'RingDistal', 'LittleDistal'];
@@ -245,6 +259,9 @@ export class VrmAvatar {
     this.life = true;              // false → nəfəs/baş/göz qırpma söndürülür (ölçmə üçün)
     this.guard = true;             // false → oynatmada əllər arası qoruyucu söndürülür (ölçmə üçün)
     this.blink = { next: 1.5 + Math.random() * 2, t: -1 };
+    // Üz: hədəf və cari ifadə çəkiləri, başın sözdəki fırlanması (radian, x/y/z)
+    this.face = { target: {}, cur: {}, head: [0, 0, 0], headCur: [0, 0, 0] };
+    this.faceCache = new WeakMap();
     this.lastPose = null;
     this.last = null;              // son həll (sazlama və ölçmə üçün)
     this.lastTime = performance.now();
@@ -435,6 +452,45 @@ export class VrmAvatar {
     this.idle = 0;
     this.last = { word, frame, ...sol };
     this.#frameCamera('word', this.#wordBounds(word));
+    const face = this.#wordFace(word)[frame];
+    this.face.target = face?.w ?? {};
+    this.face.head = face?.h ?? [0, 0, 0];
+  }
+
+  /**
+   * Sözün kadrlarında üz: ifadə çəkiləri və başın fırlanması. Blendshape lüğət üzrə medianı
+   * (`faceNeutral`, sakit üz) ilə 99-cu faizi (`faceFull`) arasında ölçülür. Başın fırlanmasından
+   * sözün öz medianı çıxılır: kameraya görə duruş siqnalçıdan asılıdır, sözün içindəki
+   * hərəkət (baş sallama, yelləmə, əyilmə) isə işarəyə aiddir.
+   */
+  #wordFace(word) {
+    if (this.faceCache.has(word)) return this.faceCache.get(word);
+    const keys = word.faceKeys ?? [];
+    const idx = new Map(keys.map((k, i) => [k, i]));
+    const neutral = word.faceNeutral ?? keys.map(() => 0);
+    const full = word.faceFull ?? keys.map(() => 100);
+    const heads = word.frames.filter((fr) => fr.f).map((fr) => fr.f.h);
+    const med = [0, 1, 2].map((k) => {
+      const v = heads.map((h) => h[k]).sort((a, b) => a - b);
+      return v.length ? v[v.length >> 1] : 0;
+    });
+    const out = word.frames.map((fr) => {
+      if (!fr.f || !keys.length) return null;
+      const val = (k) => {
+        const i = idx.get(k);
+        return i == null ? 0 : Math.min(1, Math.max(0, (fr.f.s[i] - neutral[i]) / Math.max(5, full[i] - neutral[i])));
+      };
+      const w = {};
+      for (const [name, [src, cap]] of Object.entries(FACE_MAP)) {
+        w[name] = cap * src.reduce((a, k) => a + val(k), 0) / src.length;
+      }
+      const lips = VISEMES.reduce((a, k) => a + w[k], 0);
+      if (lips > 1) for (const k of VISEMES) w[k] /= lips;
+      const h = fr.f.h.map((v, k) => Math.max(-HEAD_MAX, Math.min(HEAD_MAX, (v - med[k]) * DEG)));
+      return { w, h };
+    });
+    this.faceCache.set(word, out);
+    return out;
   }
 
   /** Sözü əvvəlcədən həll edir (oynatmadan qabaq, ilk kadrda ləngimə olmasın). */
@@ -1576,6 +1632,8 @@ export class VrmAvatar {
     this.#toRest(this.hand === 'left' ? 'right' : 'left');   // sözdən sonra ikinci əl də enir
     this.mode = 'pause';
     this.idle = 0;
+    this.face.target = {};
+    this.face.head = [0, 0, 0];
   }
 
   /** Yayları dərhal hədəfə qoyur (ilk kadr və ölçmə üçün). */
@@ -1684,6 +1742,14 @@ export class VrmAvatar {
       for (const side of SIDES) this.#toRest(side);
       this.mode = 'rest';
     }
+    if (this.mode !== 'sign') { this.face.target = {}; this.face.head = [0, 0, 0]; }
+    const kf = 1 - Math.exp(-14 * dt);
+    for (const name of Object.keys(FACE_MAP)) {
+      const c = this.face.cur[name] ?? 0;
+      this.face.cur[name] = c + ((this.face.target[name] ?? 0) - c) * kf;
+      if (name !== 'blink') this.vrm.expressionManager?.setValue(name, this.face.cur[name]);
+    }
+    for (let k = 0; k < 3; k++) this.face.headCur[k] += (this.face.head[k] - this.face.headCur[k]) * kf;
     this.#animateLife(dt);
     this.#stepSprings(dt);
     this.#guardHands(dt);
@@ -1715,8 +1781,10 @@ export class VrmAvatar {
     off('chest', 0.008 * breath, 0.015 * active * toward, 0);
     off('upperChest', 0.010 * breath, 0, 0);
     off('neck', 0.012 * n2, 0.015 * n1, 0);
-    // işarə edəndə baş azca ələ tərəf dönür və əyilir
-    off('head', 0.02 * n2 + 0.03 * active, 0.03 * n1 + 0.05 * active * toward, -0.035 * active * toward);
+    // işarə edəndə baş azca ələ tərəf dönür və əyilir; üstəlik siqnalçının sözdəki baş hərəkəti
+    const [hx, hy, hz] = this.face.headCur;
+    off('head', 0.02 * n2 + 0.03 * active + hx, 0.03 * n1 + 0.05 * active * toward + hy,
+      -0.035 * active * toward + hz);
     for (const side of SIDES) {
       const ph = side === 'left' ? 1.7 : 0;
       const k = on ? 1 : 0;
@@ -1738,7 +1806,7 @@ export class VrmAvatar {
         b.next = Math.random() < 0.15 ? 0.18 : 2.2 + Math.random() * 3.5;   // bəzən qoşa qırpma
       }
     }
-    this.vrm.expressionManager?.setValue('blink', on ? v : 0);
+    this.vrm.expressionManager?.setValue('blink', Math.max(on ? v : 0, this.face.cur.blink ?? 0));
   }
 
   /**

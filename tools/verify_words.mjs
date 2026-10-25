@@ -37,6 +37,24 @@ for (const [text, want] of cases) {
 }
 check(azLower('İLHAM IŞIQ') === 'ilham ışıq', 'azLower: İ → i, I → ı');
 
+// Söz formaları (morph.js): şəkilçili söz lüğət sözünə gəlir, inkar ayrıca qalır
+const forms = new WordLexicon({ words: [
+  'ev', 'ana', 'bilmək', 'bilmir', 'olmaq', 'olar', 'itib', 'dost', 'oğul', 'uşaq', 'köynək', 'getmək',
+  'yaşamaq', 'istəmək', 'istəyir', 'düşməmək', 'gün', 'ad günü', 'il', 'yatmaq', 'Bakı',
+].map((text) => ({ id: text, text })) });
+const formCases = [
+  ['evdə', 'w:ev'], ['anam', 'w:ana'], ['Bakıda', 'w:Bakı'], ['oğlum', 'w:oğul'], ['uşağın', 'w:uşaq'],
+  ['köynəyini', 'w:köynək'], ['gedəcəm', 'w:getmək'], ['yaşayıram', 'w:yaşamaq'], ['istəyirsən', 'w:istəyir'],
+  ['bilirəm', 'w:bilmək'], ['bilmirəm', 'w:bilmir'], ['bilmədim', 'w:bilmir'], ['düşmürəm', 'w:düşməmək'],
+  ['olan', 'w:olmaq'], ['itib', 'w:itib'], ['it', 't:it'], ['ilə', 't:ilə'], ['yadımda', 't:yadımda'],
+  ['şənbə günü', 't:şənbə _ w:gün'], ['ad günündə', 'w:ad günü'],
+  ['DOST mərkəzi', 't:dost _ t:mərkəzi'], ['DOST', 'w:dost'],
+];
+for (const [text, want] of formCases) {
+  const got = show(forms.segment(text));
+  check(got === want, `forma: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+
 // Mövqelər: hər hissə ilkin mətndə öz yerini göstərir (postda vurğulama üçün)
 {
   const text = '«Salam», zəhmət   olmasa İŞIQ!';
