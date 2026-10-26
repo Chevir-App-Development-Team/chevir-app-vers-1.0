@@ -13,6 +13,7 @@ import { CyberHand } from './skeleton.js';
 import { SignToText } from './s2t.js';
 import { TextToSign, loadPoses } from './t2s.js';
 import { HAND_CONNECTIONS } from './hands.js';
+import './layout.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
