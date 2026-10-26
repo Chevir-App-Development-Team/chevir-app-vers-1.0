@@ -58,8 +58,10 @@ body.tercume {
 .topbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 22px;
   max-width: 2200px;
+  width: 100%;
   margin-inline: auto;
   padding: 10px var(--gutter) 14px;
   flex-wrap: wrap;
@@ -77,12 +79,8 @@ body.tercume {
 
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: 24px;
   margin-left: auto;
-  background: var(--field);
-  padding: 4px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
 }
 
 .tab {
@@ -92,15 +90,14 @@ body.tercume {
   color: var(--ink-2);
   font: inherit;
   font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 8px 2px;
+  border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
 }
 
 .tab:hover {
   color: var(--ink);
-  background: var(--panel-2);
 }
 
 .tab.is-active {
@@ -176,6 +173,10 @@ body.tercume {
 .sidebar::-webkit-scrollbar-thumb {
   background: var(--line-2);
   border-radius: 999px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(77, 160, 255, 0.6);
 }
 
 .sidebar::-webkit-scrollbar-track {
@@ -342,8 +343,8 @@ body.tercume {
 }
 
 .btn:hover:not(:disabled) {
-  background: #332c25;
-  border-color: rgba(241, 237, 233, 0.28);
+  background: #1a3470;
+  border-color: var(--line-2);
 }
 
 .btn:active:not(:disabled) {
@@ -367,7 +368,13 @@ body.tercume {
 }
 
 .btn-ghost {
-  background: transparent;
+  background: #13265a;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #1a3470;
 }
 
 .field {
@@ -419,8 +426,13 @@ body.tercume {
 
 .tercume select:focus,
 .tercume textarea:focus {
-  outline: 2px solid rgba(63, 193, 232, 0.45);
+  outline: 2px solid rgba(77, 160, 255, 0.45);
   outline-offset: 1px;
+}
+
+.tercume ::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
 }
 
 .tercume input[type='range'] {
@@ -505,7 +517,7 @@ kbd {
 }
 
 .pred:not(:first-child) .pred-bar i {
-  background: rgba(241, 237, 233, 0.22);
+  background: rgba(238, 243, 252, 0.22);
 }
 
 .pred-p {
@@ -832,6 +844,10 @@ kbd {
   border-radius: 999px;
 }
 
+.words::-webkit-scrollbar-thumb:hover {
+  background: rgba(77, 160, 255, 0.6);
+}
+
 .words::-webkit-scrollbar-track {
   background: transparent;
 }
@@ -1028,6 +1044,7 @@ kbd {
   .tabs {
     margin-left: 0;
     width: 100%;
+    gap: 8px;
     order: 3;
   }
 

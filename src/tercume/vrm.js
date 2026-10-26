@@ -271,7 +271,7 @@ export class VrmAvatar {
 
     const w = container.clientWidth || 480, h = container.clientHeight || 480;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0e0c0a);
+    this.scene.background = new THREE.Color(0x060d24);
 
     this.camera = new THREE.PerspectiveCamera(34, w / h, 0.1, 40);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
