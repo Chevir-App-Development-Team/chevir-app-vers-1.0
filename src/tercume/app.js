@@ -22,7 +22,7 @@ const WORD_STATE_LABEL = { rest: 'istirahət', signing: 'jest', recognizing: 'ta
 
 // Kamera halqasının altındakı vəziyyət yazısı (bax s2t.js — hərf yazma şərtləri)
 const GATE_LABEL = {
-  idle: '—',
+  idle: '-',
   'wait-hand': 'əl yoxdur',
   moving: 'hərəkət',
   unsure: 'qeyri-müəyyən',
@@ -142,8 +142,8 @@ function initS2T() {
           const unk = s2w.rec.manifest.unknown_label;
           if (last) renderPredictions(last.top.map((t) => (t.label === unk ? { ...t, label: 'naməlum' } : t)));
           $('#signs-info').textContent = added.length
-            ? `+${added.length} · ${Math.round(ms)} ms` : signs.length ? `${signs.length} söz` : '—';
-          $('#pred-quality').textContent = !last ? '—'
+            ? `+${added.length} · ${Math.round(ms)} ms` : signs.length ? `${signs.length} söz` : '-';
+          $('#pred-quality').textContent = !last ? '-'
             : last.unsure ? `əmin deyil · ${Math.round(last.p * 100)}%` : `əmin ${Math.round(last.p * 100)}%`;
         },
       });
@@ -200,7 +200,7 @@ function initS2T() {
     $$('#tab-s2t [data-kind]').forEach((el) => { el.hidden = !el.dataset.kind.split(' ').includes(state.kind); });
     $('#pred-grid').classList.toggle('is-words', state.kind !== 'letters');
     $('#ring-label').textContent = state.kind !== 'letters' ? WORD_STATE_LABEL.rest : GATE_LABEL.idle;
-    $('#pred-quality').textContent = '—';
+    $('#pred-quality').textContent = '-';
     renderPredictions([]);
     if (state.kind === 'words') ensureS2W().catch((err) => setStatus('Söz modeli yüklənmədi: ' + err.message, 'error'));
     if (state.kind === 'sentence') ensureS2S().catch((err) => setStatus('Cümlə modeli yüklənmədi: ' + err.message, 'error'));
@@ -325,7 +325,7 @@ function renderDecode({ candidates, best, verified, suggestions, letters }) {
     : '<span class="muted">boş</span>';
 
   const dec = $('#decoded');
-  if (!best) { dec.innerHTML = '<span class="muted">—</span>'; }
+  if (!best) { dec.innerHTML = '<span class="muted">-</span>'; }
   else {
     dec.innerHTML = `<span class="${verified ? 'ok' : 'no'}">${escapeHtml(best.text)}</span>` +
       (verified ? '<span class="tick">lüğətdə var</span>' : '');
@@ -360,7 +360,7 @@ async function bootT2SViews() {
     setStatus('Avatar yüklənmədi: ' + err.message, 'error');
     $('#t2s-avatar').insertAdjacentHTML('beforeend',
       `<div class="warn" style="position:absolute;inset:auto 12px 12px 12px">
-         VRM avatarı yüklənmədi — cyber skeleton işləməyə davam edir.</div>`);
+         VRM avatarı yüklənmədi - cyber skeleton işləməyə davam edir.</div>`);
   }
   state.t2s.targets = [state.avatar, state.skelT2S].filter(Boolean);
 }
@@ -395,7 +395,7 @@ function initT2S() {
     const steps = t2s.plan(text);
     $('#spelled').innerHTML = steps.length
       ? steps.map((s) => `<i${s.kind === 'word' ? ' class="w"' : ''}>${escapeHtml(s.kind === 'space' ? '␣' : s.char)}</i>`).join('')
-      : '<span class="muted">—</span>';
+      : '<span class="muted">-</span>';
     const miss = t2s.missing(text);
     const warn = $('#t2s-warn');
     warn.hidden = !miss.length;
@@ -463,7 +463,7 @@ function initT2S() {
   $('#abc').innerHTML = letters.map((ch) => {
     const dyn = state.poses.letters[ch].type === 'dynamic';
     return `<button data-ch="${escapeHtml(ch)}" class="${dyn ? 'dyn' : ''}"
-      title="${escapeHtml(ch)}${dyn ? ' — dinamik' : ''}">${escapeHtml(ch)}</button>`;
+      title="${escapeHtml(ch)}${dyn ? ' - dinamik' : ''}">${escapeHtml(ch)}</button>`;
   }).join('');
   $('#abc').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-ch]');
@@ -490,7 +490,7 @@ function renderAbout() {
   $('#doc').innerHTML = `
     <h2>Model və ölçmələr</h2>
     <p>Sistem barmaq əlifbası modelini (<code>fingerspelling_33.h5</code>) olduğu kimi işlədir. Keras çəkiləri
-    xam <code>float32</code> kimi çıxarılıb, irəli keçid JS-də 4 matmul ilə hesablanır —
+    xam <code>float32</code> kimi çıxarılıb, irəli keçid JS-də 4 matmul ilə hesablanır -
     TensorFlow.js lazım deyil. Port numpy referansı ilə yoxlanılıb, maksimal fərq
     <code>4.8e-7</code> (float32 həddi).</p>
 
@@ -511,9 +511,9 @@ function renderAbout() {
 
     <h3>Hərf nə vaxt yazılır</h3>
     <p>Kameradan hərf yalnız əl sabit olanda yazılır: pəncərənin hər 20 kadrında əl görünməli,
-    hərəkət ölçüsü kiçik olmalı (sabit poza 0.00–0.04, keçid 0.06–0.11), model ən azı
+    hərəkət ölçüsü kiçik olmalı (sabit poza 0.00-0.04, keçid 0.06-0.11), model ən azı
     <b>45%</b> əmin olmalı və eyni hərf ardıcıl 3 proqnozda təsdiqlənməlidir. Bu şərtlər olmadan
-    əlin kadra girdiyi an boş kadrlarla birlikdə dinamik hərf kimi oxunurdu — məsələn
+    əlin kadra girdiyi an boş kadrlarla birlikdə dinamik hərf kimi oxunurdu - məsələn
     5 boş kadr + 15 kadr “s” model üçün <code>ö</code> (0.89) deməkdir.</p>
 
     ${e ? `
@@ -531,7 +531,7 @@ function renderAbout() {
     (1) Dinamik hərflərin sıfıra yaxın nəticəsi modelin uğursuzluğu deyil, ölçmə üsulunun
     nəticəsidir: bir kadr 20 dəfə təkrarlanaraq verilir, hərəkət isə belə təmsil oluna bilmir.
     Real ardıcıllıqla verildikdə <b>ç</b> və <b>ö</b> düzgün tanınır.
-    (2) Bu şəkillər modelin təlim datası ola bilər — yəni rəqəmlər <b>optimistdir</b>,
+    (2) Bu şəkillər modelin təlim datası ola bilər - yəni rəqəmlər <b>optimistdir</b>,
     kənarlaşdırılmış test dəsti deyil.</div>
     <h3>Statik hərflər üzrə dəqiqlik</h3>
     ${bars(e.perLetter.filter((r) => r.type === 'static').map((r) => [r.letter, r.acc]))}
@@ -539,7 +539,7 @@ function renderAbout() {
 
     <h3>Niyə hər şey brauzerdə</h3>
     <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və sistem statik fayl kimi
-    hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil —
+    hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil -
     jest dili videosu istifadəçinin üzünü və kimliyini daşıyır.</p>`;
 }
 
@@ -548,7 +548,7 @@ function renderAboutLetters() {
   const m = state.model.manifest;
   const test = m.metrics?.test ?? {};
   const old = m.old_model?.test ?? {};
-  const pct = (v) => (v === undefined ? '—' : `${(v * 100).toFixed(1)}%`);
+  const pct = (v) => (v === undefined ? '-' : `${(v * 100).toFixed(1)}%`);
   const SOURCES = [['sentence', 'AzSLD cümlələrindəki hərflər, ön kamera'], ['side', 'eyni hərflər, yan kamera'],
     ['photo', 'Fingerspelling şəkilləri (statik hərflər)'], ['clip', 'Fingerspelling klipləri (hərəkətli hərflər)'],
     ['all', 'hamısı']];
@@ -580,7 +580,7 @@ function renderAboutLetters() {
       ${rows}
     </table>
     <div class="note">Köhnə model (20 kadrın xam əl koordinatları, 4 qatlı şəbəkə) eyni test nümunələrində
-    ölçülüb. Fingerspelling şəkilləri ona təlimdə tanış ola bilər — həmin sətirdə onun nəticəsi optimistdir.</div>
+    ölçülüb. Fingerspelling şəkilləri ona təlimdə tanış ola bilər - həmin sətirdə onun nəticəsi optimistdir.</div>
     ${bars}
 
     <h3>Hərf nə vaxt yazılır</h3>
@@ -597,7 +597,7 @@ function renderAboutLetters() {
 
     <h3>Niyə hər şey brauzerdə</h3>
     <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və sistem statik fayl kimi
-    hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil —
+    hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil -
     jest dili videosu istifadəçinin üzünü və kimliyini daşıyır.</p>`;
 }
 

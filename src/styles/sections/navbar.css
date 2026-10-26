@@ -298,7 +298,8 @@
    əks halda masaüstü sətirində (`.navbar__links` həmişə DOM-da olan ikinci
    nüsxə kimi) təkrar görünərdi. */
 .navbar__lang-divider,
-.navbar__lang--menu {
+.navbar__lang--menu,
+.navbar__cta--menu {
   display: none;
 }
 
@@ -434,6 +435,17 @@
     justify-content: center;
     gap: 15px;
     padding: 0.4rem 0.75rem 0.2rem;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* Dropdown-un son sətri: CTA - sətir-daxili (.navbar__end) nüsxəsi
+     ≤600px-də gizlənəndə (bax aşağı) mobil istifadəçinin pilot-müraciət
+     düyməsinə çatması üçün yeganə yol budur. */
+  .navbar[data-nav-menu].is-menu-open .navbar__cta--menu {
+    display: block;
+    text-align: center;
+    margin: 0.5rem 0.75rem 0.2rem;
     opacity: 1;
     visibility: visible;
   }
