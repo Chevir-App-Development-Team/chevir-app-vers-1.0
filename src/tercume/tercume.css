@@ -1364,6 +1364,10 @@ body.is-fit #topbar-ctrl-t2s {
   min-width: 0;
   margin-left: 16px;
   flex-wrap: nowrap;
+  /* L/R tərifləri bu 12px-ə görə hesablanır (layout.js-də L_local=24,
+     R=klip pəncərəsinin sağ kənarı) - card-head/current-letter öz
+     margin-ini silib yalnız bu gap-dan asılıdır. */
+  gap: 12px;
 }
 
 /* OYNATMA etiketi + N/M sayğacı: SABİT, heç vaxt sıxılmır/yerini dəyişmir */
@@ -1385,38 +1389,60 @@ body.is-fit #topbar-ctrl-t2s #play-progress {
   font-variant-numeric: tabular-nums;
 }
 
-/* Token cərgəsi: flex:1 ilə qalan eni tutur, SOL hizalı (mərkəzə yox),
-   tokenlər SIXILMIR (flex:none, əvvəlki bug: 380px-lik sabit qutuda
-   flex-shrink söz tokenini tək hərf enində əzirdi). Yalnız məzmun
-   sığmayanda overflow-x:auto ilə sürüşür - həmişə-aktiv padding-inline:50%
-   qısa mətndə (məs. "salam") tokenləri topbarın ortasında "üzdürür" və
-   böyük intrinsik eni ucbatından #topbar-ctrl-t2s-i yeni sətrə keçirirdi
-   (kök səbəb) - indi padding YALNIZ daşanda layout.js tərəfindən dinamik
-   əlavə olunur. */
-/* Sabit "oynatma nöqtəsi" = zolağın eninin ortası: padding-left:50% sol
-   yarını həmişə boş saxlayır, ilk token elə buradan başlayır. Sağa doğru
-   düzülür (justify-content:flex-start). Yalnız HƏQİQƏTƏN daşıyanda
-   (layout.js hesablayır) paddingRight dinamik əlavə olunur. */
-body.is-fit #topbar-ctrl-t2s .spelled {
+/* Token klip pəncərəsi (layout.js tərəfindən #spelled-in ətrafına BİR DƏFƏ
+   qoyulan yeni valideyn - #spelled-in öz uşaqlarına (app.js-in <i>
+   elementlərinə) TOXUNULMUR). Köhnə memarlıqda `.spelled` özü həm flex:1
+   uşaq, həm də overflow-x:auto/scroll konteyner idi - böyük məzmunda
+   (overflow:auto olsa belə) flex-basis hesablaması bəzən konteynerdən
+   geniş çıxıb #current-letter-i ekrandan kənara itələyirdi (kök səbəb,
+   ölçüldü: playback zamanı current-letter 1852-2032px-ə sürüşüb 1920px
+   ekranın 112px kənarına çıxırdı). İndi klip pəncərəsi (bu element) XALİS
+   overflow:hidden qutudur, öz ölçüsü yalnız flex:1-dən gəlir, içindəki
+   #spelled-in məzmun eni ona TƏSİR ETMİR (position:absolute). */
+body.is-fit #topbar-ctrl-t2s .spelled-clip {
   flex: 1;
   min-width: 0;
-  flex-wrap: nowrap;
-  justify-content: flex-start;
-  padding-left: 50%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  gap: 6px;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  height: 28px;
+  position: relative;
+  overflow: hidden;
 }
 
-body.is-fit #topbar-ctrl-t2s .spelled::-webkit-scrollbar {
-  display: none;
+/* Token cərgəsi: klip pəncərəsi daxilində mütləq mövqelənmiş, eni məzmuna
+   görə (fit-content), yalnız transform: translateX ilə sürüşdürülür
+   (layout.js hesablayır: yazma mərhələsində P-nöqtəsi məntiqi, oynatma
+   mərhələsində aktiv tokenin sabit nöqtədə qalması). Keçid müddəti CSS-də
+   bir dəfə təyin olunur - həm yazma, həm oynatma addımları üçün kifayətdir
+   (titrəmə olmadan hamar sürüşmə). */
+body.is-fit #topbar-ctrl-t2s .spelled {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  gap: 6px;
+  margin: 0;
+  min-height: 0;
+  transform: translate(0, -50%);
+  transition: transform 0.2s ease;
+  will-change: transform;
+}
+
+body.is-fit #topbar-ctrl-t2s .spelled.no-anim {
+  transition: none;
 }
 
 body.is-fit #topbar-ctrl-t2s .spelled i {
   flex: none;
+  /* D1: hərf tokenləri əvvəllər monospace idi (ui-monospace/SF Mono),
+     söz tokenləri Poppins - uyğunsuz idi, indi hamısı eyni Poppins 600. */
+  font-family: var(--sans);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 /* aktiv token: eyni ölçü, scale/glow yoxdur (əvvəlki scale(1.12) qonşu
@@ -1425,12 +1451,18 @@ body.is-fit #topbar-ctrl-t2s .spelled i.now {
   transform: none;
 }
 
+/* oynadılmış (keçmiş) tokenlər sönük - cari/gələcək tokenlərdən fərqlənsin */
+body.is-fit #topbar-ctrl-t2s .spelled i.done {
+  opacity: 0.55;
+}
+
 /* Cari böyük token: SABİT 180px, sağa hizalı - eni heç vaxt dəyişmir ki,
-   zolaq hər addımda tərpənməsin; uzun söz addımında ellipsis. */
+   zolaq hər addımda tərpənməsin; uzun söz addımında ellipsis. margin-left
+   yoxdur - #topbar-ctrl-t2s-in gap:12px-i artıq R sərhədini (klip
+   pəncərəsinin sağ kənarı) düzgün yerləşdirir. */
 body.is-fit #current-letter {
   flex: none;
   width: 180px;
-  margin-left: 16px;
   font-size: 26px;
   font-weight: 700;
   line-height: 1;

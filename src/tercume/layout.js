@@ -92,71 +92,205 @@ function initFitTabs(root) {
   panels.forEach((p) => new MutationObserver(syncOverflow).observe(p, { childList: true, subtree: true }));
 }
 
-// #spelled yalnız CSS ilə üfüqi sürüşən cərgəyə çevrilib (fit rejimində);
-// app.js heç bir scroll/scrollIntoView etmir (yoxlandı), ona görə aktiv
-// tokeni (.now) mərkəzdə saxlamaq üçün sırf vizual scroll buradan idarə
-// olunur - heç bir data oxunmur/yazılmır, yalnız artıq mövcud .now sinfi
-// izlənir və DOM-un öz scrollLeft-i/padding-i dəyişdirilir.
+// OYNATMA token cərgəsinin (#spelled) tərpənişini idarə edir. app.js heç bir
+// scroll/scrollIntoView etmir (yoxlandı) - #spelled-in öz UŞAQLARINA
+// (app.js-in <i> elementlərinə) TOXUNULMUR, yalnız #spelled-in özü BİR DƏFƏ
+// yeni `.spelled-clip` valideyninə sarılır (köhnə `.spelled{overflow-x:auto}`
+// memarlığı böyük məzmunda flex-sətri konteynerdən daşırıb #current-letter-i
+// ekrandan kənara itələyirdi - kök səbəb; indi klip xalis overflow:hidden
+// qutudur, məzmun eni ona təsir etmir, #spelled transform:translateX ilə
+// sürüşür).
 //
-// Sabit "oynatma nöqtəsi": CSS-də #spelled-ə padding-left:50% qoyulub
-// (zolağın sol yarısı həmişə boş, ilk token mərkəzdən başlayır). Sığma
-// qərarı YALNIZ məzmun dəyişəndə (childList) bir dəfə verilir və `overflowing`
-// dəyişənində yaddaşda saxlanılır - aktiv token dəyişəndə (sadəcə class
-// mutasiyası) təkrar hesablanmır, ona görə oynatma zamanı rejim titrəməsi
-// olmur.
-function initSpelledAutoScroll() {
+// İki mərhələ:
+//  A) yazma/boş (mode='idle') - L-R arasında P-nöqtəli böyümə (aşağıda).
+//  B) oynatma (mode='playing') - aktiv token sabit ekran nöqtəsində qalır,
+//     sətir onun ətrafında sürüşür; başlayanda SIÇRAYIŞ yoxdur (cari mövqe
+//     olduğu kimi "oynatma nöqtəsi" kimi yadda saxlanılır).
+//
+// L/R/C definisiyaları (klip pəncərəsinin öz LOKAL koordinatında, 0 = klip
+// pəncərəsinin öz sol kənarı):
+//   L_local = 24   (sayğac-dan sonra 12px gap + 24px fade zonası artıq
+//                   #topbar-ctrl-t2s-in gap:12px-i ilə klipdən ƏVVƏL verilir,
+//                   klip daxilində isə yalnız 24px fade zonası qalır)
+//   R_local = klip pəncərəsinin öz eni (WW) - sağ fade zonası simmetrik
+//             tətbiq olunur, amma R-in özü WW-dir (tapşırıqdakı tərifə görə)
+//   C_local = (L_local + R_local) / 2
+function initSpelledTimeline() {
   const spelled = document.querySelector('#spelled');
-  if (!spelled) return;
-  let overflowing = false;
+  const group = document.querySelector('#topbar-ctrl-t2s');
+  const panel = document.querySelector('#tab-t2s');
+  const playProgress = document.querySelector('#play-progress');
+  if (!spelled || !group || !panel) return;
 
-  const recomputeMode = () => {
-    const items = spelled.querySelectorAll('i');
-    if (!items.length) {
-      overflowing = false;
-      spelled.style.paddingRight = '';
-      spelled.scrollLeft = 0;
+  // bir dəfəlik sarma: #spelled-in öz valideynini #spelled-clip ilə əvəz
+  // edir, #spelled-i onun daxilinə köçürür - #spelled-in uşaqları toxunulmur.
+  let clip = spelled.parentElement;
+  if (!clip || !clip.classList.contains('spelled-clip')) {
+    clip = document.createElement('div');
+    clip.className = 'spelled-clip';
+    spelled.parentNode.insertBefore(clip, spelled);
+    clip.appendChild(spelled);
+  }
+
+  const L_LOCAL = 24;
+  let WW = 0;
+  let R_LOCAL = 0;
+  let C_LOCAL = 0;
+  let currentOffset = 0;
+  let pAnchor = null; // "P": yazma mərhələsində sətrin sağ kənarının sabit qaldığı nöqtə
+  let playAnchor = null; // oynatma mərhələsində aktiv tokenin sabit qaldığı ekran nöqtəsi
+  let mode = 'idle'; // 'idle' | 'playing'
+
+  const recomputeBounds = () => {
+    WW = clip.getBoundingClientRect().width;
+    R_LOCAL = WW;
+    C_LOCAL = (L_LOCAL + R_LOCAL) / 2;
+  };
+
+  const updateFade = (offset, contentWidth) => {
+    const leftFade = offset < -0.5;
+    const rightFade = offset + contentWidth > WW + 0.5;
+    let mask = 'none';
+    if (leftFade && rightFade) {
+      mask = 'linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent)';
+    } else if (leftFade) {
+      mask = 'linear-gradient(90deg, transparent, #000 24px, #000 100%)';
+    } else if (rightFade) {
+      mask = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 24px), transparent)';
+    }
+    clip.style.webkitMaskImage = mask;
+    clip.style.maskImage = mask;
+  };
+
+  const moveSpelledTo = (offsetPx, animate) => {
+    // Bu bütün yenidən-yerləşdirmə məntiqi yalnız fit rejimində mənalıdır
+    // (#spelled-clip-ə position:absolute/transform yalnız body.is-fit
+    // altında verilir) - fit olmayanda inline transform-u təmizləyib
+    // bazanın öz flex-wrap sətir düzülüşünə qarışmırıq (əks halda inline
+    // transform qeyri-mövqelənmiş elementi də sürüşdürüb cərgələri
+    // üst-üstə salırdı).
+    if (!document.body.classList.contains('is-fit')) {
+      spelled.style.transform = '';
+      clip.style.webkitMaskImage = '';
+      clip.style.maskImage = '';
       return;
     }
-    // Təbii məzmun eni - getBoundingClientRect ilə (padding-left:50%-dən
-    // sonrakı mövqeyə görə deyil, sırf tokenlərin öz aralarındakı enə görə).
-    const first = items[0].getBoundingClientRect();
-    const last = items[items.length - 1].getBoundingClientRect();
-    const contentWidth = last.right - first.left;
-    // padding-left:50% artıq zolağın yarısını tutduğu üçün, məzmun yalnız
-    // QALAN yarıya (clientWidth/2) sığmalıdır - sığırsa heç nə sürüşmür.
-    overflowing = contentWidth > spelled.clientWidth / 2;
-    spelled.style.paddingRight = overflowing ? `${Math.round(spelled.clientWidth / 2)}px` : '';
-    if (!overflowing) spelled.scrollLeft = 0;
+    currentOffset = offsetPx;
+    if (!animate) spelled.classList.add('no-anim');
+    spelled.style.transform = `translate(${offsetPx}px, -50%)`;
+    updateFade(offsetPx, spelled.scrollWidth);
+    if (!animate) {
+      void spelled.offsetWidth; // transition:none-u tətbiq etmək üçün reflow məcburiləşdirilir
+      requestAnimationFrame(() => spelled.classList.remove('no-anim'));
+    }
   };
 
-  const centerActive = () => {
-    if (!overflowing) return; // sığan mətndə heç vaxt sürüşmə yoxdur
+  // A mərhələsi: tək token həmişə C-də mərkəzlənir (bu an "P" - sətrin sağ
+  // kənarı - yenidən təyin olunur). Çox tokenli halda P SABİT qalır, sətir
+  // sola doğru böyüyür; L-ə dəyəndə (offset < L_LOCAL) klamp olunur və
+  // bundan sonra yazılan tokenlər sağa əlavə olunur (silinəndə tərsinə işləyir,
+  // çünki Math.max(L_LOCAL, pAnchor - W) hər iki istiqamətdə simmetrikdir).
+  const layoutPhaseA = (animate) => {
+    const items = spelled.querySelectorAll('i');
+    if (!items.length) {
+      pAnchor = null;
+      moveSpelledTo(0, false);
+      return;
+    }
+    const W = spelled.scrollWidth;
+    let offset;
+    if (items.length === 1) {
+      offset = C_LOCAL - W / 2;
+      pAnchor = offset + W;
+    } else {
+      if (pAnchor == null) pAnchor = L_LOCAL + W; // ehtiyat: birbaşa çox-tokenli başlanğıc
+      offset = Math.max(L_LOCAL, pAnchor - W);
+    }
+    moveSpelledTo(offset, animate);
+  };
+
+  // B mərhələsi başlayır: SIÇRAYIŞ YOXDUR - cari mövqe olduğu kimi qalır,
+  // yalnız aktiv tokenin bu andakı ekran-lokal mərkəzi "oynatma nöqtəsi"
+  // kimi yadda saxlanılır.
+  const capturePlayAnchor = () => {
     const now = spelled.querySelector('i.now');
-    if (!now) return;
-    // offsetLeft mövqelənmiş əcdada görədir (burada #spelled deyil), ona görə
-    // getBoundingClientRect ilə ekran koordinatına görə hesablanır - CSS
-    // kontekstindən asılı olmayan, etibarlı üsul.
-    const nowRect = now.getBoundingClientRect();
-    const spelledRect = spelled.getBoundingClientRect();
-    const delta = (nowRect.left + nowRect.width / 2) - (spelledRect.left + spelledRect.width / 2);
-    const target = spelled.scrollLeft + delta;
-    const max = spelled.scrollWidth - spelled.clientWidth;
-    spelled.scrollTo({ left: Math.min(Math.max(0, target), max), behavior: 'smooth' });
+    if (!now) { playAnchor = null; return; }
+    playAnchor = currentOffset + now.offsetLeft + now.offsetWidth / 2;
   };
 
-  // childList: mətn dəyişəndə #spelled-in bütün tərkibi innerHTML ilə
-  // əvəz olunur (sinif mutasiyası deyil) - bunu da tutmaq lazımdır ki,
-  // yeni mətn yazılanda sığma qərarı dərhal yenidən hesablansın.
-  new MutationObserver((mutations) => {
-    if (mutations.some((m) => m.type === 'childList')) recomputeMode();
-    centerActive();
-  }).observe(spelled, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ['class'],
-  });
-  recomputeMode();
+  // B mərhələsi davam edir: yeni aktiv token playAnchor nöqtəsində qalacaq
+  // şəkildə sətir sürüşür (hamar, CSS transition: transform 0.2s).
+  const trackPlayAnchor = (animate) => {
+    const now = spelled.querySelector('i.now');
+    if (!now || playAnchor == null) return;
+    const tokenCenterAtZero = now.offsetLeft + now.offsetWidth / 2;
+    moveSpelledTo(playAnchor - tokenCenterAtZero, animate);
+  };
+
+  // Bir neçə müşahidəçi (childList, resize, panel-class) eyni tick-də
+  // ardıcıl tətikə bilər (məs. ResizeObserver-in sub-piksel yenidən
+  // hesablaması ilə mətn dəyişikliyi üst-üstə düşəndə) - əgər hər biri
+  // BİRBAŞA layoutPhaseA/trackPlayAnchor çağırsaydı, sıra-asılı yarış
+  // vəziyyəti yaranıb köhnə hesablama sonuncu tətbiq oluna bilərdi. Ona görə
+  // bütün tətiklər TƏK bir rAF-planlaşdırılan yenidən-hesablamaya yönəlir -
+  // faktiki tətbiq həmişə həmin an-ın ƏN SON DOM/mode vəziyyətinə görədir.
+  let rafId = 0;
+  const scheduleRecompute = (animate) => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      if (mode === 'playing') trackPlayAnchor(animate);
+      else layoutPhaseA(animate);
+    });
+  };
+
+  // #play-progress mətni "N/M" olanda oynanır, əks halda ('hazır', '-') yox -
+  // onLetter (.now/.done class) və onState (#play-progress mətni) app.js-də
+  // eyni addımda, ardıcıl sinxron çağırılır, ona görə bu tək siqnal kifayətdir.
+  const onPlayStateChange = () => {
+    const text = playProgress?.textContent ?? '';
+    const nowPlaying = /^\d+\/\d+$/.test(text);
+    if (nowPlaying && mode !== 'playing') {
+      mode = 'playing';
+      capturePlayAnchor(); // B1: heç bir sıçrayış/hərəkət yoxdur - heç nə planlaşdırılmır
+    } else if (!nowPlaying && mode === 'playing') {
+      mode = 'idle';
+      scheduleRecompute(true); // B5: dayananda/bitəndə A qaydası ilə hamar geri qayıdış
+    } else if (nowPlaying) {
+      scheduleRecompute(true); // B2: addım irəlilədikcə izləmə
+    }
+  };
+
+  // mətn dəyişəndə (#spelled-in bütün tərkibi innerHTML ilə əvəz olunur - bu
+  // childList mutasiyasıdır, class mutasiyası deyil) yalnız A mərhələsində
+  // yenidən yerləşdirilir (oynatma zamanı yazma baş vermir).
+  new MutationObserver(() => {
+    if (mode === 'idle') scheduleRecompute(true);
+  }).observe(spelled, { childList: true });
+
+  if (playProgress) {
+    new MutationObserver(onPlayStateChange).observe(playProgress, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+  }
+
+  // Pəncərə/panel ölçüsü dəyişəndə (və ya panel ilk dəfə is-active olanda,
+  // klip hələ display:none ikən 0 ölçü ala bilər) hüdudlar yenidən hesablanır
+  // və cari mərhələ animasiyasız yenidən tətbiq olunur (mövqe dəyişməsin,
+  // yalnız yeni hüduda uyğunlaşsın).
+  const resync = () => {
+    recomputeBounds();
+    scheduleRecompute(false);
+  };
+
+  new ResizeObserver(resync).observe(clip);
+  new MutationObserver(resync).observe(panel, { attributes: true, attributeFilter: ['class'] });
+  window.addEventListener('resize', resync);
+  recomputeBounds();
+  if (mode === 'playing') trackPlayAnchor(false);
+  else layoutPhaseA(false);
 }
 
 // OYNATMA qrupunun (#topbar-ctrl-t2s) sol kənarını stage-in 2-ci panelinin
@@ -226,7 +360,7 @@ function boot() {
   setNavbarHeightVar();
   initTopbarControls();
   document.querySelectorAll('#tab-s2t .fit-right, #tab-t2s .fit-right').forEach(initFitTabs);
-  initSpelledAutoScroll();
+  initSpelledTimeline();
   alignOynatmaToStage();
   initFit();
 }
