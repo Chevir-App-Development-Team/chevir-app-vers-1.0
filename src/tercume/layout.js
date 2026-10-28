@@ -255,9 +255,20 @@ function initSpelledTimeline() {
       capturePlayAnchor(); // B1: heç bir sıçrayış/hərəkət yoxdur - heç nə planlaşdırılmır
     } else if (!nowPlaying && mode === 'playing') {
       mode = 'idle';
+      playAnchor = null;
       scheduleRecompute(true); // B5: dayananda/bitəndə A qaydası ilə hamar geri qayıdış
     } else if (nowPlaying) {
-      scheduleRecompute(true); // B2: addım irəlilədikcə izləmə
+      // Kök səbəb: t2s.js-in play()-i onState({index:0})-i LOOP-DAN ƏVVƏL
+      // çağırır (hələ heç bir onLetter işləməyib, .now heç bir tokenə
+      // qoyulmayıb) - yuxarıdakı ilk budaq capturePlayAnchor-u BOŞ .now ilə
+      // çağırıb playAnchor-u həmişəlik null saxlayırdı (sonrakı addımlarda
+      // trackPlayAnchor sakitcə heç nə etmirdi - "zolaq sürüşmür" buqqu).
+      // LOOP daxilində eyni addım üçün onLetter (.now qoyur) + onState
+      // (play-progress-ə EYNİ mətni YENİDƏN yazır, bu da mutasiya kimi
+      // tutulur) İKİNCİ dəfə çağırılır - məhz bu təkrar tətikdə, əgər
+      // tutma hələ uğursuz idisə, yenidən cəhd edilir.
+      if (playAnchor == null) capturePlayAnchor();
+      else scheduleRecompute(true); // B2: addım irəlilədikcə izləmə
     }
   };
 
