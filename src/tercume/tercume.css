@@ -246,18 +246,26 @@ body.tercume {
   bottom: 12px;
   right: 12px;
   z-index: 3;
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
+  min-width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(6, 13, 36, 0.55);
+  box-sizing: border-box;
 }
 
+/* SVG sabit 52px qalır - konteyner uzun mətn üçün enlənsə belə halqa
+   özü (progress animasiyası daxil olmaqla) heç vaxt oval olmur. */
 .capture-ring svg {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%) rotate(-90deg);
 }
 
 .capture-ring .track {
@@ -277,9 +285,12 @@ body.tercume {
 }
 
 #ring-label {
+  position: relative;
+  z-index: 1;
   font-family: var(--mono);
   font-size: 10px;
   color: var(--ink-2);
+  white-space: nowrap;
 }
 
 /* ── kartlar ── */
@@ -415,6 +426,20 @@ body.tercume {
   font: inherit;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
+}
+
+.tercume select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%2393a7cc' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+}
+
+.tercume select:hover,
+.tercume select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%234da0ff' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .tercume textarea {
@@ -1143,8 +1168,18 @@ kbd {
   gap: 10px;
 }
 
+/* "Nə tanınsın" vizual gizlənir - select özünü izah edir, label-for
+   əlaqəsi (wrapping <label>) saxlanılır, ekran oxuyucusu üçün qalır */
 #topbar-ctrl-s2t .field.inline span {
-  margin-top: -2px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 #topbar-ctrl-s2t #s2t-kind {
@@ -1313,15 +1348,56 @@ body.is-fit #ring-label {
   font-size: 12px;
 }
 
+/* OYNATMA qrupu: tablar/status-dan sonra qalan BÜTÜN eni tutur (əvvəlki
+   kimi sıxılmış 380px yox) - #topbar-ctrl-s2t kimi "auto margin ilə sağa
+   yapışan kompakt qrup" olmaq əvəzinə, status-dan dərhal sonra başlayıb
+   cari tokenə qədər uzanır. */
+body.is-fit #topbar-ctrl-t2s {
+  flex: 1;
+  min-width: 0;
+  margin-left: 16px;
+}
+
+body.is-fit #topbar-ctrl-t2s .card-head {
+  flex: none;
+}
+
+/* Token cərgəsi: flex:1 ilə qalan eni tutur, tokenlər SIXILMIR (flex:none,
+   əvvəlki bug budur idi - 380px-lik sabit qutuda flex-shrink söz tokenini
+   tək hərf enində əzirdi), overflow-x:auto ilə üfüqi sürüşür. */
 body.is-fit #topbar-ctrl-t2s .spelled {
-  max-width: 380px;
+  flex: 1;
+  min-width: 0;
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  gap: 6px;
+  /* 50% = konteynerin öz eninin yarısı - ilk/son token da mərkəzə qədər
+     sürüşə bilsin (sabit px dəyəri enlikdən asılı olaraq yetməzdi, test
+     edildi: 1920px-də 160px kifayət etmirdi, ilk/son token 400px+ kənarda qalırdı) */
+  padding-inline: 50%;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
   mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 
+body.is-fit #topbar-ctrl-t2s .spelled::-webkit-scrollbar {
+  display: none;
+}
+
+body.is-fit #topbar-ctrl-t2s .spelled i {
+  flex: none;
+}
+
+/* aktiv token: eyni ölçü, scale/glow yoxdur (əvvəlki scale(1.12) qonşu
+   tokenlərin üstünə düşməyə səbəb olurdu) */
+body.is-fit #topbar-ctrl-t2s .spelled i.now {
+  transform: none;
+}
+
 body.is-fit #current-letter {
+  flex: none;
+  margin-left: 16px;
   font-size: 26px;
   font-weight: 700;
   line-height: 1;
@@ -1410,6 +1486,11 @@ body.is-fit .fit-strip-card:not([data-kind]) .warn {
   flex: 1 0 100%;
 }
 
+/* "Ən yaxın real sözlər" ilə düymə sırası arasında boşluq yox idi */
+body.is-fit .fit-strip-card[data-kind="letters"] .suggest {
+  margin-bottom: 12px;
+}
+
 /* zolaqdakı düymələr kiçik, yan-yana (flex:1 ilə tam enə uzanmasın) */
 body.is-fit .fit-strip-card .row {
   margin-bottom: 0;
@@ -1479,6 +1560,22 @@ body.is-fit .fit-tabpanel {
 
 body.is-fit .fit-tabpanel.is-active {
   display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+/* panelin son kartı qalan hündürlüyü alır (Lüğət siyahısı boş yer qoymasın) */
+body.is-fit .fit-tabpanel.is-active > .card:last-child {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.is-fit .fit-tabpanel.is-active > .card:last-child .words {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
 }
 
 /* 560–700px hündürlükdə sıxılmış ölçülər */

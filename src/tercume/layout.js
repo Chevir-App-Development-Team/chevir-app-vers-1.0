@@ -76,6 +76,34 @@ function initFitTabs(root) {
   activate(tabs.find((t) => t.classList.contains('is-active'))?.dataset.fitTab ?? fallback);
 }
 
+// #spelled yalnız CSS ilə üfüqi sürüşən cərgəyə çevrilib (fit rejimində);
+// app.js heç bir scroll/scrollIntoView etmir (yoxlandı), ona görə aktiv
+// tokeni (.now) mərkəzdə saxlamaq üçün sırf vizual scroll buradan idarə
+// olunur - heç bir data oxunmur/yazılmır, yalnız artıq mövcud .now sinfi
+// izlənir və DOM-un öz scrollLeft-i dəyişdirilir.
+function initSpelledAutoScroll() {
+  const spelled = document.querySelector('#spelled');
+  if (!spelled) return;
+  const centerActive = () => {
+    const now = spelled.querySelector('i.now');
+    if (!now || spelled.scrollWidth <= spelled.clientWidth) return;
+    // offsetLeft mövqelənmiş əcdada görədir (burada #spelled deyil), ona görə
+    // getBoundingClientRect ilə ekran koordinatına görə hesablanır - CSS
+    // kontekstindən asılı olmayan, etibarlı üsul.
+    const nowRect = now.getBoundingClientRect();
+    const spelledRect = spelled.getBoundingClientRect();
+    const delta = (nowRect.left + nowRect.width / 2) - (spelledRect.left + spelledRect.width / 2);
+    const target = spelled.scrollLeft + delta;
+    const max = spelled.scrollWidth - spelled.clientWidth;
+    spelled.scrollTo({ left: Math.min(Math.max(0, target), max), behavior: 'smooth' });
+  };
+  new MutationObserver(centerActive).observe(spelled, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class'],
+  });
+}
+
 function initFit() {
   const mq = window.matchMedia(FIT_QUERY);
   const apply = (matches) => document.body.classList.toggle('is-fit', matches);
@@ -92,6 +120,7 @@ function boot() {
   setNavbarHeightVar();
   initTopbarControls();
   document.querySelectorAll('#tab-s2t .fit-right, #tab-t2s .fit-right').forEach(initFitTabs);
+  initSpelledAutoScroll();
   initFit();
 }
 
