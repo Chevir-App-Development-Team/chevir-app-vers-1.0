@@ -1352,31 +1352,54 @@ body.is-fit #ring-label {
    kimi sıxılmış 380px yox) - #topbar-ctrl-s2t kimi "auto margin ilə sağa
    yapışan kompakt qrup" olmaq əvəzinə, status-dan dərhal sonra başlayıb
    cari tokenə qədər uzanır. */
+/* Təsdiqlənmiş "Variant A": tablar, status, [OYNATMA etiketi+sayğac sabit],
+   [token zolağı flex:1], [cari böyük token sabit 180px]. flex-wrap:nowrap
+   MÜTLƏQDİR - .topbar-ctrl-un bazasında flex-wrap:wrap var (s2t qrupu üçün
+   lazımdır), amma burada uşaqlar sıxılanda/padding genişlənəndə yeni sətrə
+   düşüb etiket+sayğacı görünməz edirdi (kök səbəb bu idi). */
 body.is-fit #topbar-ctrl-t2s {
   flex: 1;
   min-width: 0;
   margin-left: 16px;
+  flex-wrap: nowrap;
 }
 
+/* OYNATMA etiketi + N/M sayğacı: SABİT, heç vaxt sıxılmır/yerini dəyişmir */
 body.is-fit #topbar-ctrl-t2s .card-head {
   flex: none;
+  white-space: nowrap;
 }
 
-/* Token cərgəsi: flex:1 ilə qalan eni tutur, tokenlər SIXILMIR (flex:none,
-   əvvəlki bug budur idi - 380px-lik sabit qutuda flex-shrink söz tokenini
-   tək hərf enində əzirdi), overflow-x:auto ilə üfüqi sürüşür. */
+body.is-fit #topbar-ctrl-t2s .card-head h2 {
+  white-space: nowrap;
+}
+
+body.is-fit #topbar-ctrl-t2s #play-progress {
+  flex: none;
+  display: inline-block;
+  min-width: 46px;
+  white-space: nowrap;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Token cərgəsi: flex:1 ilə qalan eni tutur, SOL hizalı (mərkəzə yox),
+   tokenlər SIXILMIR (flex:none, əvvəlki bug: 380px-lik sabit qutuda
+   flex-shrink söz tokenini tək hərf enində əzirdi). Yalnız məzmun
+   sığmayanda overflow-x:auto ilə sürüşür - həmişə-aktiv padding-inline:50%
+   qısa mətndə (məs. "salam") tokenləri topbarın ortasında "üzdürür" və
+   böyük intrinsik eni ucbatından #topbar-ctrl-t2s-i yeni sətrə keçirirdi
+   (kök səbəb) - indi padding YALNIZ daşanda layout.js tərəfindən dinamik
+   əlavə olunur. */
 body.is-fit #topbar-ctrl-t2s .spelled {
   flex: 1;
   min-width: 0;
   flex-wrap: nowrap;
+  justify-content: flex-start;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
   gap: 6px;
-  /* 50% = konteynerin öz eninin yarısı - ilk/son token da mərkəzə qədər
-     sürüşə bilsin (sabit px dəyəri enlikdən asılı olaraq yetməzdi, test
-     edildi: 1920px-də 160px kifayət etmirdi, ilk/son token 400px+ kənarda qalırdı) */
-  padding-inline: 50%;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
   mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
@@ -1395,17 +1418,28 @@ body.is-fit #topbar-ctrl-t2s .spelled i.now {
   transform: none;
 }
 
+/* Cari böyük token: SABİT 180px, sağa hizalı - eni heç vaxt dəyişmir ki,
+   zolaq hər addımda tərpənməsin; uzun söz addımında ellipsis. */
 body.is-fit #current-letter {
   flex: none;
+  width: 180px;
   margin-left: 16px;
   font-size: 26px;
   font-weight: 700;
   line-height: 1;
   color: var(--ink);
   text-shadow: 0 0 8px rgba(77, 160, 255, 0.4);
-  min-width: 30px;
   padding: 0;
-  text-align: center;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.is-fit #current-letter.is-word {
+  font-size: 20px;
+  padding: 0;
+  overflow-wrap: normal;
 }
 
 body.is-fit .panel.is-active:not(#tab-about) {

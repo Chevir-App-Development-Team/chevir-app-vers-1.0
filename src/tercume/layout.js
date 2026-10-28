@@ -80,13 +80,31 @@ function initFitTabs(root) {
 // app.js heç bir scroll/scrollIntoView etmir (yoxlandı), ona görə aktiv
 // tokeni (.now) mərkəzdə saxlamaq üçün sırf vizual scroll buradan idarə
 // olunur - heç bir data oxunmur/yazılmır, yalnız artıq mövcud .now sinfi
-// izlənir və DOM-un öz scrollLeft-i dəyişdirilir.
+// izlənir və DOM-un öz scrollLeft-i/padding-i dəyişdirilir.
 function initSpelledAutoScroll() {
   const spelled = document.querySelector('#spelled');
   if (!spelled) return;
   const centerActive = () => {
+    const items = spelled.querySelectorAll('i');
+    if (!items.length) { spelled.style.paddingRight = ''; return; }
+    // Təbii məzmun eni - getBoundingClientRect ilə (özümüzün qoyduğumuz
+    // paddingRight-dan asılı olmayan, etibarlı ölçü), hələ padding
+    // əlavə edilmədən öncəki vəziyyəti əks etdirir.
+    const first = items[0].getBoundingClientRect();
+    const last = items[items.length - 1].getBoundingClientRect();
+    const contentWidth = last.right - first.left;
+    const overflowing = contentWidth > spelled.clientWidth;
+
+    // Padding YALNIZ daşanda əlavə olunur - sabit/həmişə-aktiv padding qısa
+    // mətndə tokenləri ortada "üzdürüb" #topbar-ctrl-t2s-i yeni sətrə salırdı.
+    spelled.style.paddingRight = overflowing ? `${Math.round(spelled.clientWidth / 2)}px` : '';
+
+    if (!overflowing) {
+      spelled.scrollLeft = 0;
+      return;
+    }
     const now = spelled.querySelector('i.now');
-    if (!now || spelled.scrollWidth <= spelled.clientWidth) return;
+    if (!now) return;
     // offsetLeft mövqelənmiş əcdada görədir (burada #spelled deyil), ona görə
     // getBoundingClientRect ilə ekran koordinatına görə hesablanır - CSS
     // kontekstindən asılı olmayan, etibarlı üsul.
@@ -97,8 +115,12 @@ function initSpelledAutoScroll() {
     const max = spelled.scrollWidth - spelled.clientWidth;
     spelled.scrollTo({ left: Math.min(Math.max(0, target), max), behavior: 'smooth' });
   };
+  // childList: mətn dəyişəndə #spelled-in bütün tərkibi innerHTML ilə
+  // əvəz olunur (sinif mutasiyası deyil) - bunu da tutmaq lazımdır ki,
+  // yeni mətn yazılanda padding/scroll dərhal yenidən hesablansın.
   new MutationObserver(centerActive).observe(spelled, {
     subtree: true,
+    childList: true,
     attributes: true,
     attributeFilter: ['class'],
   });
