@@ -11,6 +11,8 @@ import sys
 import nbformat as nbf
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from groups import load_groups, sign_merge, spelling  # noqa: E402  (labels that are one sign)
 MODULES = ['__init__', 'zenodo', 'landmarks', 'store', 'sources', 'split', 'pipeline', 'views']
 TRAIN_MODULES = MODULES + ['features', 'train']
 NUM_SHARDS = 4
@@ -297,29 +299,6 @@ print('frontal-camera outliers:', bench['frontal_outliers'])
     ])
 
 
-def sign_merge():
-    """One sign, several glosses → {gloss: group}: the confirmed word-form families (ml/lemma_groups.csv)
-    and the forms the models cannot tell apart on val signers (ml/same_sign.csv)."""
-    import csv
-    sys.path.insert(0, HERE)
-    from analyze import load_groups
-    out = dict(load_groups(os.path.join(HERE, 'lemma_groups.csv')))
-    with open(os.path.join(HERE, 'same_sign.csv'), encoding='utf-8') as f:
-        rows = list(csv.DictReader(f))
-    for r in rows:
-        out[r['gloss']] = r['group']
-    for r in rows:                         # a group that joins a confirmed family takes its name
-        out[r['group']] = out.get(r['group'], r['group'])
-    return {g: grp for g, grp in out.items() if g != grp}
-
-
-def spelling():
-    """ml/gloss_spelling.csv → {variant: gloss}: the same word typed two ways in the annotations."""
-    import csv
-    with open(os.path.join(HERE, 'gloss_spelling.csv'), encoding='utf-8') as f:
-        return {r['variant']: r['gloss'] for r in csv.DictReader(f)}
-
-
 def nb04():
     return notebook([
         md("""
@@ -473,8 +452,6 @@ ax[0].legend(); plt.show()
     ])
 
 def nb05():
-    sys.path.insert(0, HERE)
-    from analyze import load_groups                       # the confirmed word-form families
     families = load_groups(os.path.join(HERE, 'lemma_groups.csv'))
     return notebook([
         md("""
@@ -730,18 +707,22 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # only teach hand shapes, so instead spell = P(a sample is 3-8 letter signs of other recordings in a row), taken
 # before the splice draw. Scored also on 'letters' (recordings with letters, letter signs only). Result: val
 # letters F1 0.832 / 0.831 against seq_splice's 0.853, val F1 0.884 / 0.882 against 0.890: no (E7).
+#   'splice_spell15': dict(BASE, splice=0.5, spell=0.15, select='f1_unseen_learnable'),
+#   'splice_spell30': dict(BASE, splice=0.5, spell=0.3, select='f1_unseen_learnable'),
+# v15 (GPU): the final model again (v6's recipe, v7's decoding) with the word forms that signers confirmed as
+# one sign (E15: lemma_groups.csv after the word-form review; OLACAQ, OLUR, EDİR and İŞLƏMİR are their own
+# signs again). Only the labels differ from final_splice.
 FPS_CHECKS = ()
 RUNS = {
-    'seq_splice': dict(ckpt='seq_splice'),
-    'splice_spell15': dict(BASE, splice=0.5, spell=0.15, select='f1_unseen_learnable'),
-    'splice_spell30': dict(BASE, splice=0.5, spell=0.3, select='f1_unseen_learnable'),
+    'final_merged': dict(BASE, splice=0.5, save_epoch=59,
+                         decode=dict(smooth=3, min_p=0.3, min_len=10, gap=2, min_len_short=6)),
 }
 VOCAB_MIN_TRAIN = 10
 SPELLING = __SPELLING__
 MERGE = __MERGE__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
-EXCLUDE_HELDOUT = True                         # unseen sentences stay out of training
-TRAIN_ON_VAL = False                           # final model: val signers too (runs need save_epoch and decode)
+EXCLUDE_HELDOUT = False                        # unseen sentences stay out of training (final model: all)
+TRAIN_ON_VAL = True                            # final model: val signers too (runs need save_epoch and decode)
 DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
 DECODE_GRID['min_len_short'] = (6,)            # v7's choice for letters and digits
 LOOKAHEADS = (12, 40)                          # val only: shorter / longer delay than the browser's
