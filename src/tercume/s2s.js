@@ -8,7 +8,7 @@
  */
 import { createLandmarkers, detectFrame, LandmarkClip } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
-import { CONT_MODEL_BASE } from './paths.js';
+import { CONT_MODEL_BASE, SIGN_MERGE_URL } from './paths.js';
 import {
   CONTINUOUS_VERSION, DECODE, nearestSentence, Resampler, SentenceStream, shortClasses, STREAM, WindowStream,
 } from './continuous.js';
@@ -32,7 +32,7 @@ export class SignToSentence {
 
   async init() {
     this.onStatus?.({ stage: 'loading', message: 'Cümlə modeli yüklənir…' });
-    this.rec = await LocalRecognizer.load(this.base);
+    this.rec = await LocalRecognizer.load(this.base, { merge: SIGN_MERGE_URL });   // eyni işarənin formaları bir söz
     const m = this.rec.manifest;
     if (m.kind !== 'continuous') throw new Error('bu model davamlı tanıma üçün deyil');
     if ((m.continuous_version ?? 1) > CONTINUOUS_VERSION) {
@@ -41,15 +41,17 @@ export class SignToSentence {
     this.p = { ...STREAM, ...m.stream };
     this.dp = { ...DECODE, ...m.decode };
     this.face = !m.works_without_face;
-    this.unk = m.unknown_label ? m.labels.indexOf(m.unknown_label) : null;
+    const unk = m.unknown_label ? this.rec.labels.indexOf(m.unknown_label) : -1;
+    this.unk = unk >= 0 ? unk : null;
     try {                                     // AzSLD cümlələri: tanınan ardıcıllığa ən yaxın mətn
       const r = await fetch(`${this.base}sentences.json`);
-      if (r.ok) this.known = await r.json();
+      // cümlələrin glosları da modelin birləşmiş siniflərinə gətirilir
+      if (r.ok) this.known = (await r.json()).map((x) => ({ ...x, glosses: x.glosses.map(this.rec.group) }));
     } catch { /* cümlə siyahısı olmasa da işləyir */ }
     this.onStatus?.({ stage: 'landmarker', message: `MediaPipe yüklənir (əllər, bədən${this.face ? ', üz' : ''})…` });
     this.lms = await createLandmarkers({ face: this.face });
     this.#reset();
-    const n = m.labels.length - 1 - (m.unknown_label ? 1 : 0);
+    const n = this.rec.labels.length - 1 - (this.unk === null ? 0 : 1);
     this.onStatus?.({ stage: 'ready', message: `Hazır · ${n} söz, davamlı` });
   }
 

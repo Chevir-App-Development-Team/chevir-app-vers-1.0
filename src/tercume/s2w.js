@@ -8,6 +8,7 @@
  */
 import { createLandmarkers, detectFrame, LandmarkClip, FRAME_SIZES } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
+import { SIGN_MERGE_URL } from './paths.js';
 import { SEGMENT, SignSegmenter, frameActive, segmentFromManifest, segmentSpan } from './segment.js';
 
 /**
@@ -50,7 +51,7 @@ export class SignToWords {
 
   async init() {
     this.onStatus?.({ stage: 'landmarker', message: 'Söz modeli yüklənir…' });
-    this.rec = await LocalRecognizer.load();
+    this.rec = await LocalRecognizer.load(undefined, { merge: SIGN_MERGE_URL });   // eyni işarənin formaları bir söz
     // modelin öz söz rejimi parametrləri (manifest.segment), sonra əl ilə verilənlər
     this.p = { ...SEGMENT, ...segmentFromManifest(this.rec.manifest.segment), ...this.userSegment };
     this.#reset();

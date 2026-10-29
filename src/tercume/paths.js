@@ -10,3 +10,5 @@ export const WORDS_BASE = `${BASE}words/`
 export const WORD_MODEL_BASE = `${BASE}assets/word_model/`
 export const CONT_MODEL_BASE = `${BASE}assets/cont_model/`
 export const LETTER_MODEL_BASE = `${BASE}assets/letter_model/`
+// Eyni işarənin etiketləri (söz formaları) → bir sinif (tools/build_sign_merge.py)
+export const SIGN_MERGE_URL = `${BASE}assets/sign_merge.json`

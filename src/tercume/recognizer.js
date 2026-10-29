@@ -51,21 +51,45 @@ export function topK(probs, labels, k = 5) {
     .map((i) => ({ label: labels[i], p: probs[i], idx: i }));
 }
 
+/**
+ * Bir işarənin etiketləri → bir sinif. AzSLD söz formalarını ayrı etiketləyir (ACAM, ACMİŞAM), bəziləri
+ * isə eyni işarədir; `merge` (tools/build_sign_merge.py → sign_merge.json: {spelling, merge}) onları
+ * birləşdirir. Qaytarır: labels — birləşmiş siniflər (ilk rast gəlinən sırada, <blank> yerində qalır),
+ * classOf — modelin hər sinfinin birləşmiş sinfi (birləşmə yoxdursa null), group — istənilən glosun sinfi.
+ */
+export function signGroups(labels, merge = null) {
+  const group = (g) => { const c = merge?.spelling?.[g] ?? g; return merge?.merge?.[c] ?? c; };
+  const out = [], index = new Map();
+  const classOf = new Int32Array(labels.length);
+  labels.forEach((l, i) => {
+    const g = group(l);
+    if (!index.has(g)) { index.set(g, out.length); out.push(g); }
+    classOf[i] = index.get(g);
+  });
+  return { labels: out, classOf: out.length < labels.length ? classOf : null, group };
+}
+
 export class LocalRecognizer {
-  constructor(manifest, session, ort) {
+  constructor(manifest, session, ort, merge = null) {
     this.manifest = manifest;
     this.session = session;
     this.ort = ort;
-    this.labels = manifest.labels;
+    // Eyni işarənin etiketləri bir sinifdir: ehtimalları toplanır (softmax-dan sonra, ona görə dəqiqdir)
+    const g = signGroups(manifest.labels, merge);
+    this.labels = g.labels;
+    this.classOf = g.classOf;
+    this.group = g.group;
     this.groups = manifest.input.groups;
     this.backend = 'local';
   }
 
   /**
    * @param {string} [base] model qovluğu: manifest.json + manifest-də adı çəkilən .onnx
-   * @param {{ fetchImpl?: typeof fetch, wasmBase?: string | null }} [opts] sınaq skriptləri üçün (Node)
+   * @param {{ fetchImpl?: typeof fetch, wasmBase?: string | null, merge?: string | object | null }} [opts]
+   *   fetchImpl/wasmBase — sınaq skriptləri üçün (Node); merge — sign_merge.json-un ünvanı və ya özü
+   *   (yüklənməsə modelin öz etiketləri qalır)
    */
-  static async load(base = WORD_MODEL_BASE, { fetchImpl = fetch, wasmBase } = {}) {
+  static async load(base = WORD_MODEL_BASE, { fetchImpl = fetch, wasmBase, merge = null } = {}) {
     const res = await fetchImpl(`${base}manifest.json`);
     if (!res.ok) throw new Error(`manifest.json yüklənmədi (${res.status})`);
     const manifest = await res.json();
@@ -74,7 +98,19 @@ export class LocalRecognizer {
     const bytes = new Uint8Array(await (await fetchImpl(`${base}${manifest.model_file}`)).arrayBuffer());
     const ort = await loadOrt({ wasmBase });
     const session = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
-    return new LocalRecognizer(manifest, session, ort);
+    if (typeof merge === 'string') {
+      merge = await fetchImpl(merge).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (!merge) console.warn('sign_merge.json yüklənmədi: modelin öz etiketləri işlədilir');
+    }
+    return new LocalRecognizer(manifest, session, ort, merge);
+  }
+
+  /** Modelin siniflərinin ehtimalları → birləşmiş siniflərin ehtimalları (cəm). */
+  #mergeProbs(probs) {
+    if (!this.classOf) return probs;
+    const out = new Float32Array(this.labels.length);
+    for (let i = 0; i < probs.length; i++) out[this.classOf[i]] += probs[i];
+    return out;
   }
 
   /**
@@ -88,8 +124,9 @@ export class LocalRecognizer {
     const { name: inName, n_features: nf } = this.manifest.input;
     if (x.F !== nf) throw new Error(`giriş ${x.F} sütun, model ${nf} gözləyir`);
     const out = await this.session.run({ [inName]: new this.ort.Tensor('float32', x.data, [1, x.T, x.F]) });
-    const logits = out[this.manifest.output.name].data;
-    const probs = softmax(logits);
+    let logits = out[this.manifest.output.name].data;
+    const probs = this.#mergeProbs(softmax(logits));
+    if (this.classOf) logits = probs.map(Math.log);        // birləşmiş siniflərin logit-i: softmax-ı eyni probs verir
     return { top: topK(probs, this.labels, k), probs, logits, frames: x.T, ms: performance.now() - t0, backend: this.backend };
   }
 
@@ -104,9 +141,9 @@ export class LocalRecognizer {
     if (x.F !== nf) throw new Error(`giriş ${x.F} sütun, model ${nf} gözləyir`);
     const out = await this.session.run({ [inName]: new this.ort.Tensor('float32', x.data, [1, x.T, x.F]) });
     const logits = out[this.manifest.output.name].data;
-    const C = this.labels.length;
+    const M = this.manifest.labels.length, C = this.labels.length;
     const probs = new Float32Array(x.T * C);
-    for (let t = 0; t < x.T; t++) probs.set(softmax(logits.subarray(t * C, (t + 1) * C)), t * C);
+    for (let t = 0; t < x.T; t++) probs.set(this.#mergeProbs(softmax(logits.subarray(t * M, (t + 1) * M))), t * C);
     return { T: x.T, C, probs, ms: performance.now() - t0 };
   }
 }
