@@ -433,7 +433,7 @@ body.tercume {
 .tercume select {
   appearance: none;
   -webkit-appearance: none;
-  padding-right: 40px;
+  padding-right: 44px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%2393a7cc' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 16px center;
@@ -480,13 +480,53 @@ body.tercume {
       background-image: none; /* ::picker-icon əvəzləyir - :hover/:focus-un köhnə SVG oxu (yuxarıda) daha spesifik olduğu üçün ayrıca sıfırlanır, ikiqat ox olmasın */
     }
 
+    /* Mətn sol, ox sağ kənara yapışıq (margin-inline-start:auto boş yeri udur),
+       aralarında minimum 14px (select-in öz gap-i) qalır. padding-right 16px -
+       fallback-ın 44px-i (köhnə background-image chevron üçün) əvəzinə, burada
+       real flex ikon olduğu üçün sağ kənarla ox arası birbaşa bu padding-dir. */
+    .tercume select {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-right: 16px;
+    }
+
+    /* Standart ::picker-icon dolu üçbucaqdır (▼) - mask ilə nazik, qapalı
+       kontursuz "v" chevron-a əvəz olunur (SVG: yalnız polyline, fill:none,
+       stroke-width 1.6), background:currentColor+color ilə rənglənir.
+       align-self:center - sabit hündürlüklü flex item defolt olaraq
+       cross-axis-in başına (yuxarı) yapışırdı (stretch sabit ölçünü
+       dəyişə bilmir), bu da "yuxarı çəkilmiş" görünüşün səbəbi idi. */
     .tercume select::picker-icon {
+      content: '';
+      display: block;
+      align-self: center;
+      flex-shrink: 0;
+      width: 12px;
+      height: 12px;
+      min-width: 12px; /* content:''-in öz content-əsaslı minimumu 0-dır, flex sıxılanda
+        (uzun mətn) ikon 0-a qədər sıxılırdı - sabit minimum bunun qarşısını alır */
+      min-height: 12px;
+      margin-inline-start: auto;
+      margin-block: 0;
+      line-height: 1;
       color: #93a7cc;
+      background: currentColor;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpolyline points='2,4 6,8 10,4' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+      transform-origin: center;
       transition: rotate 0.15s ease;
     }
 
     .tercume select:open::picker-icon {
       rotate: 180deg;
+    }
+
+    /* Uzun mətn (məs. "cümlə - fasiləsiz, söz-söz (sınaq)") oxla üst-üstə
+       düşməsin - mətn kəsilib ellipsis olsun, ox sabit qalsın. */
+    .tercume select {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     .tercume select:open {
