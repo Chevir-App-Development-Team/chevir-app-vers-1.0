@@ -8,7 +8,8 @@
  */
 import { createLandmarkers, detectFrame, LandmarkClip } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
-import { CONT_MODEL_BASE, SIGN_MERGE_URL } from './paths.js';
+import { CONT_MODEL_BASE, GLOSS_TEXT_URL, SIGN_MERGE_URL } from './paths.js';
+import { GlossToText } from './gloss2text.js';
 import {
   CONTINUOUS_VERSION, DECODE, nearestSentence, Resampler, SentenceStream, shortClasses, STREAM, WindowStream,
 } from './continuous.js';
@@ -18,8 +19,9 @@ export class SignToSentence {
    * @param {object} o
    * @param {HTMLVideoElement} o.video
    * @param {(e: {frame, aspect, fileProgress?}) => void} [o.onFrame] hər emal olunmuş kamera kadrı
-   * @param {(e: {words, added, sentence, ms}) => void} [o.onWords] yeni yekun sözlər (cari cümlə)
-   * @param {(e: {words, match}) => void} [o.onSentence] cümlə bağlandı; match — ən yaxın AzSLD cümləsi
+   * @param {(e: {words, added, sentence, text, ms}) => void} [o.onWords] yeni yekun sözlər (cari cümlə)
+   * @param {(e: {words, match, text}) => void} [o.onSentence] cümlə bağlandı; match — ən yaxın AzSLD cümləsi,
+   *   text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
    * @param {(e: {stage, message}) => void} [o.onStatus]
    */
   constructor({ video, onFrame, onWords, onSentence, onStatus, base = CONT_MODEL_BASE } = {}) {
@@ -48,6 +50,10 @@ export class SignToSentence {
       // cümlələrin glosları da modelin birləşmiş siniflərinə gətirilir
       if (r.ok) this.known = (await r.json()).map((x) => ({ ...x, glosses: x.glosses.map(this.rec.group) }));
     } catch { /* cümlə siyahısı olmasa da işləyir */ }
+    try {                                     // siyahıda olmayan cümlə: işarələrdən Azərbaycan mətni
+      const r = await fetch(GLOSS_TEXT_URL);
+      if (r.ok) this.g2t = new GlossToText(await r.json());
+    } catch { /* model olmasa işarələrin adları göstərilir */ }
     this.onStatus?.({ stage: 'landmarker', message: `MediaPipe yüklənir (əllər, bədən${this.face ? ', üz' : ''})…` });
     this.lms = await createLandmarkers({ face: this.face });
     this.#reset();
@@ -178,11 +184,13 @@ export class SignToSentence {
     const labels = this.rec.labels;
     const fresh = added.map((s) => ({ label: labels[s.c], p: s.p, a: s.a, b: s.b }));
     this.words.push(...fresh);
-    const match = nearestSentence(this.words.map((x) => x.label), this.known);
-    if (fresh.length) this.onWords?.({ words: this.words, added: fresh, sentence: match, ms });
+    const seq = this.words.map((x) => x.label);
+    const match = nearestSentence(seq, this.known);
+    const text = match ? match.text : seq.length ? this.g2t?.generate(seq).text ?? null : null;
+    if (fresh.length) this.onWords?.({ words: this.words, added: fresh, sentence: match, text, ms });
     if (sentenceEnded && this.words.length) {
-      this.sentences.push({ words: this.words, match });
-      this.onSentence?.({ words: this.words, match });
+      this.sentences.push({ words: this.words, match, text });
+      this.onSentence?.({ words: this.words, match, text });
       this.words = [];
     }
   }
