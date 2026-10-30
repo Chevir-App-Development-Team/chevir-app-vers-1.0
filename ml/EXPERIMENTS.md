@@ -1853,3 +1853,144 @@ labels and in one label space where the old and the new merges both hold.
   --install`: fixture reference, sentences.json in the new labels). `verify_cont_model`, `verify_continuous`,
   `verify_sign_merge` (the merge leaves its labels unchanged), `verify_recognizer` and `verify_words` pass; the
   sentence mode loads it ("701 söz"). The word model keeps the browser merge (757 → 702) until it is retrained.
+
+## E16 — The NLP layer, both directions: negation and suffixes in text → sign, sentences from signs (no training)
+
+**Why.** Text → sign showed the positive sign for a negated verb when the lexicon has no negated sign
+("oxumadım" played OXUMAQ: a wrong parse oxu + m + a + dı + m won over the negated one), and spelled
+"6-dan", "2018-ci", "TSEK-ə" letter by letter. Sign → text printed the labels (MƏN BAKI YAŞAMAQ) and only
+a known AzSLD sentence became Azerbaijani text: read as a sentence, the label string is 66 % WER from the
+text even with perfect recognition.
+
+### Text → sign (`morph.js`, `words.js`)
+
+What AzSLD signers do (492 sentences, `scratch/nlp/neg_data.mjs`, `dropped.mjs`): a negated verb is its own
+sign in 26 of 29 cases (BİLMİR, DÜŞMƏMƏK, GÖRMƏMƏK), never "verb + YOX"; "ilə" is signed 0 of 6 times,
+"idi" 0 of 4, "ki" 0 of 2; after a hyphen only the stem is signed (6-dan → 6, TSEK-ə → T S E K).
+
+Changes:
+- `Lemmatizer.key`: a negated verb whose root is a known verb keeps the negated key ("oxu-") even without a
+  negated sign; a verb-only sound change must reach a verb (kar-dır ≠ kart from kard + ır); no one-letter
+  root (iyun ≠ i).
+- `WordLexicon.lookup` / `segment`: a negated verb without its own sign → the verb's sign + YOX (`via: 'neg'`);
+  a hyphenated token drops a suffix-only tail (`suffixOnly`: case, possessive, ordinal -cı) or splits into
+  words (yazıb-oxuya); "ilə", "idi", "ki" (no sign) are `kind: 'drop'`, not spelled. Phrase signs prefer the
+  dictionary form of their last word (başa düşməmək).
+
+| Negated forms of the lexicon's 151 verbs × 6 tenses (906) | own negated sign | verb + YOX | POSITIVE sign | spelled |
+|---|---|---|---|---|
+| before | 90 | – | **313** | 503 |
+| after | 102 | 804 | **0** | 0 |
+
+`tools/eval_text_gloss.mjs` (lexicon 786 signs): words shown as signs dev 92.4 → 93.5 %, test 92.6 → 93.8 %;
+letters spelled dev 1,168 → 1,083; same-gloss F1 dev 0.878 → 0.882, test 0.877 → 0.880. 31 of 492 sentences
+change, all toward the signers' sequence (numbers, hyphenated names, İyun spelled as the signers do, the three
+dropped words), and one old error is gone: positive "başa düşürsüz" had played the negated phrase sign
+BAŞA DÜŞMƏDİM. The verb + YOX fallback is the usual manual negation; the signers' own choice for verbs
+without a negated sign is not in AzSLD (to confirm with the team's signers). `verify_words.mjs`: 11 new cases.
+
+### Sign → text (`inflect.js`, `gloss2text.js`, new)
+
+AzSLD keeps the text's word order (99.4 % of sentences), so each label becomes one word: root + features.
+- `inflect.js` builds word forms (vowel harmony I/A/K/G, buffer y/n/s, kömək → köməyə, get → gedir): nouns
+  (plural, possessive 1-5, 6 cases, predicate, question) and verbs (14 tenses/moods, person incl. colloquial
+  -sIz, negation, question). 34 checked forms right.
+- `gloss2text.js` training: each label is aligned to a text word with the same root (morph.js keys over the
+  label's merged forms, typo-tolerant: OLMUSAM ~ olmuşam), the word's features found by synthesis (which
+  generated form it is), counted in contexts: the label (neighbour classes, next label, alone) and its kind
+  (next label = the case a verb takes: BAKI YAŞAMAQ → Bakıda; neighbour classes). Agreement is a rule: a
+  finite verb and a predicate take the subject's person; a pronoun is genitive when the next noun takes its
+  possessive (MƏN ATA → mənim atam; MƏN BAKI → Mən Bakıda); possessive person is learned as "agrees with the
+  pronoun before". Unseen labels are analysed from their own name (OLACAQ → ol + future). Fingerspelled
+  letters join into one word. Weights tuned on dev (leave-one-out): lc 8, ln 4, l 2, cn 2, cc 1, cr 1, c 0.
+- `tools/eval_gloss_text.mjs`: dev 443 sentences leave-one-out, test = the 49 held-out sentences with a
+  dev-trained model; recognized glosses = the sentence model's `detections_test.csv` (final_merged, 1,484 test
+  recordings), "new sentence" = the sentence removed from the model and from the AzSLD list.
+
+| WER (lower is better) | gloss string | gloss2text |
+|---|---|---|
+| annotated glosses, dev (LOO) | 62.7 % | **49.7 %** |
+| annotated glosses, test (49 held-out sentences) | 68.6 % | **50.2 %** |
+| recognized, new sentence | 66.1 % | **53.0 %** (nearest AzSLD sentence, else gloss2text: 54.0 %) |
+| recognized, known sentence (browser policy: nearest AzSLD sentence, else gloss2text) | 66.1 % | **4.9 %** (nearest alone 6.0 %) |
+
+The nearest-sentence threshold trades the two: maxDist 0.20 → new 53.1 % / known 9.6 %, 0.34 (kept) →
+54.1 % / 5.0 % (`--sweep`). Dev error classes (2,150 reference words, `scratch/nlp/g2t_errors.mjs`): same root
+other form 28 % (mən → mənim/mənə, siz → sizin, question -mı), other word 13 % (synonyms the signers chose,
+label typos, number suffixes), missing 8 % (words with no sign: ilə, implied possessors), extra 0.7 %.
+
+Browser: sentence mode loads `assets/gloss_text.json` (274 KB, 51 KB gzip; `tools/build_gloss_text.mjs`, all
+492 sentences) and shows "Mətn (işarələrdən qurulub): …" when no AzSLD sentence is near. Checked on a real AzSLD
+video (folder 10, Cam2) with the AzSLD list switched off: MƏN ORA DÜNƏN OLMUSAM → "Mən orda dünən olmuşam"
+(= the text). `verify_gloss_text.mjs` (forms, toy training with agreement, the browser model on every
+sentence) and all other `verify_*.mjs` pass. Plan for the next steps: `docs/NLP_PLAN.md`.
+
+## E17 — NLP hygiene before the signer interview: morphology fixes, one label spelling table, a round-trip check, chrF (no training)
+
+**Why.** Before the plan's next steps wait on a signer interview (`docs/SIGNER_INTERVIEW.md`), the shared
+morphology had gaps that both directions inherit: an everyday-word check for the interview material found
+"bilmərəm" spelled letter by letter, and morph.js inferred verb roots from nouns (fikir → "fik", azdır → "azd").
+Label typos lived in a Python dict (`tools/build_words.py` ALIAS) that gloss2text could not read.
+
+Changes:
+- **Negative aorist, 1st person** (gəlmərəm, bilmərik): morph.js strips -mAr like -mAz; inflect.js builds
+  -mAr for persons 1 and 4 (was gəlməzəm). Text → sign: bilmərəm → BİLMİR, gəlmərəm → GƏLMƏK YOX (were spelled).
+- **Key chains**: a lexicon word keyed to another lexicon word takes that word's key (bilərsinizmi → bilər →
+  bil), so word forms pick the least-marked clip of one sign (bilərəm → BİLƏR, not BİLƏRSİNİZMİ; the signers
+  confirmed both are BİLMƏK). 38 of 492 AzSLD sentences change clips.
+- **`ml/label_text.csv`** (label, text, note): the 33 ALIAS entries + 22 typos found by gloss2text's alignment
+  (OLMUSAM, CİXİB, BAGLIDIR, NÖMRE, MEYVE, ŞEXS, ASHAG, KONDİSONER, …). Read by `build_words.py` (ALIAS, used
+  by the avatar and sentence-word builders), `eval_text_gloss.mjs` (was a regex over the Python file) and
+  gloss2text (`prepare(…, text)`: the corrected spelling is one more form of the label and the source of its
+  guessed root). Seven avatar clips renamed to the spelling the builder now gives (ashag → aşağı, havalimanı →
+  hava limanı, ichəri → içəri, kondisoner → kondisioner, rəsimə → rəsmə, göndəri → göndərib, gələcaksiniz →
+  gələcəksiniz; ids kept); İŞARƏT stays, "işarə" has its own clip and the next build merges them.
+- **Verb roots inferred from lexicon words** (no infinitive in the lexicon): 67 → 32. A copula word (ucuzdur,
+  yoxdur) is not a verb; a new root has ≥ 3 letters and its suffix follows vowel harmony (a vowel-final stem
+  takes a consonant: oxu-yur), so fikir, uğur, şeir, təşəkkür are not verbs; present -Ir is never followed by
+  a possessive or case (işt-ir-a-k, end-ir-im, tədb-ir-inə). Fixed: işdir → İŞ (was the junk root of
+  iştirak), azda → AZ, xatırladım → xatırla (was "xat").
+- **Predicate keys, text → sign only** (`new Lemmatizer(words, { predicates: true })` in words.js): ucuzdur →
+  ucuz, so ucuz, rahat, pulsuz, faydalı, halal, baha, ağır reach the signers' UCUZDUR, RAHATDIR, … clips. Off
+  in gloss2text: there it taught "sentence-final noun takes a copula" (idmanam, covidəm, boşalıramam) and cost
+  0.4 dev / 0.9 test WER.
+- Pronoun forms bununla, onlarla.
+- **gloss2text output**: proper nouns keep the capitals of `label_text.csv` (Mən Bakıda yaşayıram, Abşeron);
+  after a sentence-initial pronoun a possessive noun in another case is not the subject, so the pronoun stays
+  the subject (MƏN EV GETMƏK → "Mən evimə gedirəm", was "Mənim evimə gedir"). AzSLD has both readings (7 "mən
+  … çantamı / bacıma" with a 1st-person verb, 6 "mənim … evimə" with another subject); WER unchanged.
+- **Round-trip check** (`verify_gloss_text.mjs` §4): every form inflect.js builds for the lexicon's 116 verb and
+  467 noun roots (171,950 forms, questions aside) must analyse back to its root in morph.js: **99.4 %** (gate
+  99 %). The rest are homographs (adam = ad-ım / adam, bağla = bağ-a / bağla, günü); bare imperatives (al, bax)
+  are not analysed by design (al, it, at are nouns too).
+- **chrF** in `eval_gloss_text.mjs` (character 1–6-grams without spaces, β = 2, mean over orders as in
+  sacrebleu 2): partial credit for a right root in the wrong form.
+
+| Sign → text, annotated glosses (WER) | dev (LOO) | test |
+|---|---|---|
+| E16 | 49.7 % | 50.2 % |
+| + key chains | 49.5 % | 50.2 % |
+| + `label_text.csv` | 48.7 % | 50.7 % |
+| + root filter, predicate keys in gloss2text too | 49.0 % | 50.2 % |
+| root filter, predicate keys only in text → sign (kept) | **48.6 %** | **49.3 %** |
+| + present tense morphotactics, pronoun forms | 48.6 % | 49.3 % |
+
+The +0.5 test step for the label table is one word: *hava limanı* (two words, the right spelling) in an
+AzSLD pair whose text does not match its glosses (MƏN HAVALİMANI KÖMƏK/YARDİM LAZIM OLACAQ ↔ "Məhdudiyyətli
+şəxslərin müxtəlif istedadları olur").
+
+| | E16 | E17 |
+|---|---|---|
+| text → sign, dev: words as signs / letters / same-gloss F1 | 93.5 % / 1,083 / 0.882 | 93.7 % / 1,058 / **0.887** |
+| text → sign, test | 93.8 % / 96 / 0.880 | 93.8 % / 96 / **0.885** |
+| sign → text, dev WER / chrF | 49.7 % | **48.6 %** / 61.1 |
+| sign → text, test WER / chrF | 50.2 % | **49.3 %** / 60.2 |
+| recognized, new sentence: gloss2text (nearest AzSLD sentence, else gloss2text) | 53.0 % (54.0 %) | **51.8 %** / 58.3 (52.9 %) |
+| recognized, known sentence | 4.9 % | **4.8 %** / 95.8 |
+
+One loss: "bitirmək" no longer reaches BİTMƏK; it did only through the blocked nonsense chain bit-ir-m-ə-k.
+Whether a causative verb shows its base verb's sign (bitirmək → BİTMƏK, but öldürmək → ÖLMƏK?) is now an
+interview question (31). Interview material: 124 of 173 everyday words reach a sign; the 49 without one, the
+unclear review signs and 13 avatar sentences that test negation, questions, possession, names and numbers are
+in `docs/SIGNER_INTERVIEW.md`. `gloss_text.json` 281 KB (51 KB gzip). All `verify_*.mjs` pass
+(`verify_words.mjs` +9 cases, `verify_gloss_text.mjs` +3 forms, +2 toy sentences, the round trip).

@@ -306,7 +306,10 @@ models. The server is not built yet. These pieces keep both paths identical:
 - **Sentence mode in the browser:** `src/tercume/s2s.js` resamples the camera to 30 fps and streams
   windows into the continuous model (`continuous.js`: `WindowStream`, `decode`, `SentenceStream`, ports of
   `continuous.py`, checked on `ml/fixtures/continuous_v<N>`). Words are shown when final; 60 blank frames
-  end a sentence, and the nearest AzSLD sentence (`sentences.json`) is suggested under it.
+  end a sentence, and the nearest AzSLD sentence (`sentences.json`) is suggested under it; with none near,
+  the signs become Azerbaijani text (`gloss2text.js`: root + case / person / tense learned from the AzSLD
+  sentences, `assets/gloss_text.json` from `tools/build_gloss_text.mjs`; label spellings from
+  `ml/label_text.csv`; WER and chrF `tools/eval_gloss_text.mjs`, `EXPERIMENTS.md` E16, E17).
 - **Letter mode in the browser:** `src/tercume/letters.js` (`LetterModel`, `strip`, `canonical`) runs the
   letter model on the hand tracker's last 24 frames (`landmarks.js frameFromResults` without body); `s2t.js`
   types a letter when the rules hold. `loadLetterModel` falls back to the old model (`model.js`) if

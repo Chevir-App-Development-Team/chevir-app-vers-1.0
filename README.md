@@ -104,6 +104,8 @@ tools/
   azsld_zip.py           AzSLD zip-indən tək videonu açmadan oxuyur
   stereo_depth.py        yan kamera ilə yoxlama: pose lite / heavy-nin dərinliyi hansı düzgündür
   eval_text_gloss.mjs    mətn → işarə ardıcıllığı, AzSLD-nin 492 cümləsi üzərində
+  build_gloss_text.mjs   işarələr → mətn modeli (gloss2text.js) → public/tercume/assets/gloss_text.json
+  eval_gloss_text.mjs    işarələr → mətn, WER və chrF: annotasiyanın və cümlə modelinin tanıdığı işarələrdən
   verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
                          verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch;
                          verify_segment.mjs: söz rejiminin bölücüsü ↔ Python)
@@ -299,8 +301,10 @@ mənbə qeydi saxlanılır: hansı cümlədən, hansı kadr aralığından kəsi
 sözün lüğət formasıdır. `src/tercume/morph.js` sözü sağdan şəkilçilərə bölür (sıra gözlənilir: zaman,
 cəm, mənsubiyyət, hal, xəbərlik, şəxs, sual), səs dəyişmələrini bərpa edir (uşağ → uşaq, ged → get,
 oğl → oğul) və kökü lüğətin sözləri ilə tutuşdurur: evdə → ev, yaşayıram → yaşamaq. İnkarlı fel
-ayrıca işarədir və ayrıca qalır: bilmirəm → bilmir. Kiçik hərfli mətndə böyük hərflərlə yazılmış
-qısaltma (DOST) hərf-hərf göstərilir. AzSLD-nin 492 cümləsində sözlərin 47 %-i əvəzinə 75–77 %-i
+ayrıca işarədir və ayrıca qalır: bilmirəm → bilmir; inkarlı işarəsi olmayan fel felin işarəsi + YOX
+ilə göstərilir (oxumadım → OXUMAQ YOX), müsbət işarə tək qalmır. Defisdən sonrakı şəkilçi atılır
+(6-dan → 6, TSEK-ə → T S E K), siqnalçıların göstərmədiyi "ilə", "idi", "ki" buraxılır (E16). Kiçik
+hərfli mətndə böyük hərflərlə yazılmış qısaltma (DOST) hərf-hərf göstərilir. AzSLD-nin 492 cümləsində sözlərin 47 %-i əvəzinə 75–77 %-i
 işarə ilə göstərilir (`node tools/eval_text_gloss.mjs`, nəticələr: `ml/EXPERIMENTS.md` E9).
 
 Söz id-ləri fayl adı və URL üçün yalnız `[a-z0-9-]` olur; transliterasiya iki sözü eyni id-yə
