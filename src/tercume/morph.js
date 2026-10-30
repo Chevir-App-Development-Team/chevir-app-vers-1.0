@@ -29,7 +29,7 @@ const put = (slot, ...forms) => forms.flat().forEach((f) => SLOTS.set(f, [...(SL
 put(TAM, v4('Ir'), v4('yIr'), v4('Ib'), v4('yIb'), v4('mIş'), v4('dI'), ['dıq', 'dik', 'duq', 'dük'], v2k('dığ', 'diy'),
   v2k('duğ', 'düy'), v2k('acaq', 'əcək'), v2k('yacaq', 'yəcək'), v2k('acağ', 'əcəy'), v2k('yacağ', 'yəcəy'),
   v2k('acam', 'əcəm'), v2k('yacam', 'yəcəm'), v2('Ar'), v2('yAr'), v2k('malı', 'məli'), v2('sA'), v2('ysA'),
-  v2k('araq', 'ərək'), v2k('yaraq', 'yərək'), v2('An'), v2('yAn'), v2k('maz', 'məz'),
+  v2k('araq', 'ərək'), v2k('yaraq', 'yərək'), v2('An'), v2('yAn'), v2k('maz', 'məz'), v2k('mar', 'mər'),
   v2k('maq', 'mək'), v2k('mağ', 'məy'), v2('A'), v2('yA'));
 put(PL, v2k('lar', 'lər'));
 put(POSS, v4('Im'), 'm', v4('In'), 'n', v4('I'), v4('sI'), v4('ImIz'), v4('mIz'), v4('InIz'), v4('nIz'),
@@ -44,7 +44,8 @@ put(Q, v4('mI'));
 
 const BY_LEN = [...SLOTS.keys()].sort((a, b) => b.length - a.length);
 const PRESENT = new Set(v4('Ir').concat(v4('yIr')));
-const NEG_AORIST = new Set(['maz', 'məz']);
+// İnkarlı qeyri-qəti gələcək: gəl-məz, 1-ci şəxsdə gəl-mər-əm, gəl-mər-ik
+const NEG_AORIST = new Set(['maz', 'məz', 'mar', 'mər']);
 // Adla da üst-üstə düşən zaman şəkilçiləri (bazar, hava, insan): felin kökü yalnız
 // bunlardan başqası ilə tanınır (sev-ir-əm, al-mış-am)
 const WEAK_TAM = new Set([...v2('A'), ...v2('yA'), ...v2('Ar'), ...v2('yAr'), ...v2('An'), ...v2('yAn'),
@@ -59,8 +60,8 @@ const PRONOUNS = {
   o: ['onun', 'onu', 'ona', 'onda', 'ondan', 'onunla'],
   biz: ['bizim', 'bizi', 'bizə', 'bizdə', 'bizdən', 'bizimlə'],
   siz: ['sizin', 'sizi', 'sizə', 'sizdə', 'sizdən', 'sizinlə'],
-  onlar: ['onların', 'onları', 'onlara', 'onlarda', 'onlardan'],
-  bu: ['bunun', 'bunu', 'buna', 'bunda', 'bundan'],
+  onlar: ['onların', 'onları', 'onlara', 'onlarda', 'onlardan', 'onlarla'],
+  bu: ['bunun', 'bunu', 'buna', 'bunda', 'bundan', 'bununla'],
   bura: ['burda', 'burdan', 'burada', 'buradan', 'buraya'],
   ora: ['orda', 'ordan', 'orada', 'oradan', 'oraya'],
   hara: ['harda', 'hardan', 'harada', 'haradan', 'haraya'],
@@ -70,6 +71,22 @@ const PRONOUN_OF = new Map(Object.entries(PRONOUNS).flatMap(([p, forms]) => form
 const isVowel = (c) => VOWELS.includes(c);
 const hasVowel = (s) => [...s].some(isVowel);
 const lastVowel = (s) => [...s].reverse().find(isVowel);
+
+// Xəbər (ucuzdur, yoxdur, məndədir) fel deyil: -dIr-dan əvvəlki söz
+const COPULA = new Set(v4('dIr'));
+const predicate = (w) => {
+  const s = w.slice(0, -3);
+  return COPULA.has(w.slice(-3)) && s.length >= 2 && hasVowel(s) ? s : null;
+};
+// Felin şəkilçisi kökə ahənglə qoşulur, saitlə bitən kökə samitlə (oxu-yur, şe-ir yox, təşəkk-ür yox)
+function fits(stem, rest) {
+  if (isVowel(stem.at(-1)) && isVowel(rest[0])) return false;
+  const v = lastVowel(stem), s = [...rest].find(isVowel);
+  if (!v || !s) return true;
+  if ('ıiuü'.includes(s)) return s === ('aı'.includes(v) ? 'ı' : 'ou'.includes(v) ? 'u' : 'öü'.includes(v) ? 'ü' : 'i');
+  if ('aə'.includes(s)) return (s === 'a') === BACK.includes(v);
+  return true;
+}
 
 /** Məsdər şəkilçisi ahəngə görə: yaşa → yaşamaq, get → getmək. */
 export const infinitive = (stem) => stem + (BACK.includes(lastVowel(stem) ?? 'a') ? 'maq' : 'mək');
@@ -103,6 +120,8 @@ export function candidates(word) {
       for (const slot of SLOTS.get(suf)) {
         if (slot >= below) continue;
         if (slot === TAM) {
+          // indiki zamandan sonra mənsubiyyət və hal gəlmir: işt-ir-ak, end-ir-im, tədb-ir-inə fel deyil
+          if (PRESENT.has(suf) && (below === POSS || below === CASE)) continue;
           const strong = !WEAK_TAM.has(suf);
           if (NEG_AORIST.has(suf)) { add(rest, true, true, true); continue; }
           add(rest, false, true, strong);
@@ -120,6 +139,20 @@ export function candidates(word) {
   };
   walk(word, Q + 1, false);
   return [...out.values()].sort((a, b) => b.stem.length - a.stem.length || b.neg - a.neg);
+}
+
+// Sıra sayının şəkilçisi rəqəmdən sonra defislə yazılır: 2-ci, 6-cı, 2018-ci
+const ORDINAL = new Set([...v4('IncI'), ...v4('ncI'), ...v4('cI')]);
+
+/**
+ * Defisdən sonrakı hissə yalnız şəkilçidirmi (6-dan, TSEK-ə, 2-ci, 12-də)? Onda işarə defisdən
+ * əvvəlki hissədir; yoxsa iki ayrı sözdür (yazıb-oxuya).
+ */
+export function suffixOnly(s) {
+  if (!s || !hasVowel(s)) return false;
+  if (ORDINAL.has(s)) return true;
+  // istənilən kök: şəkilçilər soyulub "ev"ə enməlidir (zəncir fel kimi də oxuna bilər: ev-ə)
+  return candidates(`ev${s}`).some((c) => c.stem === 'ev' && !c.neg);
 }
 
 /**
@@ -150,7 +183,8 @@ export function variants(stem, verb = false) {
  *  - qalan sözlər özləri açardır.
  */
 export class Lemmatizer {
-  constructor(words) {
+  /** predicates: xəbərin açarı -dIr-dan əvvəlki sözdür (ucuzdur → ucuz; mətn → işarə üçün). */
+  constructor(words, { predicates = false } = {}) {
     this.verbs = new Set();
     const plain = [], infinitives = new Map();
     for (const w of new Set(words)) {
@@ -168,30 +202,46 @@ export class Lemmatizer {
     // Məsdəri lüğətdə olmayan fellər: sevirəm, sevmirəm → "sev". Məlum felə uyğun gələn
     // forma (işləmir → işlə) yeni kök yaratmır; yoxsa ən qısa etibarlı gövdə götürülür.
     for (const w of plain) {
+      if (predicate(w)) continue;
       const strong = candidates(w).filter((x) => x.strong && x.stem !== w);
       if (!strong.length || strong.some((x) => variants(x.stem, true).some((v) => this.verbs.has(v)))) continue;
-      this.verbs.add(strong.at(-1).stem);
+      // yeni kök: ən azı üç hərf, şəkilçi ona uyğundur (fikir, uğur, təşəkkür fel deyil)
+      const ok = strong.filter((x) => x.stem.length >= 3 && fits(x.stem, w.slice(x.stem.length)));
+      if (ok.length) this.verbs.add(ok.at(-1).stem);
     }
     this.roots = new Set([...this.verbs, ...infinitives.values()]);
     this.keyOfWord = new Map(infinitives);       // lüğətin sözü → açar
     const nouns = new Set(plain);
     for (const w of plain) {
       let key = w;
+      const p = predicate(w);
       for (const c of candidates(w)) {
         if (c.stem === w) continue;
         const hit = c.verb && variants(c.stem, true).find((v) => this.verbs.has(v));
         if (hit) { key = keyOf(hit, c.neg); break; }
+        if (p) continue;
         const noun = variants(c.stem).find((v) => nouns.has(v) && v !== w);
         if (noun && c.chain >= 2 && v3(noun)) { key = noun; break; }
       }
+      // xəbərin açarı -dIr-dan əvvəlki sözdür: ucuzdur → ucuz, məndədir → mən (ged-ir isə feldir)
+      if (key === w && p && predicates) key = PRONOUN_OF.get(p) ?? p;
       this.keyOfWord.set(w, key);
-      this.roots.add(key);
+    }
+    // Açar özü lüğətin başqa açarlı sözüdürsə, onun açarı: bilərsinizmi → bilər → bil
+    for (const [w, key] of this.keyOfWord) {
+      let k = key;
+      for (let n = 0; n < 3 && nouns.has(k) && this.keyOfWord.get(k) !== k; n++) k = this.keyOfWord.get(k);
+      this.keyOfWord.set(w, k);
+      this.roots.add(k);
     }
   }
 
-  /** Söz lüğət formasıdırmı (kök ad, məsdər)? Eyni açarlı sözlərdən hansını göstərmək üçün. */
-  isBase(word) {
-    const key = this.keyOfWord.get(word);
+  /**
+   * Söz lüğət formasıdırmı (kök ad, məsdər)? Eyni açarlı sözlərdən hansını göstərmək üçün.
+   * `analyse` — söz lüğətin tək sözü deyilsə (ifadənin sözü), açarı təhlillə tapılır.
+   */
+  isBase(word, analyse = false) {
+    const key = this.keyOfWord.get(word) ?? (analyse ? this.key(word) ?? undefined : undefined);
     if (key === undefined) return false;
     if (key === word) return true;
     const stem = key.replace(/-$/, '');
@@ -210,12 +260,31 @@ export class Lemmatizer {
   /**
    * Sözün açarı: məlum köklərdən ən uzunu, yoxsa null. Şəkilçisiz qısa fel kökü fel sayılmır
    * ("it" heyvandır, "itmək" deyil; "at" — "atmaq" deyil).
+   *
+   * İnkarlı fel (kökü məlum feldir) inkarlı açar alır, lüğətdə inkarlı işarəsi olmasa da:
+   * "oxumadım" → "oxu-". Yoxsa mənasız bölünmə (oxu + m + a + dı + m) müsbət felə, OXUMAQ-a çıxırdı;
+   * işarəsi olmayan inkarı lüğət özü həll edir (WordLexicon.lookup: fel + YOX).
    */
   key(word) {
     if (this.keyOfWord.has(word)) return this.keyOfWord.get(word);
-    for (const { stem, neg, verb, chain } of candidates(word)) {
+    const cands = candidates(word);
+    const neg = cands.find((c) => c.neg && variants(c.stem, true).some((v) => this.verbs.has(v)));
+    if (neg) {
+      const verbs = variants(neg.stem, true).filter((v) => this.verbs.has(v));
+      for (const v of verbs) {
+        const k = keyOf(v, true);
+        if (this.roots.has(k)) return k;
+        if (this.keyOfWord.has(k)) return this.keyOfWord.get(k);
+      }
+      return keyOf(verbs[0], true);
+    }
+    for (const { stem, neg: n, verb, strong, chain } of cands) {
       for (const v of variants(stem, verb)) {
-        const k = keyOf(v, neg);
+        // Bir hərfli kök yoxdur (iyun ≠ i), əvəzliyin özündən başqa (onun → o)
+        if (v.length < 2 && chain > 0 && PRONOUN_OF.get(word) !== v) continue;
+        // Felin səs dəyişməsi (ged → get) fel köküne aparmalıdır: kar-dır ≠ kart (kard + ır)
+        if (v !== stem && strong && !this.verbs.has(v)) continue;
+        const k = keyOf(v, n);
         if (chain === 0 && v === word && word.length < 4 && this.verbs.has(k)) continue;
         if (this.roots.has(k)) return k;
         if (this.keyOfWord.has(k)) return this.keyOfWord.get(k);

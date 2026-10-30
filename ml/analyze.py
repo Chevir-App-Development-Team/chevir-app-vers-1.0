@@ -19,6 +19,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from azsl.train import scores  # noqa: E402
+from groups import load_groups  # noqa: E402
 
 KEYS = ('top1', 'top5', 'macro_f1', 'balanced_acc')
 
@@ -44,30 +45,6 @@ def merged_scores(run_dir, groups, which='test_words'):
     p = pz[f'{which}_probs'].astype(np.float32) @ M
     y = np.array([fams.index(to[vocab[c]]) for c in pz[f'{which}_labels']])
     return scores(p, y), len(fams)
-
-
-YES = ('yes', 'y', 'bəli', 'hə', 'he')
-NO = ('no', 'n', 'xeyr', 'yox')
-
-
-def load_groups(path, confirmed_only=True):
-    """gloss → family. A form marked yes joins its family; the family's base form (gloss == group)
-    joins automatically unless it is marked no. Empty or no = the form stays its own class."""
-    with open(path, newline='', encoding='utf-8') as f:
-        rows = [{k: (v or '').strip() for k, v in r.items()} for r in csv.DictReader(f)]
-    out = {}
-    for r in rows:
-        if not confirmed_only or r['confirmed'].lower() in YES:
-            out[r['gloss']] = r['group']
-    if confirmed_only:
-        for r in rows:
-            if r['gloss'] == r['group'] and r['group'] in out.values() and r['confirmed'].lower() not in NO:
-                out[r['gloss']] = r['group']
-    # a family needs at least two forms to merge anything
-    sizes = {}
-    for fam in out.values():
-        sizes[fam] = sizes.get(fam, 0) + 1
-    return {g: fam for g, fam in out.items() if sizes[fam] > 1}
 
 
 def fmt(d):

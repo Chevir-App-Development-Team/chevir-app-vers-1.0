@@ -8,7 +8,8 @@
  */
 import { createLandmarkers, detectFrame, LandmarkClip } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
-import { CONT_MODEL_BASE } from './paths.js';
+import { CONT_MODEL_BASE, GLOSS_TEXT_URL, SIGN_MERGE_URL } from './paths.js';
+import { GlossToText } from './gloss2text.js';
 import {
   CONTINUOUS_VERSION, DECODE, nearestSentence, Resampler, SentenceStream, shortClasses, STREAM, WindowStream,
 } from './continuous.js';
@@ -18,8 +19,9 @@ export class SignToSentence {
    * @param {object} o
    * @param {HTMLVideoElement} o.video
    * @param {(e: {frame, aspect, fileProgress?}) => void} [o.onFrame] hər emal olunmuş kamera kadrı
-   * @param {(e: {words, added, sentence, ms}) => void} [o.onWords] yeni yekun sözlər (cari cümlə)
-   * @param {(e: {words, match}) => void} [o.onSentence] cümlə bağlandı; match — ən yaxın AzSLD cümləsi
+   * @param {(e: {words, added, sentence, text, ms}) => void} [o.onWords] yeni yekun sözlər (cari cümlə)
+   * @param {(e: {words, match, text}) => void} [o.onSentence] cümlə bağlandı; match — ən yaxın AzSLD cümləsi,
+   *   text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
    * @param {(e: {stage, message}) => void} [o.onStatus]
    */
   constructor({ video, onFrame, onWords, onSentence, onStatus, base = CONT_MODEL_BASE } = {}) {
@@ -32,7 +34,7 @@ export class SignToSentence {
 
   async init() {
     this.onStatus?.({ stage: 'loading', message: 'Cümlə modeli yüklənir…' });
-    this.rec = await LocalRecognizer.load(this.base);
+    this.rec = await LocalRecognizer.load(this.base, { merge: SIGN_MERGE_URL });   // eyni işarənin formaları bir söz
     const m = this.rec.manifest;
     if (m.kind !== 'continuous') throw new Error('bu model davamlı tanıma üçün deyil');
     if ((m.continuous_version ?? 1) > CONTINUOUS_VERSION) {
@@ -41,15 +43,21 @@ export class SignToSentence {
     this.p = { ...STREAM, ...m.stream };
     this.dp = { ...DECODE, ...m.decode };
     this.face = !m.works_without_face;
-    this.unk = m.unknown_label ? m.labels.indexOf(m.unknown_label) : null;
+    const unk = m.unknown_label ? this.rec.labels.indexOf(m.unknown_label) : -1;
+    this.unk = unk >= 0 ? unk : null;
     try {                                     // AzSLD cümlələri: tanınan ardıcıllığa ən yaxın mətn
       const r = await fetch(`${this.base}sentences.json`);
-      if (r.ok) this.known = await r.json();
+      // cümlələrin glosları da modelin birləşmiş siniflərinə gətirilir
+      if (r.ok) this.known = (await r.json()).map((x) => ({ ...x, glosses: x.glosses.map(this.rec.group) }));
     } catch { /* cümlə siyahısı olmasa da işləyir */ }
+    try {                                     // siyahıda olmayan cümlə: işarələrdən Azərbaycan mətni
+      const r = await fetch(GLOSS_TEXT_URL);
+      if (r.ok) this.g2t = new GlossToText(await r.json());
+    } catch { /* model olmasa işarələrin adları göstərilir */ }
     this.onStatus?.({ stage: 'landmarker', message: `MediaPipe yüklənir (əllər, bədən${this.face ? ', üz' : ''})…` });
     this.lms = await createLandmarkers({ face: this.face });
     this.#reset();
-    const n = m.labels.length - 1 - (m.unknown_label ? 1 : 0);
+    const n = this.rec.labels.length - 1 - (this.unk === null ? 0 : 1);
     this.onStatus?.({ stage: 'ready', message: `Hazır · ${n} söz, davamlı` });
   }
 
@@ -176,11 +184,13 @@ export class SignToSentence {
     const labels = this.rec.labels;
     const fresh = added.map((s) => ({ label: labels[s.c], p: s.p, a: s.a, b: s.b }));
     this.words.push(...fresh);
-    const match = nearestSentence(this.words.map((x) => x.label), this.known);
-    if (fresh.length) this.onWords?.({ words: this.words, added: fresh, sentence: match, ms });
+    const seq = this.words.map((x) => x.label);
+    const match = nearestSentence(seq, this.known);
+    const text = match ? match.text : seq.length ? this.g2t?.generate(seq).text ?? null : null;
+    if (fresh.length) this.onWords?.({ words: this.words, added: fresh, sentence: match, text, ms });
     if (sentenceEnded && this.words.length) {
-      this.sentences.push({ words: this.words, match });
-      this.onSentence?.({ words: this.words, match });
+      this.sentences.push({ words: this.words, match, text });
+      this.onSentence?.({ words: this.words, match, text });
       this.words = [];
     }
   }

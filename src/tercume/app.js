@@ -171,15 +171,15 @@ function initS2T() {
           state.skelS2T?.setPose(hands[0] ?? null);
           $('#ring-label').textContent = hands.length ? 'jest' : 'istirahət';
         },
-        onWords: ({ words, added, sentence, ms }) => {
-          renderSentence(words, added.length, sentence);
+        onWords: ({ words, added, sentence, text, ms }) => {
+          renderSentence(words, added.length, sentence, text);
           const last = added[added.length - 1];
           if (last) renderPredictions([{ label: last.label, p: last.p }]);
           $('#sentence-info').textContent = `+${added.length} · ${Math.round(ms)} ms`;
         },
-        onSentence: ({ words, match }) => {
+        onSentence: ({ words, match, text }) => {
           const li = document.createElement('li');
-          li.textContent = words.map((w) => w.label).join(' ') + (match ? `  ≈  ${match.text}` : '');
+          li.textContent = words.map((w) => w.label).join(' ') + (text ? `  ${match ? '≈' : '→'}  ${text}` : '');
           $('#sentence-history').prepend(li);
           renderSentence([], 0, null);
         },
@@ -311,13 +311,14 @@ function renderSigns(signs, nNew = 0) {
     : '<span class="muted">boş</span>';
 }
 
-function renderSentence(words, nNew, match) {
+function renderSentence(words, nNew, match, text = null) {
   $('#sentence-words').innerHTML = words.length
     ? words.map((w, i) => `<span class="s${i >= words.length - nNew ? ' new' : ''}">${escapeHtml(w.label)}<em>${Math.round(w.p * 100)}%</em></span>`).join('')
     : '<span class="muted">boş</span>';
+  // Mətn: AzSLD-də yaxın cümlə varsa onun mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
   const m = $('#sentence-match');
-  m.hidden = !match;
-  if (match) m.textContent = `AzSLD-də ən yaxın cümlə: ${match.text}`;
+  m.hidden = !text;
+  if (text) m.textContent = match ? `AzSLD-də ən yaxın cümlə: ${text}` : `Mətn (işarələrdən qurulub): ${text}`;
 }
 
 function renderDecode({ candidates, best, verified, suggestions, letters }) {

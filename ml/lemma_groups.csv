@@ -12,14 +12,14 @@ GETMƏK,GETMƏK,yes,to go
 GETMƏK,GEDƏ,yes,(that) goes
 OLMAQ,OLMAQ,yes,to be
 OLMAQ,OLMUSUZ,yes,you have been
-OLMAQ,OLUR,yes,happens / is
-OLMAQ,OLACAQ,yes,will be
+OLMAQ,OLUR,no,happens / is; word-form review 2026-10: xeyr; [orta] Nisbət 1.26 həddən yuxarı; ayır.
+OLMAQ,OLACAQ,no,"will be; word-form review 2026-10: xeyr; [yüksək] NN 1.0, nisbət 1.35, 123 klip — ayır."
 ETMƏK,ETMƏK,yes,to do
-ETMƏK,EDİR,yes,does
+ETMƏK,EDİR,no,does; word-form review 2026-10: xeyr; [yüksək] 'Təşəkkür edirəm' vs 'Xahiş edirəm' — fərqli işarələr; ayır.
 BİLMƏK,BİLMƏK,yes,to know / can
 BİLMƏK,BİLƏR,yes,can / knows
 İŞLƏMƏK,İŞLƏMƏK,yes,to work
-İŞLƏMƏK,İŞLƏMİR,yes,does not work
+İŞLƏMƏK,İŞLƏMİR,no,does not work; word-form review 2026-10: xeyr; [yüksək] İnkar forması + başqa məna ('telefon işləmir'); birləşmə inkarı itirir — ayır.
 İŞLƏMƏK,İŞSİZ,yes,"unemployed: run 2 recall 0/5, read as İŞLƏMƏK"
 YOX,YOX,yes,no
 YOX,YOXDUR,yes,there is not
@@ -29,3 +29,72 @@ ORA,ORA,yes,there
 ORA,ORDA,yes,over there (locative)
 BURA,BURA,yes,here
 BURA,BURDA,yes,in here (locative)
+ACMİŞAM,ACAM,yes,"word-form review 2026-10: bəli; [yüksək] Ölçülər eyni. Diqqət: AC sinfi ACMİŞAM-dan fərqli çıxır (#65) — AC klipləri 'ac deyiləm'dəndirsə, inkar qarışıb."
+ACMİŞAM,ACMİŞAM,yes,"word-form review 2026-10: bəli; [yüksək] Ölçülər eyni. Diqqət: AC sinfi ACMİŞAM-dan fərqli çıxır (#65) — AC klipləri 'ac deyiləm'dəndirsə, inkar qarışıb."
+ALMAQ,ALMALIYAM,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni; nümunə cümlədə 'almalıyam' yoxdur ('aldıqlarımı') — etiket-cümlə uyğunsuzluğu.
+ALMAQ,ALMAQ,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni. ALMAQ (500) çoxmənalıdır: almaq / təhsil almaq / pensiya almaq — sinfi mənaya görə yoxla.
+ALMAQ,ALMIŞAM,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni. ALMAQ (500) çoxmənalıdır: almaq / təhsil almaq / pensiya almaq — sinfi mənaya görə yoxla.
+BAHALAŞMAQ,BAHALAŞMAQ,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni; BAHALAŞMAQ cəmi 17 klipdir.
+BAHALAŞMAQ,BAHALAŞİB,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni; BAHALAŞMAQ cəmi 17 klipdir.
+BAXMAQ,BAXMAQ,yes,word-form review 2026-10: beli (eslinde ikisi de baxmaqdir); [orta] Ölçülər ayırır (0.94 / 1.33).
+BAXMAQ,BAXMIŞAM,yes,word-form review 2026-10: beli (eslinde ikisi de baxmaqdir); [orta] Ölçülər ayırır (0.94 / 1.33).
+BİLMƏK,BİLİR,yes,"word-form review 2026-10: bəli; [orta] Ölçülər eyni, amma 'bilmək' iki mənalıdır (bilmək / bacarmaq). BİLMƏK (372) qarışıqdırsa, sinfin özü bölünməlidir."
+BİLMƏK,BİLƏRSİNİZMİ,yes,word-form review 2026-10: bəli; [yüksək] Hər ikisi 'bacarmaq' mənasında; ölçülər eyni.
+BİTMƏK,BİTMƏK,yes,word-form review 2026-10: bəli; [yüksək] Hər iki nümunə eyni 'bitib' formasıdır — annotasiya uyğunsuzluğu.
+BİTMƏK,BİTİB,yes,word-form review 2026-10: bəli; [yüksək] Hər iki nümunə eyni 'bitib' formasıdır — annotasiya uyğunsuzluğu.
+CİXİB,CİXİB,yes,word-form review 2026-10: bəli; [yüksək] Zaman/şəxs şəkilçisi; ölçülər eyni.
+CİXİB,CİXİRİQ,yes,word-form review 2026-10: bəli; [yüksək] Zaman/şəxs şəkilçisi; ölçülər eyni.
+DEYİL,DEYİL,yes,"word-form review 2026-10: bəli; [yüksək] Şəxs şəkilçisi; NN 0.50, nisbət 0.99."
+DEYİL,DEYİLƏM,yes,"word-form review 2026-10: bəli; [yüksək] Şəxs şəkilçisi; NN 0.50, nisbət 0.99."
+DOST,DOST,yes,word-form review 2026-10: bəli; [yüksək] Mənsubiyyət/cəm; ölçülər eyni. DOST sinfinə 'DOST Mərkəzi' (qurum adı) klipləri qarışmadığını yoxla.
+DOST,DOSTLARİM,yes,word-form review 2026-10: bəli; [yüksək] Mənsubiyyət/cəm; ölçülər eyni. DOST sinfinə 'DOST Mərkəzi' (qurum adı) klipləri qarışmadığını yoxla.
+DİL,DİL,yes,word-form review 2026-10: bəli; [yüksək] Hal şəkilçisi; ölçülər eyni.
+DİL,DİLİNİ,yes,word-form review 2026-10: bəli; [yüksək] Hal şəkilçisi; ölçülər eyni.
+EDƏCƏYİK,EDƏCƏM,yes,word-form review 2026-10: bəli; [orta] #25 ilə eyni kontekst (müraciət edəcəyəm); ölçülər eyni.
+EDƏCƏYİK,EDƏCƏYİK,yes,word-form review 2026-10: bəli; [orta] Hər ikisi 'müraciət/xəbər edəcəyəm' kontekstindən; ölçülər eyni. etmək ailəsi üçün ümumi qeydə bax.
+EDƏCƏYİK,EDƏCƏYƏM,yes,word-form review 2026-10: bəli; [orta] Hər ikisi 'müraciət/xəbər edəcəyəm' kontekstindən; ölçülər eyni. etmək ailəsi üçün ümumi qeydə bax.
+EŞİTMƏ,EŞİTMƏ,yes,word-form review 2026-10: bəli; [yüksək] Hal şəkilçisi; ölçülər eyni.
+EŞİTMƏ,EŞİTMƏNİ,yes,word-form review 2026-10: bəli; [yüksək] Hal şəkilçisi; ölçülər eyni.
+GETMƏK,GEDİR,yes,word-form review 2026-10: bəli; [yüksək] İndiki zaman forması; ölçülər eyni.
+GETMƏK,GEDƏCƏM,yes,"word-form review 2026-10: bəli; [orta] Ölçülər eyni deyir, amma digər gələcək formalar (GƏLƏCƏK, YAZACAM) fərqli çıxıb — 2-3 klipə bax."
+GETMƏK,GETMİŞƏM,yes,word-form review 2026-10: bəli (ikisinde de getmek var); [orta] Ölçülər ayırır (0.94 / 1.30); keçmiş zaman markeri klipə düşmüş ola bilər.
+GÖRMƏK,GÖRMÜŞƏM,yes,word-form review 2026-10: beli (eslinde ikisi de gormekdir); [yüksək] Ölçülər ayırır (0.88 / 1.47).
+GÖRMƏK,GÖRMƏK,yes,word-form review 2026-10: beli (eslinde ikisi de gormekdir); [yüksək] Ölçülər ayırır (0.88 / 1.47).
+GƏZMƏK,GƏZMƏK,yes,"word-form review 2026-10: bəli; [yüksək] NN 0.50 (şans), nisbət 1.04 — eyni."
+GƏZMƏK,GƏZMƏYƏ,yes,"word-form review 2026-10: bəli; [yüksək] NN 0.50 (şans), nisbət 1.04 — eyni."
+HARA,HARA,yes,word-form review 2026-10: bəli; [yüksək] HARADA/HARDA/HARA eyni sual sözüdür; ölçülər eyni.
+HARA,HARADA,yes,word-form review 2026-10: bəli; [yüksək] HARADA/HARDA/HARA eyni sual sözüdür; ölçülər eyni.
+HARA,HARDA,yes,word-form review 2026-10: bəli; [yüksək] HARDA = HARADA-nın danışıq forması; ölçülər eyni.
+KÖMƏK/YARDİM,KÖMƏK,yes,"word-form review 2026-10: bəli; [yüksək] Sinonimlər; NN 0.56, nisbət 0.99 — eyni işarə. Birləşmiş sinfə vahid ad ver (məs. KÖMƏK/YARDIM)."
+KÖMƏK/YARDİM,YARDİM,yes,word-form review 2026-10: bəli; [yüksək] Hal şəkilçisi; ölçülər eyni.
+KÖMƏK/YARDİM,YARDİMİ,yes,word-form review 2026-10: bəli; [yüksək] Hal şəkilçisi; ölçülər eyni.
+KƏND/RAYON,KƏND,yes,word-form review 2026-10: bəli; [orta] Ölçülər güclü eyni deyir (0.38 / 1.02). Mətn çıxışında kənd/rayon seçimi kontekstdən. AzSL bilən biri təsdiqləsin.
+KƏND/RAYON,RAYON,yes,"word-form review 2026-10: beli (rayon, shekilci problemi); [orta] Ölçülər ayırır (1.0 / 1.48); çoxluq işarəsi ola bilər."
+KƏND/RAYON,RAYONLARDA,yes,"word-form review 2026-10: beli (rayon, shekilci problemi); [orta] Ölçülər ayırır (1.0 / 1.48); çoxluq işarəsi ola bilər."
+OLMAQ,OLAN,yes,"word-form review 2026-10: bəli; [orta] Ölçülər eynidir (0.44 / 1.08). OLMAQ çoxmənalıdır: OLAR, OLMALIDIR, OLDUĞUM ayrı qalmalıdır."
+QALIB,QALDIQ,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni; 'qalmaq' burada köməkçi feldir ('razı qaldıq') — ayrıca işarə olub-olmadığını yoxla.
+QALIB,QALIB,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni; 'qalmaq' burada köməkçi feldir ('razı qaldıq') — ayrıca işarə olub-olmadığını yoxla.
+QIZ,QIZ,yes,word-form review 2026-10: bəli; [orta] Nisbət 1.19 həddə yaxındır; 'mənim' göstərmə işarəsi klipə düşə bilər.
+QIZ,QIZIM,yes,word-form review 2026-10: bəli; [orta] Nisbət 1.19 həddə yaxındır; 'mənim' göstərmə işarəsi klipə düşə bilər.
+RAZI,RAZ,yes,"word-form review 2026-10: bəli; [yüksək] RAZ kəsik etiketdir ('razısınız' -> RAZ) — ölçü lazım deyil, etiket təmizliyi."
+RAZI,RAZI,yes,"word-form review 2026-10: bəli; [yüksək] RAZ kəsik etiketdir ('razısınız' -> RAZ) — ölçü lazım deyil, etiket təmizliyi."
+RAZI,RAZIYAM,yes,word-form review 2026-10: bəli; [orta] Ölçülər eyni (0.81 / 1.13).
+RƏNG,RƏNG,yes,word-form review 2026-10: beli (sohbet rengden gedir); [orta] Ölçülər güclü ayırır (0.94 / 1.90); cəm təkrarla verilə bilər.
+RƏNG,RƏNGLƏR,yes,word-form review 2026-10: beli (sohbet rengden gedir); [orta] Ölçülər güclü ayırır (0.94 / 1.90); cəm təkrarla verilə bilər.
+SEVMƏK,SEVMƏK,yes,"word-form review 2026-10: bəli; [yüksək] NN 0.38, nisbət 0.97 — aydın eyni."
+SEVMƏK,SEVİR,yes,"word-form review 2026-10: bəli; [yüksək] NN 0.38, nisbət 0.97 — aydın eyni."
+SEÇİM,SEÇİM,yes,word-form review 2026-10: bəli; [yüksək] Mənsubiyyət; ölçülər eyni.
+SEÇİM,SEÇİMİNİZ,yes,word-form review 2026-10: bəli; [yüksək] Mənsubiyyət; ölçülər eyni.
+VAR,VAR,yes,"word-form review 2026-10: bəli; [yüksək] Sual -mı əllə yox, qaşla verilir; NN şans səviyyəsində (0.44)."
+VAR,VARMİ,yes,"word-form review 2026-10: bəli; [yüksək] Sual -mı əllə yox, qaşla verilir; NN şans səviyyəsində (0.44)."
+YAZMAQ,YAZI,yes,word-form review 2026-10: bəli; [yüksək] İsim-fel cütü; ölçülər eyni.
+YAZMAQ,YAZMAQ,yes,word-form review 2026-10: bəli; [yüksək] İsim-fel cütü; ölçülər eyni.
+ÖLMƏK,ÖLMƏK,yes,"word-form review 2026-10: bəli; [orta] Ölçülər eyni (nisbət 1.01), amma ÖLMƏK cəmi 13 klipdir."
+ÖLMƏK,ÖLƏN,yes,"word-form review 2026-10: bəli; [orta] Ölçülər eyni (nisbət 1.01), amma ÖLMƏK cəmi 13 klipdir."
+İSTƏMƏK,İSTƏYİR,yes,word-form review 2026-10: bəli; [yüksək] Zaman/şəxs şəkilçisi işarədə verilmir; nisbət 1.07 — eyni işarə.
+İTİRMƏK,İTİRMİŞƏM,yes,"word-form review 2026-10: bəli; [yüksək] NN 0.31, nisbət 1.00 — aydın eyni."
+İTİRMƏK,İTİRMƏK,yes,"word-form review 2026-10: bəli; [yüksək] NN 0.31, nisbət 1.00 — aydın eyni."
+İŞLƏMƏK,İŞ,yes,word-form review 2026-10: bəli; [orta] İsim-fel cütü; nisbət 1.18 həddə yaxın.
+İŞLƏMƏK,İŞLƏYİR,yes,word-form review 2026-10: bəli (chalishmaq/ishlemek); [orta] Ölçülər ayırır (1.0 / 1.26); nümunə 'çalışır' sözündəndir.
+ƏLİL,ƏLİL,yes,word-form review 2026-10: bəli; [yüksək] Cəm şəkilçisi; ölçülər eyni.
+ƏLİL,ƏLİLLƏR,yes,word-form review 2026-10: bəli; [yüksək] Cəm şəkilçisi; ölçülər eyni.

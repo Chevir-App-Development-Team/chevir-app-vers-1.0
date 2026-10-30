@@ -17,6 +17,7 @@ olanda yükləyir). Mənbə: AzSLD (Zenodo 14222948, CC BY 4.0).
       --words-dir data/AzSLD_Words_200 --pose-model data/models/pose_landmarker_lite.task
 """
 import argparse
+import csv
 import json
 import re
 from concurrent.futures import ProcessPoolExecutor
@@ -40,18 +41,10 @@ L_SH, R_SH, L_WR, R_WR, L_HIP, R_HIP = 11, 12, 15, 16, 23, 24
 
 # Tək hərfli etiketlər barmaq əlifbası ilə qarışır ("o" əvəzliyi və rəqəmlər qalır)
 SKIP = {'A', 'D', 'Ə', 'İ', 'J', 'M', 'N', 'S'}
-# Datasetin etiketlərindəki yazı xətaları (axtarış və mətndə tanınma düzgün yazılışla işləsin)
-ALIAS = {
-    'GUN': 'gün', 'IKI': 'iki', 'İŞİGİ': 'işığı', 'SÖNDURƏ': 'söndürə', 'ÜNVANLİ': 'ünvanlı',
-    'XİRDA': 'xırda', 'RƏSİM': 'rəsm', 'EŞİTMƏ MƏHDÜDİYYƏTLİ': 'eşitmə məhdudiyyətli',
-    'COX': 'çox', 'DOVLƏT': 'dövlət', 'SAGLAM': 'sağlam', 'IL': 'il', 'PENİSYA': 'pensiya',
-    'QARABAQ': 'Qarabağ', 'KECİR': 'keçir', 'YAZA': 'yaza', 'EDE': 'edə', 'YARDIM': 'yardım',
-    'YARDIMI': 'yardımı', 'VALİDEYİN': 'valideyn', 'RAZ': 'razı', 'KİM?': 'kim',
-    'OLMUSUZ': 'olmusunuz', 'AGIRDI': 'ağırdır', 'AĞIRDI': 'ağırdır', 'ABŞERON RAYON': 'Abşeron rayonu',
-    # Xüsusi adlar böyük hərflə, danışıq formaları ədəbi yazılışla
-    'AZƏRBAYCAN': 'Azərbaycan', 'BAKI': 'Bakı', 'QARABAĞ': 'Qarabağ', 'COVİD': 'Covid',
-    'BURDA': 'burada', 'ORDA': 'orada', 'HARDA': 'harada',
-}
+# Etiketin düzgün yazılışı (annotasiyadakı yazı xətaları, xüsusi adlar, ədəbi yazılış): ml/label_text.csv.
+# Axtarış və mətndə tanınma düzgün yazılışla işləsin; işarələr → mətn (gloss2text) də eyni cədvəli oxuyur
+with open(ROOT / 'ml' / 'label_text.csv', encoding='utf8') as _f:
+    ALIAS = {r['label']: r['text'] for r in csv.DictReader(_f)}
 
 # Ədəbi yazılışdan başqa, mətndə rast gəlinə bilən variantlar (axtarış üçün)
 ALT = {'burada': ['burda'], 'orada': ['orda'], 'harada': ['harda']}
