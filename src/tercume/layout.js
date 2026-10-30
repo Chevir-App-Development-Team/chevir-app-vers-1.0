@@ -2,6 +2,11 @@
 // heç bir DOM elementini daşımır/dublikatlaşdırmır, s2t/t2s/ML datasına toxunmur.
 const FIT_QUERY = '(min-width: 1100px) and (min-height: 560px)';
 
+// Mobil düzülüş (Variant B): ≤767px-də #topbar-ctrl-s2t/#topbar-ctrl-t2s
+// header-dən öz tab-ının .fit-strip-inə köçürülür (appendChild/insertBefore -
+// node silinmir, id/listener qorunur), bax initMobileLayout().
+const MOBILE_QUERY = '(max-width: 767px)';
+
 function setNavbarHeightVar() {
   const navbar = document.querySelector('[data-navbar]');
   if (!navbar) return;
@@ -169,7 +174,7 @@ function initSpelledTimeline() {
     // bazanın öz flex-wrap sətir düzülüşünə qarışmırıq (əks halda inline
     // transform qeyri-mövqelənmiş elementi də sürüşdürüb cərgələri
     // üst-üstə salırdı).
-    if (!document.body.classList.contains('is-fit')) {
+    if (!document.body.classList.contains('is-fit') && !document.body.classList.contains('is-mobile')) {
       spelled.style.transform = '';
       clip.style.webkitMaskImage = '';
       clip.style.maskImage = '';
@@ -355,6 +360,44 @@ function alignOynatmaToStage() {
   sync();
 }
 
+// #topbar-ctrl-s2t/#topbar-ctrl-t2s-i ≤767px-də öz tab-ının .fit-strip-inin
+// başına köçürür (stage-dən sonra, kartların ən üstünə) ki, sticky stage-in
+// altından keçsinlər; >767px-ə qayıdanda header.topbar-a, orijinal sırayla
+// (s2t, sonra t2s) bərpa olunur.
+function initMobileLayout() {
+  const mq = window.matchMedia(MOBILE_QUERY);
+  const header = document.querySelector('header.topbar');
+  const ctrlS2T = document.querySelector('#topbar-ctrl-s2t');
+  const ctrlT2S = document.querySelector('#topbar-ctrl-t2s');
+  const stripS2T = document.querySelector('#tab-s2t .fit-strip');
+  const stripT2S = document.querySelector('#tab-t2s .fit-strip');
+
+  const apply = (matches) => {
+    const already = document.body.classList.contains('is-mobile');
+    if (matches === already) return;
+    document.body.classList.toggle('is-mobile', matches);
+
+    if (matches) {
+      if (ctrlS2T && stripS2T && stripS2T.firstElementChild !== ctrlS2T) {
+        stripS2T.insertBefore(ctrlS2T, stripS2T.firstElementChild);
+      }
+      if (ctrlT2S && stripT2S && stripT2S.firstElementChild !== ctrlT2S) {
+        stripT2S.insertBefore(ctrlT2S, stripT2S.firstElementChild);
+      }
+    } else {
+      if (header && ctrlS2T) header.appendChild(ctrlS2T);
+      if (header && ctrlT2S) header.appendChild(ctrlT2S);
+    }
+
+    // CSS dəyişikliyindən sonra skeleton.js/vrm.js öz mövcud `resize`
+    // listener-ləri ilə canvas ölçüsünü yeniləsin (initFit()-in eyni mexanizmi).
+    window.dispatchEvent(new Event('resize'));
+  };
+
+  apply(mq.matches);
+  mq.addEventListener('change', (e) => apply(e.matches));
+}
+
 function initFit() {
   const mq = window.matchMedia(FIT_QUERY);
   const apply = (matches) => document.body.classList.toggle('is-fit', matches);
@@ -369,6 +412,7 @@ function initFit() {
 
 function boot() {
   setNavbarHeightVar();
+  initMobileLayout();
   initTopbarControls();
   document.querySelectorAll('#tab-s2t .fit-right, #tab-t2s .fit-right').forEach(initFitTabs);
   initSpelledTimeline();
