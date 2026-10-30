@@ -1753,9 +1753,12 @@ body.is-fit .fit-tabpanel.is-active > .card:last-child .words {
     text-overflow: ellipsis;
   }
 
+  /* Sol-aşağı (sağ-aşağı kameranın capture-ring/"0/30" halqası üçün azad
+     qalır - PiP əvvəllər onun üstünü örtürdü). */
   .stage .viewport:last-child {
     position: absolute;
-    right: 12px;
+    left: 12px;
+    right: auto;
     bottom: 12px;
     width: 104px;
     height: 104px;
