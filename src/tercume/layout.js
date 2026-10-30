@@ -10,8 +10,12 @@ const MOBILE_QUERY = '(max-width: 767px)';
 function setNavbarHeightVar() {
   const navbar = document.querySelector('[data-navbar]');
   if (!navbar) return;
-  const ro = new ResizeObserver((entries) => {
-    const h = entries[0].contentRect.height;
+  // entries[0].contentRect yalnız content-box-u verir (.navbar-ın 1.1rem
+  // padding-i çıxılmış, ~44px) - lazım olan HƏQİQİ (border-box) hündürlükdür
+  // (~79px), ona görə getBoundingClientRect() oxunur, ResizeObserver yalnız
+  // "nə vaxt yenidən ölç" siqnalı üçün saxlanılır.
+  const ro = new ResizeObserver(() => {
+    const h = navbar.getBoundingClientRect().height;
     document.documentElement.style.setProperty('--navbar-h-real', `${h}px`);
   });
   ro.observe(navbar);
@@ -423,5 +427,13 @@ function boot() {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', boot);
 } else {
-  boot();
+  // ES modul qiymətləndirmə sırasına görə bu budaq readyState artıq
+  // 'loading' olmayanda (adi hal, module script-lər təxirə salınıb icra
+  // olunur) SİNXRON işləyir - main.js-in öz #site-nav → real navbar
+  // əvəzlənməsi (app.js/layout.js import-undan SONRA gələn sətir) hələ
+  // İŞLƏMƏMİŞ ola bilər, setNavbarHeightVar() `[data-navbar]` tapmayıb
+  // sakitcə çıxır, --navbar-h-real heç vaxt qurulmur. queueMicrotask cari
+  // sinxron icra zəncirini (main.js-in qalan sətirləri daxil) bitirib
+  // sonra işə düşür - navbar artıq DOM-dadır.
+  queueMicrotask(boot);
 }

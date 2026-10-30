@@ -1799,13 +1799,29 @@ body.is-fit .fit-tabpanel.is-active > .card:last-child .words {
     order: 0; /* @media max-width:1099px-dəki order:4-ü neytrallaşdırır */
   }
 
+  /* .page-title (h1+p) mock-da göstərilmir - vizual gizli (is-fit-in eyni
+     texnikası), DOM sırası dəyişməsin deyə order silinir (aşağıda) - bu
+     da .tabs-in .status-dan ƏVVƏL görünməsini təmin edir (mock sırası:
+     tablar, status, stage). */
+  .page-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   /* ── əsas tablar (Jest→Mətn/Mətn→Jest/Model) - 760px blokunu təkrarlayır,
-     761-767px aralığını örtmək üçün ── */
+     761-767px aralığını örtmək üçün, order:3-ü ləğv edir (yuxarıdakı qeydə bax) ── */
   .tabs {
     margin-left: 0;
     width: 100%;
     gap: 8px;
-    order: 3;
+    order: 0;
   }
 
   .tab {
