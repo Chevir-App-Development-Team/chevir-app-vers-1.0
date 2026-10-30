@@ -42,6 +42,7 @@ export class TextToSign {
     // Hər addım mətndəki yerini daşıyır: from/to — addımın özü, seg — aid olduğu söz
     for (const seg of this.lexicon.segment(text)) {
       const at = { from: seg.from, to: seg.to, seg: { from: seg.from, to: seg.to } };
+      if (seg.kind === 'drop') continue;               // siqnalçıların göstərmədiyi köməkçi söz
       if (seg.kind === 'space') {
         steps.push({ kind: 'space', char: ' ', ...at });
       } else if (seg.kind === 'word') {

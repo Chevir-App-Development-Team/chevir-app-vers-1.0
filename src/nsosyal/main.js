@@ -64,8 +64,10 @@ const state = {
 /** Mətnin hissələri və hər birinin necə göstəriləcəyi (güvən göstəricisi üçün). */
 function analyse(text) {
   const letters = state.poses?.letters ?? {}
-  const segs = state.lexicon.segment(text).filter((s) => s.kind !== 'space').map((s) => {
+  // İnkarın YOX işarəsi felin öz mətnini təkrar göstərmir (eyni from/to)
+  const segs = state.lexicon.segment(text).filter((s) => s.kind !== 'space' && s.via !== 'neg').map((s) => {
     if (s.kind === 'word') return { ...s, cls: 'word' }
+    if (s.kind === 'drop') return { ...s, cls: 'skip' }
     const shown = [...s.text].filter((ch) => letters[azLower(ch)]).length
     return { ...s, cls: shown ? 'spell' : 'skip' }
   })

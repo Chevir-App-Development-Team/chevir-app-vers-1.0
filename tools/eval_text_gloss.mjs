@@ -46,9 +46,8 @@ const group = new Map();
 for (const r of readCsv('ml/same_sign.csv')) group.set(r.gloss, r.group);
 for (const r of readCsv('ml/lemma_groups.csv')) if (r.confirmed === 'yes') group.set(r.gloss, r.group);
 const sign = (g) => { const c = canon.get(g) ?? g; return group.get(c) ?? c; };
-// Datasetin etiketlərindəki yazı xətaları (tools/build_words.py ALIAS)
-const ALIAS = new Map([...fs.readFileSync('tools/build_words.py', 'utf8').matchAll(/'([^']+)': '([^']+)'/g)]
-  .map((m) => [m[1], m[2]]));
+// Etiketin düzgün yazılışı (ml/label_text.csv: annotasiyadakı yazı xətaları)
+const ALIAS = new Map(readCsv('ml/label_text.csv').map((r) => [r.label, r.text]));
 const glossText = (g) => { const c = canon.get(g) ?? g; return azLower(ALIAS.get(c) ?? ALIAS.get(g) ?? c); };
 const isLetter = (g) => [...g].length === 1 && /\p{L}/u.test(g);
 

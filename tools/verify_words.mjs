@@ -41,14 +41,29 @@ check(azLower('İLHAM IŞIQ') === 'ilham ışıq', 'azLower: İ → i, I → ı'
 const forms = new WordLexicon({ words: [
   'ev', 'ana', 'bilmək', 'bilmir', 'olmaq', 'olar', 'itib', 'dost', 'oğul', 'uşaq', 'köynək', 'getmək',
   'yaşamaq', 'istəmək', 'istəyir', 'düşməmək', 'gün', 'ad günü', 'il', 'yatmaq', 'Bakı',
+  'oxumaq', 'gəlmək', 'yox', 'kart', 'i', '6', 'yazmaq', 'ay',
+  'ucuzdur', 'gedir', 'iş', 'iştirak', 'fikir', 'xatırladım', 'bilər', 'bilərsinizmi',
 ].map((text) => ({ id: text, text })) });
 const formCases = [
   ['evdə', 'w:ev'], ['anam', 'w:ana'], ['Bakıda', 'w:Bakı'], ['oğlum', 'w:oğul'], ['uşağın', 'w:uşaq'],
   ['köynəyini', 'w:köynək'], ['gedəcəm', 'w:getmək'], ['yaşayıram', 'w:yaşamaq'], ['istəyirsən', 'w:istəyir'],
   ['bilirəm', 'w:bilmək'], ['bilmirəm', 'w:bilmir'], ['bilmədim', 'w:bilmir'], ['düşmürəm', 'w:düşməmək'],
-  ['olan', 'w:olmaq'], ['itib', 'w:itib'], ['it', 't:it'], ['ilə', 't:ilə'], ['yadımda', 't:yadımda'],
+  ['olan', 'w:olmaq'], ['itib', 'w:itib'], ['it', 't:it'], ['ilə', 'd:ilə'], ['yadımda', 't:yadımda'],
   ['şənbə günü', 't:şənbə _ w:gün'], ['ad günündə', 'w:ad günü'],
   ['DOST mərkəzi', 't:dost _ t:mərkəzi'], ['DOST', 'w:dost'],
+  // inkarlı felin öz işarəsi yoxdursa: fel + YOX (müsbət işarə tək qalmır), hər zamanda
+  ['oxumadım', 'w:oxumaq w:yox'], ['oxumuram', 'w:oxumaq w:yox'], ['gəlməyəcəyəm', 'w:gəlmək w:yox'],
+  ['gəlmərəm', 'w:gəlmək w:yox'], ['gəlmərik', 'w:gəlmək w:yox'], ['gəlməz', 'w:gəlmək w:yox'],
+  // xəbər sözü öz sifətinə gedir (ged-ir isə feldir); isimlər fel kökü yaratmır (işt-ir-ak, fik-ir)
+  ['ucuz', 'w:ucuzdur'], ['gedirsən', 'w:gedir'], ['işdir', 'w:iş'], ['fikirlər', 'w:fikir'],
+  ['xatırlayıram', 'w:xatırladım'],
+  // eyni kökün sözlərindən daha az şəkilçilisi: bilərəm → bilər (bilərsinizmi yox)
+  ['bilərəm', 'w:bilər'],
+  ['oxuyuram', 'w:oxumaq'], ['oxumaq', 'w:oxumaq'],
+  // felin səs dəyişməsi ad kökünə aparmır, bir hərfli kök yoxdur
+  ['kardır', 't:kardır'], ['kartı', 'w:kart'], ['iyun', 't:iyun'], ['ayın', 'w:ay'],
+  // defis: şəkilçi atılır (rəqəm, ad), söz deyilsə hissələr ayrıdır
+  ['6-dan', 'w:6'], ['6-cı', 'w:6'], ['TSEK-ə', 't:tsek'], ['yazıb-oxuya', 'w:yazmaq w:oxumaq'],
 ];
 for (const [text, want] of formCases) {
   const got = show(forms.segment(text));

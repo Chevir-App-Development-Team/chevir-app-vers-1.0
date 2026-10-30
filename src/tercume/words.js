@@ -6,12 +6,16 @@
  * "bu gün" kimi ifadələr bütöv işarədir.
  */
 import { WORDS_BASE } from './paths.js';
-import { Lemmatizer } from './morph.js';
+import { Lemmatizer, suffixOnly } from './morph.js';
 
 /** Azərbaycan qaydası ilə kiçik hərf: I → ı, İ → i (toLowerCase "İ"-ni "i̇" edir). */
 export const azLower = (s) => s.replace(/I/g, 'ı').replace(/İ/g, 'i').toLocaleLowerCase('az');
 
 const EDGE_PUNCT = /^[.,!?;:"'“”‘’«»()[\]…–—-]+|[.,!?;:"'“”‘’«»()[\]…–—-]+$/g;
+
+// Lüğətdə işarəsi olmayan köməkçi sözlər: AzSLD siqnalçıları onları göstərmir (ilə 0/6, idi 0/4,
+// ki 0/2 cümlədə, ml/EXPERIMENTS.md E16), hərf-hərf göstərmək cümləni uzadır
+const DROP = new Set(['ilə', 'idi', 'ki']);
 
 export class WordLexicon {
   constructor(index) {
@@ -31,7 +35,8 @@ export class WordLexicon {
       (w) => [w.text, ...(w.alt ?? [])].map((t) => t.split(' ').length)));
     // Söz formaları (evdə → ev, bilmirəm → bilmir): açar kök + inkardır (morph.js).
     // Köklər tək sözlü yazılışlardan çıxarılır; ifadənin sözləri ("ad günü") kök sayılmır.
-    this.lemma = new Lemmatizer([...this.byText.keys()].filter((t) => !t.includes(' ')));
+    // Xəbər sözü (ucuzdur) öz sifətinə də gedir: ucuz → UCUZDUR
+    this.lemma = new Lemmatizer([...this.byText.keys()].filter((t) => !t.includes(' ')), { predicates: true });
     this.byKey = new Map();
     for (const [t, w] of this.byText) {
       const k = this.#keys(t.split(' '));
@@ -55,16 +60,26 @@ export class WordLexicon {
     const exact = this.byText.get(text);
     if (exact) return { entry: exact, via: 'text' };
     const k = this.#keys(tokens);
-    const found = k && this.byKey.get(k);
+    let found = k && this.byKey.get(k);
+    // İnkarlı felin öz işarəsi yoxdursa: felin işarəsi + inkar (neg), müsbət işarə tək qalmasın
+    let neg = false;
+    if (!found && tokens.length === 1 && k?.endsWith('-')) {
+      found = this.byKey.get(k.slice(0, -1));
+      neg = Boolean(found);
+    }
     if (!found) return null;
     const common = (a) => { let n = 0; while (n < a.length && a[n] === text[n]) n++; return n; };
     const longer = found.filter((f) => text.startsWith(f.form) && !this.lemma.isBase(f.form)
       && f.form.length >= (this.lemma.key(f.form) ?? '').replace(/-$/, '').length + 2);
-    const base = found.filter((f) => f.form.split(' ').every((t) => this.lemma.isBase(t)));
+    // İfadədə son söz (fel) lüğət formasındadırsa: başa düşməmək, başa düşmədim yox
+    const base = found.filter((f) => {
+      const ts = f.form.split(' ');
+      return ts.length > 1 ? this.lemma.isBase(ts.at(-1), true) : this.lemma.isBase(ts[0]);
+    });
     const pool = longer.length ? longer : base.length ? base : found;
     const best = pool.reduce((a, b) => (common(b.form) > common(a.form)
       || (common(b.form) === common(a.form) && b.form.length < a.form.length) ? b : a));
-    return { entry: best.entry, via: 'lemma' };
+    return neg ? { entry: best.entry, via: 'lemma', neg: true } : { entry: best.entry, via: 'lemma' };
   }
 
   /** İndeksi yükləyir; tapılmasa boş lüğət qaytarır (sistem hərflərlə işləməyə davam edir). */
@@ -78,48 +93,71 @@ export class WordLexicon {
   }
 
   /**
-   * Mətni hissələrə bölür: {kind:'word', text, entry, via} | {kind:'text', text} | {kind:'space'}.
-   * `via`: 'text' — yazılış lüğətdədir, 'lemma' — sözün kökü (evdə → ev).
+   * Mətni hissələrə bölür: {kind:'word', text, entry, via} | {kind:'text', text} | {kind:'space'}
+   * | {kind:'drop', text} — siqnalçıların göstərmədiyi köməkçi söz (oynadılmır).
+   * `via`: 'text' — yazılış lüğətdədir, 'lemma' — sözün kökü (evdə → ev), 'neg' — inkarlı felin
+   * öz işarəsi olmadığından felin işarəsindən sonra gələn YOX (oxumadım → OXUMAQ YOX).
    * `text` hissəsi kiçik hərflə və kənar durğu işarələri olmadan qaytarılır; `from`/`to`
    * onun ilkin mətndəki yeridir (oxunan hissəni vurğulamaq üçün).
    */
   segment(text) {
     const parts = text.split(/(\s+)/).filter(Boolean);
-    const toks = parts.map((p) => (/^\s+$/.test(p) ? null : azLower(p).replace(EDGE_PUNCT, '')));
-    // Hər tokenin ilkin mətndə yeri: hissənin başı + başdakı durğu işarələrinin uzunluğu
-    const at = [];
-    let pos = 0;
-    parts.forEach((p, i) => {
-      const lead = toks[i] ? azLower(p).indexOf(toks[i]) : 0;
-      at.push({ from: pos + lead, to: pos + lead + (toks[i]?.length ?? p.length) });
-      pos += p.length;
-    });
     // Kiçik hərfli mətndə böyük hərflərlə yazılmış qısaltma (DOST, ASAN) hərf-hərf göstərilir:
     // "dost" sözünün işarəsi deyil. Lüğətdə böyük hərflə yazılan ad (Covid) işarə ilə qalır;
     // bütün mətn böyük hərflədirsə, sözlər adi qaydada tanınır.
     const upper = (p) => p === p.toLocaleUpperCase('az') && p !== p.toLocaleLowerCase('az');
     const mixed = /\p{Ll}/u.test(text);
-    const acronym = parts.map((p, i) => mixed && Boolean(toks[i]) && upper(p)
-      && [...p].filter((c) => /\p{L}/u.test(c)).length >= 2);
+    const isAcronym = (raw) => mixed && upper(raw) && [...raw].filter((c) => /\p{L}/u.test(c)).length >= 2;
+    // Tokenlər: {tok, from, to, acronym}; tok = null — boşluq, '' — yalnız durğu işarəsi.
+    // `from`/`to` — tokenin ilkin mətndə yeri (başdakı durğu işarələri sayılmır).
+    const items = [];
+    let pos = 0;
+    for (const p of parts) {
+      if (/^\s+$/.test(p)) { items.push({ tok: null, from: pos, to: pos + p.length }); pos += p.length; continue; }
+      const tok = azLower(p).replace(EDGE_PUNCT, '');
+      const from = pos + (tok ? azLower(p).indexOf(tok) : 0);
+      pos += p.length;
+      // Defisli söz (6-dan, TSEK-ə, 2-ci, yazıb-oxuya): lüğətdə bütöv yoxdursa, defisdən sonrakı
+      // şəkilçi atılır (işarə — rəqəm və ya ad; AzSLD siqnalçıları da TSEK-ə → TSEK göstərir),
+      // şəkilçi deyilsə, hissələr ayrı sözlərdir
+      const pieces = tok.split('-');
+      if (pieces.length > 1 && !this.byText.has(tok) && pieces.every(Boolean)) {
+        const raw = text.slice(from, from + tok.length);
+        if (pieces.length === 2 && suffixOnly(pieces[1])) {
+          items.push({ tok: pieces[0], from, to: from + tok.length, acronym: isAcronym(raw.slice(0, pieces[0].length)) });
+        } else {
+          let o = 0;
+          for (const piece of pieces) {
+            items.push({ tok: piece, from: from + o, to: from + o + piece.length, acronym: isAcronym(raw.slice(o, o + piece.length)) });
+            o += piece.length + 1;
+          }
+        }
+        continue;
+      }
+      items.push({ tok, from, to: from + tok.length, acronym: Boolean(tok) && isAcronym(p) });
+    }
     const out = [];
-    for (let i = 0; i < parts.length;) {
-      if (toks[i] === null) { out.push({ kind: 'space', ...at[i] }); i++; continue; }
-      if (!toks[i]) { i++; continue; }                       // yalnız durğu işarəsi
+    for (let i = 0; i < items.length;) {
+      const it = items[i];
+      if (it.tok === null) { out.push({ kind: 'space', from: it.from, to: it.to }); i++; continue; }
+      if (!it.tok) { i++; continue; }                         // yalnız durğu işarəsi
       let match = null;
       for (let n = this.maxTokens; n >= 1 && !match; n--) {
         const idx = [];
-        for (let j = i; j < parts.length && idx.length < n; j++) if (toks[j]) idx.push(j);
+        for (let j = i; j < items.length && idx.length < n; j++) if (items[j].tok) idx.push(j);
         if (idx.length < n) continue;
-        const hit = this.lookup(idx.map((j) => toks[j]));
-        if (hit && idx.some((j) => acronym[j]) && hit.entry.text === azLower(hit.entry.text)) continue;
+        const hit = this.lookup(idx.map((j) => items[j].tok));
+        if (hit && idx.some((j) => items[j].acronym) && hit.entry.text === azLower(hit.entry.text)) continue;
         if (hit) match = { ...hit, last: idx[idx.length - 1] };
       }
       if (match) {
-        out.push({ kind: 'word', text: match.entry.text, entry: match.entry, via: match.via,
-          from: at[i].from, to: at[match.last].to });
+        const at = { from: it.from, to: items[match.last].to };
+        out.push({ kind: 'word', text: match.entry.text, entry: match.entry, via: match.via, ...at });
+        const no = match.neg && this.byText.get('yox');
+        if (no) out.push({ kind: 'word', text: no.text, entry: no, via: 'neg', ...at });
         i = match.last + 1;
       } else {
-        out.push({ kind: 'text', text: toks[i], ...at[i] });
+        out.push({ kind: DROP.has(it.tok) ? 'drop' : 'text', text: it.tok, from: it.from, to: it.to });
         i++;
       }
     }
