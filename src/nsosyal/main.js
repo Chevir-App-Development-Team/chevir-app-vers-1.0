@@ -90,7 +90,7 @@ function textMarkup(text) {
 const initials = (name) => name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 
 function postMarkup(p) {
-  const signLabel = `Jest dili — ${p.author} postunu avatarla göstər`
+  const signLabel = `Jest dili - ${p.author} postunu avatarla göstər`
   return `
 <article class="card post${p.fresh ? ' is-fresh' : ''}" id="${p.id}" tabindex="-1" aria-labelledby="${p.id}-author">
   <header class="post__head">
@@ -152,7 +152,7 @@ $('#posts').addEventListener('click', (e) => {
     if (sign.post?.id === post.id) closeSign()
     else openSign(post)
   } else {
-    toast('Şərh və paylaşım bu prototipdə aktiv deyil — burada yalnız Chevir qatı işləyir.')
+    toast('Şərh və paylaşım bu prototipdə aktiv deyil - burada yalnız Chevir qatı işləyir.')
   }
 })
 
@@ -358,7 +358,7 @@ function showStep(step) {
     const src = sign.post.text.slice(step.seg.from, step.seg.to)
     const k = step.from - step.seg.from
     word.innerHTML = `${esc(src.slice(0, k))}<u>${esc(src.slice(k, k + 1))}</u>${esc(src.slice(k + 1))}`
-    kind.textContent = step.kind === 'unknown' ? 'işarəsi yoxdur — buraxılır' : 'hərf-hərf'
+    kind.textContent = step.kind === 'unknown' ? 'işarəsi yoxdur - buraxılır' : 'hərf-hərf'
   }
 }
 
@@ -406,7 +406,7 @@ const share = {
 const GATE_TEXT = {
   'wait-hand': 'Əlini kadra gətir',
   moving: 'Əl hərəkətdədir',
-  unsure: 'Aydın deyil — hərfi saxla',
+  unsure: 'Aydın deyil - hərfi saxla',
   hold: 'Saxla…',
   typed: 'Yazıldı',
 }
@@ -447,7 +447,7 @@ function ensureS2T() {
       model, decoder, video: share.video,
       onStatus: ({ stage, message }) => {
         if (stage === 'landmarker') setCamState('MediaPipe yüklənir…')
-        if (stage === 'ended') { setCamState('Video bitdi — altyazını yoxla'); showIdle(true) }
+        if (stage === 'ended') { setCamState('Video bitdi - altyazını yoxla'); showIdle(true) }
       },
       onFrame: ({ landmarks, state: gate, progress, fileProgress }) => {
         drawHand(landmarks)
@@ -520,7 +520,7 @@ $('#cam-stop').addEventListener('click', () => {
   share.s2t?.finish()
   stopCapture({ keepVideo: true })
   showIdle(true)
-  setCamState('Dayandırıldı — altyazını yoxla')
+  setCamState('Dayandırıldı - altyazını yoxla')
   $('#cam-start').focus()
 })
 
@@ -586,7 +586,7 @@ function onDecode({ best, verified, letters, final }) {
 function renderLive(letters, best, verified) {
   $('#live-letters').innerHTML = letters.length
     ? letters.map((l) => `<span>${esc(l)}</span>`).join('')
-    : '<span class="muted">—</span>'
+    : '<span class="muted">-</span>'
   $('#live-guess').innerHTML = best?.text
     ? `söz: <b>${esc(best.text)}</b> <span class="${verified ? 'ok' : 'warn'}">${verified ? 'lüğətdə var' : 'lüğətdə yoxdur'}</span>`
     : ''
@@ -609,8 +609,8 @@ function appendToken(text, conf, verified, seen) {
   tok.dataset.conf = String(Math.round(conf * 100))
   if (low) {
     tok.title = corrected
-      ? `Kameradan “${seen}” oxundu, lüğətlə “${text}” kimi düzəldildi — yoxlayın`
-      : `Əminlik ${Math.round(conf * 100)}%${verified ? '' : ', lüğətdə yoxdur'} — yoxlayın`
+      ? `Kameradan “${seen}” oxundu, lüğətlə “${text}” kimi düzəldildi - yoxlayın`
+      : `Əminlik ${Math.round(conf * 100)}%${verified ? '' : ', lüğətdə yoxdur'} - yoxlayın`
   }
   if (cap.textContent.trim()) cap.append(' ')
   cap.append(tok)
@@ -646,7 +646,7 @@ function updateCaption() {
   $('#cap-publish').disabled = !has
   $('#cap-note').textContent = low
     ? `${low} söz yoxlanmalıdır (altı xətli): əminlik aşağıdır və ya dekoder hərfləri düzəldib. Üzərinə klikləyib düzəlt.`
-    : has ? 'Altyazını paylaşmadan əvvəl bir daha oxu — istədiyin yerini düzəldə bilərsən.' : ''
+    : has ? 'Altyazını paylaşmadan əvvəl bir daha oxu - istədiyin yerini düzəldə bilərsən.' : ''
   hideConfirm()
 }
 
@@ -723,7 +723,7 @@ async function publish() {
   share.panel.hidden = true
   $('#btn-sign-share').setAttribute('aria-expanded', 'false')
   $('#btn-sign-share').classList.remove('is-on')
-  toast('Paylaşıldı — altyazı ilə birlikdə axtarışda görünür.')
+  toast('Paylaşıldı - altyazı ilə birlikdə axtarışda görünür.')
 }
 
 /** Yazılmış kamera videosu və ya yüklənmiş fayl (yoxdursa null). */

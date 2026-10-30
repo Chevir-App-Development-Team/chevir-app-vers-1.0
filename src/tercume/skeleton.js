@@ -20,7 +20,7 @@ import { HAND_CONNECTIONS } from './hands.js';
 const CYAN = 0x3fc1e8;
 const MAGENTA = 0xff4f97;
 const AMBER = 0xf5b94f;
-const BG = 0x0e0c0a;
+const BG = 0x060d24;
 const TRAIL_COUNT = 6;
 
 export class CyberHand {

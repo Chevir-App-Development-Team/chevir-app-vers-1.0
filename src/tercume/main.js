@@ -2,7 +2,8 @@
 import '../styles/base.css'
 import '../styles/sections/navbar.css'
 import './tercume.css'
-import { navbarMarkup } from '../sections/navbar.js'
+import { navbarMarkup, initScrollShadow } from '../sections/navbar.js'
 import './app.js'
 
 document.querySelector('#site-nav').outerHTML = navbarMarkup({ page: 'tercume' })
+initScrollShadow(document.querySelector('[data-navbar]'))

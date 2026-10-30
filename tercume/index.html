@@ -10,13 +10,6 @@
       content="Chevir tərcümə sistemi - Azərbaycan jest dilinin barmaq əlifbasını kameradan mətnə, mətndən avatara çevirir. Hər şey brauzerdə işləyir."
     />
     <title>Chevir - tərcümə sistemi</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body class="tercume">
     <div id="site-nav"></div>
@@ -32,169 +25,214 @@
         <button class="tab" data-tab="about" role="tab">Model</button>
       </nav>
       <div class="status" id="status"><span class="dot"></span><span id="status-text">Yüklənir…</span></div>
+
+      <div class="topbar-ctrl" id="topbar-ctrl-s2t">
+        <label class="field inline">
+          <span>Nə tanınsın</span>
+          <select id="s2t-kind">
+            <option value="letters" selected>hərflər - barmaq əlifbası</option>
+            <option value="words">sözlər - AzSLD-nin 701 sözü (sınaq)</option>
+            <option value="sentence">cümlə - fasiləsiz, söz-söz (sınaq)</option>
+          </select>
+        </label>
+        <div class="row">
+          <button class="btn btn-primary" id="btn-start">Kameranı başlat</button>
+          <button class="btn" id="btn-stop" disabled>Dayandır</button>
+        </div>
+      </div>
+
+      <div class="topbar-ctrl" id="topbar-ctrl-t2s" hidden>
+        <div class="card-head"><h2>Oynatma</h2><span class="badge" id="play-progress">-</span></div>
+        <div class="spelled" id="spelled"><span class="muted">-</span></div>
+        <div class="current-letter" id="current-letter">·</div>
+      </div>
     </header>
 
     <!-- ══════════════ JEST → MƏTN ══════════════ -->
     <main class="panel is-active" id="tab-s2t">
-      <section class="stage">
-        <div class="viewport">
-          <video id="cam" playsinline muted></video>
-          <canvas id="overlay"></canvas>
-          <div class="viewport-label">Kamera <span class="muted">· aşkarlama xam kadr üzərində</span></div>
-          <div class="capture-ring"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" id="ring" cx="20" cy="20" r="17"/></svg><span id="ring-label">0/30</span></div>
-        </div>
-        <div class="viewport" id="s2t-skeleton">
-          <div class="viewport-label">Cyber skeleton <span class="muted">· modelin gördüyü 21 nöqtə</span></div>
-        </div>
-      </section>
+        <div class="fit-left">
+          <section class="stage">
+            <div class="viewport">
+              <video id="cam" playsinline muted></video>
+              <canvas id="overlay"></canvas>
+              <div class="viewport-label">Kamera <span class="muted">· aşkarlama xam kadr üzərində</span></div>
+              <div class="capture-ring"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" id="ring" cx="20" cy="20" r="17"/></svg><span id="ring-label">0/30</span></div>
+            </div>
+            <div class="viewport" id="s2t-skeleton">
+              <div class="viewport-label">Cyber skeleton <span class="muted">· modelin gördüyü 21 nöqtə</span></div>
+            </div>
+          </section>
 
-      <aside class="sidebar">
-        <div class="card">
-          <div class="card-head"><h2>İdarə</h2></div>
-          <label class="field">
-            <span>Nə tanınsın</span>
-            <select id="s2t-kind">
-              <option value="letters" selected>hərflər — barmaq əlifbası</option>
-              <option value="words">sözlər — AzSLD-nin 701 sözü (sınaq)</option>
-              <option value="sentence">cümlə — fasiləsiz, söz-söz (sınaq)</option>
-            </select>
-          </label>
-          <div class="row">
-            <button class="btn btn-primary" id="btn-start">Kameranı başlat</button>
-            <button class="btn" id="btn-stop" disabled>Dayandır</button>
-          </div>
-          <div class="row">
-            <button class="btn btn-ghost" id="btn-finish" data-kind="letters">Sözü tamamla (enter)</button>
-            <button class="btn btn-ghost" id="btn-clear">Təmizlə</button>
-          </div>
-          <label class="field" data-kind="letters">
-            <span>Leksikon rejimi</span>
-            <select id="mode">
-              <option value="soft" selected>soft — kənara çıxmağa cərimə</option>
-              <option value="strict">strict — yalnız real söz prefiksi</option>
-              <option value="off">off — leksikon yoxdur</option>
-            </select>
-          </label>
-          <p class="hint" data-kind="letters">Hər hərfi ~1 saniyə göstər: statik hərfdə əli tərpətmə, hərəkətli hərfləri
-            (ç, d, g, k, ö, ü, y, z) adi kimi göstər. Eyni hərfi təkrar yazmaq üçün əli pozadan çıxar.</p>
-          <p class="hint" data-kind="letters">Kamera yoxdursa, klaviaturadan hərf yazıb dekoderi sına: <kbd>a…z</kbd>, <kbd>Enter</kbd>, <kbd>Backspace</kbd>.</p>
-          <p class="hint" data-kind="words" hidden>Əllər aşağıda dincəlir. Sözü və ya bir neçə sözü göstər, sonra əlləri
-            endir: model jestin hamısına baxıb sözləri ayırır. Bədən və əllər kadrda görünməlidir.</p>
-          <p class="hint" data-kind="words" hidden>Model AzSLD-də görmədiyi insanlar üzərində yoxlanılıb
-            (macro-F1 <b id="words-f1">—</b>), amma canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
-          <p class="hint" data-kind="sentence" hidden>Cümləni fasiləsiz göstər: hər söz göstərildikdən ~1 saniyə sonra
-            yazılır, sözlər arasında əlləri endirmək lazım deyil. Cümlə bitəndə əlləri endir — iki saniyəlik fasilə
-            cümləni bağlayır.</p>
-          <p class="hint" data-kind="sentence" hidden>Model AzSLD-də görmədiyi insanların cümlələri üzərində yoxlanılıb
-            (söz F1 <b id="sentence-f1">—</b>). AzSLD-də olmayan yeni cümlələrdə daha zəifdir (F1 ~0.6, tanıdığı
-            sözlərdə ~0.8). Canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
-        </div>
+          <div class="fit-strip">
+            <div class="card fit-strip-card" data-kind="letters">
+              <div class="card-head"><h2>Beam + leksikon</h2></div>
+              <div class="decoded" id="decoded"><span class="muted">-</span></div>
+              <div class="suggest" id="suggest"></div>
+              <div class="row">
+                <button class="btn btn-ghost" id="btn-finish" data-kind="letters">Sözü tamamla (enter)</button>
+                <button class="btn btn-ghost" id="btn-clear">Təmizlə</button>
+              </div>
+            </div>
 
-        <div class="card">
-          <div class="card-head"><h2>Cari proqnoz</h2><span class="badge" id="pred-quality">—</span></div>
-          <div class="pred-grid" id="pred-grid">
-            <div class="pred-empty">Hələ proqnoz yoxdur</div>
+            <div class="card fit-strip-card" data-kind="words" hidden>
+              <div class="card-head"><h2>Tanınan sözlər</h2><span class="badge" id="signs-info">-</span></div>
+              <div class="signs" id="signs"><span class="muted">boş</span></div>
+            </div>
+
+            <div class="card fit-strip-card" data-kind="sentence" hidden>
+              <div class="card-head"><h2>Cümlə</h2><span class="badge" id="sentence-info">-</span></div>
+              <div class="signs" id="sentence-words"><span class="muted">boş</span></div>
+              <p class="sentence-match" id="sentence-match" hidden></p>
+              <ol class="sentence-history" id="sentence-history"></ol>
+            </div>
           </div>
         </div>
 
-        <div class="card" data-kind="words" hidden>
-          <div class="card-head"><h2>Tanınan sözlər</h2><span class="badge" id="signs-info">—</span></div>
-          <div class="signs" id="signs"><span class="muted">boş</span></div>
-        </div>
+        <aside class="sidebar fit-right">
+          <nav class="fit-tabs" role="tablist" aria-label="Jest → Mətn idarəetmə paneli">
+            <button class="fit-tab is-active" type="button" data-fit-tab="proqnoz" role="tab" aria-selected="true">Proqnoz</button>
+            <button class="fit-tab" type="button" data-fit-tab="herfler" role="tab" aria-selected="false">Hərflər</button>
+            <button class="fit-tab" type="button" data-fit-tab="komek" role="tab" aria-selected="false">Kömək</button>
+          </nav>
+          <div class="fit-tabpanels">
+            <div class="fit-tabpanel is-active" data-fit-tabpanel="proqnoz">
+              <div class="card">
+                <div class="card-head"><h2>Cari proqnoz</h2><span class="badge" id="pred-quality">-</span></div>
+                <div class="pred-grid" id="pred-grid">
+                  <div class="pred-empty">Hələ proqnoz yoxdur</div>
+                </div>
+              </div>
 
-        <div class="card" data-kind="sentence" hidden>
-          <div class="card-head"><h2>Cümlə</h2><span class="badge" id="sentence-info">—</span></div>
-          <div class="signs" id="sentence-words"><span class="muted">boş</span></div>
-          <p class="sentence-match" id="sentence-match" hidden></p>
-          <ol class="sentence-history" id="sentence-history"></ol>
-        </div>
+              <div class="card" data-kind="letters">
+                <label class="field">
+                  <span>Leksikon rejimi</span>
+                  <select id="mode">
+                    <option value="soft" selected>soft - kənara çıxmağa cərimə</option>
+                    <option value="strict">strict - yalnız real söz prefiksi</option>
+                    <option value="off">off - leksikon yoxdur</option>
+                  </select>
+                </label>
+              </div>
 
-        <div class="card" data-kind="letters">
-          <div class="card-head"><h2>Yığılan hərflər</h2></div>
-          <div class="letters" id="letters"><span class="muted">boş</span></div>
-        </div>
+              <div class="card" data-kind="letters">
+                <div class="card-head"><h2>Yığılan hərflər</h2></div>
+                <div class="letters" id="letters"><span class="muted">boş</span></div>
+              </div>
+            </div>
 
-        <div class="card" data-kind="letters">
-          <div class="card-head"><h2>Beam + leksikon</h2></div>
-          <div class="decoded" id="decoded"><span class="muted">—</span></div>
-          <ul class="cand-list" id="candidates"></ul>
-          <div class="suggest" id="suggest"></div>
-        </div>
-      </aside>
+            <div class="fit-tabpanel" data-fit-tabpanel="herfler" data-kind="letters">
+              <div class="card">
+                <ul class="cand-list" id="candidates"></ul>
+              </div>
+            </div>
+
+            <div class="fit-tabpanel" data-fit-tabpanel="komek">
+              <div class="card">
+                <p class="hint" data-kind="letters">Hər hərfi ~1 saniyə göstər: statik hərfdə əli tərpətmə, hərəkətli hərfləri
+                  (ç, d, g, k, ö, ü, y, z) adi kimi göstər. Eyni hərfi təkrar yazmaq üçün əli pozadan çıxar.</p>
+                <p class="hint" data-kind="letters">Kamera yoxdursa, klaviaturadan hərf yazıb dekoderi sına: <kbd>a…z</kbd>, <kbd>Enter</kbd>, <kbd>Backspace</kbd>.</p>
+                <p class="hint" data-kind="words" hidden>Əllər aşağıda dincəlir. Sözü və ya bir neçə sözü göstər, sonra əlləri
+                  endir: model jestin hamısına baxıb sözləri ayırır. Bədən və əllər kadrda görünməlidir.</p>
+                <p class="hint" data-kind="words" hidden>Model AzSLD-də görmədiyi insanlar üzərində yoxlanılıb
+                  (macro-F1 <b id="words-f1">-</b>), amma canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
+                <p class="hint" data-kind="sentence" hidden>Cümləni fasiləsiz göstər: hər söz göstərildikdən ~1 saniyə sonra
+                  yazılır, sözlər arasında əlləri endirmək lazım deyil. Cümlə bitəndə əlləri endir - iki saniyəlik fasilə
+                  cümləni bağlayır.</p>
+                <p class="hint" data-kind="sentence" hidden>Model AzSLD-də görmədiyi insanların cümlələri üzərində yoxlanılıb
+                  (söz F1 <b id="sentence-f1">-</b>). AzSLD-də olmayan yeni cümlələrdə daha zəifdir (F1 ~0.6, tanıdığı
+                  sözlərdə ~0.8). Canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
+              </div>
+            </div>
+          </div>
+        </aside>
     </main>
 
     <!-- ══════════════ MƏTN → JEST ══════════════ -->
     <main class="panel" id="tab-t2s">
-      <section class="stage">
-        <div class="viewport" id="t2s-avatar">
-          <div class="viewport-label">VRM avatar <span class="muted">· poza bütün qola ötürülür</span></div>
-        </div>
-        <div class="viewport" id="t2s-skeleton">
-          <div class="viewport-label">Cyber skeleton <span class="muted">· eyni poza, xam landmark</span></div>
-        </div>
-      </section>
+        <div class="fit-left">
+          <section class="stage">
+            <div class="viewport" id="t2s-avatar">
+              <div class="viewport-label">VRM avatar <span class="muted">· poza bütün qola ötürülür</span></div>
+            </div>
+            <div class="viewport" id="t2s-skeleton">
+              <div class="viewport-label">Cyber skeleton <span class="muted">· eyni poza, xam landmark</span></div>
+            </div>
+          </section>
 
-      <aside class="sidebar">
-        <div class="card">
-          <div class="card-head"><h2>Mətn</h2></div>
-          <textarea id="t2s-input" rows="3" placeholder="Məsələn: salam dünya">salam</textarea>
-          <div class="row">
-            <button class="btn btn-primary" id="btn-play">Jest dilində göstər</button>
-            <button class="btn" id="btn-stop-play">Dayandır</button>
+          <div class="fit-strip">
+            <div class="card fit-strip-card">
+              <div class="card-head"><h2>Mətn</h2></div>
+              <textarea id="t2s-input" rows="3" placeholder="Məsələn: salam dünya">salam</textarea>
+              <div class="row">
+                <button class="btn btn-primary" id="btn-play">Jest dilində göstər</button>
+                <button class="btn" id="btn-stop-play">Dayandır</button>
+              </div>
+              <div id="t2s-warn" class="warn" hidden></div>
+            </div>
           </div>
-          <div class="row compact">
-            <label class="field inline"><span>Hərf müddəti</span><input type="range" id="hold" min="220" max="1400" step="20" value="620"><b id="hold-val">620ms</b></label>
-          </div>
-          <div class="row compact">
-            <label class="field inline"><span>Sürət</span>
-              <select id="speed">
-                <option value="0.25">0.25×</option>
-                <option value="0.5">0.5×</option>
-                <option value="0.75">0.75×</option>
-                <option value="1" selected>1×</option>
-                <option value="1.25">1.25×</option>
-                <option value="1.5">1.5×</option>
-                <option value="1.75">1.75×</option>
-                <option value="2">2×</option>
-              </select>
-            </label>
-          </div>
-          <div class="row compact">
-            <label class="field inline"><span>Əl</span>
-              <select id="hand"><option value="right" selected>sağ</option><option value="left">sol</option></select>
-            </label>
-          </div>
-          <div class="row compact">
-            <label class="field inline"><span>Avatar</span>
-              <select id="avatar-select">
-                <option value="avatar.vrm" selected>Standart</option>
-                <option value="avatarfem.vrm">Qadın</option>
-              </select>
-            </label>
-          </div>
-          <div id="t2s-warn" class="warn" hidden></div>
         </div>
 
-        <div class="card">
-          <div class="card-head"><h2>Oynatma</h2><span class="badge" id="play-progress">—</span></div>
-          <div class="spelled" id="spelled"><span class="muted">—</span></div>
-          <div class="current-letter" id="current-letter">·</div>
-        </div>
+        <aside class="sidebar fit-right">
+          <nav class="fit-tabs" role="tablist" aria-label="Mətn → Jest idarəetmə paneli">
+            <button class="fit-tab is-active" type="button" data-fit-tab="lugat" role="tab" aria-selected="true">Lüğət</button>
+            <button class="fit-tab" type="button" data-fit-tab="elifba" role="tab" aria-selected="false">Əlifba</button>
+            <button class="fit-tab" type="button" data-fit-tab="ayarlar" role="tab" aria-selected="false">Ayarlar</button>
+          </nav>
+          <div class="fit-tabpanels">
+            <div class="fit-tabpanel is-active" data-fit-tabpanel="lugat">
+              <div class="card">
+                <div class="card-head"><h2>Lüğət</h2><span class="badge" id="word-count">-</span></div>
+                <input type="text" id="word-search" class="word-search" placeholder="Söz axtar…" autocomplete="off" />
+                <div class="words" id="words"></div>
+                <p class="hint">Sözə toxun - işarəsi hər iki görüntüdə göstərilir. <b>2</b> - iki əlli işarə.
+                  Lüğətdə olmayan söz hərf-hərf göstərilir. Mənbə: AzSLD (CC BY 4.0).</p>
+              </div>
+            </div>
 
-        <div class="card">
-          <div class="card-head"><h2>Lüğət</h2><span class="badge" id="word-count">—</span></div>
-          <input type="text" id="word-search" class="word-search" placeholder="Söz axtar…" autocomplete="off" />
-          <div class="words" id="words"></div>
-          <p class="hint">Sözə toxun — işarəsi hər iki görüntüdə göstərilir. <b>2</b> — iki əlli işarə.
-            Lüğətdə olmayan söz hərf-hərf göstərilir. Mənbə: AzSLD (CC BY 4.0).</p>
-        </div>
+            <div class="fit-tabpanel" data-fit-tabpanel="elifba">
+              <div class="card">
+                <div class="card-head"><h2>Əlifba</h2><span class="badge" id="abc-count">-</span></div>
+                <div class="abc" id="abc"></div>
+                <p class="hint">Hərfə toxun - pozası hər iki görüntüdə göstərilir. <b>D</b> işarəsi dinamik hərfdir (hərəkətli).</p>
+              </div>
+            </div>
 
-        <div class="card">
-          <div class="card-head"><h2>Əlifba</h2><span class="badge" id="abc-count">—</span></div>
-          <div class="abc" id="abc"></div>
-          <p class="hint">Hərfə toxun — pozası hər iki görüntüdə göstərilir. <b>D</b> işarəsi dinamik hərfdir (hərəkətli).</p>
-        </div>
-      </aside>
+            <div class="fit-tabpanel" data-fit-tabpanel="ayarlar">
+              <div class="card">
+                <div class="row compact">
+                  <label class="field inline"><span>Hərf müddəti</span><input type="range" id="hold" min="220" max="1400" step="20" value="620"><b id="hold-val">620ms</b></label>
+                </div>
+                <div class="row compact">
+                  <label class="field inline"><span>Sürət</span>
+                    <select id="speed">
+                      <option value="0.25">0.25×</option>
+                      <option value="0.5">0.5×</option>
+                      <option value="0.75">0.75×</option>
+                      <option value="1" selected>1×</option>
+                      <option value="1.25">1.25×</option>
+                      <option value="1.5">1.5×</option>
+                      <option value="1.75">1.75×</option>
+                      <option value="2">2×</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="row compact">
+                  <label class="field inline"><span>Əl</span>
+                    <select id="hand"><option value="right" selected>sağ</option><option value="left">sol</option></select>
+                  </label>
+                </div>
+                <div class="row compact">
+                  <label class="field inline"><span>Avatar</span>
+                    <select id="avatar-select">
+                      <option value="avatar.vrm" selected>Standart</option>
+                      <option value="avatarfem.vrm">Qadın</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
     </main>
 
     <!-- ══════════════ MODEL ══════════════ -->

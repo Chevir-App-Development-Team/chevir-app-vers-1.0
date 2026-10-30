@@ -16,11 +16,10 @@ const LINKS = {
   investors: { href: 'https://bakuid.seeder.so/r/bakuid-2026/s/chevir', label: t('common.nav.investors'), external: true },
 }
 
-// Hazırda yalnız "home" EN tərcüməsi/hamburger-dropdown sisteminə qoşulub.
-// Yeni səhifə (tərcume, nsosyal) EN alsa: buraya səhifə açarını əlavə et,
-// PAGE_EN_PATH-ə uyğun EN yolu yaz - navbar.css-də ayrıca dəyişiklik lazım
-// deyil (selektorlar `[data-nav-menu]`-a bağlıdır, səhifə adına yox).
-const MENU_ENABLED_PAGES = ['home']
+// Bütün səhifələrdə eyni mobil/planşet hamburger davranışı (bax navbar.css
+// ≤1023px bloku - selektorlar `[data-nav-menu]`-a bağlıdır, səhifə adına
+// yox, ona görə bura səhifə əlavə etmək CSS-ə TOXUNMADAN kifayətdir).
+const MENU_ENABLED_PAGES = ['home', 'tercume', 'nsosyal']
 
 // Səhifənin EN qarşılığı. Qarşılığı olmayan səhifə (hələlik tercume/nsosyal)
 // EN düyməsində ana səhifənin EN nüsxəsinə (fallback) aparır.
@@ -62,14 +61,21 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
       return `<a class="navbar__link${i ? ' navbar__link--extra' : ''}" href="${href}"${extAttrs}>${l.label}</a>`
     })
     .join('\n    ')
-  // Hamburger-dropdown-u olan səhifələrdə (hazırda yalnız home) AZ|EN ayrıca
-  // sətirdə dropdown-un sonunda da təkrarlanır (bax navbar.css ≤1023px
-  // bloku) - digər səhifələrdə .navbar__links həmişə sətir-daxili göründüyü
-  // üçün bura ƏLAVƏ OLUNMUR (əks halda masaüstü sətrində iki dəfə görünərdi).
+  // Hamburger-dropdown-u olan səhifələrdə AZ|EN ayrıca sətirdə dropdown-un
+  // sonunda da təkrarlanır (bax navbar.css ≤1023px bloku) - digər
+  // səhifələrdə .navbar__links həmişə sətir-daxili göründüyü üçün bura
+  // ƏLAVƏ OLUNMUR (əks halda masaüstü sətrində iki dəfə görünərdi).
   const menuLangBlock = hasMenu
     ? `\n    <span class="navbar__lang-divider" aria-hidden="true"></span>${langSwitchMarkup(page, ' navbar__lang--menu')}`
     : ''
-  const cls = `${home ? '' : ' is-revealed is-scrolled'}${light ? ' is-light' : ''}`
+  // CTA ≤600px-də sətir-daxili nüsxə (.navbar__end-dəki) gizlənir - home-da
+  // hero-nun öz düymələri əvəz edir, lakin tercume/nsosyal-da əvəzedici
+  // yoxdur. Ona görə hamburger-dropdown-u olan HƏR səhifədə CTA dropdown-un
+  // son sətri kimi də təkrarlanır (bütün səhifələrdə eyni mobil davranış).
+  const menuCtaBlock = hasMenu
+    ? `\n    <a class="navbar__cta navbar__cta--menu" href="${home ? '' : BASE}#pilot">${t('common.nav.cta')}</a>`
+    : ''
+  const cls = `${home ? '' : ' is-revealed'}${light ? ' is-light' : ''}`
   const navMenuAttr = hasMenu ? ' data-nav-menu' : ''
   return `
 <header class="navbar${cls}" data-navbar data-page="${page}"${navMenuAttr}>
@@ -81,7 +87,7 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
     <span class="navbar__name">${t('common.brand.name')}</span>
   </a>
   <nav class="navbar__links" id="navbar-links" aria-label="${t('common.nav.ariaLabel')}">
-    ${links}${menuLangBlock}
+    ${links}${menuLangBlock}${menuCtaBlock}
   </nav>
   <div class="navbar__end">
     ${langSwitchMarkup(page)}
@@ -93,6 +99,18 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
   </button>
 </header>
 `
+}
+
+// Scroll > 40px-dən sonra görünən nazik "kölgə" xətti (.is-scrolled) - home-da
+// hero.js-dəki initNavbar() özü idarə edir (digər bölmə detektoru ilə
+// birləşik), digər səhifələrdə (tercume/nsosyal) həmin EYNİ sinif/hədd üçün
+// bu kiçik köməkçi istifadə olunur ki, xətt scroll vəziyyətindən asılı
+// olmayaraq həmişə görünməsin (əvvəlki bug: markup-a hardcode olunurdu).
+export function initScrollShadow(navbarEl) {
+  if (!navbarEl) return
+  const update = () => navbarEl.classList.toggle('is-scrolled', scrollY > 40)
+  update()
+  addEventListener('scroll', update, { passive: true })
 }
 
 // Mobil/planşet hamburger menyusu (yalnız `[data-nav-menu]` olan

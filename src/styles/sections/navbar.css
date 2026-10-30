@@ -298,7 +298,8 @@
    əks halda masaüstü sətirində (`.navbar__links` həmişə DOM-da olan ikinci
    nüsxə kimi) təkrar görünərdi. */
 .navbar__lang-divider,
-.navbar__lang--menu {
+.navbar__lang--menu,
+.navbar__cta--menu {
   display: none;
 }
 
@@ -437,6 +438,17 @@
     opacity: 1;
     visibility: visible;
   }
+
+  /* Dropdown-un son sətri: CTA - sətir-daxili (.navbar__end) nüsxəsi
+     ≤600px-də gizlənəndə (bax aşağı) mobil istifadəçinin pilot-müraciət
+     düyməsinə çatması üçün yeganə yol budur. */
+  .navbar[data-nav-menu].is-menu-open .navbar__cta--menu {
+    display: block;
+    text-align: center;
+    margin: 0.5rem 0.75rem 0.2rem;
+    opacity: 1;
+    visibility: visible;
+  }
 }
 
 /* ≤600px: CTA da gizlənir (hero-nun öz alt düymələri əvəz edir, bax
@@ -456,6 +468,41 @@
     left: auto;
     right: clamp(1.25rem, 5vw, 4rem);
     transform: none;
+  }
+}
+
+/* Mobil (≤767px) yalnız /tercume və /nsosyal: toggle 3 xətt + şəffaf/ağ
+   kontur restyle. body.tercume/body.ns scope-u ilə home toxunulmaz qalır -
+   planşetdə (768-1023px) hamburger artıq mövcuddur, bu blok ona TOXUNMUR,
+   yalnız ≤767px-də əlavə vizual üstəlik qoyur. */
+@media (max-width: 767px) {
+  body.tercume .navbar[data-nav-menu] .navbar__toggle,
+  body.ns .navbar[data-nav-menu] .navbar__toggle {
+    position: relative;
+    border: 1.5px solid #ffffff;
+    background: transparent;
+  }
+
+  /* 3-cü (orta) xətt ::before ilə - mövcud 2 real .navbar__toggle-bar
+     toxunulmur, onlar açılanda öz :first-child/:last-child X-transformunu
+     saxlayır, orta xətt sadəcə fade-out olur. */
+  body.tercume .navbar[data-nav-menu] .navbar__toggle::before,
+  body.ns .navbar[data-nav-menu] .navbar__toggle::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 18px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--ink-on-dark);
+    transform: translate(-50%, -50%);
+    transition: opacity 0.2s ease;
+  }
+
+  body.tercume .navbar[data-nav-menu].is-menu-open .navbar__toggle::before,
+  body.ns .navbar[data-nav-menu].is-menu-open .navbar__toggle::before {
+    opacity: 0;
   }
 }
 
