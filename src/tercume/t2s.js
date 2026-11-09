@@ -102,11 +102,39 @@ export class TextToSign {
     }
   }
 
+  /**
+   * İşarələrin siyahısı → addımlar: {id} — lüğətin sözü, {spell} — hərf-hərf (rəy səhifəsi: göstərilmiş
+   * cümlənin işarələri). Lüğətdə olmayan id də hərf-hərf göstərilir (`text` ilə).
+   */
+  planSigns(list) {
+    const byId = new Map(this.lexicon.entries.map((e) => [e.id, e]));
+    const letters = this.poses?.letters ?? {};
+    const steps = [];
+    let pos = 0;
+    list.forEach((s, i) => {
+      if (i) { steps.push({ kind: 'space', char: ' ', from: pos, to: pos + 1 }); pos++; }
+      const entry = s.id && byId.get(s.id);
+      const text = entry ? entry.text : azLower(s.spell ?? s.text ?? '');
+      const at = { from: pos, to: pos + text.length, seg: { from: pos, to: pos + text.length } };
+      if (entry) steps.push({ kind: 'word', char: entry.text, entry, ...at });
+      else {
+        [...text].forEach((c) => steps.push(letters[c] ? { kind: 'letter', char: c, pose: letters[c], ...at }
+          : { kind: 'unknown', char: c, ...at }));
+      }
+      pos += text.length;
+    });
+    return steps;
+  }
+
   /** `entry` — lüğətin konkret sözü (lüğət vərəqi: eyni yazılışın ikinci mənası, bel (alət) / bel (bədən)). */
   async play(text, entry = null) {
-    this.stop();
     const all = { from: 0, to: text.length };
-    const steps = entry ? [{ kind: 'word', char: entry.text, entry, ...all, seg: all }] : this.plan(text);
+    return this.playSteps(entry ? [{ kind: 'word', char: entry.text, entry, ...all, seg: all }] : this.plan(text));
+  }
+
+  /** plan() və ya planSigns() addımlarını oynadır. */
+  async playSteps(steps) {
+    this.stop();
     if (!steps.length) return;
 
     const token = {};

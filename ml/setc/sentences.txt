@@ -1,0 +1,162 @@
+# Set C (roadmap V1): məhsulun mövzularından təzə cümlələr, hər biri 2–3 işarə dili daşıyıcısının təbii göstərişi ilə
+# yazılacaq (D4b, /qeyd/). QARALAMA: komanda və işarə dili daşıyıcıları cümlələri dəyişə, ata, əlavə edə bilər; yazılışdan
+# sonra dondurulur. Qaydaları bu cümlələrə baxaraq dəyişmirik (test yarısı). Sətir = bir cümlə, "# mövzu: ..." başlıq.
+# tools/build_setc.mjs → ml/setc/setc.csv (id, mövzu, dev/test, xüsusiyyətlər).
+
+# mövzu: sosial xidmət
+Mən DOST mərkəzinə getmək istəyirəm.
+DOST mərkəzi saat neçədə açılır?
+Əlillik arayışı almaq üçün hara müraciət etməliyəm?
+Mənim şəxsiyyət vəsiqəmin müddəti bitib.
+Yeni şəxsiyyət vəsiqəsi nə vaxt hazır olacaq?
+Mən ərizə yazmaq istəyirəm, mənə kömək edə bilərsiniz?
+Hansı sənədləri gətirməliyəm?
+Sənədlərimi evdə unutmuşam.
+Mənim pensiyam bu ay gəlməyib.
+Pensiya kartımı itirmişəm.
+Müavinət almaq üçün nə etməliyəm?
+Növbəm neçənci nömrədir?
+Bir saatdır burada gözləyirəm.
+Burada işarə dili tərcüməçisi var?
+Mən eşitmirəm, zəhmət olmasa yazın.
+Zəhmət olmasa yavaş danışın.
+Mən sizi başa düşmədim, bir də deyin.
+ASAN xidmətdə növbəni internetdən götürmək olar?
+Ünvanımı dəyişmək istəyirəm.
+Mənim qardaşım da əlillik təqaüdü alır.
+Arayış üç gün sonra hazır olacaq.
+Bu sənədi notariusda təsdiq etdirməlisiniz.
+Əlillik müddətim bu ay bitir.
+Komissiyaya nə vaxt gəlməliyəm?
+Mən işsizəm və iş axtarıram.
+Mənə uyğun iş tapmağa kömək edin.
+Kommunal xərclər üçün güzəşt var?
+Ailə tərkibi haqqında arayış lazımdır.
+Bu formanı doldurmağa kömək edərsiniz?
+Mənim telefon nömrəmi yazın.
+Cavabı mənə mesajla göndərin.
+Video zənglə danışmaq olar?
+Mən sabah yenidən gələcəm.
+Bu gün qəbul yoxdur.
+Müdirlə görüşmək istəyirəm.
+Şikayətimi kimə yaza bilərəm?
+Ərizəmə hələ cavab verilməyib.
+Mənim adım Nərmindir.
+Doğum tarixim 12 mart 1985-ci ildir.
+Mən Sumqayıtda yaşayıram.
+
+# mövzu: sağlıq
+Mənim başım çox ağrıyır.
+Dünəndən qızdırmam var.
+Həkimə növbə yazdırmaq istəyirəm.
+Həkim nə vaxt qəbul edir?
+Uşağım xəstədir, öskürür.
+Təcili yardım çağırın!
+Mənim təzyiqim qalxıb.
+Bu dərmanı necə içməliyəm?
+Dərmanı gündə üç dəfə yeməkdən sonra için.
+Bu dərman aptekdə var?
+Resept olmadan bu dərmanı satmırıq.
+Dişim ağrıyır, diş həkiminə getməliyəm.
+Qan analizi vermək lazımdır.
+Analizin cavabı sabah hazır olacaq.
+Mən şəkər xəstəsiyəm.
+Mənim heç bir dərmana allergiyam yoxdur.
+Ürəyim bulanır, başım gicəllənir.
+Qolum sınıb, çox ağrıyır.
+Xəstəxanaya necə gedə bilərəm?
+Həkim mənə üç gün yataq rejimi yazdı.
+Nə vaxtdan xəstəsiniz?
+Harası ağrıyır?
+Mən hamiləyəm.
+Anam xəstəxanada yatır.
+Atam ürək xəstəsidir.
+Bu iynə ağrılıdır?
+Mənə tərcüməçi lazımdır, həkimi başa düşmürəm.
+Əməliyyat nə vaxt olacaq?
+Gecələr yata bilmirəm.
+Uşağın peyvəndi vaxtında vurulmalıdır.
+Mənim tibbi sığortam var.
+Müayinə pulludur, yoxsa pulsuz?
+Poliklinika şənbə günü işləyir?
+Çox yorğunam, işə gedə bilmərəm.
+Bir həftədir öskürürəm.
+
+# mövzu: bank və pul
+Mən bank kartı açmaq istəyirəm.
+Kartımın şifrəsini unutmuşam.
+Bankomat kartımı udub.
+Hesabıma pul gəlib?
+Maaşım hələ köçürülməyib.
+Bu ay kreditimi ödəyə bilməyəcəm.
+Kreditin faizi neçədir?
+Mən nağd pul çıxarmaq istəyirəm.
+Kommunal xərcləri burada ödəmək olar?
+Qəbzi mənə verin.
+Bu əməliyyat üçün komissiya var?
+Bu gün dolların məzənnəsi neçədir?
+Mən yüz dollar dəyişmək istəyirəm.
+Anamın kartına pul köçürmək istəyirəm.
+Telefonumda bankın tətbiqi işləmir.
+Kartımın müddəti bitib, yenisini nə vaxt alacam?
+Mənim kartım bloklanıb.
+Pulu qardaşımın hesabına köçürün.
+Bu qiymət çox bahadır.
+Endirim var?
+Bu neçə manatdır?
+On beş manat əlli qəpik.
+Kartla ödəmək olar?
+Qalığı mənə qaytarmadınız.
+Pulu sabah qaytaracam.
+Dostumdan borc pul aldım.
+Əmanət hesabı açmaq istəyirəm.
+Bank saat neçəyə qədər işləyir?
+Pasportumun surəti lazımdır?
+Bu ay xərclərim çox olub.
+
+# mövzu: gündəlik həyat
+Sabahın xeyir, necəsən?
+Mən yaxşıyam, sən necəsən?
+Bu gün çöldə qar yağır.
+Axşam evdə olacam.
+Uşaqlar məktəbdən gəlib?
+Qızım bu il məktəbə gedir.
+Oğlum universitetdə oxuyur.
+Bazara gedib çörək aldım.
+Evdə süd qalmayıb.
+Nə yemək istəyirsən?
+Mən çay içmək istəyirəm.
+Avtobus neçədə gəlir?
+Metroya necə gedə bilərəm?
+Mən işə gecikdim.
+Dünən dostlarımla parka getdik.
+Bacımla telefonla danışdım.
+Qardaşım Rusiyada işləyir.
+Həftə sonu nə edirsən?
+Biz bazar günü qonaq gedəcəyik.
+Sənin ad günün nə vaxtdır?
+Mənim ad günüm mayın beşindədir.
+Saat neçədir?
+İndi saat üçdür.
+Mən səni gözləyirəm.
+Bu gün gələ bilməyəcəm.
+Kömək edə bilərsən?
+Telefonumun batareyası bitib.
+Mesajımı oxudun?
+Mən yeni ev axtarıram.
+Evimiz metroya yaxındır.
+Qonşumuz çox mehribandır.
+Anam yemək bişirir.
+Atam televizora baxır.
+Biz ailəliklə dənizə gedəcəyik.
+Yay tətilində harada olacaqsan?
+Mən futbol oynamağı sevirəm.
+Kitab oxumağı xoşlayıram.
+Uşaqlar bağçada oynayır.
+Bu gün yorğunam, evdə qalacam.
+Taksi çağıra bilərsən?
+Mən Gəncəyə qatarla gedəcəm.
+Bilet neçəyədir?
+Toyunuz mübarək!
+Yeni iliniz mübarək!
+Görüşənədək, sabah görüşərik.

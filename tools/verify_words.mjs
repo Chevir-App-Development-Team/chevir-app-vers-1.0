@@ -115,6 +115,16 @@ for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarş
   check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
 
+// Ədədlər danışıqdakı hissələrlə, hissələrin hamısının işarəsi varsa (N7): rəqəmin işarəsi, yoxsa adının (JestDili.az)
+const nums = new WordLexicon({ sources: [{ prefix: 'jd-' }], words: [
+  ...['2', '3', '5', '30'].map((text) => ({ id: text, text })), ...['yeddi', 'doqquz', 'doxsan', 'yüz', 'min'].map(jd)] },
+{ native: false });
+for (const [text, want] of [['7', 'w:yeddi'], ['35', 'w:30 w:5'], ['99', 'w:doxsan w:doqquz'], ['300', 'w:3 w:yüz'],
+  ['1990', 'w:min w:doqquz w:yüz w:doxsan'], ['25', 'w:2 w:5'], ['0', 't:sıfır'], ['12345', 't:bir w:2 w:3 t:dörd w:5']]) {
+  const got = show(nums.segment(text));
+  check(got === want, `ədəd: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+
 for (const [text, want] of nativeCases) {
   const got = show(nat.segment(text));
   check(got === want, `doğma: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);

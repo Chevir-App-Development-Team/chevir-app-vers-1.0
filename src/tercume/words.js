@@ -29,6 +29,23 @@ const NUMBER_WORDS = new Map([
   ['altıncı', 6], ['yeddinci', 7], ['səkkizinci', 8], ['doqquzuncu', 9], ['onuncu', 10],
 ]);
 const ROMAN = { I: 1, V: 5, X: 10 };
+// Ədədin adı (JestDili.az-ın işarələri adla yazılıb): 7 → yeddi, 90 → doxsan, 1000 → min
+const NUMBER_NAMES = Object.fromEntries([...DIGIT_NAMES.map((w, d) => [d, w]), [10, 'on'], [20, 'iyirmi'], [30, 'otuz'],
+  [40, 'qırx'], [50, 'əlli'], [60, 'altmış'], [70, 'yetmiş'], [80, 'səksən'], [90, 'doxsan'], [100, 'yüz'], [1000, 'min']]);
+
+/**
+ * Ədədin danışıqdakı hissələri (1 ≤ n ≤ 9999): 1990 → [1000, 9, 100, 90], 2025 → [2, 1000, 20, 5], 115 → [100, 15].
+ * "bir min", "bir yüz" deyilmir. İki rəqəmli qalıq öz işarəsi varsa bütöv (15), yoxsa onluq + təklik.
+ */
+export function spokenParts(n, has = () => false) {
+  const out = [];
+  const th = Math.floor(n / 1000), h = Math.floor((n % 1000) / 100), r = n % 100;
+  if (th) out.push(...(th > 1 ? [th, 1000] : [1000]));
+  if (h) out.push(...(h > 1 ? [h, 100] : [100]));
+  if (r && (r < 10 || has(r))) out.push(r);
+  else if (r) out.push(...(r % 10 ? [r - (r % 10), r % 10] : [r]));
+  return out;
+}
 
 // Yiyəlik əvəzliyi işarədə əvəzliyin özüdür: AzSLD-də "mənim" olan 83 cümlənin hamısında MƏN (onun 11/11, sizin 11/11,
 // heç birində MƏNİM, ONUN, SİZİN); işarə dili daşıyıcısı da belə deyir: MƏNİM işarəsi var, az işlənir (E21)
@@ -371,7 +388,11 @@ export class WordLexicon {
    */
   #number(it) {
     const at = { from: it.from, to: it.to };
-    const sign = (n) => { const e = this.byText.get(n); return e && { kind: 'word', text: e.text, entry: e, via: 'number', ...at }; };
+    // rəqəmin işarəsi (AzSLD: "7"), yoxsa adının işarəsi (JestDili.az: "yeddi", "doxsan", "yüz", "min")
+    const sign = (n) => {
+      const e = this.byText.get(n) ?? this.extra?.byText.get(n) ?? (NUMBER_NAMES[n] && this.extra?.byText.get(NUMBER_NAMES[n]));
+      return e && { kind: 'word', text: e.text, entry: e, via: 'number', ...at };
+    };
     let n = /^\d+$/.test(it.tok) ? it.tok : null;
     if (!n && /^[IVX]{2,}$/.test(it.raw ?? '')) n = String(roman(it.raw));
     if (!n && NUMBER_WORDS.has(it.tok)) {
@@ -381,6 +402,13 @@ export class WordLexicon {
     if (!n) return null;
     const whole = sign(n);
     if (whole) return [whole];
+    // Ədəd danışıqdakı kimi hissələrlə (1990 → MİN DOQQUZ YÜZ DOXSAN, 35 → 30 5): işarə dili daşıyıcısına görə hər
+    // ədədin öz işarəsi var və sistemlidir (E21); hissələrin hamısının işarəsi varsa. Uzun ədəd (telefon) və 0 ilə
+    // başlayan rəqəm-rəqəm qalır (N7; ədədlərin öz işarələri yazılana qədər)
+    if (n.length <= 4 && n[0] !== '0') {
+      const parts = spokenParts(Number(n), (x) => Boolean(sign(String(x)))).map((x) => sign(String(x)));
+      if (parts.every(Boolean)) return parts;
+    }
     return [...n].map((d) => sign(d) ?? { kind: 'text', text: DIGIT_NAMES[d], ...at });
   }
 

@@ -2,6 +2,8 @@
   "redirects": [
     { "source": "/tercume", "destination": "/tercume/", "permanent": true },
     { "source": "/nsosyal", "destination": "/nsosyal/", "permanent": true },
-    { "source": "/en", "destination": "/en/", "permanent": true }
+    { "source": "/en", "destination": "/en/", "permanent": true },
+    { "source": "/rey", "destination": "/rey/", "permanent": true },
+    { "source": "/qeyd", "destination": "/qeyd/", "permanent": true }
   ]
 }

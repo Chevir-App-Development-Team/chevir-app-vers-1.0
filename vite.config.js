@@ -5,7 +5,7 @@ import { i18nHtmlPlugin } from './src/i18n/html-plugin.js'
 // /tercume, /nsosyal, /en (slash-sız) → slash-lı: Vite-in SPA fallback-i
 // slash-sız ünvanda ana səhifəni qaytarır. Production-da eyni yönləndirmə
 // vercel.json-dadır.
-const PAGES = ['/tercume', '/nsosyal', '/en']
+const PAGES = ['/tercume', '/nsosyal', '/en', '/rey', '/qeyd']
 function redirectPages(req, res, next) {
   const [path, query] = req.url.split('?')
   if (!PAGES.includes(path)) return next()
@@ -14,8 +14,8 @@ function redirectPages(req, res, next) {
   res.end()
 }
 
-// Dörd səhifə: sayt (/ + EN nüsxəsi /en/), tərcümə sistemi (/tercume/),
-// NSosyal inteqrasiya demosu (/nsosyal/)
+// Səhifələr: sayt (/ + EN nüsxəsi /en/), tərcümə sistemi (/tercume/), NSosyal inteqrasiya demosu
+// (/nsosyal/), komanda alətləri (/rey/, /qeyd/)
 export default defineConfig({
   plugins: [
     {
@@ -40,6 +40,9 @@ export default defineConfig({
         en: resolve(import.meta.dirname, 'en/index.html'),
         tercume: resolve(import.meta.dirname, 'tercume/index.html'),
         nsosyal: resolve(import.meta.dirname, 'nsosyal/index.html'),
+        // komanda alətləri: işarə dili daşıyıcılarının rəyi (V2) və yazılış (D4); naviqasiyada yoxdur
+        rey: resolve(import.meta.dirname, 'rey/index.html'),
+        qeyd: resolve(import.meta.dirname, 'qeyd/index.html'),
       },
     },
   },
