@@ -12,7 +12,7 @@ The next steps wait on an interview with a fluent AzSL signer: questions and mat
 
 | Direction | What it does today | Measured |
 |---|---|---|
-| Text → sign (t2s) | words → morph.js roots → 786-sign lexicon; derived words → their root (əlillik → ƏLİL, verilir → VERMƏK); phrases and idioms (`ml/text_alt.csv`); negated verb without a sign → verb + YOX; numbers digit by digit; hyphen suffixes dropped; "ilə/idi/ki" dropped; rest spelled | same-gloss F1 **0.893** test / 0.901 dev; **95.2 %** of words as signs (96.7 % dev); negation meaning flips **0** of 696 forms |
+| Text → sign (t2s) | words → morph.js roots → 3,173-sign lexicon (AzSLD 786 + JestDili.az 2,387); derived words → their root (əlillik → ƏLİL, verilir → VERMƏK); phrases and idioms (`ml/text_alt.csv`); negated verb without a sign → verb + YOX; numbers digit by digit; hyphen suffixes dropped; "ilə/idi/ki" dropped; rest spelled | same-gloss F1 **0.893** test / 0.901 dev; **95.2 %** of words as signs (96.7 % dev); negation meaning flips **0** of 696 forms |
 | Sign → text (s2t) | recognizer labels → nearest AzSLD sentence, else gloss2text (root + case/person/tense, agreement) | WER / chrF, unseen sentences: **49.3 %** / 60.2 from annotated signs (gloss string 68.6 % / 52.1), **51.8 %** / 58.3 from the recognizer (66.1 %); AzSLD's own sentences **4.8 %** |
 
 What the remaining s2t errors are (dev, 2,150 words, E16): **28 %** right root in the wrong form (mən/mənim/mənə,
@@ -100,7 +100,7 @@ hard gate; s2t WER plus chrF (partial credit for a right root, fairer for agglut
    BİRLİKDƏ, a dropped 1st/2nd-person subject signed, tense as verb + OLMAQ / OLACAQ, "-malı" as verb + LAZIM;
    AzSLD style stays as `{ native: false }` for the evaluation (F1 0.893 vs 0.856 native on test). Still to confirm:
    the order verb + YOX + tense.
-1b. **More signs**: JestDili.az (~3,000 words, access offered; licence to confirm) and Russian Sign Language datasets
+1b. **More signs**: JestDili.az (done: 2,387 signs in the app with permission, E24) and Russian Sign Language datasets
    (AzSL shares 95–97 % of its signs with RSL) for the lexicon and the recognizer.
 2. **Corpus** for S2: HPLT 2.0 (CC0) used (E18); aze-books (Apache-2.0) needs an account to accept its terms. More shards when S3 needs them?
 3. **Set C**: who signs and glosses ~150 fresh sentences (2–3 Deaf signers, the review-sheet process).

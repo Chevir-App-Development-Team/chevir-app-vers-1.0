@@ -33,9 +33,9 @@ const ROMAN = { I: 1, V: 5, X: 10 };
 // Yiyəlik əvəzliyi işarədə əvəzliyin özüdür: AzSLD-də "mənim" olan 83 cümlənin hamısında MƏN (onun 11/11, sizin 11/11,
 // heç birində MƏNİM, ONUN, SİZİN); işarə dili daşıyıcısı da belə deyir: MƏNİM işarəsi var, az işlənir (E21)
 const POSSESSIVE = new Map([['mənim', 'mən'], ['sənin', 'sən'], ['onun', 'o'], ['bizim', 'biz'], ['sizin', 'siz'], ['onların', 'onlar']]);
-// Qısa sözün formasına bənzəyən ayrı sözlər: xanım ("xanım", xan+ım yox) XAN-a, hazırda (indi) HAZIR-a düşməsin.
-// Öz işarəsi varsa (lüğətdə bu yazılış və ya alt) o tapılır; yoxdursa hərflə
-const OWN_WORDS = ['xanım', 'hazırda'];
+// Qısa sözün formasına bənzəyən ayrı sözlər: xanım ("xanım", xan+ım yox) XAN-a, hazırda (indi) HAZIR-a, ali
+// (ali təhsil) ALMAQ-a düşməsin. Öz işarəsi varsa (lüğətdə bu yazılış və ya alt) o tapılır; yoxdursa hərflə
+const OWN_WORDS = ['xanım', 'hazırda', 'ali'];
 const roman = (s) => [...s].reduce((sum, c, i) => sum + (ROMAN[c] < (ROMAN[s[i + 1]] ?? 0) ? -ROMAN[c] : ROMAN[c]), 0);
 
 // Doğma işarə dilinin qaydaları (işarə dili daşıyıcısı ilə müsahibə, ml/EXPERIMENTS.md E21, E22). AzSLD bunları az
@@ -59,21 +59,39 @@ const SENTENCE_END = /[.!?…]["'»”)]*$/;
 export const isAdded = (seg) => seg.kind === 'word' && ['neg', 'tense', 'subject', 'with'].includes(seg.via);
 
 export class WordLexicon {
-  /** native: doğma işarə dilinin qaydaları (zaman, mübtəda, BİRLİKDƏ); false — AzSLD üslubu. */
-  constructor(index, { native = true } = {}) {
+  /**
+   * native: doğma işarə dilinin qaydaları (zaman, mübtəda, BİRLİKDƏ); false — AzSLD üslubu.
+   * added: əlavə mənbənin lüğəti (içəridə qurulur): söz yalnız öz formalarına, ifadə yalnız öz sözləri ilə.
+   */
+  constructor(index, { native = true, added = false } = {}) {
     this.native = native;
+    this.added = added;
     this.forms = new Map();
     this.entries = index?.words ?? [];
+    // Sonradan əlavə olunan mənbələr (index.json "sources": JestDili.az, id "jd-") ayrıca lüğətdir və yalnız
+    // AzSLD lüğətinin tapmadığı sözə baxır. Onların qısa kökləri (at, ayı, tut, deyin) AzSLD sözlərinin
+    // təhlilini dəyişməsin: atam → ATA (AT yox), ayında → AY (AYI yox), deyin → DEMƏK (E24)
+    const prefixes = added ? [] : (index?.sources ?? []).map((s) => s.prefix);
+    const fromSource = (w) => prefixes.some((p) => w.id?.startsWith(p));
+    const more = this.entries.filter(fromSource);
+    const core = more.length ? this.entries.filter((w) => !fromSource(w)) : this.entries;
+    this.extra = more.length ? new WordLexicon({ words: more }, { native, added: true }) : null;
+    this.addedIds = new Set(more.map((w) => w.id));
     // Lüğət üzrə ölçülər hər sözə qoşulur: üz blendshape-lərinin adları və diapazonu (avatarın
     // üz ifadəsi), iştirakçıların sinə xətti (sinəyə toxunan əl avatarın sinəsinə köçürülür)
     this.shared = { faceKeys: index?.face ?? null, faceNeutral: index?.faceNeutral ?? null,
       faceFull: index?.faceFull ?? null, chest: index?.chest ?? null };
+    // Sonradan əlavə olunan mənbənin (index.json "sources", id prefiksi ilə: JestDili.az "jd-") öz ölçüləri:
+    // başqa adam, başqa kamera, üzün sakit və güclü halı da başqadır
+    this.groups = (index?.sources ?? []).map((s) => ({ prefix: s.prefix, shared: { ...this.shared,
+      faceNeutral: s.faceNeutral ?? null, faceFull: s.faceFull ?? null, chest: s.chest ?? null } }));
     // Açar kiçik hərflə saxlanır: xüsusi adlar lüğətdə böyük hərflə yazılır (Bakı,
     // Azərbaycan), mətndən gələn token isə həmişə kiçik hərfdədir. `alt` — eyni işarənin
-    // digər yazılışları (danışıq forması: burada/burda).
+    // digər yazılışları (danışıq forması: burada/burda). Eyni yazılışın bir neçə işarəsi varsa
+    // (bel: alət / bədən) indeksdə birincisi (əlavə mənbədə ən keyfiyyətlisi əvvəldədir)
     this.byText = new Map();
-    for (const w of this.entries) {
-      for (const t of [w.text, ...(w.alt ?? [])]) this.byText.set(azLower(t), w);
+    for (const w of core) {
+      for (const t of [w.text, ...(w.alt ?? [])]) if (!this.byText.has(azLower(t))) this.byText.set(azLower(t), w);
     }
     this.maxTokens = Math.max(1, ...this.entries.flatMap(
       (w) => [w.text, ...(w.alt ?? [])].map((t) => t.split(' ').length)));
@@ -108,15 +126,20 @@ export class WordLexicon {
   }
 
   /** Sözün inflect.js-in qurduğu formaları (fel: məsdərin kökündən, inkarla; ad: hal, mənsubiyyət, cəm…) + özü. */
-  #ownForms(entry) {
+  #ownForms(word) {
     if (!this.own) this.own = new Map();
-    if (!this.own.has(entry.id)) {
-      const t = azLower(entry.text);
-      const verb = /^\p{L}{2,}m[aə][kq]$/u.test(t);
-      const forms = new Set([t, ...paradigm(verb ? t.slice(0, -3) : t, verb ? 'verb' : 'noun').map((p) => p.form)]);
-      this.own.set(entry.id, forms);
+    if (!this.own.has(word)) {
+      const verb = /^\p{L}{2,}m[aə][kq]$/u.test(word);
+      this.own.set(word, new Set([word, ...paradigm(verb ? word.slice(0, -3) : word, verb ? 'verb' : 'noun').map((p) => p.form)]));
     }
-    return this.own.get(entry.id);
+    return this.own.get(word);
+  }
+
+  /** Mətnin sözləri lüğət yazılışının öz formasıdır: ifadədə son sözdən əvvəlkilər eynən (tanış oldum ~ tanış olmaq). */
+  #isOwn(form, tokens) {
+    const words = form.split(' ');
+    if (words.length !== tokens.length || words.slice(0, -1).some((w, i) => w !== tokens[i])) return false;
+    return this.#ownForms(words.at(-1)).has(tokens.at(-1));
   }
 
   #isPerson(entry) {
@@ -145,6 +168,20 @@ export class WordLexicon {
    * bilmir), yoxsa lüğət formasını (olan → olmaq, olar yox), o da yoxdursa ən oxşarını.
    */
   lookup(tokens) {
+    // AzSLD: söz, forma → əlavə mənbə (öz sözü, öz formaları) → AzSLD: törəmə sözün kökü (azərbaycanlı:
+    // JestDili.az-ın AZƏRBAYCANLI işarəsi AZƏRBAYCAN-dan dəqiqdir)
+    if (!this.extra) return this.#find(tokens, true);
+    const core = this.#find(tokens, false);
+    // Əlavə mənbədə bu yazılışın öz işarəsi var: AzSLD-nin təhlili yalnız söz həqiqətən onun formasıdırsa qalır
+    // (ayı → AY: ay-ı; alın → ALMAQ), yoxsa təhlil təsadüfidir (işıq ≠ İŞ, kömür ≠ KÖMƏK, idarə ≠ İT)
+    const exact = core && core.via !== 'text' && this.extra.byText.get(tokens.join(' '));
+    if (exact && ![core.entry.text, ...(core.entry.alt ?? [])].some((t) => this.#isOwn(azLower(t), tokens))) {
+      return { entry: exact, via: 'text' };
+    }
+    return core ?? this.extra.lookup(tokens) ?? this.#find(tokens, true);
+  }
+
+  #find(tokens, derive) {
     const text = tokens.join(' ');
     const pron = tokens.length === 1 && this.byText.get(POSSESSIVE.get(text));
     if (pron) return { entry: pron, via: 'lemma' };
@@ -157,17 +194,18 @@ export class WordLexicon {
     let via = 'lemma';
     const single = tokens.length === 1;
     const own = single && OWN_WORDS.find((w) => text.startsWith(w));
-    // Sonradan əlavə olunan lüğətin (JestDili.az, id "jd-") sözü yalnız öz formalarına: qarşı ≠ QAR, alınır ≠ ALIN (alın),
-    // üzü ≠ ÜZMƏK. Qısa köklər çox başqa sözün təhlilinə düşür; AzSLD lüğəti seçilmiş, ona görə sərbəstdir.
-    // Süzgəc açarın özündə: süzüləndən sonra törəmə yolu (alınır → al → ALMAQ) yenə açıqdır
+    // Əlavə mənbənin (JestDili.az) sözü yalnız öz formalarına: qarşı ≠ QAR, alınır ≠ ALIN (alın), üzü ≠ ÜZMƏK,
+    // həkim olmaq ≠ HƏLAK OLMAQ. Qısa köklər çox başqa sözün təhlilinə düşür; AzSLD lüğəti seçilmiş, ona görə
+    // sərbəstdir. Ayrı söz (xanım, ali) kökü özündən qısa sözə getmir: ali ≠ ALMAQ
+    const rootLength = (form) => (this.lemma.key(form) ?? form).replace(/-$/, '').length;
     const usable = (key) => {
       const f = key && this.byKey.get(key);
-      return f && single ? f.filter((x) => (!own || x.form.length >= own.length)
-        && (!x.entry.id?.startsWith('jd-') || this.#ownForms(x.entry).has(text))) : f;
+      return f && (own || this.added)
+        ? f.filter((x) => (!own || rootLength(x.form) >= own.length) && (!this.added || this.#isOwn(x.form, tokens))) : f;
     };
     // Törəmə söz (əlillik → əlil, verilir → ver): yalnız başqa yolla tapılmayanda
     const has = (key) => key && (usable(key)?.length || (key.endsWith('-') && usable(key.slice(0, -1))?.length));
-    if (!has(k) && single) {
+    if (!has(k) && single && derive) {
       const d = this.lemma.derived(tokens[0]).find(has);
       if (d) { k = d; via = 'derived'; }
     }
@@ -241,7 +279,7 @@ export class WordLexicon {
         // şəkilçi atılır (işarə — rəqəm və ya ad; AzSLD iştirakçıları da TSEK-ə → TSEK göstərir),
         // şəkilçi deyilsə, hissələr ayrı sözlərdir
         const pieces = tok.split('-');
-        if (pieces.length > 1 && !this.byText.has(tok) && pieces.every(Boolean)) {
+        if (pieces.length > 1 && !this.byText.has(tok) && !this.extra?.byText.has(tok) && pieces.every(Boolean)) {
           if (pieces.length === 2 && suffixOnly(pieces[1])) {
             const r = raw.slice(0, pieces[0].length);
             items.push({ tok: pieces[0], from, to: from + tok.length, acronym: isAcronym(r), raw: r });
@@ -294,7 +332,7 @@ export class WordLexicon {
         if (no) out.push({ kind: 'word', text: no.text, entry: no, via: 'neg', ...at });
         if (this.native) {
           const toks = items.slice(i, match.last + 1).filter((x) => x.tok).map((x) => x.tok);
-          const v = this.#verb(toks.at(-1));
+          const v = (this.addedIds.has(match.entry.id) ? this.extra : this).#verb(toks.at(-1));
           const t = v && TENSE_SIGN[v.tam];
           const mark = t && !(v.root === 'ol' && t !== 'lazım') && this.#sign(t, 'tense', at);
           if (mark) out.push(mark);
@@ -351,7 +389,8 @@ export class WordLexicon {
     if (!this.cache.has(id)) {
       this.cache.set(id, fetch(`${WORDS_BASE}${id}.json`).then((r) => {
         if (!r.ok) throw new Error(`${id}.json yüklənmədi (${r.status})`);
-        return r.json().then((w) => ({ ...w, ...this.shared }));
+        const shared = this.groups.find((g) => id.startsWith(g.prefix))?.shared ?? this.shared;
+        return r.json().then((w) => ({ ...w, ...shared }));
       }));
     }
     return this.cache.get(id);

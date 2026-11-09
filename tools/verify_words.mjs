@@ -97,12 +97,20 @@ const nativeCases = [
   ['Gəldim. Getdim.', 'w:mən w:gəlmək w:olmaq _ w:mən w:getmək w:olmaq'],
 ];
 // Sonradan əlavə olunan lüğət (JestDili.az, id "jd-"): söz yalnız öz formalarına; əvəzliyin formaları əvəzliyindir (E24)
-const added = new WordLexicon({ words: [...['o', 'ata', 'almaq'].map((text) => ({ id: text, text })),
-  { id: 'jd-on', text: 'on' }, { id: 'jd-qar', text: 'qar' }, { id: 'jd-alin', text: 'alın' }, { id: 'jd-xan', text: 'xan' },
-  { id: 'jd-hazir', text: 'hazır' }, { id: 'indi', text: 'indi', alt: ['hazırda'] }] }, { native: false });
+// AzSLD lüğəti əvvəlki kimi işləyir, əlavə mənbə yalnız onun tapmadığı sözə: atam → ATA (AT yox), ayında → AY (AYI yox);
+// əlavə ifadə yalnız öz sözləri ilə (həkim olmaq ≠ HƏLAK OLMAQ)
+const jd = (text) => ({ id: `jd-${text}`, text });
+const added = new WordLexicon({ sources: [{ prefix: 'jd-' }], words: [
+  ...['o', 'ata', 'almaq', 'ay', 'demək', 'qız', 'həkim', 'olmaq', 'tanış', 'azərbaycan'].map((text) => ({ id: text, text })),
+  { id: 'indi', text: 'indi', alt: ['hazırda'] },
+  ...['on', 'qar', 'alın', 'xan', 'hazır', 'at', 'ayı', 'deyinmək', 'qızdırmaq', 'həlak olmaq', 'tanış olmaq', 'ali', 'nəvə', 'azərbaycanlı'].map(jd)] },
+{ native: false });
 for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarşı'], ['qarı', 'w:qar'], ['alınır', 'w:almaq'],
-  ['atası', 'w:ata'], ['alın', 'w:alın'], ['xanın', 'w:xan'], ['xanım', 't:xanım'], ['xanımla', 't:xanımla'],
-  ['hazırdır', 'w:hazır'], ['hazırda', 'w:indi']]) {
+  ['atası', 'w:ata'], ['alın', 'w:almaq'], ['xanın', 'w:xan'], ['xanım', 't:xanım'], ['xanımla', 't:xanımla'],
+  ['hazırdır', 'w:hazır'], ['hazırda', 'w:indi'], ['atam', 'w:ata'], ['atlar', 'w:at'], ['ayında', 'w:ay'],
+  ['deyin', 'w:demək'], ['qızdır', 'w:qız'], ['qızdırdım', 'w:qızdırmaq'], ['həkim olmaq', 'w:həkim _ w:olmaq'],
+  ['həlak oldu', 'w:həlak olmaq'], ['tanış oldum', 'w:tanış olmaq'], ['ali təhsil', 'w:ali _ t:təhsil'], ['nəvəsinin', 'w:nəvə'],
+  ['azərbaycanlıyam', 'w:azərbaycanlı'], ['azərbaycanda', 'w:azərbaycan']]) {
   const got = show(added.segment(text));
   check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }

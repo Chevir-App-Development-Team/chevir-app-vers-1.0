@@ -9,10 +9,15 @@ keyfiyyət həddi (--min-score). Adın mötərizəsi məna qeydidir: "bel (alət
   .venv/Scripts/python -I tools/build_jestdili_words.py [--all] [--limit N] [--workers 16]
   → data/jestdili/avatar/<id>.json + index.json (public/tercume/words/ ilə eyni format; yalnız yerli)
 --all: lüğətimizdə olan sözləri də (müqayisə üçün); standart — yalnız yeni sözlər.
+
+  .venv/Scripts/python -I tools/build_jestdili_words.py --install
+  → hər sözün ilk variantı (eyni yazılışın başqa mənaları da) public/tercume/words/-ə; indeksdə AzSLD sözlərindən
+    sonra, "sources"-da JestDili.az kadrlarından üzün diapazonu (words.js "jd-" sözlərinə onu qoşur)
 """
 import argparse
 import json
 import re
+import shutil
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -23,6 +28,9 @@ from build_words import az_lower, word_id  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 J = ROOT / 'data' / 'jestdili'
+WORDS = ROOT / 'public' / 'tercume' / 'words'
+PREFIX = 'jd-'
+SOURCE = 'JestDili.az (icazə ilə, docs/DATA.md), tools/build_jestdili_words.py'
 SENSE = re.compile(r'^(.*?)\s*\(([^()]*)\)\s*$')
 VARIANT = re.compile(r'variant\s*(\d+)', re.I)
 
@@ -36,18 +44,51 @@ def parse(name):
     return az_lower(text), (None if v else note), int(v.group(1)) if v else 1
 
 
+def install():
+    """data/jestdili/avatar/ → public/tercume/words/ (E24, D2)."""
+    import numpy as np
+    src = J / 'avatar'
+    jd = json.loads((src / 'index.json').read_text(encoding='utf8'))
+    pick = [w for w in jd['words'] if w.get('variant', 1) == 1]
+    datas = {w['id']: json.loads((src / f"{w['id']}.json").read_text(encoding='utf8')) for w in pick}
+    # Eyni yazılışın bir neçə işarəsi (bel: alət / bədən): mətn ən keyfiyyətlisinə gedir (words.js birincini götürür)
+    pick.sort(key=lambda w: (w['text'], -datas[w['id']]['quality']))
+    # Üzün diapazonu bu adamın öz kadrlarından (build_avatar_words.py kimi: median sakit üz, 99-cu faiz güclü ifadə)
+    faces = np.asarray([fr['f']['s'] for d in datas.values() for fr in d['frames'] if fr.get('f')])
+    index = json.loads((WORDS / 'index.json').read_text(encoding='utf8'))
+    if index.get('face') != jd.get('face'):
+        sys.exit('üz blendshape-lərinin siyahısı AzSLD lüğətindəki ilə eyni deyil')
+    for old in WORDS.glob(f'{PREFIX}*.json'):
+        old.unlink()
+    for w in pick:
+        shutil.copyfile(src / f"{w['id']}.json", WORDS / f"{w['id']}.json")
+    index['words'] = [w for w in index['words'] if not w['id'].startswith(PREFIX)] + pick
+    index['count'] = len(index['words'])
+    index['sources'] = [s for s in index.get('sources', []) if s['prefix'] != PREFIX] + [{
+        'prefix': PREFIX, 'source': SOURCE, 'count': len(pick),
+        'faceNeutral': [int(v) for v in np.median(faces, axis=0)],
+        'faceFull': [int(v) for v in np.percentile(faces, 99, axis=0)], 'chest': None}]
+    (WORDS / 'index.json').write_text(json.dumps(index, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
+    size = sum((WORDS / f"{w['id']}.json").stat().st_size for w in pick)
+    print(f"{len(pick)} JestDili.az işarəsi ({size / 1e6:.0f} MB), lüğətdə cəmi {index['count']} söz; "
+          f"{len(pick) - len({w['text'] for w in pick})} işarə eyni yazılışın ikinci mənasıdır")
+
+
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     ap = argparse.ArgumentParser()
     ap.add_argument('--all', action='store_true')
+    ap.add_argument('--install', action='store_true', help='hazır işarələri tətbiqin lüğətinə köçür (emal etmədən)')
     ap.add_argument('--limit', type=int)
     ap.add_argument('--workers', type=int, default=16)
     ap.add_argument('--min-score', type=float, default=0.45)
     ap.add_argument('--pose-model', type=Path, default=ROOT / 'public' / 'tercume' / 'assets' / 'pose_landmarker_lite.task')
     args = ap.parse_args()
+    if args.install:
+        return install()
 
-    ours = json.loads((ROOT / 'public' / 'tercume' / 'words' / 'index.json').read_text(encoding='utf8'))
-    have = {az_lower(t) for w in ours['words'] for t in [w['text'], *w.get('alt', [])]}
+    ours = json.loads((WORDS / 'index.json').read_text(encoding='utf8'))
+    have = {az_lower(t) for w in ours['words'] if not w['id'].startswith(PREFIX) for t in [w['text'], *w.get('alt', [])]}
     cats = {c['id']: c['name'] for c in json.loads((J / 'categories.json').read_text(encoding='utf8'))}
     words = json.loads((J / 'words.json').read_text(encoding='utf8'))
     todo = []

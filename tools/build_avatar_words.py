@@ -49,7 +49,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'tools'))
 from azsld_zip import AzsldZip, cam2                                   # noqa: E402
 from build_words import (ALIAS, ALT, BODY, L_HIP, L_SH, L_WR, R_HIP, R_SH, R_WR, SKIP,   # noqa: E402
-                         _assign, az_lower, trim_and_score, word_id)
+                         _assign, added_sources, az_lower, trim_and_score, word_id)
 
 HAND_MODEL = ROOT / 'public' / 'tercume' / 'assets' / 'hand_landmarker.task'
 FACE_MODEL = ROOT / 'public' / 'tercume' / 'assets' / 'face_landmarker.task'
@@ -460,8 +460,10 @@ def main():
 
     out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    sources, kept, is_added = added_sources(out_dir)
     for old in out_dir.glob('*.json'):
-        old.unlink()
+        if not is_added(old):
+            old.unlink()
     index, dropped, used, k = [], [], set(), 0
     face_keys = next((r['face'] for r in results if r.get('face')), None)
     for text, cands in plan.items():
@@ -494,7 +496,8 @@ def main():
                                              encoding='utf8')
         index.append(entry)
     index.sort(key=lambda w: w['text'])
-    words = [json.loads(p.read_text(encoding='utf8')) for p in out_dir.glob('*.json') if p.name != 'index.json']
+    words = [json.loads(p.read_text(encoding='utf8')) for p in out_dir.glob('*.json')
+             if p.name != 'index.json' and not is_added(p)]
     chest = chest_line(words) if args.chest else None
     # Hər blendshape-in diapazonu lüğətin bütün kadrları üzrə: median — iştirakçıların sakit üzü,
     # 99-cu faiz — güclü ifadə (avatar bu aralığı öz ifadəsinin 0…tam aralığına çevirir)
@@ -505,8 +508,8 @@ def main():
         'source': f'{SOURCE} — hər işarə üçün bir neçə iştirakçının ən tipik təmiz nümunəsi '
                   f'(MediaPipe Pose {args.pose_model.stem.split("_")[-1]} + Hands + Face, VIDEO rejimi; '
                   f'tools/build_avatar_words.py)',
-        'count': len(index), 'face': face_keys, 'faceNeutral': face_neutral, 'faceFull': face_full,
-        'chest': chest, 'words': index,
+        'count': len(index) + len(kept), 'face': face_keys, 'faceNeutral': face_neutral, 'faceFull': face_full,
+        'chest': chest, 'words': index + kept, **({'sources': sources} if sources else {}),
     }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
     total = sum(p.stat().st_size for p in out_dir.glob('*.json'))
     print(f'{len(index)} söz yazıldı ({total / 1e6:.1f} MB), {len(dropped)} söz atıldı: {dropped[:20]}')

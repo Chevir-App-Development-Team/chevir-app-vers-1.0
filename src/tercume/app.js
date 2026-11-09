@@ -438,16 +438,25 @@ function initT2S() {
     });
   }
 
-  // Lüğət vərəqi (AzSLD söz işarələri); axtarışla süzülür
+  // Lüğət vərəqi (AzSLD və JestDili.az söz işarələri); axtarışla süzülür. Eyni yazılışın bir neçə işarəsi
+  // (bel: alət / bədən) məna qeydi ilə göstərilir və toxunanda məhz o işarə oynayır
   const collator = new Intl.Collator('az');
   const entries = [...state.lexicon.entries].sort((a, b) => collator.compare(a.text, b.text));
+  const byId = new Map(entries.map((w) => [w.id, w]));
+  const same = new Map();
+  for (const w of entries) same.set(w.text, [...(same.get(w.text) ?? []), w.id]);
+  const label = (w) => {
+    const ids = same.get(w.text);
+    if (ids.length < 2) return w.text;
+    return w.sense ? `${w.text} (${w.sense})` : `${w.text} ${ids.indexOf(w.id) + 1}`;
+  };
   $('#word-count').textContent = `${entries.length} söz`;
   const renderWords = (q = '') => {
     const needle = azLower(q.trim());
     const list = entries.filter((w) => !needle || w.text.includes(needle));
     $('#words').innerHTML = list.length
-      ? list.map((w) => `<button data-w="${escapeHtml(w.text)}" class="${w.hands === 'LR' ? 'two' : ''}"
-          title="${escapeHtml(w.text)}${w.hands === 'LR' ? ' · iki əlli' : ''}">${escapeHtml(w.text)}</button>`).join('')
+      ? list.map((w) => `<button data-w="${escapeHtml(w.text)}" data-id="${escapeHtml(w.id)}" class="${w.hands === 'LR' ? 'two' : ''}"
+          title="${escapeHtml(w.text)}${w.sense ? ` · ${escapeHtml(w.sense)}` : ''}${w.hands === 'LR' ? ' · iki əlli' : ''}">${escapeHtml(label(w))}</button>`).join('')
       : '<span class="muted">tapılmadı</span>';
   };
   renderWords();
@@ -455,7 +464,7 @@ function initT2S() {
   $('#words').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-w]');
     if (!btn) return;
-    t2s.play(btn.dataset.w);
+    t2s.play(btn.dataset.w, byId.get(btn.dataset.id));
     $$('#words button').forEach((b) => b.classList.toggle('is-on', b === btn));
   });
 

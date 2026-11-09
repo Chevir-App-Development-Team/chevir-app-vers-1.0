@@ -12,14 +12,14 @@ Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında tərcümə: lay
 | Modul | Nə edir |
 |---|---|
 | **Jest → Mətn** | Veb-kamera → MediaPipe Hands → 20×63 → model → beam search + leksikon → Azərbaycan sözü |
-| **Mətn → Jest** | Mətn → söz işarələri (786 söz, söz formaları ilə) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
+| **Mətn → Jest** | Mətn → söz işarələri (3 173 söz: AzSLD 786, JestDili.az 2 387; söz formaları ilə) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
 
 Tərcümə üçün server yoxdur: video cihazdan çıxmır, gecikmə minimaldır, sayt statik fayl
 kimi hər yerdə host oluna bilər (jest dili videosu istifadəçinin üzünü daşıyır — məxfilik
 təsadüfi seçim deyil).
 
 > **Hazırkı həcm:** kamera yalnız barmaq əlifbasını tanıyır — 32 hərf və boşluq / enter /
-> backspace. Avatar isə 786 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
+> backspace. Avatar isə 3 173 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
 > Kameradan söz səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
 
 ## İşə salmaq
@@ -275,6 +275,14 @@ yana və ya arxaya bükülmə anatomik mümkün deyilsə, avatar onu təkrarlam�
 786 söz və ifadə (AzSLD, CC BY 4.0): cümlə datasetində ən azı 3 dəfə annotasiya olunmuş hər işarə
 (tək hərflər barmaq əlifbasıdır, "o" isə əvəzlikdir). Mətn sözlərə bölünür və ən uzun uyğunluq
 axtarılır: "zəhmət olmasa", "bu gün" bütöv işarədir, lüğətdə olmayan söz hərf-hərf göstərilir.
+
+Üstəlik 2 387 söz JestDili.az lüğətindən (komandaya icazə ilə, `docs/DATA.md`; E24): hər söz bir videoda, bir
+nəfər, ayaq üstə; `tools/build_jestdili_words.py` eyni emalla işarəni qurur, `--install` onu buraya köçürür (id-lər
+`jd-`, indeksin `sources` bölməsində bu adamın üz diapazonu). Mətnin lüğət sözünə çatması 45.8 %-dən 59.4 %-ə qalxır
+(veb mətni). Əlavə lüğət ayrıca lüğətdir: söz əvvəl AzSLD lüğətində axtarılır (öz kökləri ilə, əvvəlki kimi), JestDili.az
+yalnız onun tapmadığı sözə və yalnız öz formaları ilə (qarşı ≠ QAR, atam → ATA, AT yox; həkim olmaq ≠ HƏLAK OLMAQ).
+AzSLD-nin təsadüfi təhlilini sözün öz işarəsi üstələyir (işıq → İŞIQ, İŞ yox), həqiqi forma isə qalır (ayı → AY). Eyni yazılışın iki mənası varsa (bel: alət / bədən), mətn ən keyfiyyətli işarəyə gedir, lüğət
+vərəqində isə hər ikisi məna qeydi ilə görünür.
 
 **Lüğətin qurulması** (`tools/build_avatar_words.py`, dataset yerli `data/azsld/`-dədir). Hər işarə
 üçün 8-ə qədər fərqli iştirakçının nümunəsi emal olunur (MediaPipe Pose lite + Hands + Face, VIDEO

@@ -2283,5 +2283,36 @@ so hands at rest hang lower than in the seated AzSLD recordings. The wrist overs
 ceiling. More body contact: the standing signer signs closer to the body; worth a look on the avatar before shipping.
 
 **Gates** (`node tools/ci_gates.mjs`) still pass with the guards: text → sign same-gloss F1 0.893 AzSLD style, 0.856
-native; sign → text WER 48.5 dev, 49.3 test. Not yet decided: ship all 2,387 signs (149 MB) or the 1,000 most used
-(about 60 MB, web text 61.6 % instead of 63.0 %).
+native; sign → text WER 48.5 dev, 49.3 test.
+
+**Shipped** (decision: all of them): `tools/build_jestdili_words.py --install` copies the first variant of every word,
+**2,387 signs (148 MB)**, into `public/tercume/words/`; the lexicon now has **3,173**. 128 of them are a second sign
+for the same spelling (two senses, or the dictionary lists the name twice), so text reaches 2,259 new words; the
+text goes to the best quality one, the lexicon sheet shows each with its sense note ("alkolik (içki aludəçisi)") or a
+number ("abonent 1", "abonent 2") and plays that exact sign. The index gets a `sources` entry for the `jd-` prefix with
+this person's own face range (median and 99th percentile of the 51 blendshapes over all frames); `words.js` gives it
+to `jd-` signs instead of the AzSLD range. Both lexicon builders keep the added source's files and entries when the
+AzSLD lexicon is rebuilt. Credit on the lexicon sheet and in `docs/DATA.md`.
+
+**The gates caught a regression** in the first merge: same-gloss F1 0.893 → 0.873 (native 0.856 → 0.837). The new
+short roots changed how the lemmatizer cut common words: atam → AT (horse), ayında → AYI (bear), qızdır → QIZDIRMAQ,
+deyin → DEYİNMƏK, damır → DAMAQ, tuta → TUT (mulberry), and phrases matched loosely: həkim olmaq → HƏLAK OLMAQ,
+idman edirəm → İDARƏ ETMƏK. Fix in `WordLexicon`: the added source is a separate inner lexicon with its own roots,
+and the order is (1) AzSLD: the word or its form, exactly as before, (2) JestDili.az: the word itself or one of its
+own forms, a phrase only with its first words as written (tanış oldum ~ tanış olmaq), (3) AzSLD: the root of a
+derived word (azərbaycanlı → AZƏRBAYCANLI before AZƏRBAYCAN). One exception to (1): when JestDili.az has a sign for
+exactly this spelling, AzSLD's analysis stays only if the word really is a form of the AzSLD word by `inflect.js`
+(ayı → AY, alın → ALMAQ); otherwise the analysis was accidental and the word's own sign wins (işıq → İŞIQ, not İŞ;
+kömür, idarə, məna, əlli, addım, aydın). Of 2,259 JestDili.az spellings typed alone, 24 still go to an AzSLD sign,
+all real homographs (ayı, dilim, çaydan, yemiş, keçmiş). Native tense marks use the inner lexicon's verbs for its
+signs (Pəncərəni açdım → MƏN PƏNCƏRƏ AÇMAQ OLMAQ). "ali" joins xanım and hazırda as a word of its own (ali ≠ ALMAQ).
+
+| | AzSLD only | shipped |
+|---|---|---|
+| words as signs: AzSLD / JestDili.az sentences / web text | 96.5 / 85.7 / 45.8 % | 97.3 / 91.3 / **59.4 %** |
+| AzSLD test same-gloss F1, AzSLD style / native | 0.893 / 0.856 | 0.890 / 0.853 |
+| AzSLD test words as signs | 95.2 % | 95.6 % |
+
+The web text figure is lower than the 63.0 % above because the false matches no longer count. The small F1 loss
+comes from right signs that the AzSLD signers did not use: MAVİ (they signed GÖY), DƏRƏCƏ (QRUP), SAHİL and
+ƏDƏBİYYAT (spelled), MOBİL TELEFON and TANIŞ OLMAQ as one sign (two in AzSLD). All gates pass; the thresholds stay.

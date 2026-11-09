@@ -102,9 +102,11 @@ export class TextToSign {
     }
   }
 
-  async play(text) {
+  /** `entry` — lüğətin konkret sözü (lüğət vərəqi: eyni yazılışın ikinci mənası, bel (alət) / bel (bədən)). */
+  async play(text, entry = null) {
     this.stop();
-    const steps = this.plan(text);
+    const all = { from: 0, to: text.length };
+    const steps = entry ? [{ kind: 'word', char: entry.text, entry, ...all, seg: all }] : this.plan(text);
     if (!steps.length) return;
 
     const token = {};

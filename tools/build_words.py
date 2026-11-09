@@ -76,6 +76,20 @@ def word_id(text: str, used=None) -> str:
     return f'{base}-{n}'
 
 
+
+def added_sources(out_dir: Path):
+    """
+    Lüğətə sonradan əlavə olunmuş mənbələr (index.json "sources", id prefiksi ilə; JestDili.az "jd-",
+    tools/build_jestdili_words.py --install): AzSLD lüğəti yenidən qurulanda onların faylları və indeks
+    sətirləri saxlanır. → (sources, saxlanan indeks sətirləri, fayl saxlanmalıdırmı funksiyası)
+    """
+    p = out_dir / 'index.json'
+    old = json.loads(p.read_text(encoding='utf8')) if p.exists() else {}
+    sources = old.get('sources', [])
+    prefixes = tuple(s['prefix'] for s in sources)
+    kept = [w for w in old.get('words', []) if prefixes and w['id'].startswith(prefixes)]
+    return sources, kept, lambda path: bool(prefixes) and path.stem.startswith(prefixes)
+
 _hand = _pose = None
 
 
@@ -219,8 +233,10 @@ def build_word(label: str):
 def main():
     out_dir = ARGS.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    sources, kept, is_added = added_sources(out_dir)
     for old in out_dir.glob('*.json'):
-        old.unlink()
+        if not is_added(old):
+            old.unlink()
     labels = sorted(p.name for p in ARGS.words_dir.iterdir() if p.is_dir() and p.name not in SKIP)
     if ARGS.only:
         labels = [l for l in labels if az_lower(l) in ARGS.only]
@@ -250,8 +266,9 @@ def main():
     index.sort(key=lambda w: w['text'])
     (out_dir / 'index.json').write_text(json.dumps({
         'source': ARGS.source,
-        'count': len(index),
-        'words': index,
+        'count': len(index) + len(kept),
+        'words': index + kept,
+        **({'sources': sources} if sources else {}),
     }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
     total = sum(p.stat().st_size for p in out_dir.glob('*.json'))
     print(f'\n{len(index)} söz yazıldı ({total / 1024:.0f} KB), {len(dropped)} söz atıldı: {dropped}')

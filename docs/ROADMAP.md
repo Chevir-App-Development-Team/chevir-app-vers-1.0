@@ -12,8 +12,8 @@ below has an exit criterion; items are numbered so issues and commits can refer 
 | Sign → glosses, words (browser) | 756 words + unknown (E3, E5) | test Words_200 macro-F1 0.862 | vocabulary limited to AzSLD |
 | Fingerspelling | 32 letters (E8) | test top-1 0.933 | not inside sentence mode |
 | Glosses → text | gloss2text: roots + form rules + counts (E16–E18) | WER test 49.3 %, recognized new sentence 51.8 % (50.7 % with the corpus, E18) | choosing the word form; no face (questions) |
-| Text → glosses | morphology, derivation, numbers, native rules (E9–E22) | words as signs 95.2 %; F1 0.893 AzSLD style, 0.856 native | 786 signs only; no face; numbers digit by digit |
-| Avatar | VRM with face rig, clip lexicon of 786 signs (E10–E14, E19) | hand checks on all 786 signs | clips joined without co-articulation; no grammar on the face |
+| Text → glosses | morphology, derivation, numbers, native rules (E9–E22, E24) | words as signs 95.6 %; F1 0.890 AzSLD style, 0.853 native | 3,173 signs (786 AzSLD, 2,387 JestDili.az, E24): web text 59 % as signs; no face; numbers digit by digit |
+| Avatar | VRM with face rig, clip lexicon of 3,173 signs (E10–E14, E19, E24) | hand checks on all signs | clips joined without co-articulation; no grammar on the face |
 | Data | AzSLD: 492 sentences, ~8,600 frontal recordings + side, 49k sign annotations; HPLT corpus 62k pseudo pairs | | 492 distinct sentences; signed word by word from written text |
 | Evaluation | AzSLD splits (signer-independent), regression scripts | 12 `verify_*` scripts | **no test outside AzSLD, no review by native users** |
 
@@ -135,8 +135,8 @@ Text → sign:
 Parallel tracks: data and evaluation (team + native users), recognition (ML), language (NLP), avatar (graphics),
 product. Phase 0 unblocks everything: without set C and the review page nothing later can be judged.
 
-**Phase 0 status (2026-11-09):** D1 ✓ (`docs/DATA.md`; Logos request drafted), D2 in progress (JestDili.az: 2,766 words and
-500 sentences fetched, 2,404 avatar signs built, false-match guard, E24), D5 ✓ (review sheet ready,
+**Phase 0 status (2026-11-09):** D1 ✓ (`docs/DATA.md`; Logos request drafted), D2 ✓ (JestDili.az: 2,766 words and
+500 sentences fetched, 2,387 avatar signs in the app, false-match guard, E24), D5 ✓ (review sheet ready,
 `ml/review/word_forms_review_w500.csv`, answers pending), N1 ✓ (E23), V5 ✓ (CI and gates). Open: V2 review page, D4
 recording page, the native review itself.
 
@@ -146,7 +146,7 @@ recording page, the native review itself.
 |---|---|---|---|
 | Recognized new sentences: sign F1 (all / known words) | 0.62 / 0.78 | 0.66 / 0.80 | 0.72 / 0.85 |
 | Recognizer vocabulary | 701 | 1,000 | 1,500 |
-| Avatar signs | 786 | 2,000 | 2,500 |
+| Avatar signs | 3,173 (was 786) | 3,500 | 4,000 |
 | Sign → text WER, recognized new sentence (AzSLD) | 51.8 % | 45 % | 38 % |
 | Set C: words as signs / native comprehension (V2) | – | 97 % / 3.5 | 98 % / 4.0 |
 | Set D: sign → text adequacy | – | 3.0 | 4.0 |
@@ -156,7 +156,7 @@ recording page, the native review itself.
 ## 6. Decisions needed
 
 1. **Recordings (D4, V1)**: who signs (≥ 3 native users), when, consent form, budget.
-2. **JestDili.az**: written permission for videos and word list (D2).
+2. **JestDili.az**: written permission for videos and word list (D2). ✓ Granted (2026-11).
 3. **Logos**: request through a university for research only, or skip (D1, R2).
 4. **Server post-edit** (N5): allowed as an opt-in, or never.
 
