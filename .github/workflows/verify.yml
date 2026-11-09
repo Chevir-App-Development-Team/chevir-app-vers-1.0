@@ -1,0 +1,28 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Regression checks (tools/verify_*.mjs)
+        run: |
+          for f in tools/verify_*.mjs; do
+            echo "== $f"
+            node "$f"
+          done
+      - name: Evaluation gates (ml/gates.json)
+        run: node tools/ci_gates.mjs
