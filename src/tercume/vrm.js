@@ -42,6 +42,14 @@ const FACE_MAP = {
 };
 const VISEMES = ['aa', 'ih', 'ou', 'ee', 'oh'];
 const HEAD_MAX = 20 * DEG;      // başın sözdəki hərəkəti (baş sallama, yelləmə) bu həddə qədər
+// Cümlənin qrammatikası üzdə (roadmap N6; işarə dili daşıyıcısının dediyi: sual üzlə göstərilir, inkar YOX ilə):
+// hə/yox sualı: qaşlar yuxarı, baş azca irəli; sual sözü ilə sual: qaşlar çatılır, baş azca yana; inkar: baş yellənir.
+// Sözün öz üzündən güclüdürsə onu üstələyir (max), yoxsa sözün üzü qalır
+const GRAMMAR = {
+  yn: { face: { surprised: 0.55 }, head: [6 * DEG, 0, 0] },
+  wh: { face: { angry: 0.45 }, head: [3 * DEG, 0, 5 * DEG] },
+  shake: { amp: 10 * DEG, hz: 2.2 },
+};
 
 const CONTACT = [4, 8, 12, 16, 20, 5, 17];   // üzə toxuna bilən əl nöqtələri: barmaq ucları və ovucun kənarları
 const TIP_BONES = ['ThumbDistal', 'IndexDistal', 'MiddleDistal', 'RingDistal', 'LittleDistal'];
@@ -264,6 +272,8 @@ export class VrmAvatar {
     this.blink = { next: 1.5 + Math.random() * 2, t: -1 };
     // Üz: hədəf və cari ifadə çəkiləri, başın sözdəki fırlanması (radian, x/y/z)
     this.face = { target: {}, cur: {}, head: [0, 0, 0], headCur: [0, 0, 0] };
+    this.grammar = null;           // cümlənin qrammatikası: {q: 'yn' | 'wh' | null, shake} (setGrammar)
+    this.shakeT = 0;
     this.faceCache = new WeakMap();
     this.lastPose = null;
     this.last = null;              // son həll (sazlama və ölçmə üçün)
@@ -494,6 +504,15 @@ export class VrmAvatar {
     });
     this.faceCache.set(word, out);
     return out;
+  }
+
+  /**
+   * Cümlə səviyyəsində üz və baş (TextToSign hər addımda verir): q — sualın növü (hə/yox: 'yn', sual sözü ilə: 'wh'),
+   * shake — inkar (YOX işarəsi və inkarlı fel). null — sıfırlanır. Sözlərin öz üzü və başı üstünə gəlir.
+   */
+  setGrammar(g) {
+    if (g?.shake && !this.grammar?.shake) this.shakeT = 0;
+    this.grammar = g && (g.q || g.shake) ? g : null;
   }
 
   /** Sözü əvvəlcədən həll edir (oynatmadan qabaq, ilk kadrda ləngimə olmasın). */
@@ -1836,12 +1855,23 @@ export class VrmAvatar {
     }
     if (this.mode !== 'sign') { this.face.target = {}; this.face.head = [0, 0, 0]; }
     const kf = 1 - Math.exp(-14 * dt);
+    // cümlənin qrammatikası (setGrammar): sual üzü sözün üzündən güclüdürsə onu üstələyir, baş əlavə olunur
+    const g = this.grammar;
+    const gq = g?.q ? GRAMMAR[g.q] : null;
+    const target = { ...this.face.target };
+    if (gq) for (const [k, v] of Object.entries(gq.face)) target[k] = Math.max(target[k] ?? 0, v);
+    const head = [...this.face.head];
+    if (gq) for (let k = 0; k < 3; k++) head[k] += gq.head[k];
+    if (g?.shake) {
+      this.shakeT += dt;
+      head[1] += GRAMMAR.shake.amp * Math.sin(2 * Math.PI * GRAMMAR.shake.hz * this.shakeT);
+    }
     for (const name of Object.keys(FACE_MAP)) {
       const c = this.face.cur[name] ?? 0;
-      this.face.cur[name] = c + ((this.face.target[name] ?? 0) - c) * kf;
+      this.face.cur[name] = c + ((target[name] ?? 0) - c) * kf;
       if (name !== 'blink') this.vrm.expressionManager?.setValue(name, this.face.cur[name]);
     }
-    for (let k = 0; k < 3; k++) this.face.headCur[k] += (this.face.head[k] - this.face.headCur[k]) * kf;
+    for (let k = 0; k < 3; k++) this.face.headCur[k] += (head[k] - this.face.headCur[k]) * kf;
     this.#animateLife(dt);
     this.#stepSprings(dt);
     this.#guardHands(dt);

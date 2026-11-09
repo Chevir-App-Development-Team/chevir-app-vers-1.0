@@ -148,6 +148,18 @@ check(plan === 'word:salam space:  letter:a letter:n letter:a', `plan("Salam ana
 const pos = t2s.plan('Salam ana').map((s) => `${s.from}-${s.to}`).join(' ');
 check(pos === '0-5 5-6 6-7 7-8 8-9', `plan mövqeləri → ${pos}`);
 
+// Cümlənin qrammatikası üzdə (N6): sual sözü ilə sual "wh", hə/yox sualı "yn", inkar (YOX və onun feli) başı yelləyir
+{
+  const gt = new TextToSign({ poses: { letters: {} }, lexicon: nat });
+  const marks = (text) => gt.plan(text).filter((s) => s.kind === 'word')
+    .map((s) => `${s.entry.text}${s.gram ? `[${s.gram.q ?? ''}${s.gram.shake ? '~' : ''}]` : ''}`).join(' ');
+  for (const [text, want] of [['Sən haradasan?', 'sən[wh]'], ['Sən evdəsən?', 'sən[yn]'],
+    ['Oxumadım.', 'mən oxumaq[~] yox[~] olmaq'], ['Gəldim. Gəlmədin?', 'mən gəlmək olmaq sən[yn] gəlmək[yn~] yox[yn~] olmaq[yn]']]) {
+    const got = marks(text);
+    check(got === want, `qrammatika: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+}
+
 // 3. Real lüğətin faylları
 if (!existsSync(new URL('index.json', W))) {
   check(false, 'public/tercume/words/index.json yoxdur — tools/build_words.py işlədilməyib');

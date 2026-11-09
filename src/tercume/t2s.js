@@ -18,7 +18,13 @@ const DEFAULTS = {
   leadInMs: 380,      // ilk addımda əlavə vaxt: avatarın qolu istirahətdən qalxır
   wordHoldMs: 150,    // söz işarəsinin son pozasında qısa saxlama (qısaldıldı)
   speed: 1,           // ümumi sürət: 0.5 — iki dəfə yavaş (izləyicinin sürət idarəsi)
+  questionHoldMs: 450, // sualın sonunda üz bir az saxlanır (cavab gözlənilir)
 };
+// Sual sözləri: sual cümləsində olan varsa sual "wh" növüdür (qaşlar çatılır), yoxsa hə/yox (qaşlar yuxarı)
+const WH = new Set(['nə', 'niyə', 'nəyə', 'nədir', 'nəyi', 'nədən', 'hara', 'harada', 'haraya', 'haradan', 'harası', 'harda',
+  'haradasan', 'haradasınız', 'hansı', 'hansını', 'necə', 'necəsən', 'necəsiniz', 'neçə', 'neçədə', 'neçəyə', 'neçədir',
+  'neçənci', 'kim', 'kimə', 'kimi', 'kimin', 'kimdən', 'kimdir', 'haçan']);
+const NEGATIVE = new Set(['yox', 'deyil']);
 
 export class TextToSign {
   constructor({ poses, lexicon = new WordLexicon(null), targets = [], onLetter, onState } = {}) {
@@ -46,7 +52,7 @@ export class TextToSign {
       if (seg.kind === 'space') {
         steps.push({ kind: 'space', char: ' ', ...at });
       } else if (seg.kind === 'word') {
-        steps.push({ kind: 'word', char: seg.text, entry: seg.entry, ...at });
+        steps.push({ kind: 'word', char: seg.text, entry: seg.entry, via: seg.via, ...at });
       } else {
         // Rəqəmin adı (7 → yeddi) mətndən uzundur: hərflər rəqəmin yerində qalır
         [...seg.text].forEach((ch, k) => {
@@ -56,7 +62,7 @@ export class TextToSign {
         });
       }
     }
-    return steps;
+    return grammar(text, steps);
   }
 
   /** Mətndə hansı simvolların pozası yoxdur. */
@@ -159,6 +165,7 @@ export class TextToSign {
     for (let i = 0; i < steps.length; i++) {
       if (this._abort !== token) return;
       const step = steps[i];
+      for (const t of this.targets) t.setGrammar?.(step.gram ?? null);
       this.onLetter?.({ ...step, index: i, total: steps.length });
       this.onState?.({ playing: true, total: steps.length, index: i });
 
@@ -206,7 +213,9 @@ export class TextToSign {
       }
     }
 
+    if (steps.at(-1)?.gram?.q) await this.#wait(this.opts.questionHoldMs / sp(), token);
     if (this._abort === token) {
+      for (const t of this.targets) t.setGrammar?.(null);
       this.#emit(null);
       this.playing = false;
       this.onState?.({ playing: false, total: steps.length, index: steps.length });
@@ -227,6 +236,7 @@ export class TextToSign {
   resume() { this.paused = false; }
 
   stop() {
+    for (const t of this.targets ?? []) t.setGrammar?.(null);
     this._abort = null;
     this.playing = false;
     this.paused = false;
@@ -289,6 +299,36 @@ export function separateHands(pts, min = 0.02) {
       pts[21 + k].x += ax[0] * step; pts[21 + k].y += ax[1] * step; pts[21 + k].z += ax[2] * step;
     }
   }
+}
+
+/**
+ * Addımlara cümlənin qrammatikası (roadmap N6): sual cümləsinin addımları q ('yn' | 'wh'), inkarın işarəsi (YOX, əlavə
+ * olunmuş inkar, "deyil") və əlavə olunmuş YOX-dan əvvəlki fel shake alır. Cümlə sonu: . ? ! … (mətnin öz yazılışı).
+ */
+export function grammar(text, steps) {
+  const ends = [];
+  const re = /[.?!…]+/g;
+  let m;
+  while ((m = re.exec(text))) ends.push({ at: m.index + m[0].length, q: m[0].includes('?') });
+  const kind = new Map();
+  ends.forEach((e, k) => {
+    if (!e.q) return;
+    const from = k ? ends[k - 1].at : 0;
+    const words = azLower(text.slice(from, e.at)).split(/[^\p{L}]+/u);
+    kind.set(k, words.some((w) => WH.has(w)) ? 'wh' : 'yn');
+  });
+  const sentenceOf = (pos) => { const k = ends.findIndex((e) => pos < e.at); return k === -1 ? ends.length : k; };
+  steps.forEach((s, i) => {
+    const q = kind.get(sentenceOf(s.from ?? 0)) ?? null;
+    const neg = s.kind === 'word' && (s.via === 'neg' || NEGATIVE.has(azLower(s.entry?.text ?? '')));
+    if (q || neg) s.gram = { q, shake: neg };
+    // inkarlı felin işarəsi də (GƏLMƏK YOX: baş fel ilə yellənməyə başlayır)
+    if (s.via === 'neg') {
+      const prev = steps.slice(0, i).reverse().find((x) => x.kind === 'word');
+      if (prev) prev.gram = { q: prev.gram?.q ?? q, shake: true };
+    }
+  });
+  return steps;
 }
 
 export async function loadPoses(url = './assets/poses.json') {

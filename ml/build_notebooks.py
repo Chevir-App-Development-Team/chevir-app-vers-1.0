@@ -13,6 +13,13 @@ import nbformat as nbf
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from groups import load_groups, sign_merge, spelling  # noqa: E402  (labels that are one sign)
+
+
+def label_fix():
+    """ml/label_text.csv: an annotation label's correct spelling (GUN → gün), for matching outside words."""
+    import csv
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'label_text.csv'), encoding='utf8') as f:
+        return {r['label']: r['text'] for r in csv.DictReader(f)}
 MODULES = ['__init__', 'zenodo', 'landmarks', 'store', 'sources', 'split', 'pipeline', 'views']
 TRAIN_MODULES = MODULES + ['features', 'train']
 NUM_SHARDS = 4
@@ -344,6 +351,9 @@ SPELLING = {spelling}   # ml/gloss_spelling.csv: one word typed two ways
 SIDE = True            # load the side camera (Cam1), shifted by each recording's frame offset (per run: side=)
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1     # alignment quality a recording needs (set from 02c1's align.csv)
 TRAIN_ON_VAL = False   # final model: val signers' signs become training data (runs then need save_epoch)
+TRAIN_ON_ALL = False   # shipped model: test signers too; "test" is then seen data (a check only)
+JESTDILI = False       # JestDili.az clips (tools/extract_jestdili.py) of vocabulary words as training signs
+LABEL_FIX = {label_fix}
 EXCLUDE_HELDOUT = True  # leave out the train signs of the held-out sentences (heldout_sentence); vocabulary unchanged
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
 NO_FACE = HANDS + ['pose']
@@ -351,7 +361,8 @@ BASE = dict(groups=NO_FACE, unknown=4.0, select='open')
 RUNS = {
     'side_noface_s1_noheld': dict(BASE, seed=1, side=True, face_drop=1.0),
 }
-""".replace('{spelling}', json.dumps(spelling(), ensure_ascii=False))),
+""".replace('{spelling}', json.dumps(spelling(), ensure_ascii=False)).replace(
+            '{label_fix}', json.dumps(label_fix(), ensure_ascii=False))),
         code(SETUP),
         code("""
 # ONNX export (for the browser) needs onnx; onnxruntime checks the export against PyTorch.
@@ -361,7 +372,7 @@ missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is 
 if ON_KAGGLE and missing:
     subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
 """),
-        *package_cells(TRAIN_MODULES),
+        *package_cells(TRAIN_MODULES + ['extra']),
         code("""
 import pandas as pd, torch
 from azsl import train as T
@@ -400,6 +411,11 @@ if EXCLUDE_HELDOUT:
     drop = (tags.split == 'train') & tags.rec_id.isin(held)
     tags = tags[~drop]
     print(f'held-out sentences: {int(drop.sum())} train signs left out')
+test_keys = set(tags[tags.split == 'test'].key) | set(wsplit[wsplit.split == 'test'].key)
+if TRAIN_ON_ALL:
+    assert TRAIN_ON_VAL, 'TRAIN_ON_ALL is a final model: TRAIN_ON_VAL too'
+    tags['split'] = tags.split.replace({'test': 'train'})
+    wsplit = wsplit.assign(split=wsplit.split.replace({'test': 'train'}))
 if TRAIN_ON_VAL:       # the vocabulary above is still the train signers' one, as in the runs chosen on val
     tags['split'] = tags.split.replace({'val': 'train'})
     wsplit = wsplit[wsplit.split != 'val']
@@ -423,6 +439,19 @@ if SIDE:
 signs = T.load_sentence_signs(sentence_dirs, tags, vocab, margin=CFG['margin'],
                               unknown=T.UNKNOWN if UNKNOWN else None, exclude=AMBIGUOUS, side=side)
 words = T.load_words200(words_dirs, wsplit, vocab)
+if TRAIN_ON_ALL:       # the test signers are training data now: their signs are scored only as a check
+    seen = lambda b, side: [k.split('|')[0] in test_keys and ('|side' in k) == side for k in b.ids]   # noqa: E731
+    signs['test'] = signs['train'].subset(seen(signs['train'], False))
+    if 'test_side' in signs:
+        signs['test_side'] = signs['train'].subset(seen(signs['train'], True))
+    words['test'] = words['train'].subset(seen(words['train'], False))
+if JESTDILI:
+    from azsl import extra as EX
+    from azsl.store import LandmarkStore
+    jd_dirs = find('jestdili_words/manifest.csv')
+    gloss_of = EX.jestdili_glosses(LandmarkStore(jd_dirs), words_list, LABEL_FIX, SPELLING)
+    signs['train'] = T.Bank.merge(signs['train'], EX.load_signs(jd_dirs, gloss_of, vocab, margin=CFG['margin']))
+    print('train with JestDili.az:', len(signs['train']), 'signs')
 """),
         md('### Training — one line per epoch per run (`*` = new best on val macro-F1)'),
         code("""
@@ -723,12 +752,17 @@ MERGE = __MERGE__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
 EXCLUDE_HELDOUT = False                        # unseen sentences stay out of training (final model: all)
 TRAIN_ON_VAL = True                            # final model: val signers too (runs need save_epoch and decode)
+TRAIN_ON_ALL = False                           # shipped model: test signers too; "test" is then seen data (a check only)
+JESTDILI = False                               # JestDili.az clips (tools/extract_jestdili.py) as training recordings:
+                                               # another person and camera; also spliced into new sentences
+LABEL_FIX = __LABEL_FIX__
 DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
 DECODE_GRID['min_len_short'] = (6,)            # v7's choice for letters and digits
 LOOKAHEADS = (12, 40)                          # val only: shorter / longer delay than the browser's
                                                # (must stay below window - stride of every run)
 """.replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False)).replace(
-            '__MERGE__', json.dumps(sign_merge(), ensure_ascii=False))),
+            '__MERGE__', json.dumps(sign_merge(), ensure_ascii=False)).replace(
+            '__LABEL_FIX__', json.dumps(label_fix(), ensure_ascii=False))),
         code(SETUP),
         code("""
 import importlib.util
@@ -736,7 +770,7 @@ missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is 
 if ON_KAGGLE and missing:
     subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
 """),
-        *package_cells(TRAIN_MODULES + ['segment', 'segment_eval', 'continuous']),
+        *package_cells(TRAIN_MODULES + ['segment', 'segment_eval', 'continuous', 'extra']),
         code("""
 import pandas as pd, numpy as np, torch
 from azsl import train as T, continuous as CT, features as FT
@@ -775,6 +809,10 @@ recs = sents[sents.split.notna() & sents.rec_id.isin(anns)][['rec_id', 'split', 
 if TRAIN_ON_VAL:
     recs['split'] = recs.split.replace({'val': 'train'})
     assert all(r.get('save_epoch') and r.get('decode') for r in RUNS.values()), 'final runs need save_epoch and decode'
+test_ids = set(recs[recs.split == 'test'].rec_id)
+if TRAIN_ON_ALL:
+    assert TRAIN_ON_VAL, 'TRAIN_ON_ALL is a final model: TRAIN_ON_VAL too'
+    recs['split'] = recs.split.replace({'test': 'train'})
 if EXCLUDE_HELDOUT:
     recs = recs[~((recs.split == 'train') & recs.heldout_sentence)]
 if all(r.get('ckpt') for r in RUNS.values()):   # evaluation only: no training recordings needed
@@ -795,6 +833,17 @@ al = pd.concat([pd.read_csv(os.path.join(d, 'align.csv'), dtype={'id': str}) for
 good = al[(al['corr'] >= SIDE_MIN_CORR) & (al.margin >= SIDE_MIN_MARGIN)]
 banks = CT.load_recordings(sentence_dirs, recs, anns, index, unknown=T.UNKNOWN, exclude=exclude,
                            side=(side_dirs, dict(zip(good.id, good.lag))))
+if TRAIN_ON_ALL:       # the test signers are training data now: their recordings are scored only as a check
+    from azsl import extra as EX
+    banks['test'] = EX.subset_view(banks['train'], test_ids, side=False)
+    banks['test_side'] = EX.subset_view(banks['train'], test_ids, side=True)
+if JESTDILI:
+    from azsl import extra as EX
+    from azsl.store import LandmarkStore
+    jd_dirs = find('jestdili_words/manifest.csv')
+    gloss_of = EX.jestdili_glosses(LandmarkStore(jd_dirs), words, LABEL_FIX, SPELLING, MERGE)
+    banks['train'] = EX.merge_seq(banks['train'], EX.load_recordings(jd_dirs, gloss_of, index))
+    print('train with JestDili.az:', len(banks['train']), 'recordings,', f"{banks['train'].n:,} frames")
 banks['val_unseen'] = CT.subset(banks['val'], unseen)          # per-epoch score on sentences never trained on
 SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, learnable)}
 letters = {g for g in words if len(g) == 1}                 # fingerspelled letters and digits
