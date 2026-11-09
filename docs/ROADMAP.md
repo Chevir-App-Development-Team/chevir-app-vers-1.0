@@ -135,6 +135,11 @@ Text → sign:
 Parallel tracks: data and evaluation (team + native users), recognition (ML), language (NLP), avatar (graphics),
 product. Phase 0 unblocks everything: without set C and the review page nothing later can be judged.
 
+**Phase 0 status (2026-11-09):** D1 ✓ (`docs/DATA.md`; Logos request drafted), D2 in progress (JestDili.az: 2,766 words and
+500 sentences fetched, 2,404 avatar signs built, false-match guard, E24), D5 ✓ (review sheet ready,
+`ml/review/word_forms_review_w500.csv`, answers pending), N1 ✓ (E23), V5 ✓ (CI and gates). Open: V2 review page, D4
+recording page, the native review itself.
+
 ## 5. Targets
 
 | Measure | Now | After phase 1 | After phase 2 |

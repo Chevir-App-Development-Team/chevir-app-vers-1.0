@@ -67,7 +67,7 @@ const PRONOUNS = {
   ora: ['orda', 'ordan', 'orada', 'oradan', 'oraya'],
   hara: ['harda', 'hardan', 'harada', 'haradan', 'haraya'],
 };
-const PRONOUN_OF = new Map(Object.entries(PRONOUNS).flatMap(([p, forms]) => forms.map((f) => [f, p])));
+export const PRONOUN_OF = new Map(Object.entries(PRONOUNS).flatMap(([p, forms]) => forms.map((f) => [f, p])));
 
 const isVowel = (c) => VOWELS.includes(c);
 const hasVowel = (s) => [...s].some(isVowel);

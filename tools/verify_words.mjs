@@ -96,6 +96,17 @@ const nativeCases = [
   ['Qatarla getdim', 'w:mən w:qatar _ w:getmək w:olmaq'], ['məsələ ilə bağlı', 'w:məsələ _ d:ilə _ w:bağlı'],
   ['Gəldim. Getdim.', 'w:mən w:gəlmək w:olmaq _ w:mən w:getmək w:olmaq'],
 ];
+// Sonradan əlavə olunan lüğət (JestDili.az, id "jd-"): söz yalnız öz formalarına; əvəzliyin formaları əvəzliyindir (E24)
+const added = new WordLexicon({ words: [...['o', 'ata', 'almaq'].map((text) => ({ id: text, text })),
+  { id: 'jd-on', text: 'on' }, { id: 'jd-qar', text: 'qar' }, { id: 'jd-alin', text: 'alın' }, { id: 'jd-xan', text: 'xan' },
+  { id: 'jd-hazir', text: 'hazır' }, { id: 'indi', text: 'indi', alt: ['hazırda'] }] }, { native: false });
+for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarşı'], ['qarı', 'w:qar'], ['alınır', 'w:almaq'],
+  ['atası', 'w:ata'], ['alın', 'w:alın'], ['xanın', 'w:xan'], ['xanım', 't:xanım'], ['xanımla', 't:xanımla'],
+  ['hazırdır', 'w:hazır'], ['hazırda', 'w:indi']]) {
+  const got = show(added.segment(text));
+  check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+
 for (const [text, want] of nativeCases) {
   const got = show(nat.segment(text));
   check(got === want, `doğma: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);

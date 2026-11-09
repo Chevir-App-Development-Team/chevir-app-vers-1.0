@@ -6,7 +6,7 @@
  * "bu gün" kimi ifadələr bütöv işarədir.
  */
 import { WORDS_BASE } from './paths.js';
-import { Lemmatizer, suffixOnly } from './morph.js';
+import { Lemmatizer, PRONOUN_OF, suffixOnly } from './morph.js';
 import { paradigm } from './inflect.js';
 
 /** Azərbaycan qaydası ilə kiçik hərf: I → ı, İ → i (toLowerCase "İ"-ni "i̇" edir). */
@@ -33,6 +33,9 @@ const ROMAN = { I: 1, V: 5, X: 10 };
 // Yiyəlik əvəzliyi işarədə əvəzliyin özüdür: AzSLD-də "mənim" olan 83 cümlənin hamısında MƏN (onun 11/11, sizin 11/11,
 // heç birində MƏNİM, ONUN, SİZİN); işarə dili daşıyıcısı da belə deyir: MƏNİM işarəsi var, az işlənir (E21)
 const POSSESSIVE = new Map([['mənim', 'mən'], ['sənin', 'sən'], ['onun', 'o'], ['bizim', 'biz'], ['sizin', 'siz'], ['onların', 'onlar']]);
+// Qısa sözün formasına bənzəyən ayrı sözlər: xanım ("xanım", xan+ım yox) XAN-a, hazırda (indi) HAZIR-a düşməsin.
+// Öz işarəsi varsa (lüğətdə bu yazılış və ya alt) o tapılır; yoxdursa hərflə
+const OWN_WORDS = ['xanım', 'hazırda'];
 const roman = (s) => [...s].reduce((sum, c, i) => sum + (ROMAN[c] < (ROMAN[s[i + 1]] ?? 0) ? -ROMAN[c] : ROMAN[c]), 0);
 
 // Doğma işarə dilinin qaydaları (işarə dili daşıyıcısı ilə müsahibə, ml/EXPERIMENTS.md E21, E22). AzSLD bunları az
@@ -104,6 +107,18 @@ export class WordLexicon {
     return f ? { ...f, root } : null;
   }
 
+  /** Sözün inflect.js-in qurduğu formaları (fel: məsdərin kökündən, inkarla; ad: hal, mənsubiyyət, cəm…) + özü. */
+  #ownForms(entry) {
+    if (!this.own) this.own = new Map();
+    if (!this.own.has(entry.id)) {
+      const t = azLower(entry.text);
+      const verb = /^\p{L}{2,}m[aə][kq]$/u.test(t);
+      const forms = new Set([t, ...paradigm(verb ? t.slice(0, -3) : t, verb ? 'verb' : 'noun').map((p) => p.form)]);
+      this.own.set(entry.id, forms);
+    }
+    return this.own.get(entry.id);
+  }
+
   #isPerson(entry) {
     const t = azLower(entry.text);
     return PERSON.has(t) || PERSON.has(this.lemma.key(t) ?? t);
@@ -135,22 +150,35 @@ export class WordLexicon {
     if (pron) return { entry: pron, via: 'lemma' };
     const exact = this.byText.get(text);
     if (exact) return { entry: exact, via: 'text' };
+    // Əvəzliyin formaları əvəzliyindir (onu, ona, ondan → O; ON "on" rəqəmi deyil)
+    const pe = tokens.length === 1 && this.byText.get(PRONOUN_OF.get(text));
+    if (pe) return { entry: pe, via: 'lemma' };
     let k = this.#keys(tokens);
     let via = 'lemma';
+    const single = tokens.length === 1;
+    const own = single && OWN_WORDS.find((w) => text.startsWith(w));
+    // Sonradan əlavə olunan lüğətin (JestDili.az, id "jd-") sözü yalnız öz formalarına: qarşı ≠ QAR, alınır ≠ ALIN (alın),
+    // üzü ≠ ÜZMƏK. Qısa köklər çox başqa sözün təhlilinə düşür; AzSLD lüğəti seçilmiş, ona görə sərbəstdir.
+    // Süzgəc açarın özündə: süzüləndən sonra törəmə yolu (alınır → al → ALMAQ) yenə açıqdır
+    const usable = (key) => {
+      const f = key && this.byKey.get(key);
+      return f && single ? f.filter((x) => (!own || x.form.length >= own.length)
+        && (!x.entry.id?.startsWith('jd-') || this.#ownForms(x.entry).has(text))) : f;
+    };
     // Törəmə söz (əlillik → əlil, verilir → ver): yalnız başqa yolla tapılmayanda
-    const has = (key) => key && (this.byKey.has(key) || (key.endsWith('-') && this.byKey.has(key.slice(0, -1))));
-    if (!has(k) && tokens.length === 1) {
+    const has = (key) => key && (usable(key)?.length || (key.endsWith('-') && usable(key.slice(0, -1))?.length));
+    if (!has(k) && single) {
       const d = this.lemma.derived(tokens[0]).find(has);
       if (d) { k = d; via = 'derived'; }
     }
-    let found = k && this.byKey.get(k);
+    let found = usable(k);
     // İnkarlı felin öz işarəsi yoxdursa: felin işarəsi + inkar (neg), müsbət işarə tək qalmasın
     let neg = false;
-    if (!found && tokens.length === 1 && k?.endsWith('-')) {
-      found = this.byKey.get(k.slice(0, -1));
-      neg = Boolean(found);
+    if (!found?.length && single && k?.endsWith('-')) {
+      found = usable(k.slice(0, -1));
+      neg = Boolean(found?.length);
     }
-    if (!found) return null;
+    if (!found?.length) return null;
     const common = (a) => { let n = 0; while (n < a.length && a[n] === text[n]) n++; return n; };
     const longer = found.filter((f) => text.startsWith(f.form) && !this.lemma.isBase(f.form)
       && f.form.length >= (this.lemma.key(f.form) ?? '').replace(/-$/, '').length + 2);

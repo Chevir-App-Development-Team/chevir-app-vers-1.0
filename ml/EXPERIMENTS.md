@@ -2229,3 +2229,59 @@ The inverse of E22, so both directions follow one grammar. `GlossToText` (`src/t
 On AzSLD (which rarely has these signs) the change is neutral: with the browser model, 3 of 492 sentences change,
 1 better, 2 equal. `verify_gloss_text.mjs` +8 cases on the browser model. CI gates (`tools/ci_gates.mjs`, `ml/gates.json`,
 `.github/workflows/verify.yml`, roadmap V5) hold these numbers: F1 may fall by at most 0.005, WER rise by at most 1 point.
+
+## E24 — JestDili.az: 2,404 new avatar signs and a guard against false matches (roadmap D2; no training)
+
+**Data** (permission granted to the team, `docs/DATA.md`): the JestDili.az dictionary, fetched with
+`tools/fetch_jestdili.py` (the API address is not stored in the repo): 2,766 words in 45 categories, each with one
+studio video (one person standing, front camera, 1080p, 30 fps, ~2.7 s, rest → sign → rest), and 500 sentences with
+video and Azerbaijani text (26 of them also in AzSLD). 3,266 files, 21.5 GB, in `data/jestdili/` (outside git).
+Against our lexicon: 305 words have the same text, 117 reach one of our signs as a word form, **2,344 are new** (verbs,
+animals, food, jobs, medicine, places and countries, the numbers, weekdays, …). Names carry a sense note or a variant:
+"bel (alət)", "almanya (variant 2)".
+
+**Avatar signs** (`tools/build_jestdili_words.py`): the avatar builder's processing per video (MediaPipe Pose lite +
+Hands + Face, VIDEO mode, every 2nd frame, rest frames trimmed; `build_avatar_words.process` now reads plain files and
+streams frames, it held whole 1080p clips in memory). One person per word, so a quality threshold instead of "most
+typical of 8": **2,404 signs** for 2,260 distinct words, none below the threshold; 1,789 two-handed, 612 right, 3 left;
+median 33 frames (2.2 s). 149 MB (the AzSLD lexicon: 24 MB for 786). Renders on the default avatar look right (ABİDƏ,
+ABİTURİYENT, ABONENT); in `data/jestdili/avatar/` for now, not shipped.
+
+**Words as signs** (AzSLD style, 150k web sentences ranked by use):
+
+| Lexicon | AzSLD | JestDili.az sentences | web text |
+|---|---|---|---|
+| ours (786) | 96.6 % | 85.7 % | 45.8 % |
+| + 500 most used JestDili.az signs | 97.1 % | 89.9 % | 58.9 % |
+| + 1,000 most used | 97.3 % | 91.6 % | 61.6 % |
+| + all 2,387 (first variant of each) | 97.4 % | 92.4 % | 63.0 % |
+
+**False matches.** The morphology reduced common words to the new short roots: "onu, ona, ondan" (him, her) → ON (ten),
+"üzərində, üzü" (on, face) → ÜZMƏK (swim), "qarşı" (against) → QAR (snow), "əsrin" (century's) → ƏSİR (captive),
+"alınır" (is taken) → ALIN (forehead), "alır" → JestDili's AL instead of our ALMAQ. Two guards in `WordLexicon.lookup`:
+a pronoun's forms go to the pronoun (onu → O), and a sign of the added lexicon (id `jd-`) matches only its own forms
+(the word itself or a form `inflect.js` builds for it). The AzSLD lexicon keeps its looser matching. Afterwards the
+most used matches are real (həyat, ölkə, dövr, qadın, xalq, ərazi …). The guard sits on the lookup key, so a derived
+form can still reach an AzSLD sign when the added sign is filtered out ("alınır" → ALMAQ, not ALIN). Two words that
+look like forms of a shorter one are their own words: "xanım" (lady, not xan + ım) is spelled with letters instead of
+XAN, and "hazırda" (currently) is an alternate text of İNDİ in `ml/text_alt.csv` instead of HAZIR (ready).
+`tools/verify_words.mjs` has the cases.
+
+**Hand checks** (`tools/measure_hands.js` on all 2,404 against the AzSLD lexicon's 786, default avatar):
+
+| | JestDili.az | AzSLD lexicon |
+|---|---|---|
+| placement median / p90 | 1.2 / 3.8 cm | 1.2 / 3.7 cm |
+| hand in the other hand | 5.2 % | 3.4 % |
+| hand in the arm | 3.2 % | 1.5 % |
+| hand in the body / arm in the body | 52.2 / 59.7 % | 40.8 / 50.9 % |
+| a hand outside the camera frame | 15.6 % | 2.0 % |
+| wrist past its limit (> 5°) | 76.2 % | 51.7 % |
+
+Placement is as good as ours. Out of frame is marginal (median 3 % past the frame edge, p90 9 %): the person stands,
+so hands at rest hang lower than in the seated AzSLD recordings. The wrist overshoots are clamped by the player's hard
+ceiling. More body contact: the standing signer signs closer to the body; worth a look on the avatar before shipping.
+
+**Gates** (`node tools/ci_gates.mjs`) still pass with the guards: text → sign same-gloss F1 0.893 AzSLD style, 0.856
+native; sign → text WER 48.5 dev, 49.3 test. Not yet decided: ship all 2,387 signs (149 MB) or the 1,000 most used
+(about 60 MB, web text 61.6 % instead of 63.0 %).
