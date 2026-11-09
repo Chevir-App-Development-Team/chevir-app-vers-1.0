@@ -30,7 +30,7 @@ const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
 const DEG = Math.PI / 180;
 // Söz işarəsinin üzü (tools/build_avatar_words.py, kadrın `f` sahəsi): MediaPipe-in blendshape-ləri
 // VRM-in standart ifadələrinə. Hər blendshape lüğətdəki öz diapazonuna görə ölçülür: median
-// (siqnalçıların sakit üzü) → 0, 99-cu faiz → tam (MediaPipe-in dəyərləri sıxılmışdır: ağzın
+// (iştirakçıların sakit üzü) → 0, 99-cu faiz → tam (MediaPipe-in dəyərləri sıxılmışdır: ağzın
 // geniş açılması belə jawOpen ≈ 0.16). Ağız formaları (aa, ih, ou, ee, oh) dodaqların hərəkətidir;
 // surprised / angry yalnız qaşlar üçündür, bütün üzü dəyişdikləri üçün zəif saxlanılır.
 const FACE_MAP = {
@@ -58,8 +58,8 @@ const R_FOREARM = 0.030;
 const R_UPPERARM = 0.040;
 // Oynatmada əllərin bir-birinə girməsinə icazə (metr): səthlər toxuna bilər, keçə bilməz
 const GUARD_SLACK = 0.003;
-// Əllərin toxunduğu işarədə (sözün `contact` işarəsi) siqnalçının barmaqları bir-birinin arasından
-// keçə, ovucu o biri əlin üstündə ola bilər: avatar da siqnalçının özü qədər üst-üstə düşür, ən çoxu bu qədər
+// Əllərin toxunduğu işarədə (sözün `contact` işarəsi) iştirakçının barmaqları bir-birinin arasından
+// keçə, ovucu o biri əlin üstündə ola bilər: avatar da iştirakçının özü qədər üst-üstə düşür, ən çoxu bu qədər
 const OVERLAP_MAX = 0.025;
 
 const FINGER_BONE_NAMES = {
@@ -125,7 +125,7 @@ function segmentClosest(p1, p2, p3, p4, pa, pb) {
 }
 
 /**
- * Əlin kapsulları 21 nöqtədən (MediaPipe sırası): avatarın sümükləri də, siqnalçının
+ * Əlin kapsulları 21 nöqtədən (MediaPipe sırası): avatarın sümükləri də, iştirakçının
  * landmark-ları da eyni hissələrə bölünür və eyni radiuslarla ölçülür. Hər barmağın üç
  * sümüyü (sonuncusu uca qədər), ovuc — bilək → barmaq kökləri yelpiyi və köklər xətti.
  */
@@ -173,13 +173,13 @@ function handChirality(w) {
   return Math.sign(c[0] * t[0] + c[1] * t[1] + c[2] * t[2]) || 1;
 }
 
-/** Siqnalçının ovucunun biləkdən məsafəsi (əl ölçüsü üçün). */
+/** İştirakçının ovucunun biləkdən məsafəsi (əl ölçüsü üçün). */
 function palmRadius(hand) {
   const off = [0, 1, 2].map((k) => (hand[5][k] + hand[9][k] + hand[17][k] - 3 * hand[0][k]) / 4);
   return Math.hypot(...off);
 }
 
-/** Siqnalçının iki əli arasındakı ən kiçik məsafə (metr): bilək + barmaq ucları. */
+/** İştirakçının iki əli arasındakı ən kiçik məsafə (metr): bilək + barmaq ucları. */
 function handGap(fr) {
   const pts = (hand, wrist) => [0, 4, 8, 12, 16, 20].map(
     (j) => [0, 1, 2].map((k) => fr.b[wrist][k] + hand.w[j][k] - hand.w[0][k]));
@@ -189,7 +189,7 @@ function handGap(fr) {
   return gap;
 }
 
-/** Siqnalçının əlinin 21 nöqtəsi poza koordinatlarında (bilək + landmark-ların biləyə nisbəti). */
+/** İştirakçının əlinin 21 nöqtəsi poza koordinatlarında (bilək + landmark-ların biləyə nisbəti). */
 function signerPoints(fr, hand, wrist, flipDepth, scale) {
   return hand.w.map((p) => {
     const o = [0, 1, 2].map((k) => p[k] - hand.w[0][k]);
@@ -200,7 +200,7 @@ function signerPoints(fr, hand, wrist, flipDepth, scale) {
 }
 
 /**
- * Siqnalçının iki əli arasındakı ən kiçik səth məsafəsi, avatarın əl ölçüsünə miqyaslanıb və
+ * İştirakçının iki əli arasındakı ən kiçik səth məsafəsi, avatarın əl ölçüsünə miqyaslanıb və
  * avatarın öz kapsulları ilə — avatarın aralığı ilə birbaşa müqayisə olunur. Mütləq hədd yanlış
  * meyardır: bir çox işarədə əllər həqiqətən toxunur (datada 1-2 mm), bəzilərində isə 15 sm
  * aralıdır. Datada əllərin nisbi dərinliyi pozanın biləklərindən gəlir və səs-küylüdür:
@@ -227,7 +227,7 @@ function signerGap(fr, flipL, flipR, shape, scale) {
 }
 
 /**
- * Siqnalçının əl nöqtəsi pozanın koordinatlarında: pozanın biləyi + əl landmark-ının
+ * İştirakçının əl nöqtəsi pozanın koordinatlarında: pozanın biləyi + əl landmark-ının
  * biləyə nisbətən yeri (metrlə, oxlar eynidir). j = 'palm' — ovuc mərkəzi, avatarın
  * rig.palmOff-u ilə eyni nöqtələrdən: bilək, şəhadət, orta və çeçələ barmağın kökü.
  */
@@ -440,7 +440,7 @@ export class VrmAvatar {
 
   /**
    * Söz işarəsinin bir kadrı — hər iki qol (format: tools/build_words.py).
-   * Əlin yeri siqnalçının çiyinlərinə nisbətən ölçülüb avatarın çiyinlərinə
+   * Əlin yeri iştirakçının çiyinlərinə nisbətən ölçülüb avatarın çiyinlərinə
    * köçürülür: yanağa, çənəyə, sinəyə toxunan işarələr öz yerində qalır.
    * Əlin forması və oriyentasiyası hərflərdəki kimi landmark-lardan gəlir.
    */
@@ -463,7 +463,7 @@ export class VrmAvatar {
   /**
    * Sözün kadrlarında üz: ifadə çəkiləri və başın fırlanması. Blendshape lüğət üzrə medianı
    * (`faceNeutral`, sakit üz) ilə 99-cu faizi (`faceFull`) arasında ölçülür. Başın fırlanmasından
-   * sözün öz medianı çıxılır: kameraya görə duruş siqnalçıdan asılıdır, sözün içindəki
+   * sözün öz medianı çıxılır: kameraya görə duruş iştirakçıdan asılıdır, sözün içindəki
    * hərəkət (baş sallama, yelləmə, əyilmə) isə işarəyə aiddir.
    */
   #wordFace(word) {
@@ -662,14 +662,14 @@ export class VrmAvatar {
    *      bütövlükdə bədənə görə yerləşir, amma bir-birinə nisbəti qorunur.
    *   2. Poza həqiqətən qurulub ölçülür: barmaq, ovuc və qol kapsulları arasındakı ən kiçik
    *      SƏTH məsafəsi. Mənfidirsə əllər bir istiqamət boyunca ayrılır və qollar yenidən
-   *      həll olunur. Hədəf datadan gəlir: siqnalçıda əllər toxunursa yalnız səthlər
+   *      həll olunur. Hədəf datadan gəlir: iştirakçıda əllər toxunursa yalnız səthlər
    *      ayrılır, aralıdırsa tam aralıq bərpa olunur.
    * Hər addımda ölçülür və yalnız ən yaxşı nəticə saxlanılır — düzəlmirsə ilkin poza qalır.
    * `relative: false` — yalnız ayırma (son keçid: yerləşmə artıq bədənə görə düzəldilib).
    */
   #fixTwoHanded(word, sol, places, scale, { relative = true } = {}) {
     const touched = new Set();
-    const NEAR = 0.16;        // m — siqnalçıda bundan yaxın əllər "toxunan" sayılır
+    const NEAR = 0.16;        // m — iştirakçıda bundan yaxın əllər "toxunan" sayılır
     const MESH = 0.002;       // m — səthlər toxunur, amma bir-birinin içinə girmir
     const FULL = 0.020;       // m — datada əllər aralıdırsa tələb olunan aralıq
     for (let f = 0; f < word.frames.length; f++) {
@@ -677,7 +677,7 @@ export class VrmAvatar {
       const fr = word.frames[f];
       if (!L || !R || !fr.L || !fr.R || !fr.b) continue;
       const place = places[f];
-      // Hədəf aralıq datadan: əllərin toxunduğu sözdə siqnalçının əlləri bu kadrda bir-birinə
+      // Hədəf aralıq datadan: əllərin toxunduğu sözdə iştirakçının əlləri bu kadrda bir-birinə
       // keçirsə (barmaqlar arası, ovuc ovucun üstündə), avatar da o qədər keçə bilər; qalan
       // hallarda səthlər toxunur, datada aralıdırsa tam aralıq
       const sb = signerGap(fr, L.flip, R.flip, this.handShape, scale);
@@ -685,7 +685,7 @@ export class VrmAvatar {
       const want = overlap ? Math.max(sb, -OVERLAP_MAX) : THREE.MathUtils.clamp(sb, MESH, FULL);
       sol[f].allow = overlap ? want : null;
 
-      // 1. Nisbi həndəsə: siqnalçının ovucları arasındakı vektor əl ölçüsünə görə köçürülür
+      // 1. Nisbi həndəsə: iştirakçının ovucları arasındakı vektor əl ölçüsünə görə köçürülür
       const sg = handGap(fr);
       if (relative && sg < NEAR) {
         const pl = signerPoint(fr.b[5], fr.L.w, 'palm', L.flip);
@@ -1015,7 +1015,7 @@ export class VrmAvatar {
     return better;
   }
 
-  /** Siqnalçının əl ölçüsü ilə avatarın ovucu arasındakı nisbət (söz üzrə median). */
+  /** İştirakçının əl ölçüsü ilə avatarın ovucu arasındakı nisbət (söz üzrə median). */
   #wordScale(word) {
     const target = this.rigs.left.palmOff.length();
     const r = [];
@@ -1037,7 +1037,7 @@ export class VrmAvatar {
    */
   #reanchor(c, side, anchor, shiftCost = 1500, slack = 0.01, bodyFloor = null) {
     const next = this.#keepOut(anchor);
-    // Bədən yoxlanışı ilə çağırılanda (əlləri ayırmaq) dirsək olduğu yerdə saxlanılır: siqnalçının
+    // Bədən yoxlanışı ilə çağırılanda (əlləri ayırmaq) dirsək olduğu yerdə saxlanılır: iştirakçının
     // dirsəyinə qayıtmaq #fixBody-nin bədəndən çıxardığı qolu yenidən gövdəyə salırdı və hər
     // addım rədd olunurdu (ölçülüb: "çəkmək", "tərcümə")
     const elbow = bodyFloor != null ? c.arm.info.E : c.elbow;
@@ -1252,7 +1252,7 @@ export class VrmAvatar {
       const parts = { left: this.#contactParts('left', PL), right: this.#contactParts('right', PR) };
       const hit = closestParts(parts.left, parts.right, armOnly);
       // Toxunmaq olar (aralıq ≈ 0 — toxunan işarələr belə qalır), bir-birinə keçmək olmaz; əllərin
-      // toxunduğu sözdə isə siqnalçının özü qədər keçmək olar (bu kadrın `allow`-u, #fixTwoHanded)
+      // toxunduğu sözdə isə iştirakçının özü qədər keçmək olar (bu kadrın `allow`-u, #fixTwoHanded)
       const allow = this.mode === 'sign' && this.last?.allow != null ? this.last.allow : 0;
       const slack = Math.max(GUARD_SLACK, -allow + GUARD_SLACK);
       if (!hit || hit.gap >= -slack) return;
@@ -1389,17 +1389,17 @@ export class VrmAvatar {
   }
 
   /**
-   * Siqnalçının çiyin çərçivəsi qurulur və nöqtə avatarın gövdəsinə köçürülür;
+   * İştirakçının çiyin çərçivəsi qurulur və nöqtə avatarın gövdəsinə köçürülür;
    * miqyas çiyin eninin nisbətidir. Çiyin xətti bədənin dönməsini nəzərə alır.
-   * "Yuxarı" şaquldur (kamera düz dayanır), gövdə oxu deyil: oturan siqnalçının
+   * "Yuxarı" şaquldur (kamera düz dayanır), gövdə oxu deyil: oturan iştirakçının
    * budları etibarsız tapılır və gövdə oxu ~20° kameraya əyilir — öndəki əllər
    * avatarda yuxarı qalxardı. Baş isə gövdə ilə birgə önə əyilir, ona görə üzə
    * yaxın nöqtə (yanaq, çənə, qulaq) burundan ölçülüb avatarın üzünə köçürülür;
    * arada iki yerləşmə məsafəyə görə qarışdırılır. Pozanın dərinliyi zəifdir
    * (qulaqdakı əl burundan önə düşür), ona görə üzə yaxın dərinlik yarıya sıxılır.
    *
-   * Gövdə önündə dərinlik siqnalçının SİNƏSİNDƏN ölçülür (`chest`, lüğətdən: sinə xətti
-   * çiyin enləri ilə, irəli = a + b × hündürlük; oturan siqnalçı kameraya əyilir, ona görə
+   * Gövdə önündə dərinlik iştirakçının SİNƏSİNDƏN ölçülür (`chest`, lüğətdən: sinə xətti
+   * çiyin enləri ilə, irəli = a + b × hündürlük; oturan iştirakçı kameraya əyilir, ona görə
    * xətt mailidir) və avatarın ölçülmüş gövdə səthinin önünə köçürülür: sinəyə toxunan əl
    * avatarın sinəsinə toxunur, içinə girmir. Çiyinlərdən yuxarıda və gövdənin yanlarında
    * köhnə (çiyinlərə nisbətən) yerləşmə qalır.
@@ -1415,15 +1415,15 @@ export class VrmAvatar {
     const fwd = new THREE.Vector3().crossVectors(ax, up);
     const vec = ([x, y, z]) => new THREE.Vector3(x, -y, -z);
     const local = (d, depth = 1) => new THREE.Vector3(d.dot(ax), d.dot(up), depth * d.dot(fwd));
-    const sw = this.body.shoulderWidth / k;                     // siqnalçının çiyin eni (m)
+    const sw = this.body.shoulderWidth / k;                     // iştirakçının çiyin eni (m)
     const raw = (q) => local(vec(q).sub(mid)).multiplyScalar(k).add(this.body.mid);
-    /** Siqnalçının sinəsindən irəli (m); sinə xətti yoxdursa Infinity. */
+    /** İştirakçının sinəsindən irəli (m); sinə xətti yoxdursa Infinity. */
     const chestGap = (q) => {
       if (!chest) return Infinity;
       const l = local(vec(q).sub(mid));
       return l.z - (chest.a + chest.b * l.y / sw) * sw;
     };
-    /** Gövdə önündə dərinlik sinədən: siqnalçının sinəsindən aralıq avatarın sinəsinin önünə (+margin). */
+    /** Gövdə önündə dərinlik sinədən: iştirakçının sinəsindən aralıq avatarın sinəsinin önünə (+margin). */
     const onChest = (q, margin = 0) => {
       const p = raw(q);
       const front = chest && this.#torsoFront(p);
@@ -1441,9 +1441,9 @@ export class VrmAvatar {
       face: (q) => local(vec(q).sub(P[0]), 0.5).multiplyScalar(k).add(this.body.nose),
       /** Üzə yaxınlıq: 1 — üzdə, 0 — ≥26 sm uzaqda. */
       near: (q) => 1 - THREE.MathUtils.smoothstep(local(vec(q).sub(P[0]), 0.5).length(), 0.12, 0.26),
-      /** Siqnalçının istiqamət vektoru avatarın oxlarında (miqyassız). */
+      /** İştirakçının istiqamət vektoru avatarın oxlarında (miqyassız). */
       dir: (d) => local(vec(d)),
-      /** Çiyin ortasından şaquli məsafə, siqnalçının çiyin eni vahidində. */
+      /** Çiyin ortasından şaquli məsafə, iştirakçının çiyin eni vahidində. */
       height: (q) => (local(vec(q).sub(mid)).y * k) / this.body.shoulderWidth,
     };
   }
@@ -1615,7 +1615,7 @@ export class VrmAvatar {
   }
 
   /**
-   * Dirsəyin hədəfi gövdədən kənarda olsun. Oturan siqnalçı dirsəklərini bədənə yaxın saxlayır
+   * Dirsəyin hədəfi gövdədən kənarda olsun. Oturan iştirakçı dirsəklərini bədənə yaxın saxlayır
    * (pose heavy bunu görür) və avatarın gövdəsi çiyin eninə görə daha enlidir: hədəflərin 29 %-i
    * gövdənin içinə düşürdü və IK qolu bədənə çəkirdi. Hədəf səthdən bazunun qalınlığı qədər
    * bayıra çıxarılır.
@@ -1873,7 +1873,7 @@ export class VrmAvatar {
     off('chest', 0.008 * breath, 0.015 * active * toward, 0);
     off('upperChest', 0.010 * breath, 0, 0);
     off('neck', 0.012 * n2, 0.015 * n1, 0);
-    // işarə edəndə baş azca ələ tərəf dönür və əyilir; üstəlik siqnalçının sözdəki baş hərəkəti
+    // işarə edəndə baş azca ələ tərəf dönür və əyilir; üstəlik iştirakçının sözdəki baş hərəkəti
     const [hx, hy, hz] = this.face.headCur;
     off('head', 0.02 * n2 + 0.03 * active + hx, 0.03 * n1 + 0.05 * active * toward + hy,
       -0.035 * active * toward + hz);

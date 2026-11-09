@@ -265,7 +265,7 @@ export function evalArm(rig, R, T, swivel, elbow = null, avoid = null, cutoff = 
     over(twist, -LIMITS.wristTwist, LIMITS.wristTwist) ** 2;
   // Dirsəyin anatomik zonası hər iki rejimdə işləyir: insanda dirsək çiyindən aşağıda,
   // bədənin yanında və onun arxasına keçmədən qalır. Söz işarəsində zona daha genişdir
-  // (işarələr dirsəyi qaldırır) və üstünə siqnalçıdan gələn yönləndirmə əlavə olunur.
+  // (işarələr dirsəyi qaldırır) və üstünə iştirakçıdan gələn yönləndirmə əlavə olunur.
   // Zona olmayanda dirsək gövdənin arxasına düşür və said bədənin içindən keçirdi.
   const zone = elbow
     ? 40 * over(rE.y, -0.34, 0.04) ** 2 +
@@ -328,7 +328,7 @@ export function signAnchor(rig, handDir) {
  * (±90°) və əlin ±6 sm yerdəyişməsi arasında ən təbii həll iki mərhələdə
  * (kobud → dəqiq) axtarılır. `prev` — əvvəlki kadrın həlli: dinamik hərfdə
  * dirsək və önqol burulması kadrdan kadra sıçramasın.
- * Söz işarəsində `elbow` (siqnalçının dirsəyi) verilir, ovucun yeri datadan
+ * Söz işarəsində `elbow` (iştirakçının dirsəyi) verilir, ovucun yeri datadan
  * gəldiyi üçün sürüşmə baha olur (`shiftCost`).
  * @returns {{upper, lower, hand, info}} lokal kvaternionlar
  */
