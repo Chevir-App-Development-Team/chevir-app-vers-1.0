@@ -30,7 +30,7 @@ put(TAM, v4('Ir'), v4('yIr'), v4('Ib'), v4('yIb'), v4('mIş'), v4('dI'), ['dıq'
   v2k('duğ', 'düy'), v2k('acaq', 'əcək'), v2k('yacaq', 'yəcək'), v2k('acağ', 'əcəy'), v2k('yacağ', 'yəcəy'),
   v2k('acam', 'əcəm'), v2k('yacam', 'yəcəm'), v2('Ar'), v2('yAr'), v2k('malı', 'məli'), v2('sA'), v2('ysA'),
   v2k('araq', 'ərək'), v2k('yaraq', 'yərək'), v2('An'), v2('yAn'), v2k('maz', 'məz'), v2k('mar', 'mər'),
-  v2k('maq', 'mək'), v2k('mağ', 'məy'), v2('A'), v2('yA'));
+  v2k('maq', 'mək'), v2k('mağ', 'məy'), v2('A'), v2('yA'), 'r');
 put(PL, v2k('lar', 'lər'));
 put(POSS, v4('Im'), 'm', v4('In'), 'n', v4('I'), v4('sI'), v4('ImIz'), v4('mIz'), v4('InIz'), v4('nIz'),
   v2k('ları', 'ləri'));
@@ -46,10 +46,11 @@ const BY_LEN = [...SLOTS.keys()].sort((a, b) => b.length - a.length);
 const PRESENT = new Set(v4('Ir').concat(v4('yIr')));
 // İnkarlı qeyri-qəti gələcək: gəl-məz, 1-ci şəxsdə gəl-mər-əm, gəl-mər-ik
 const NEG_AORIST = new Set(['maz', 'məz', 'mar', 'mər']);
+const PRIVATIVE = new Set(v4('sIz'));
 // Adla da üst-üstə düşən zaman şəkilçiləri (bazar, hava, insan): felin kökü yalnız
 // bunlardan başqası ilə tanınır (sev-ir-əm, al-mış-am)
 const WEAK_TAM = new Set([...v2('A'), ...v2('yA'), ...v2('Ar'), ...v2('yAr'), ...v2('An'), ...v2('yAn'),
-  ...v2('sA'), ...v2('ysA')]);
+  ...v2('sA'), ...v2('ysA'), 'r']);
 // Köməkçi sözlər kəsilmir: ilə ≠ il, kimi ≠ kim
 const FIXED = new Set(['ilə', 'kimi', 'ki', 'da', 'də', 'isə', 'belə', 'elə', 'hələ', 'yenə', 'deyə', 'nə']);
 
@@ -122,6 +123,8 @@ export function candidates(word) {
         if (slot === TAM) {
           // indiki zamandan sonra mənsubiyyət və hal gəlmir: işt-ir-ak, end-ir-im, tədb-ir-inə fel deyil
           if (PRESENT.has(suf) && (below === POSS || below === CASE)) continue;
+          // Saitdən sonra qeyri-qəti gələcək -yAr-dır (oxuyar, işləyər); qısa -r yalnız istə-r-di-m-dədir
+          if (suf === 'r' && rest !== 'istə') continue;
           const strong = !WEAK_TAM.has(suf);
           if (NEG_AORIST.has(suf)) { add(rest, true, true, true); continue; }
           add(rest, false, true, strong);
@@ -131,7 +134,9 @@ export function candidates(word) {
             if (rest.endsWith(n) && stem.length >= 2 && hasVowel(stem)) add(stem, true, true, true);
           }
         } else {
-          add(rest, false, verb);
+          // Addan sonra -sIz yiyəsizlikdir (evsiz, pulsuz, işsiz ≠ EV, PUL, İŞ), şəxs şəkilçisi yalnız
+          // feldən sonra (işləyir-siz): gövdə namizəd deyil, arxasında zaman şəkilçisi axtarılır
+          if (!(slot === PERS && PRIVATIVE.has(suf))) add(rest, false, verb);
           walk(rest, slot, verb);
         }
       }
@@ -172,6 +177,21 @@ export function variants(stem, verb = false) {
   }
   return out;
 }
+
+// Söz yaradıcı şəkilçilər: [şəkilçi, gövdə, yaranan söz]. AzSLD iştirakçıları kökü göstərir (əlillik → ƏLİL,
+// sağlamlıq → SAĞLAM, verilir → VERMƏK, salamlayıram → SALAM, alınması → ALMAQ; ml/EXPERIMENTS.md E18).
+// Yalnız mətn → işarədə, söz başqa yolla tapılmayanda (Lemmatizer.derived). İnkar mənalı -sIz yoxdur
+// (evsiz ≠ EV). İcbar növü də yoxdur: AzSLD-də kök 2/5 (bitirmək → BİTMƏK; təmir etdirmək → SİFARİŞ,
+// köçürmək → ÖTÜRMƏK), işarə dili daşıyıcısından soruşulur (docs/SIGNER_INTERVIEW.md, sual 31)
+const DERIV = [
+  ...[...v4('Il'), ...v4('In'), 'n', ...v4('nIl')].map((s) => [s, 'verb', 'verb']),       // məchul, qayıdış
+  ...[...v2('lA'), ...v2('lAş'), ...v2('lAn')].map((s) => [s, 'noun', 'verb']),            // salamla, fikirləş
+  ...[...v4('lI'), 'lıq', 'lik', 'luq', 'lük'].map((s) => [s, 'noun', 'noun']),          // küləkli, əlillik
+  ...[...v2('mA'), ...v4('Iş'), ...v4('yIş')].map((s) => [s, 'verb', 'noun']),             // ölmə-si, yaşayış
+].sort((a, b) => b[0].length - a[0].length);
+// Kökü başqa mənadadır: başla ≠ BAŞ, gözlə ≠ GÖZ, yoxla ≠ YOX, evli ≠ EV
+const DERIV_STOP = new Set(['başla', 'bağla', 'gözlə', 'atla', 'topla', 'yoxla', 'dinlə', 'yolla', 'izlə', 'saxla',
+  'evlən', 'evli', 'gözlük', 'söylə', 'yaşla']);
 
 /**
  * Lüğətin sözlərindən köklər və hər sözün açarı.
@@ -250,11 +270,15 @@ export class Lemmatizer {
   }
 
   /**
-   * İfadənin sözü üçün açar ("xoşum gəlir" ~ "xoşu gəlmək"): məlum kök yoxdursa, şəkilçisiz
-   * ən qısa gövdə — ifadə bütöv uyğun gəlməlidir, ona görə təklikdə olduğundan sərbəstdir.
+   * İfadənin sözü üçün açar ("xoşum gəlir" ~ "xoşu gəlmək"): felin açarı, yoxsa açarın (açar yoxdursa
+   * sözün) şəkilçisiz ən qısa gövdəsi — ifadə bütöv uyğun gəlməlidir, ona görə təklikdə olduğundan
+   * sərbəstdir. Eyni açarlı formalar eyni gövdəyə enir: həyat yoldaşım (lüğətdə "yoldaşım" var) ~ həyat
+   * yoldaşı, Abşeron rayon ~ Abşeron rayonu.
    */
   phraseKey(word) {
-    return this.key(word) ?? candidates(word).filter((c) => !c.neg).at(-1).stem;
+    const k = this.key(word);
+    if (k && this.verbs.has(k.replace(/-$/, ''))) return k;
+    return candidates(k ?? word).filter((c) => !c.neg).at(-1).stem;
   }
 
   /**
@@ -282,7 +306,8 @@ export class Lemmatizer {
       for (const v of variants(stem, verb)) {
         // Bir hərfli kök yoxdur (iyun ≠ i), əvəzliyin özündən başqa (onun → o)
         if (v.length < 2 && chain > 0 && PRONOUN_OF.get(word) !== v) continue;
-        // Felin səs dəyişməsi (ged → get) fel köküne aparmalıdır: kar-dır ≠ kart (kard + ır)
+        // Felin səs dəyişməsi (ged → get) fel köküne aparmalıdır: xəbərin -dır-ı ad köküne d → t ilə
+        // enmir (…d + ır → …t adı deyil)
         if (v !== stem && strong && !this.verbs.has(v)) continue;
         const k = keyOf(v, n);
         if (chain === 0 && v === word && word.length < 4 && this.verbs.has(k)) continue;
@@ -291,5 +316,47 @@ export class Lemmatizer {
       }
     }
     return null;
+  }
+
+  /**
+   * Törəmə sözün mümkün açarları, yaxından uzağa (key() tapmayanda): yaradıcı şəkilçilər soyulur, ən
+   * çoxu 3, kök lüğətdədir — fel şəkilçisindən əvvəl fel, ad şəkilçisindən əvvəl ad (əlil-liy-i → əlil,
+   * hesabla-t-dır-maq → hesabla, ver-il-m-ir → "ver-"). -mA yalnız arxasında şəkilçi olanda adlıqdır
+   * (ölmə-si); təkdə inkardır (ölmə). Hansı açarın işarəsi var — lüğət seçir.
+   */
+  derived(word) {
+    const out = [];
+    const known = (v, pos) => {
+      if (pos === 'verb') return this.verbs.has(v) ? v : null;
+      const k = this.keyOfWord.get(v) ?? (this.roots.has(v) && !this.verbs.has(v) ? v : null);
+      return k && !k.endsWith('-') ? k : null;
+    };
+    const strip = (stem, need, depth, neg) => {
+      if (DERIV_STOP.has(stem)) return;
+      for (const [suf, from, to] of DERIV) {
+        if (to !== need || !stem.endsWith(suf)) continue;
+        const base = stem.slice(0, -suf.length);
+        if (base.length < (from === 'noun' ? 3 : 2) || !hasVowel(base) || !fits(base, suf)) continue;
+        if (suf === 'n' && !isVowel(base.at(-1))) continue;
+        // samitdən sonra -In məchuldur yalnız l-dən sonra (al-ın, ol-un); başqa samitdən sonra qayıdış növü
+        // çox vaxt başqa sözdür: düşün ≠ DÜŞMƏK, sevin ≠ SEVMƏK
+        if (/^[ıiuü]n$/.test(suf) && base.at(-1) !== 'l') continue;
+        for (const v of variants(base, from === 'verb')) {
+          const k = known(v, from);
+          if (k) out.push(keyOf(k, neg));
+          if (depth < 3) strip(v, from, depth + 1, neg);
+        }
+      }
+    };
+    for (const c of candidates(word)) {
+      for (const v of new Set([...variants(c.stem, c.verb), ...variants(c.stem, true)])) {
+        for (const pos of c.verb ? ['verb'] : ['noun', 'verb']) {
+          // -mA adlığı: arxasında şəkilçi olmalıdır
+          if (!c.verb && pos === 'noun' && /m[aə]$/.test(v) && c.chain === 0) continue;
+          strip(v, pos, 1, c.neg);
+        }
+      }
+    }
+    return [...new Set(out)];
   }
 }

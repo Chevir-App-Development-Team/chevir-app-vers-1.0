@@ -17,7 +17,7 @@ import '../styles/sections/navbar.css'
 import './nsosyal.css'
 import { navbarMarkup } from '../sections/navbar.js'
 import { ASSET_BASE, WORDS_BASE } from '../tercume/paths.js'
-import { WordLexicon, azLower } from '../tercume/words.js'
+import { WordLexicon, azLower, isAdded } from '../tercume/words.js'
 import { TextToSign, loadPoses } from '../tercume/t2s.js'
 import { HAND_CONNECTIONS } from '../tercume/hands.js'
 
@@ -64,8 +64,8 @@ const state = {
 /** Mətnin hissələri və hər birinin necə göstəriləcəyi (güvən göstəricisi üçün). */
 function analyse(text) {
   const letters = state.poses?.letters ?? {}
-  // İnkarın YOX işarəsi felin öz mətnini təkrar göstərmir (eyni from/to)
-  const segs = state.lexicon.segment(text).filter((s) => s.kind !== 'space' && s.via !== 'neg').map((s) => {
+  // Əlavə işarələr (YOX, zaman, mübtəda, BİRLİKDƏ) mətnin öz sözü deyil: from/to aid olduğu sözündür
+  const segs = state.lexicon.segment(text).filter((s) => s.kind !== 'space' && !isAdded(s)).map((s) => {
     if (s.kind === 'word') return { ...s, cls: 'word' }
     if (s.kind === 'drop') return { ...s, cls: 'skip' }
     const shown = [...s.text].filter((ch) => letters[azLower(ch)]).length
@@ -279,7 +279,7 @@ function renderConfidence(post) {
   if (a.spell) parts.push(`${a.spell} hərf-hərf`)
   if (a.skip) parts.push(`${a.skip} göstərilmir`)
   $('.conf__text', conf).textContent = parts.join(' · ')
-  conf.setAttribute('aria-label', `Güvən: ${a.word} söz real siqnalçının işarəsi ilə, ${a.spell} söz hərf-hərf` +
+  conf.setAttribute('aria-label', `Güvən: ${a.word} söz real insanın işarəsi ilə, ${a.spell} söz hərf-hərf` +
     (a.skip ? `, ${a.skip} hissə göstərilmir` : ''))
 }
 

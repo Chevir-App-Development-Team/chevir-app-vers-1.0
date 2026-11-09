@@ -42,15 +42,16 @@ export class TextToSign {
     // Hər addım mətndəki yerini daşıyır: from/to — addımın özü, seg — aid olduğu söz
     for (const seg of this.lexicon.segment(text)) {
       const at = { from: seg.from, to: seg.to, seg: { from: seg.from, to: seg.to } };
-      if (seg.kind === 'drop') continue;               // siqnalçıların göstərmədiyi köməkçi söz
+      if (seg.kind === 'drop') continue;               // iştirakçıların göstərmədiyi köməkçi söz
       if (seg.kind === 'space') {
         steps.push({ kind: 'space', char: ' ', ...at });
       } else if (seg.kind === 'word') {
         steps.push({ kind: 'word', char: seg.text, entry: seg.entry, ...at });
       } else {
+        // Rəqəmin adı (7 → yeddi) mətndən uzundur: hərflər rəqəmin yerində qalır
         [...seg.text].forEach((ch, k) => {
           const c = azLower(ch);
-          const pos = { ...at, from: seg.from + k, to: seg.from + k + 1 };
+          const pos = { ...at, from: Math.min(seg.from + k, seg.to - 1), to: Math.min(seg.from + k + 1, seg.to) };
           steps.push(letters[c] ? { kind: 'letter', char: c, pose: letters[c], ...pos } : { kind: 'unknown', char: ch, ...pos });
         });
       }

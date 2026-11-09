@@ -46,8 +46,12 @@ SKIP = {'A', 'D', 'Ə', 'İ', 'J', 'M', 'N', 'S'}
 with open(ROOT / 'ml' / 'label_text.csv', encoding='utf8') as _f:
     ALIAS = {r['label']: r['text'] for r in csv.DictReader(_f)}
 
-# Ədəbi yazılışdan başqa, mətndə rast gəlinə bilən variantlar (axtarış üçün)
-ALT = {'burada': ['burda'], 'orada': ['orda'], 'harada': ['harda']}
+# Eyni işarəyə gələn başqa mətnlər: danışıq forması (burda), eyni mənalı idiom (rəhmətə getmək → ölmək),
+# bitişik yazılan ifadə (birdəfəlik): ml/text_alt.csv
+ALT = {}
+with open(ROOT / 'ml' / 'text_alt.csv', encoding='utf8') as _f:
+    for _r in csv.DictReader(_f):
+        ALT.setdefault(_r['text'], []).append(_r['alt'])
 
 TRANSLIT = str.maketrans({'ə': 'e', 'ı': 'i', 'ö': 'o', 'ü': 'u', 'ş': 's', 'ç': 'c', 'ğ': 'g', ' ': '-'})
 
