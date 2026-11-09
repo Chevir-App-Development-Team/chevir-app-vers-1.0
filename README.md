@@ -106,6 +106,8 @@ tools/
   eval_text_gloss.mjs    mətn → işarə ardıcıllığı, AzSLD-nin 492 cümləsi üzərində
   build_gloss_text.mjs   işarələr → mətn modeli (gloss2text.js) → public/tercume/assets/gloss_text.json
   eval_gloss_text.mjs    işarələr → mətn, WER və chrF: annotasiyanın və cümlə modelinin tanıdığı işarələrdən
+  corpus_sentences.py    HPLT 2.0 korpusundan (CC0) qısa cümlələr → data/corpus/
+  build_pseudo_gloss.mjs korpusun cümlələri → mətn → işarə yolu ilə süni (mətn, işarələr) cütləri
   verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
                          verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch;
                          verify_segment.mjs: söz rejiminin bölücüsü ↔ Python)
@@ -275,7 +277,7 @@ yana və ya arxaya bükülmə anatomik mümkün deyilsə, avatar onu təkrarlam�
 axtarılır: "zəhmət olmasa", "bu gün" bütöv işarədir, lüğətdə olmayan söz hərf-hərf göstərilir.
 
 **Lüğətin qurulması** (`tools/build_avatar_words.py`, dataset yerli `data/azsld/`-dədir). Hər işarə
-üçün 8-ə qədər fərqli siqnalçının nümunəsi emal olunur (MediaPipe Pose lite + Hands + Face, VIDEO
+üçün 8-ə qədər fərqli iştirakçının nümunəsi emal olunur (MediaPipe Pose lite + Hands + Face, VIDEO
 rejimi — kadrdan kadra izləmə, titrəmə iki dəfə az) və ən tipik təmiz nümunə seçilir: keyfiyyəti
 yaxşı olanlardan digərlərinə DTW ilə ən yaxın olan (medoid). Annotasiyadakı yazı xətaları
 (YARDİM → yardım, QİRMİZİ → qırmızı) cümlə mətnlərinin sözləri ilə düzəldilir. Pose heavy şəkildə
@@ -285,7 +287,7 @@ isə demək olar sabit təxmindir (r 0.06). Lüğət hələlik lite ilədir: ava
 uyğundur, heavy ilə isə (sinə təması ilə də) əllər və qollar gövdəyə daha tez-tez girir (E12).
 Heavy variantının kodu hazırdır: `build_avatar_words.py --pose-model data/models/pose_landmarker_heavy.task
 --chest` sinə xəttini lüğətin özündən ölçür (index.json-da `chest`), avatar isə gövdə önündə
-dərinliyi siqnalçının sinəsindən ölçür və sinəyə toxunan əli öz sinəsinə köçürür. Hər kadrda üz də saxlanılır: 51 blendshape və
+dərinliyi iştirakçının sinəsindən ölçür və sinəyə toxunan əli öz sinəsinə köçürür. Hər kadrda üz də saxlanılır: 51 blendshape və
 başın fırlanması (`f`); avatar onları VRM ifadələrinə (ağız formaları, göz, qaşlar) və başın
 hərəkətinə çevirir. Üz hər iki avatarda görünür: standart avatarın (`avatar.vrm`) yeni versiyasında
 üz rigi var (ağız formaları, göz qırpma, qaşlar üçün 29 morph target, göz sümükləri; E14).
@@ -303,7 +305,13 @@ cəm, mənsubiyyət, hal, xəbərlik, şəxs, sual), səs dəyişmələrini bər
 oğl → oğul) və kökü lüğətin sözləri ilə tutuşdurur: evdə → ev, yaşayıram → yaşamaq. İnkarlı fel
 ayrıca işarədir və ayrıca qalır: bilmirəm → bilmir; inkarlı işarəsi olmayan fel felin işarəsi + YOX
 ilə göstərilir (oxumadım → OXUMAQ YOX), müsbət işarə tək qalmır. Defisdən sonrakı şəkilçi atılır
-(6-dan → 6, TSEK-ə → T S E K), siqnalçıların göstərmədiyi "ilə", "idi", "ki" buraxılır (E16). Kiçik
+(6-dan → 6, TSEK-ə → T S E K), iştirakçıların göstərmədiyi "ilə", "idi", "ki" buraxılır (E16).
+Törəmə söz başqa yolla tapılmayanda kökünün işarəsinə gedir (əlillik → ƏLİL, verilir → VERMƏK,
+salamlayıram → SALAM); öz işarəsi olmayan ədəd rəqəm-rəqəm göstərilir (25 → 2 5), eyni mənalı idiomlar
+`ml/text_alt.csv`-dədir (rəhmətə getmək → ÖLMƏK; E18).
+Avatar doğma işarə dilinin qaydaları ilə göstərir (E21, E22): zaman ayrıca işarədir (gəldim = MƏN GƏLMƏK OLMAQ,
+gələcəm = MƏN GƏLMƏK OLACAQ), "-malı" fel + LAZIM, adamla "ilə" BİRLİKDƏ (anamla = ANA BİRLİKDƏ), buraxılmış I–II şəxs
+mübtədası əvəzliklə; AzSLD üslubu `new WordLexicon(index, { native: false })`. Kiçik
 hərfli mətndə böyük hərflərlə yazılmış qısaltma (DOST) hərf-hərf göstərilir. AzSLD-nin 492 cümləsində sözlərin 47 %-i əvəzinə 75–77 %-i
 işarə ilə göstərilir (`node tools/eval_text_gloss.mjs`, nəticələr: `ml/EXPERIMENTS.md` E9).
 
@@ -318,13 +326,13 @@ forması. Sağ/sol əl ekrandakı yerə görə yox, pozanın biləklərinə yax�
 
 Avatarda (`vrm.js`, `setWordPose`) hər iki qol birlikdə qurulur:
 
-1. **Yer bədənə nisbətəndir.** Siqnalçının çiyin çərçivəsi avatarın çiyinlərinə köçürülür
-   (miqyas — çiyin eninin nisbəti). "Yuxarı" şaquldur: oturan siqnalçının gövdə oxu ~20°
+1. **Yer bədənə nisbətəndir.** İştirakçının çiyin çərçivəsi avatarın çiyinlərinə köçürülür
+   (miqyas — çiyin eninin nisbəti). "Yuxarı" şaquldur: oturan iştirakçının gövdə oxu ~20°
    kameraya əyilir, ona görə öndəki əllər yuxarı qalxardı.
 2. **Üzə yaxın işarələr** (yanaq, çənə, qulaq) burundan ölçülür, üzə ən yaxın barmaq ucu
    üzə köçürülür və ovuc ondan geri hesablanır — anime avatarın başı böyük, əli kiçikdir,
    toxunma belə saxlanır. Ovuc başa və gövdəyə girmir.
-3. **Dirsək** siqnalçının dirsəyinə uyğun seçilir, bilək anatomik həddlərdə qalır.
+3. **Dirsək** iştirakçının dirsəyinə uyğun seçilir, bilək anatomik həddlərdə qalır.
 4. MediaPipe tək kameradan əlin dərinliyini hərdən güzgü kimi tərs verir. Hər kadrda iki
    variant yoxlanır və bütün söz üzrə ən mümkün, ən hamar ardıcıllıq seçilir (Viterbi).
    Tək kadrlıq səhv oriyentasiya oynadılmır.
@@ -332,13 +340,13 @@ Avatarda (`vrm.js`, `setWordPose`) hər iki qol birlikdə qurulur:
 6. Kamera bütün işarəni — hər iki əlin bütün kadrlarını — kadra sığdırır.
 
 Əllərin bir-birinə toxunduğu işarələrdə (BİRLİKDƏ, TƏZYİQ, KİTAB, MƏSƏLƏ; 38 söz, sözün
-siqnalçılarının çoxunda barmaqlar 1.6 sm-dən yaxındır, `contact`) barmaqlar bir-birinin arasından
-keçir, ovuc o biri əlin üstündə olur. Avatar belə sözdə siqnalçının öz əllərinin üst-üstə düşməsinə
+iştirakçılarının çoxunda barmaqlar 1.6 sm-dən yaxındır, `contact`) barmaqlar bir-birinin arasından
+keçir, ovuc o biri əlin üstündə olur. Avatar belə sözdə iştirakçının öz əllərinin üst-üstə düşməsinə
 (2.5 sm-ə qədər) icazə verir və iki ovucun nisbətini qoruyur; qalan sözlərdə əllər bir-birinə keçmir (E13).
 
 786 söz üzrə brauzerdə ölçülüb (`node tools/measure_hands.mjs`): ovucun hədəfdən məsafəsi median
 1.2 sm (90% — 3.7 sm-dən az), ovucu gövdəyə 5 mm-dən çox girən söz 302, əli kadrdan çıxan söz 16,
-biləyin sərt həddini aşan söz 20, iki əlin siqnalçınınkından dərin bir-birinə keçdiyi söz 3 (heavy
+biləyin sərt həddini aşan söz 20, iki əlin iştirakçınınkından dərin bir-birinə keçdiyi söz 3 (heavy
 və sinə təması ilə: ovuc gövdədə 442, kadrdan çıxan 13, bilək 39; E12). Söz fayllarının formatı və mətnin bölünməsi:
 
 ```bash
@@ -361,7 +369,7 @@ axına düşür və altyazısı ilə axtarılır. Video cihazdan çıxmır.
 **Akış 2 — oxuyan.** Hər postun əməliyyat sırasında bəyən / şərh / paylaş ilə eyni ölçüdə
 "Jest dili" düyməsi. Postun altında tünd avatar paneli açılır, mətn yerində qalır və oxunan
 söz vurğulanır (hərf-hərf göstərilən sözdə cari hərf də). Sürət (0.5×–1.25×), dayandırma,
-təkrar və güvən göstəricisi: neçə söz real siqnalçının işarəsi ilə, neçəsi hərf-hərf
+təkrar və güvən göstəricisi: neçə söz real insanın işarəsi ilə, neçəsi hərf-hərf
 göstərilir, hansı simvolun işarəsi yoxdur. Panel klaviatura ilə idarə olunur, `Esc` bağlayır.
 
 Ağır hissələr lazım olanda yüklənir: avatar ilk "Jest dili" düyməsində, model və MediaPipe
