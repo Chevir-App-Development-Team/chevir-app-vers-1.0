@@ -2206,3 +2206,26 @@ text in "words as signs". `isAdded(seg)` (words.js) marks them; NSosyal's text m
 verb's or person's). `verify_words.mjs` +10 native cases; the old cases run in AzSLD style. Checked in the browser:
 translation page plans, NSosyal post markup in order, no console errors. A native user's review of the output (set
 D) is the measure that counts now; AzSLD F1 is kept as a regression check for each mode.
+
+## E23 — Sign → text reads the native grammar (roadmap N1; no training)
+
+The inverse of E22, so both directions follow one grammar. `GlossToText` (`src/tercume/gloss2text.js`) has
+`{ native: true }` (default; `false` = counts only) and a pass after each sign's form is chosen:
+- a verb + **YOX** is the negated verb (MƏN GƏLMƏK YOX → "Mən gəlmirəm"; was "Mən gəlmək yoxam");
+- a verb + **OLMAQ / OLACAQ** is its past / future (MƏN DÜNƏN GƏLMƏK OLMAQ → "Mən dünən gəldim", SİZ İŞLƏMƏK
+  OLACAQ → "Siz işləyəcəksiniz"; were "gələ oluram", "iş olacaqsınız"); after verb + YOX too ("Mən kitab oxumadım");
+- a verb + **LAZIM** is "-malı" only in a sentence with a personal pronoun ("Mən gəlməliyəm"); impersonal sentences
+  keep "içmək lazımdır" (AzSLD's texts do: the first version turned 9 of them into "-malıdır", +2 words each);
+- a person + **BİRLİKDƏ** takes "-la" ("Mən anamla birlikdə …"; the person list is shared with words.js);
+- a noun + OLMAQ / YOX is left alone (xəstə olmaq, vaxtım yoxdur). A sign read as a noun by the counts becomes the
+  verb only if its own name is an infinitive (İŞLƏMƏK: iş / işləmək); two-letter verb roots must be real ones (al,
+  et, de, …): the counts had analysed "kömək" as kö-mək, which turned KÖMƏK + OLACAQ into "köyəcək".
+
+| Sign → text, WER / chrF | dev (LOO) | test | recognized new sentence | known sentence |
+|---|---|---|---|---|
+| E18 | 48.6 % / 61.1 | 49.3 % / 60.2 | 51.8 % / 58.3 | 4.8 % |
+| native grammar | **48.5 %** / 61.1 | 49.3 % / 60.2 | 51.8 % / 58.3 | 4.8 % |
+
+On AzSLD (which rarely has these signs) the change is neutral: with the browser model, 3 of 492 sentences change,
+1 better, 2 equal. `verify_gloss_text.mjs` +8 cases on the browser model. CI gates (`tools/ci_gates.mjs`, `ml/gates.json`,
+`.github/workflows/verify.yml`, roadmap V5) hold these numbers: F1 may fall by at most 0.005, WER rise by at most 1 point.

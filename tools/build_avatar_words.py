@@ -179,30 +179,34 @@ def pick_candidates(text, e, k, available):
 # ───────────────────────── bir nümunənin emalı ─────────────────────────
 
 def process(job):
-    """Videonun [a-1-warm, b-1+margin] kadrları, VIDEO rejimində; çıxış a-1-margin-dən, hər stride-dan bir."""
+    """Videonun [a-1-warm, b-1+margin] kadrları, VIDEO rejimində; çıxış a-1-margin-dən, hər stride-dan bir.
+    zip_path None-dursa member adi video faylıdır (JestDili.az, tools/build_jestdili_words.py); b None — sonuna qədər."""
     zip_path, member, a, b, pose_model, margin, warm, stride, cache = job
     cache = Path(cache)
     if cache.exists():
         return json.loads(cache.read_text(encoding='utf8'))
-    data = AzsldZip.__new__(AzsldZip)            # kataloq hər prosesdə yenidən oxunmasın
-    data.path, data.pieces = Path(zip_path), Path(zip_path + '.pieces')
-    data.ents = json.loads(Path(zip_path + '.ents.json').read_text())
-    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=cache.parent) as tmp:
-        tmp.write(data.read(member))
-    first, last, out0 = max(0, a - 1 - warm), b - 1 + margin, max(0, a - 1 - margin)
-    cap = cv2.VideoCapture(tmp.name)
+    tmp = None
+    if zip_path:
+        data = AzsldZip.__new__(AzsldZip)        # kataloq hər prosesdə yenidən oxunmasın
+        data.path, data.pieces = Path(zip_path), Path(zip_path + '.pieces')
+        data.ents = json.loads(Path(zip_path + '.ents.json').read_text())
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=cache.parent) as tmp:
+            tmp.write(data.read(member))
+    first, out0 = max(0, a - 1 - warm), max(0, a - 1 - margin)
+    last = b - 1 + margin if b is not None else 10 ** 9
+    cap = cv2.VideoCapture(tmp.name if tmp else str(member))
     W, H = int(cap.get(3)), int(cap.get(4))
     fps = cap.get(5) or 30
-    imgs, i = [], 0
-    while i <= last:
-        ok, img = cap.read()
-        if not ok:
-            break
-        if i >= first:
-            imgs.append((i, cv2.cvtColor(img, cv2.COLOR_BGR2RGB)))
-        i += 1
-    cap.release()
-    os.unlink(tmp.name)
+
+    def imgs():                                  # kadr-kadr oxunur: bütün video yaddaşa yığılmır (1080p klip)
+        i = 0
+        while i <= last:
+            ok, img = cap.read()
+            if not ok:
+                return
+            if i >= first:
+                yield i, cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            i += 1
 
     hand = HandLandmarker.create_from_options(HandLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=str(HAND_MODEL)), running_mode=RunningMode.VIDEO,
@@ -215,7 +219,7 @@ def process(job):
         num_faces=1, output_face_blendshapes=True, output_facial_transformation_matrixes=True))
     aspect = W / H
     frames, face_keys = [], None
-    for i, rgb in imgs:
+    for i, rgb in imgs():
         im = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         ts = int(i * 1000 / fps)
         pr, hr, fr = pose.detect_for_video(im, ts), hand.detect_for_video(im, ts), face.detect_for_video(im, ts)
@@ -240,6 +244,9 @@ def process(job):
                  for k, hl in enumerate(hr.hand_landmarks or [])]
         sides = _assign(hands, img_pts, aspect)
         frames.append({'b': body, 'u': up, 'L': sides['L'], 'R': sides['R'], 'f': f})
+    cap.release()
+    if tmp:
+        os.unlink(tmp.name)
     hand.close()
     pose.close()
     face.close()
