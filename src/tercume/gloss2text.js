@@ -123,21 +123,30 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
       if (!headKeys.get(l).has(key(surface))) return { surface };     // çoxsözlü işarənin başqa sözü
       return { surface, ...rootOf(l, surface, headKeys.get(l), lem) };
     });
-    return { glosses: p.glosses, words: ws, at, info };
+    return { glosses: p.glosses, words: ws, at, info, w: p.w ?? 1 };
   });
   return { sentences, guess };
 }
 
-/** Sayma: prepare()-in cümlələrindən (keep(i) — hansıları) model (JSON). */
-export function fit({ sentences, guess }, keep = () => true) {
-  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, guess };
+const TABLES = ['forms', 'feats', 'subj', 'posCtx', 'opts'];
+const scaled = (t, a) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, typeof v === 'number' ? v * a : scaled(v, a)]));
+
+/**
+ * Sayma: prepare()-in cümlələrindən (keep(i) — hansıları) model (JSON). prior — əvvəlcədən sayılmış başqa
+ * model (korpusun süni cütləri, docs/NLP_PLAN.md S2), sayları `alpha` ilə vurulub bu cümlələrin saylarına
+ * əlavə olunur: bir cümləni çıxaran ölçmə (leave-one-out) korpusu hər dəfə yenidən saymır.
+ * model.opts — işarənin kök və növ sayları (prior üçün); brauzerin modelinə yazılmır.
+ */
+export function fit({ sentences, guess }, keep = () => true, prior = null, alpha = 1) {
+  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, opts: {}, guess };
+  if (prior) for (const t of TABLES) model[t] = scaled(prior[t], alpha);
   const used = sentences.filter((_, i) => keep(i));
-  const opts = {};
-  for (const { glosses, info } of used) {
+  const opts = model.opts;
+  for (const { glosses, info, w } of used) {
     glosses.forEach((l, i) => {
       if (info[i].surface === null) return;
-      inc(model.forms[l] ??= {}, info[i].surface);
-      if (info[i].feats) inc(opts[l] ??= {}, `${info[i].pos}:${info[i].root}`);
+      inc(model.forms[l] ??= {}, info[i].surface, w);
+      if (info[i].feats) inc(opts[l] ??= {}, `${info[i].pos}:${info[i].root}`, w);
     });
   }
   for (const [l, o] of Object.entries(opts)) {
@@ -148,25 +157,25 @@ export function fit({ sentences, guess }, keep = () => true) {
     model.lex[l] = { pos: options[0].pos, root: options[0].root, ...(options.length > 1 && { options }) };
   }
   const lexOf = (l) => model.lex[l] ?? guess[l];
-  for (const { glosses, info } of used) {
+  for (const { glosses, info, w } of used) {
     // mübtəda: adlıq haldakı ilk şəxs əvəzliyi (mənim atam — "mənim" yiyəlikdir, mübtəda deyil)
     const subj = subjectOf(glosses, (i) => info[i].feats && !info[i].feats.case);
     glosses.forEach((l, i) => {
       const a = info[i];
       if (!a.feats) return;
       const nc = classOf(glosses[i + 1], lexOf(glosses[i + 1]));
-      inc(model.posCtx[`${l}|>${nc}`] ??= {}, a.pos);
+      inc(model.posCtx[`${l}|>${nc}`] ??= {}, a.pos, w);
       const f = { ...a.feats };
       // şəxs mübtədadan gəlir: felin şəxsi ayrıca sayılır, adın xəbərliyi yalnız var/yox kimi
       if (a.pos === 'verb') {
-        if (FINITE.has(f.tam)) inc(model.subj[subj] ??= {}, String(f.pers));
+        if (FINITE.has(f.tam)) inc(model.subj[subj] ??= {}, String(f.pers), w);
         delete f.pers;
       }
       if (f.cop) f.cop = true;
       // mənsubiyyət əvvəlki əvəzliyə uyğundursa (mənim atam, sizin ananız) şəxsi yox, uyğunluğu sayılır
       if (f.poss && f.poss === SUBJECT[labelText(glosses[i - 1] ?? '')]) f.poss = 'P';
       const k = fkey(f);
-      for (const [name, c] of contexts(glosses, i, lexOf, a.pos)) inc(model.feats[`${name}:${c}`] ??= {}, k);
+      for (const [name, c] of contexts(glosses, i, lexOf, a.pos)) inc(model.feats[`${name}:${c}`] ??= {}, k, w);
     });
   }
   return model;

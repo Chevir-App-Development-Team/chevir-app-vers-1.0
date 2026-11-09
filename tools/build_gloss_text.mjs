@@ -15,6 +15,7 @@ const text = Object.fromEntries(fs.readFileSync('ml/label_text.csv', 'utf8').tri
   .map((r) => r.split(',').slice(0, 2)));
 const labels = JSON.parse(fs.readFileSync(`${A}cont_model/manifest.json`, 'utf8')).labels.filter((l) => !l.startsWith('<'));
 const model = train(S, merge, labels, text);
+delete model.opts;                                  // yalnız öyrənmə üçün
 model.source = `AzSLD sentences (${S.length}) of cont_model/sentences.json; labels of cont_model/manifest.json; ml/label_text.csv`;
 const out = `${A}gloss_text.json`;
 fs.writeFileSync(out, JSON.stringify(model));
