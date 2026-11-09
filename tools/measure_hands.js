@@ -10,15 +10,15 @@
  * deyil: hər barmaq sümüyü kapsuldur, radiusu həmin sümüyə bağlı vertex-lərin oxdan median
  * məsafəsidir. Barmağın son sümüyü (distal → uc) modelin uc sümüyünə qədər gedir. Ovuc —
  * bilək → barmaq kökləri yelpiyi + barmaq kökləri xətti, radiusu ovucun yarım qalınlığı.
- * Nöqtələr MediaPipe-in 21 landmark-ı ilə eyni sıradadır, ona görə siqnalçının datası da
+ * Nöqtələr MediaPipe-in 21 landmark-ı ilə eyni sıradadır, ona görə iştirakçının datası da
  * eyni kapsullarla ölçülür.
  *
  * Kadr üzrə ölçülər (metr):
  *   gap      — iki əlin (barmaq + ovuc) səthləri arasındakı ən kiçik məsafə; mənfi = girmə
  *   axis     — eyni, radiussuz: sümük oxları arasındakı ən kiçik məsafə
  *   arm      — əl ilə qarşı tərəfin saidi arasında səth məsafəsi
- *   signer   — siqnalçının datasında `gap` (avatarın əl ölçüsünə miqyaslanıb, eyni radiuslar)
- *   skel     — cyber skeleton-un göstərdiyi nöqtələrdə ox məsafəsi (siqnalçının metri);
+ *   signer   — iştirakçının datasında `gap` (avatarın əl ölçüsünə miqyaslanıb, eyni radiuslar)
+ *   skel     — cyber skeleton-un göstərdiyi nöqtələrdə ox məsafəsi (iştirakçının metri);
  *              skelRaw — t2s.js əlləri ayırmazdan əvvəlki data
  * Oynatmada (yaylarla, 60 Hz, istirahətdən başlayaraq) hər yeniləmədə `gap` və ovucun bir
  * yeniləmədəki yerdəyişməsi (`step`, qoruyucu əlləri sıçratmasın). `guard: false` — vrm.js-in
@@ -178,7 +178,7 @@ function avatarHand(avatar, model, side) {
   return out;
 }
 
-/** Siqnalçının əli pozanın koordinatlarında: bilək + əl landmark-larının biləyə nisbəti. */
+/** İştirakçının əli pozanın koordinatlarında: bilək + əl landmark-larının biləyə nisbəti. */
 function signerHand(fr, key, wrist, flip, zScale = 1) {
   const hand = fr[key];
   if (!hand || !fr.b?.[wrist]) return null;
@@ -195,7 +195,7 @@ function palmRadius(w) {
   return Math.hypot(...off);
 }
 
-/** vrm.js-dəki #wordScale ilə eyni: avatarın ovucu / siqnalçının ovucu (söz üzrə median). */
+/** vrm.js-dəki #wordScale ilə eyni: avatarın ovucu / iştirakçının ovucu (söz üzrə median). */
 function wordScale(avatar, word) {
   const target = avatar.rigs.left.palmOff.length();
   const r = [];
@@ -296,7 +296,7 @@ export function measureWord(avatar, model, word, { playback = true } = {}) {
         return g;
       };
       row.arm = Math.min(arm('left', R), arm('right', L));
-      // Siqnalçının datası: avatarın seçdiyi kadr və dərinlik variantı ilə
+      // İştirakçının datası: avatarın seçdiyi kadr və dərinlik variantı ilə
       const fl = word.frames[sol.left.frame] ?? word.frames[f], frr = word.frames[sol.right.frame] ?? word.frames[f];
       const sL = signerHand(fl, 'L', 5, sol.left.flip), sR = signerHand(frr, 'R', 6, sol.right.flip);
       if (sL && sR) {
@@ -385,7 +385,7 @@ export function summarize(id, text, res) {
     skel: two.length ? Math.min(...two.map((r) => r.skel ?? Infinity)) : null,
     skelRaw: two.length ? Math.min(...two.map((r) => r.skelRaw ?? Infinity)) : null,
     deep: two.filter((r) => r.gap < -0.005).length,           // >5 mm girmə olan kadrlar
-    // siqnalçının öz əllərindən 5 mm-dən çox dərin girmə (toxunan işarədə siqnalçı da keçir)
+    // iştirakçının öz əllərindən 5 mm-dən çox dərin girmə (toxunan işarədə iştirakçı da keçir)
     beyond: two.length ? Math.min(...two.map((r) => r.gap - Math.min(0, r.signer ?? 0))) : null,
     armGap: two.length ? Math.min(...two.map((r) => r.arm)) : null,
     playGap: res.play.length ? Math.min(...res.play.map((r) => r.gap)) : null,
@@ -430,7 +430,7 @@ export function totals(rows) {
     twoHanded: two.length,
     handInHand: count((r) => r.gap != null && r.gap < -0.005),          // >5 mm
     handInHand10: count((r) => r.gap != null && r.gap < -0.010),        // >1 sm
-    handInHandBeyond: count((r) => r.beyond != null && r.beyond < -0.005), // siqnalçıdan 5 mm-dən dərin
+    handInHandBeyond: count((r) => r.beyond != null && r.beyond < -0.005), // iştirakçıdan 5 mm-dən dərin
     handInHandPlay: count((r) => r.playGap != null && r.playGap < -0.005),
     deepFrames: rows.reduce((a, r) => a + r.deep, 0),
     playStepMaxCm: cm(Math.max(...rows.map((r) => r.playStep ?? 0))),

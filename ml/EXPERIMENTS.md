@@ -1994,3 +1994,325 @@ interview question (31). Interview material: 124 of 173 everyday words reach a s
 unclear review signs and 13 avatar sentences that test negation, questions, possession, names and numbers are
 in `docs/SIGNER_INTERVIEW.md`. `gloss_text.json` 281 KB (51 KB gzip). All `verify_*.mjs` pass
 (`verify_words.mjs` +9 cases, `verify_gloss_text.mjs` +3 forms, +2 toy sentences, the round trip).
+
+## E18 — Text → sign: derived words, numbers, idioms (plan T1); a web corpus for sign → text (plan S2) (no training)
+
+**Why.** The two steps of `docs/NLP_PLAN.md` that do not wait on the signer interview: T1 (fewer words spelled
+letter by letter) and S2 (more examples than AzSLD's 492 sentences for choosing word forms in sign → text).
+
+### Text → sign (T1)
+
+Where the spelled letters went (E17, dev + test: 1,154 letters in 117 words, `eval_text_gloss.mjs` segments
+against the signers' sequences): about 40 % were derived forms of a word that has a sign, and the signers
+showed the root (əlillik, əlilliyi → ƏLİL ×11; sağlamlıq → SAĞLAM ×5; verilir, olunub, edilir → VERMƏK,
+OLMAQ, ETMƏK; salamlayıram → SALAM). The rest: names and acronyms, compounds (birdəfəlik → BİR DƏFƏ ×4),
+idioms (rəhmətə getdi → ÖLÜB), synonyms (maşın → AVTOMOBİL, qəşəng → GÖZƏL), a missing space (saatı,qrafiki).
+
+The plan's "spell only the stem of a name" (Messinin → M E S S İ) is dropped: AzSLD's signers spell suffixed
+names whole (M E S S İ N İ N, Q Ə B Ə L Ə Y Ə, N Ə V Ə S İ N İ N); the only stem-only case, TSEK-ə, is already
+the hyphen rule of E16.
+
+Changes:
+- **Derived words** (`Lemmatizer.derived`, used by `WordLexicon.lookup` only when nothing else matches, `via:
+  'derived'`): strips up to three derivational suffixes until a lexicon root is reached; a verb suffix needs a
+  verb root, a noun suffix a noun root (≥ 3 letters). Passive -Il, -n, -nIl and -In after l (verilir, alınır,
+  ödənilir, keçiriləcək; after other consonants -In is a reflexive that often means something else: düşünmək
+  ≠ DÜŞMƏK, sevinmək ≠ SEVMƏK); noun → verb -lA, -lAş, -lAn (salamlayıram, fikirləşim, xırdalaya); -lI, -lIK
+  (küləkli, əlillik); verbal nouns -mA + suffix (ölməsi, doğulmasına; a bare -mA is the negative imperative)
+  and -(y)Iş (yaşayış). Negation is kept (verilmir → VERMƏK YOX, yazılmadı → YAZMAQ YOX). Not derived: -sIz
+  (evsiz is not EV), a stop list of verbs whose root means something else (başla ≠ BAŞ, gözlə ≠ GÖZ, yoxla ≠
+  YOX, evlən, topla, …), and **causatives**: in AzSLD the signers show the base verb in 2 of 5 (bitirmək →
+  BİTMƏK, hesablatdırmaq → HESABLAMAQ; təmir etdirmək → SİFARİŞ, köçürmək → ÖTÜRMƏK, vaksin vurdurmaq →
+  OLMAQ), so this waits on interview question 31. Of 55 derived matches in AzSLD's sentences 48 are the
+  signers' sign; the 7 others are light verbs (təyin olunması → OLMAQ, signers VERMƏK), -malı (olunmalısınız,
+  signers LAZIM), yaxınlaşmaq → YAXIN (signers MÜRACİƏT) and DOĞULMAQ, a sign of its own, for DOĞMAQ.
+- **Aorist -r after a vowel** only in istə-r (istərdim → İSTƏMƏK); Azerbaijani has -yAr elsewhere (oxuyar).
+  A general -r turned yerdə into YEMƏK and işlər into İŞLƏMƏK (test F1 0.883 → 0.893 when narrowed).
+- **Noun + -sIz is "without"**, not "you are": evsiz, pulsuz, işsiz no longer reach EV, PUL, İŞ (AzSLD:
+  işsizdir and pulsuzdur have their own signs, müddətsiz → ÖMÜRLÜK); after a verb -sIz stays the person
+  (işləyirsiz → İŞLƏMƏK).
+- **Phrase keys**: a word in a phrase reduces to the shortest stem of its key, so every form with one key
+  matches the phrase (həyat yoldaşım ~ həyat yoldaşı, where "yoldaşım" is a lexicon word; Abşeron rayon ~
+  Abşeron rayonu).
+- **`ml/text_alt.csv`** (text, alt, note) replaces the ALT dict of `build_words.py`: other texts for one sign —
+  colloquial forms (burda), idioms with the same meaning (rəhmətə getmək, vəfat etmək, dünyasını dəyişmək →
+  ölmək; yerinə yetirmək → tamamlamaq), a compound written as one word (birdəfəlik → bir dəfə).
+  `build_avatar_words.py --alt-only` writes the alt fields into the built lexicon (frames unchanged).
+  Single-word synonyms wait for the signers (maşın → AVTOMOBİL, but maşın is also "machine"). These idioms
+  came from the dev list of spelled words, so their dev gain is optimistic; no test sentence has one.
+- **Numbers**: a number without its own clip is shown digit by digit with the number signs (25 → 2 5); the
+  digits without a sign (0, 7, 9) are spelled by name (Y E D D İ) until the signers record them (interview
+  question 28). Before, digits had no pose and the avatar showed nothing. Number words and ordinals go to the
+  number's sign when it exists (beş → 5, üçüncü → 3), Roman numerals too (III → 3, as the signers did).
+- **Separators inside a token**: , : ; / split it (saatı,qrafiki → SAAT QRAFİK; 11:15 → 11 15, as AzSLD).
+
+| Text → sign: words as signs / letters / same-gloss F1 | dev | test |
+|---|---|---|
+| E17 | 93.7 % / 1,058 / 0.887 | 93.8 % / 96 / 0.885 |
+| + derived words (with causatives), aorist -r after any vowel | 96.4 % / 549 / 0.896 | 95.6 % / 60 / 0.881 |
+| − causatives | 96.3 % / 596 / 0.897 | 95.2 % / 68 / 0.883 |
+| aorist -r only in istə-r | 96.3 % / 596 / 0.898 | 95.2 % / 68 / 0.893 |
+| + idioms, phrase keys | 96.6 % / 532 / 0.900 | 95.2 % / 68 / 0.893 |
+| + numbers, separators, -sIz | **96.7 % / 517 / 0.901** | **95.2 % / 68 / 0.893** |
+
+T1's exit criterion (words as signs ≥ 96 %, letters −30 %, F1 ≥ 0.89): dev met (−51 % letters); test 95.2 % and
+−29 %. Negation check (E16): of the 696 negated forms of the lexicon's 116 verbs, 96 reach the verb's own
+negated sign and 600 the verb + YOX, **0** the positive sign. Sign → text is unchanged by the morphology
+(48.6 % / 49.3 %, recognized new sentence 51.8 %); `gloss_text.json` rebuilt (istərdim now aligns with
+İSTƏMƏK). Checked in the browser: "Mənim 25 yaşım var, atam rəhmətə getdi" plays MƏNİM 2 5 YAŞ VAR ATA ÖLMƏK.
+Round trip morph.js ↔ inflect.js 99.5 % (gate 99 %). `verify_words.mjs` +23 cases, `verify_gloss_text.mjs` +1 (the prior). Seen in the corpus and left for later: "yardım" reads as the verb yar-dı-m (so
+yarım → YARDIM), qazan → QAZ, "xoşum gəlmir" misses the phrase XOŞU GƏLMƏK.
+
+### Sign → text: a web corpus as extra examples (S2)
+
+- **Corpus**: HPLT 2.0 cleaned, Azerbaijani (`azj_Latn`), the first of 54 shards (275 MB, CC0;
+  https://huggingface.co/datasets/HPLT/HPLT2.0_cleaned). allmalab/aze-books needs a Hugging Face account to
+  accept its terms, not used. `tools/corpus_sentences.py`: 120,091 documents → 927,034 distinct sentences
+  (3–12 words, Azerbaijani letters, digits and plain punctuation, at least one of ə ı ö ü ğ ş ç, capital start,
+  . ! ? end). In `data/corpus/` (not in git).
+- **Pseudo-glosses** (`tools/build_pseudo_gloss.mjs`): the text → sign path above turns each sentence into
+  signs (recognizer labels through `sign_merge.json`, spelled words as letters); kept when ≥ 80 % of its words
+  are signs the recognizer knows and it has ≥ 2: **62,010 pairs** (6.7 %). 10 AzSLD sentences were in the
+  corpus word for word and are removed.
+- **gloss2text**: `fit(prep, keep, prior, alpha)` adds a model counted once on the corpus pairs, scaled by α,
+  to the counts of the AzSLD sentences, so leave-one-out does not recount 62k sentences 443 times; pairs can
+  carry a weight `w`. `eval_gloss_text.mjs --pseudo FILE --pw 0.03,0.1,0.3` (several weights: section 1 only).
+
+| Sign → text, annotated glosses: WER / chrF | dev (LOO) | test |
+|---|---|---|
+| AzSLD only (E17 and this run) | 48.6 % / 61.1 | 49.3 % / 60.2 |
+| + 10,000 pairs, α 0.1 / 0.3 | 47.7 % / 61.4 · 47.8 % / 61.4 | 50.2 % / 59.3 · 48.0 % / 61.7 |
+| + 13,820 pairs with MƏN / SƏN / BİZ / SİZ, α 0.1 / 0.3 | 47.7 % / 61.6 · 47.6 % / 61.7 | 50.7 % / 58.7 · 47.6 % / 61.2 |
+| + 62,010 pairs, α 0.03 (best on dev) | **47.0 %** / 62.0 | 49.8 % / 59.1 |
+| + 62,010 pairs, α 0.1 | 47.3 % / 62.0 | 48.9 % / 61.2 |
+| + 62,010 pairs, α 0.3 | 48.0 % / 61.8 | 46.3 % / 62.8 |
+
+Recognized signs (sentence model v15, 1,484 test recordings; "new sentence" leaves the sentence out of the
+model), α 0.03: gloss2text **51.8 → 50.7 %** / 58.3 → 58.8; nearest AzSLD sentence, else gloss2text 52.9 →
+**51.1 %** / 57.0 → 57.8; known sentence 4.8 → 5.1 %. This set covers far more sentences than the 49 of test,
+and it agrees with dev.
+
+The corpus helps by 1.6 points on dev and 1.1–1.8 on recognized new sentences; the 49 test sentences alone
+cannot confirm it (the three weights rank in the opposite order on dev and test, about ±2 points of noise),
+and the plan's S2 target (≤ 42 %) is far. Counting more contexts is not what limits gloss2text; the pairs are the training data for
+S3, a small model that predicts each sign's form features, where 62k examples (and 53 more shards) matter
+more than for counts. The browser model stays AzSLD-only for now: with the corpus it is several MB before
+pruning, and known sentences lose 0.3 points. The eval keeps one model at a time in section 2 (one per
+sentence held all 492 in memory, which with the corpus ran out of heap).
+
+## E19 — Default avatar, second version (no training)
+
+The team's new `avatar.vrm` ("Chevir Avatar", 5.5 MB, was 6.1 MB): the same skeleton (every humanoid bone in
+the same rest position, 0.0 mm apart), the same 18 VRM expressions and morph targets (13 on the head, 8 on brows
+and lashes), lookAt by bone; new meshes and textures for the head, hair (dark brown), eyes (dark brown iris),
+brows and shirt, materials with clearcoat and specular. `tools/measure_hands.mjs` over all 786 words gives
+exactly the E14 numbers on both models (hands overlapping > 5 mm 27, deeper than the signer's 4, palm in the
+body 321 words, arm in the body 400 → identical keys in the report), so the solver needs no change. Headless
+renders (SALAM, KİTAB, NƏ VAXT) show the face expression and touching hands as before, on the new page layout
+(PR #13). Pushed to main as c719073.
+
+## E20 — AzSLD Words 500: what it adds (no training)
+
+`AzSLD_Words_500.zip` (8.9 GB, from the team's Drive; not in the public Zenodo record 14222948, which has Words 100,
+Words 200, Fingerspelling and Sentences) holds 44,316 front-camera clips in 500 label folders, median 40 clips per
+label (MƏN 5,581). The file name is `<original gloss>_<annotation key>_Cam2.mp4`: **44,226 of the 44,316 keys are
+annotation keys of `ml/splits/glosses_split.csv`**, so Words 500 is the Sentences recordings cut at their annotated
+signs, the same signs our models and the avatar builder already use. It adds no new video. What it adds is a
+**grouping**: 41 folders hold more than one original gloss (ACAM + ACMİŞAM, DOVLƏT + DÖVLƏT, ETMƏK + EDE, …).
+
+- 19 of the 41 groups are already one sign in `sign_merge.json` (E15).
+- 2 differ only in spelling and are not unified yet: SEHER → SƏHƏR, IT → İT.
+- 20 group forms we keep apart. Our reviewers decided two of them in E15: GƏZMƏYƏ = GƏZMƏK (merged), GƏLİB ≠ GƏLMƏK
+  (kept apart; Words 500 disagrees). The E15 hand test (`tools/same_sign/same_sign_dtw.py`, 8 iştirakçı per gloss,
+  1-NN balanced accuracy / distance ratio; one sign: median 0.69 / 1.09, different words: 1.00 / 1.62) says one
+  sign for EDƏ / ETMƏK (0.31 / 0.99), GÜNÜ / GÜN (0.38 / 0.98), GÖSTƏRİLƏN / GÖSTƏRMƏK (0.56 / 1.05), GÖRMƏYƏ /
+  GÖRÜŞMƏK (0.63 / 1.03), GƏZİNTİSİNDƏ / GƏZMƏK (0.69 / 1.08), MARAĞI / MARAQLI and ÇIXIB / ÇIXMAQ (0.81); different
+  for AZDIR / AZ, DEYƏ / DEMƏK, ÇANTAM / ÇANTA, İŞSİZDİR / İŞSİZ, İŞTİRAK ETMƏK / İŞTİRAK and 7 more.
+  `ml/review/word_forms_review_w500.csv`: 22 rows for the next review round (10 "decide", 12 "keep apart").
+- Seen on the way: `ml/lemma_groups.csv` merges İŞSİZ into İŞLƏMƏK ("unemployed" read as "work"; the word model
+  never told them apart, 0/5). Sign → text then turns "unemployed" into "works", a meaning flip; for the review.
+
+Not done, and not needed: uploading Words 500 to Kaggle (the landmarks of these recordings are already there).
+
+## E21 — Interview with a native AzSL user: what it changes (no training)
+
+Five recorded sessions (2026-10-30/31, ~3 h) with a native AzSL user, transcribed locally (faster-whisper large-v3 on
+the GPU; recordings, transcripts and notes stay in `data/interview/`, outside git). Only facts about the language and
+the dataset are logged here.
+
+**Confirmed (no change needed)**
+- Negation is the verb + YOX ("mən gəlmirəm" = GƏLMƏK YOX): the E16 fallback is right.
+- Questions are on the face (raised brows, head tilt or dip); a question sign at the end is rare. So a yes/no question
+  in AzSLD has no question sign, as found in E16; the S1 question rule needs face features (T2, S5).
+- Verbs do not inflect; who does what to whom is the direction of movement (VERMƏK, ZƏNG ETMƏK); no suffixes at all.
+- Only proper names are fingerspelled (well-known names and countries have signs); suffixed names are spelled whole
+  in AzSLD (E18).
+- AzSLD's sentences were given as written text and signed word by word, partly by copying; glosses were named without
+  a rule; face, head and mouth were not annotated (the tool could not); "mənim" was annotated MƏN.
+- AzSL is the sign language shared by the former Soviet countries (95–97 % the same as Russian Sign Language; local
+  are new words and names). RSL dictionaries and datasets apply; there is no written grammar of AzSL.
+
+**Changed in this run**
+- Possessive pronouns play the pronoun's sign (mənim → MƏN, sənin → SƏN, onun → O, sizin → SİZ, …): AzSLD glosses
+  "mənim" as MƏN in 83 of 83 sentences (onun 11/11, sizin 11/11, never MƏNİM, ONUN, SİZİN); the interview says the
+  MƏNİM sign exists but is rarely used. Same-gloss F1 unchanged (E15 already merges MƏNİM with MƏN), the avatar now
+  plays the MƏN clip. `verify_words.mjs` +1.
+
+**Where the interview and AzSLD disagree (decisions, not applied)**
+
+| Rule (interview) | AzSLD | Today |
+|---|---|---|
+| "ilə" is BİRLİKDƏ (MƏN ANA BİRLİKDƏ BAZAR GETMƏK) | not signed, 0 of 6 | dropped (E16) |
+| a dropped subject is signed ("gəldim" = MƏN GƏLMƏK) | not added, 0 of 25 | not added |
+| past = verb + OLMAQ, future = verb + OLACAQ, "always" | 4 of 65 past, 5 of 21 future sentences | not shown |
+| "-malı" = verb + MÜTLƏQ (no clip; LAZIM is the closest) | LAZIM 1 of 12 | dropped: "gəlməliyəm" plays GƏLMƏK |
+
+**Leads**
+- Every number has its own sign (systematic; years as number + İL, 12:30 = 12 YARIM, phone numbers in spoken groups):
+  digit by digit (E18) is a stopgap until the numbers are recorded.
+- One meaning can have several signs with nuances (EŞİTMƏK: hear / listen to someone / overhear); no homonymous signs.
+- JestDili.az has a ~3,000-word sign dataset (the app shows ~300); access was offered, the licence is to be confirmed.
+- Where interpreting is needed most: medicine, then banks and state services (DOST, notary, ASAN): topics for set C.
+
+## E22 — Text → sign follows the native rules (no training)
+
+Decision after E21: where the native AzSL user and AzSLD disagree, the avatar follows the native user (AzSLD's
+sentences were signed word by word from written text). `WordLexicon` (`src/tercume/words.js`) now has
+`{ native: true }` (the app) and `{ native: false }` (AzSLD style: the evaluation's second line and the pseudo-gloss
+corpus of E18, which has to look like what the recognizer sees). Native rules:
+
+- **Tense** after a finite verb (form from `inflect.js`'s paradigm of the verb's root): past, perfect, evidential →
+  OLMAQ; future → OLACAQ; "-malı" → LAZIM (the native MÜTLƏQ has no clip). Not after OLMAQ itself, except LAZIM.
+  After a negated verb the order is verb + YOX + tense (not asked in the interview; to confirm).
+- **Subject**: a sentence whose first finite verb is 1st or 2nd person (-am, -san, -ıq, -sınız, -sız) and has no
+  matching pronoun gets MƏN / SƏN / BİZ / SİZ at its start ("Gəldim." = MƏN GƏLMƏK OLMAQ). 3rd person is left alone
+  (the subject is usually a noun already there).
+- **"ilə" with a person** is BİRLİKDƏ, after the person: a -lA / -ylA word whose root is a pronoun or a person or
+  kinship noun (a list in `words.js`: ana, dost, uşaq, həkim, …), a separate "ilə" after one, or a capitalized name
+  not at the sentence start ("Anamla bazara getdim" = MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ). Not with things (qatarla)
+  and not "ilə bağlı" (regarding), which stays BAĞLI.
+
+On AzSLD's 492 sentences the rules add 142 signs: OLMAQ 71, OLACAQ 16, LAZIM 11, MƏN 26, SİZ 9, SƏN 1, BİZ 1,
+BİRLİKDƏ 7; the participants signed the same sign in only 4 of those sentences. So agreement with AzSLD drops, by
+design, and recall stays:
+
+| Text → sign, same-gloss P / R / F1 | dev | test |
+|---|---|---|
+| AzSLD style (E18 + possessive pronouns) | 0.907 / 0.896 / 0.901 | 0.899 / 0.886 / 0.893 |
+| native rules (the app) | 0.855 / 0.897 / 0.875 | 0.827 / 0.886 / 0.856 |
+
+`eval_text_gloss.mjs` prints both and no longer counts added signs (YOX, tense, subject, BİRLİKDƏ) as words of the
+text in "words as signs". `isAdded(seg)` (words.js) marks them; NSosyal's text markup skips them (their span is their
+verb's or person's). `verify_words.mjs` +10 native cases; the old cases run in AzSLD style. Checked in the browser:
+translation page plans, NSosyal post markup in order, no console errors. A native user's review of the output (set
+D) is the measure that counts now; AzSLD F1 is kept as a regression check for each mode.
+
+## E23 — Sign → text reads the native grammar (roadmap N1; no training)
+
+The inverse of E22, so both directions follow one grammar. `GlossToText` (`src/tercume/gloss2text.js`) has
+`{ native: true }` (default; `false` = counts only) and a pass after each sign's form is chosen:
+- a verb + **YOX** is the negated verb (MƏN GƏLMƏK YOX → "Mən gəlmirəm"; was "Mən gəlmək yoxam");
+- a verb + **OLMAQ / OLACAQ** is its past / future (MƏN DÜNƏN GƏLMƏK OLMAQ → "Mən dünən gəldim", SİZ İŞLƏMƏK
+  OLACAQ → "Siz işləyəcəksiniz"; were "gələ oluram", "iş olacaqsınız"); after verb + YOX too ("Mən kitab oxumadım");
+- a verb + **LAZIM** is "-malı" only in a sentence with a personal pronoun ("Mən gəlməliyəm"); impersonal sentences
+  keep "içmək lazımdır" (AzSLD's texts do: the first version turned 9 of them into "-malıdır", +2 words each);
+- a person + **BİRLİKDƏ** takes "-la" ("Mən anamla birlikdə …"; the person list is shared with words.js);
+- a noun + OLMAQ / YOX is left alone (xəstə olmaq, vaxtım yoxdur). A sign read as a noun by the counts becomes the
+  verb only if its own name is an infinitive (İŞLƏMƏK: iş / işləmək); two-letter verb roots must be real ones (al,
+  et, de, …): the counts had analysed "kömək" as kö-mək, which turned KÖMƏK + OLACAQ into "köyəcək".
+
+| Sign → text, WER / chrF | dev (LOO) | test | recognized new sentence | known sentence |
+|---|---|---|---|---|
+| E18 | 48.6 % / 61.1 | 49.3 % / 60.2 | 51.8 % / 58.3 | 4.8 % |
+| native grammar | **48.5 %** / 61.1 | 49.3 % / 60.2 | 51.8 % / 58.3 | 4.8 % |
+
+On AzSLD (which rarely has these signs) the change is neutral: with the browser model, 3 of 492 sentences change,
+1 better, 2 equal. `verify_gloss_text.mjs` +8 cases on the browser model. CI gates (`tools/ci_gates.mjs`, `ml/gates.json`,
+`.github/workflows/verify.yml`, roadmap V5) hold these numbers: F1 may fall by at most 0.005, WER rise by at most 1 point.
+
+## E24 — JestDili.az: 2,404 new avatar signs and a guard against false matches (roadmap D2; no training)
+
+**Data** (permission granted to the team, `docs/DATA.md`): the JestDili.az dictionary, fetched with
+`tools/fetch_jestdili.py` (the API address is not stored in the repo): 2,766 words in 45 categories, each with one
+studio video (one person standing, front camera, 1080p, 30 fps, ~2.7 s, rest → sign → rest), and 500 sentences with
+video and Azerbaijani text (26 of them also in AzSLD). 3,266 files, 21.5 GB, in `data/jestdili/` (outside git).
+Against our lexicon: 305 words have the same text, 117 reach one of our signs as a word form, **2,344 are new** (verbs,
+animals, food, jobs, medicine, places and countries, the numbers, weekdays, …). Names carry a sense note or a variant:
+"bel (alət)", "almanya (variant 2)".
+
+**Avatar signs** (`tools/build_jestdili_words.py`): the avatar builder's processing per video (MediaPipe Pose lite +
+Hands + Face, VIDEO mode, every 2nd frame, rest frames trimmed; `build_avatar_words.process` now reads plain files and
+streams frames, it held whole 1080p clips in memory). One person per word, so a quality threshold instead of "most
+typical of 8": **2,404 signs** for 2,260 distinct words, none below the threshold; 1,789 two-handed, 612 right, 3 left;
+median 33 frames (2.2 s). 149 MB (the AzSLD lexicon: 24 MB for 786). Renders on the default avatar look right (ABİDƏ,
+ABİTURİYENT, ABONENT); in `data/jestdili/avatar/` for now, not shipped.
+
+**Words as signs** (AzSLD style, 150k web sentences ranked by use):
+
+| Lexicon | AzSLD | JestDili.az sentences | web text |
+|---|---|---|---|
+| ours (786) | 96.6 % | 85.7 % | 45.8 % |
+| + 500 most used JestDili.az signs | 97.1 % | 89.9 % | 58.9 % |
+| + 1,000 most used | 97.3 % | 91.6 % | 61.6 % |
+| + all 2,387 (first variant of each) | 97.4 % | 92.4 % | 63.0 % |
+
+**False matches.** The morphology reduced common words to the new short roots: "onu, ona, ondan" (him, her) → ON (ten),
+"üzərində, üzü" (on, face) → ÜZMƏK (swim), "qarşı" (against) → QAR (snow), "əsrin" (century's) → ƏSİR (captive),
+"alınır" (is taken) → ALIN (forehead), "alır" → JestDili's AL instead of our ALMAQ. Two guards in `WordLexicon.lookup`:
+a pronoun's forms go to the pronoun (onu → O), and a sign of the added lexicon (id `jd-`) matches only its own forms
+(the word itself or a form `inflect.js` builds for it). The AzSLD lexicon keeps its looser matching. Afterwards the
+most used matches are real (həyat, ölkə, dövr, qadın, xalq, ərazi …). The guard sits on the lookup key, so a derived
+form can still reach an AzSLD sign when the added sign is filtered out ("alınır" → ALMAQ, not ALIN). Two words that
+look like forms of a shorter one are their own words: "xanım" (lady, not xan + ım) is spelled with letters instead of
+XAN, and "hazırda" (currently) is an alternate text of İNDİ in `ml/text_alt.csv` instead of HAZIR (ready).
+`tools/verify_words.mjs` has the cases.
+
+**Hand checks** (`tools/measure_hands.js` on all 2,404 against the AzSLD lexicon's 786, default avatar):
+
+| | JestDili.az | AzSLD lexicon |
+|---|---|---|
+| placement median / p90 | 1.2 / 3.8 cm | 1.2 / 3.7 cm |
+| hand in the other hand | 5.2 % | 3.4 % |
+| hand in the arm | 3.2 % | 1.5 % |
+| hand in the body / arm in the body | 52.2 / 59.7 % | 40.8 / 50.9 % |
+| a hand outside the camera frame | 15.6 % | 2.0 % |
+| wrist past its limit (> 5°) | 76.2 % | 51.7 % |
+
+Placement is as good as ours. Out of frame is marginal (median 3 % past the frame edge, p90 9 %): the person stands,
+so hands at rest hang lower than in the seated AzSLD recordings. The wrist overshoots are clamped by the player's hard
+ceiling. More body contact: the standing signer signs closer to the body; worth a look on the avatar before shipping.
+
+**Gates** (`node tools/ci_gates.mjs`) still pass with the guards: text → sign same-gloss F1 0.893 AzSLD style, 0.856
+native; sign → text WER 48.5 dev, 49.3 test.
+
+**Shipped** (decision: all of them): `tools/build_jestdili_words.py --install` copies the first variant of every word,
+**2,387 signs (148 MB)**, into `public/tercume/words/`; the lexicon now has **3,173**. 128 of them are a second sign
+for the same spelling (two senses, or the dictionary lists the name twice), so text reaches 2,259 new words; the
+text goes to the best quality one, the lexicon sheet shows each with its sense note ("alkolik (içki aludəçisi)") or a
+number ("abonent 1", "abonent 2") and plays that exact sign. The index gets a `sources` entry for the `jd-` prefix with
+this person's own face range (median and 99th percentile of the 51 blendshapes over all frames); `words.js` gives it
+to `jd-` signs instead of the AzSLD range. Both lexicon builders keep the added source's files and entries when the
+AzSLD lexicon is rebuilt. Credit on the lexicon sheet and in `docs/DATA.md`.
+
+**The gates caught a regression** in the first merge: same-gloss F1 0.893 → 0.873 (native 0.856 → 0.837). The new
+short roots changed how the lemmatizer cut common words: atam → AT (horse), ayında → AYI (bear), qızdır → QIZDIRMAQ,
+deyin → DEYİNMƏK, damır → DAMAQ, tuta → TUT (mulberry), and phrases matched loosely: həkim olmaq → HƏLAK OLMAQ,
+idman edirəm → İDARƏ ETMƏK. Fix in `WordLexicon`: the added source is a separate inner lexicon with its own roots,
+and the order is (1) AzSLD: the word or its form, exactly as before, (2) JestDili.az: the word itself or one of its
+own forms, a phrase only with its first words as written (tanış oldum ~ tanış olmaq), (3) AzSLD: the root of a
+derived word (azərbaycanlı → AZƏRBAYCANLI before AZƏRBAYCAN). One exception to (1): when JestDili.az has a sign for
+exactly this spelling, AzSLD's analysis stays only if the word really is a form of the AzSLD word by `inflect.js`
+(ayı → AY, alın → ALMAQ); otherwise the analysis was accidental and the word's own sign wins (işıq → İŞIQ, not İŞ;
+kömür, idarə, məna, əlli, addım, aydın). Of 2,259 JestDili.az spellings typed alone, 24 still go to an AzSLD sign,
+all real homographs (ayı, dilim, çaydan, yemiş, keçmiş). Native tense marks use the inner lexicon's verbs for its
+signs (Pəncərəni açdım → MƏN PƏNCƏRƏ AÇMAQ OLMAQ). "ali" joins xanım and hazırda as a word of its own (ali ≠ ALMAQ).
+
+| | AzSLD only | shipped |
+|---|---|---|
+| words as signs: AzSLD / JestDili.az sentences / web text | 96.5 / 85.7 / 45.8 % | 97.3 / 91.3 / **59.4 %** |
+| AzSLD test same-gloss F1, AzSLD style / native | 0.893 / 0.856 | 0.890 / 0.853 |
+| AzSLD test words as signs | 95.2 % | 95.6 % |
+
+The web text figure is lower than the 63.0 % above because the false matches no longer count. The small F1 loss
+comes from right signs that the AzSLD signers did not use: MAVİ (they signed GÖY), DƏRƏCƏ (QRUP), SAHİL and
+ƏDƏBİYYAT (spelled), MOBİL TELEFON and TANIŞ OLMAQ as one sign (two in AzSLD). All gates pass; the thresholds stay.

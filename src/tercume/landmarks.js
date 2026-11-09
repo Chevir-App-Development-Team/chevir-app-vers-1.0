@@ -6,7 +6,7 @@
  * face_landmarker.task. Ayarlar da eynidir: VIDEO rejimi, 2 əl, 0.5 hədlər, 1 poza, 1 üz + blendshape.
  *
  * Hər kadr features.js-in gözlədiyi formadadır (NaN = aşkarlanmayıb):
- *   hand 2×21×3 (slot 0 = siqnalçının SAĞ əli) · hand_world 2×21×3 · pose 9×3 (x, y, z) ·
+ *   hand 2×21×3 (slot 0 = iştirakçının SAĞ əli) · hand_world 2×21×3 · pose 9×3 (x, y, z) ·
  *   face 102×2 · blend 52 (BLEND_NAMES sırası)
  * Əlavə olaraq, tanıma müqaviləsinə daxil OLMAYAN sahə (avatar / canlı güzgü üçün):
  *   pose_world 9×3 — POSE_IDX nöqtələrinin metrik 3D koordinatları (metr, mərkəz — budlar arası),
@@ -116,7 +116,7 @@ export function frameFromResults(hr, pr, fr, aspect) {
 
 /**
  * Aşkarlanan əllər → [sağ slot, sol slot] (əllərin indeksi və ya null). ml/azsl/landmarks.py
- * assign_hands ilə eyni: biləyə yaxınlıq poza ilə; poza yoxdursa siqnalçının sağ əli kadrın
+ * assign_hands ilə eyni: biləyə yaxınlıq poza ilə; poza yoxdursa iştirakçının sağ əli kadrın
  * solundadır (kamera güzgülənməyib).
  * @param {number[][]} wrists hər aşkarlanan əlin bilək nöqtəsi [x, y]
  * @param {number[][]|null} poseWrists [[solX, solY], [sağX, sağY]]

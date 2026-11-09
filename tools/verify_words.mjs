@@ -43,7 +43,9 @@ const forms = new WordLexicon({ words: [
   'yaşamaq', 'istəmək', 'istəyir', 'düşməmək', 'gün', 'ad günü', 'il', 'yatmaq', 'Bakı',
   'oxumaq', 'gəlmək', 'yox', 'kart', 'i', '6', 'yazmaq', 'ay',
   'ucuzdur', 'gedir', 'iş', 'iştirak', 'fikir', 'xatırladım', 'bilər', 'bilərsinizmi',
-].map((text) => ({ id: text, text })) });
+  'əlil', 'sağlam', 'vermək', 'salam', 'bitmək', 'baş', 'yoldaşım', 'həyat yoldaşı', 'saat', 'qrafik',
+  '2', '3', '5', '11', '15', '43', 'mən', 'mənim',
+].map((text) => ({ id: text, text })).concat({ id: 'ölmək', text: 'ölmək', alt: ['rəhmətə getmək'] }) }, { native: false });
 const formCases = [
   ['evdə', 'w:ev'], ['anam', 'w:ana'], ['Bakıda', 'w:Bakı'], ['oğlum', 'w:oğul'], ['uşağın', 'w:uşaq'],
   ['köynəyini', 'w:köynək'], ['gedəcəm', 'w:getmək'], ['yaşayıram', 'w:yaşamaq'], ['istəyirsən', 'w:istəyir'],
@@ -64,10 +66,58 @@ const formCases = [
   ['kardır', 't:kardır'], ['kartı', 'w:kart'], ['iyun', 't:iyun'], ['ayın', 'w:ay'],
   // defis: şəkilçi atılır (rəqəm, ad), söz deyilsə hissələr ayrıdır
   ['6-dan', 'w:6'], ['6-cı', 'w:6'], ['TSEK-ə', 't:tsek'], ['yazıb-oxuya', 'w:yazmaq w:oxumaq'],
+  // törəmə söz kökün işarəsinə (E18): -lIK, -lA, məchul, -mA adlığı; icbar, -sIz və başqa mənalı kök yox
+  ['əlilliyi', 'w:əlil'], ['sağlamlığımız', 'w:sağlam'], ['verilir', 'w:vermək'], ['verilməsi', 'w:vermək'],
+  ['verilmir', 'w:vermək w:yox'], ['salamlayıram', 'w:salam'], ['bitirmək', 't:bitirmək'], ['evsiz', 't:evsiz'],
+  ['başlayır', 't:başlayır'], ['istərdim', 'w:istəmək'], ['olunur', 'w:olmaq'], ['düşünürəm', 't:düşünürəm'],
+  // ifadənin son sözü başqa formada; eyni mənalı idiom (ml/text_alt.csv)
+  ['həyat yoldaşım', 'w:həyat yoldaşı'], ['rəhmətə getdi', 'w:ölmək'],
+  // rəqəmlər: işarəsi olmayan ədəd rəqəm-rəqəm, işarəsi olmayan rəqəm adı ilə; sözlə yazılan say
+  ['43', 'w:43'], ['25', 'w:2 w:5'], ['7', 't:yeddi'], ['beş', 'w:5'], ['üçüncü', 'w:3'], ['III', 'w:3'],
+  ['yeddi', 't:yeddi'],
+  // söz içində vergül, iki nöqtə: ayrı sözlər
+  ['saatı,qrafiki', 'w:saat w:qrafik'], ['11:15-də', 'w:11 w:15'],
+  // yiyəlik əvəzliyi əvəzliyin öz işarəsidir (AzSLD 83/83 MƏN, E21)
+  ['mənim', 'w:mən'],
 ];
 for (const [text, want] of formCases) {
   const got = show(forms.segment(text));
   check(got === want, `forma: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+
+// Doğma qaydalar (E22, standart): zaman fel + OLMAQ / OLACAQ, vaciblik + LAZIM, I–II şəxsin buraxılmış mübtədası,
+// adamla "ilə" BİRLİKDƏ (alətlə və "ilə bağlı" yox)
+const nat = new WordLexicon({ words: ['mən', 'sən', 'o', 'siz', 'gəlmək', 'getmək', 'olmaq', 'olacaq', 'lazım', 'birlikdə',
+  'ana', 'qatar', 'bazar', 'yox', 'oxumaq', 'bağlı', 'məsələ'].map((text) => ({ id: text, text })) });
+const nativeCases = [
+  ['Gəldim.', 'w:mən w:gəlmək w:olmaq'], ['Gələcəyəm', 'w:mən w:gəlmək w:olacaq'], ['Gəlməliyəm', 'w:mən w:gəlmək w:lazım'],
+  ['Mən gəlirəm', 'w:mən _ w:gəlmək'], ['O gəldi', 'w:o _ w:gəlmək w:olmaq'], ['Oxumadım', 'w:mən w:oxumaq w:yox w:olmaq'],
+  ['Anamla bazara getdim', 'w:mən w:ana w:birlikdə _ w:bazar _ w:getmək w:olmaq'],
+  ['Qatarla getdim', 'w:mən w:qatar _ w:getmək w:olmaq'], ['məsələ ilə bağlı', 'w:məsələ _ d:ilə _ w:bağlı'],
+  ['Gəldim. Getdim.', 'w:mən w:gəlmək w:olmaq _ w:mən w:getmək w:olmaq'],
+];
+// Sonradan əlavə olunan lüğət (JestDili.az, id "jd-"): söz yalnız öz formalarına; əvəzliyin formaları əvəzliyindir (E24)
+// AzSLD lüğəti əvvəlki kimi işləyir, əlavə mənbə yalnız onun tapmadığı sözə: atam → ATA (AT yox), ayında → AY (AYI yox);
+// əlavə ifadə yalnız öz sözləri ilə (həkim olmaq ≠ HƏLAK OLMAQ)
+const jd = (text) => ({ id: `jd-${text}`, text });
+const added = new WordLexicon({ sources: [{ prefix: 'jd-' }], words: [
+  ...['o', 'ata', 'almaq', 'ay', 'demək', 'qız', 'həkim', 'olmaq', 'tanış', 'azərbaycan'].map((text) => ({ id: text, text })),
+  { id: 'indi', text: 'indi', alt: ['hazırda'] },
+  ...['on', 'qar', 'alın', 'xan', 'hazır', 'at', 'ayı', 'deyinmək', 'qızdırmaq', 'həlak olmaq', 'tanış olmaq', 'ali', 'nəvə', 'azərbaycanlı'].map(jd)] },
+{ native: false });
+for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarşı'], ['qarı', 'w:qar'], ['alınır', 'w:almaq'],
+  ['atası', 'w:ata'], ['alın', 'w:almaq'], ['xanın', 'w:xan'], ['xanım', 't:xanım'], ['xanımla', 't:xanımla'],
+  ['hazırdır', 'w:hazır'], ['hazırda', 'w:indi'], ['atam', 'w:ata'], ['atlar', 'w:at'], ['ayında', 'w:ay'],
+  ['deyin', 'w:demək'], ['qızdır', 'w:qız'], ['qızdırdım', 'w:qızdırmaq'], ['həkim olmaq', 'w:həkim _ w:olmaq'],
+  ['həlak oldu', 'w:həlak olmaq'], ['tanış oldum', 'w:tanış olmaq'], ['ali təhsil', 'w:ali _ t:təhsil'], ['nəvəsinin', 'w:nəvə'],
+  ['azərbaycanlıyam', 'w:azərbaycanlı'], ['azərbaycanda', 'w:azərbaycan']]) {
+  const got = show(added.segment(text));
+  check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+
+for (const [text, want] of nativeCases) {
+  const got = show(nat.segment(text));
+  check(got === want, `doğma: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
 
 // Mövqelər: hər hissə ilkin mətndə öz yerini göstərir (postda vurğulama üçün)

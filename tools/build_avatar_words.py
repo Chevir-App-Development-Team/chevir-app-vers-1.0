@@ -2,17 +2,17 @@
 AzSLD-nin bütün işarələrindən avatar lüğəti — yerli datasetdən (data/azsld/AzSLD_Sentences.zip).
 
 Hər glos üçün (ən azı --min-instances nümunə, tək hərflər barmaq əlifbasındadır) bir neçə
-siqnalçının nümunəsi emal olunur və ən tipik təmiz nümunə seçilir:
+iştirakçının nümunəsi emal olunur və ən tipik təmiz nümunə seçilir:
   - MediaPipe Pose lite + Hands + Face, VIDEO rejimi (kadrdan kadra izləmə): IMAGE rejiminə görə
     titrəmə iki dəfə az. Əlin bədəndən nə qədər irəlidə olduğunu heavy görür, lite isə demək olar
     sabit təxmin edir (yan kamera ilə yoxlanılıb, EXPERIMENTS E11). Avatarın qol həlli hələ lite-yə
     uyğundur: heavy ilə əllər və qollar gövdəyə daha tez-tez girir, ona görə lüğət lite ilədir.
-    Heavy variantı: --pose-model .../pose_landmarker_heavy.task --chest (siqnalçıların sinə xətti
+    Heavy variantı: --pose-model .../pose_landmarker_heavy.task --chest (iştirakçıların sinə xətti
     lüğətin özündən ölçülür, `chest` index.json-da, və avatar sinəyə toxunan əli öz sinəsinə köçürür; E12).
   - keyfiyyət: build_words.trim_and_score (poza, işarə məkanında əllərin tapılması, uzunluq);
   - tipiklik: namizədlər arasında DTW məsafəsi (əlin bədənə görə yeri + əlin forması). Keyfiyyəti
     ən yaxşınınkının 85 %-indən aşağı olmayanlardan bütün namizədlərə ən yaxını (medoid) seçilir —
-    bir siqnalçının özünəməxsus icrası və ya solaxay icra lüğətə düşmür.
+    bir iştirakçının özünəməxsus icrası və ya solaxay icra lüğətə düşmür.
 Kadr formatı build_words.py ilə eynidir (15 kadr/s, koordinatlar 1 mm / 0.001 dəqiqliklə), üstəlik üz: `f` = {s: 52 blendshape (0–100),
 h: başın fırlanması [x, y, z] dərəcə ilə (kameraya görə)} — jest dilinin üz ifadələri (sual, inkar)
 üçün; adlar index.json-da `face`. Mənbə hər sözün faylında qeyd olunur.
@@ -49,7 +49,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'tools'))
 from azsld_zip import AzsldZip, cam2                                   # noqa: E402
 from build_words import (ALIAS, ALT, BODY, L_HIP, L_SH, L_WR, R_HIP, R_SH, R_WR, SKIP,   # noqa: E402
-                         _assign, az_lower, trim_and_score, word_id)
+                         _assign, added_sources, az_lower, trim_and_score, word_id)
 
 HAND_MODEL = ROOT / 'public' / 'tercume' / 'assets' / 'hand_landmarker.task'
 FACE_MODEL = ROOT / 'public' / 'tercume' / 'assets' / 'face_landmarker.task'
@@ -146,14 +146,14 @@ def entries(splits: Path, min_instances: int, words200=None):
             e = out[text]
             e['clips'] = True
             e['labels'][label] += 1
-            # Klip sözün özüdür (kənarsız): bütün kadrları, siqnalçısı məlum deyil
+            # Klip sözün özüdür (kənarsız): bütün kadrları, iştirakçısı məlum deyil
             e['instances'].append({'rec': None, 'zip': str(words200), 'member': name, 'a': 1, 'b': 10 ** 6,
                                    'signer': name, 'frontal': float('nan')})
     return {t: e for t, e in out.items() if len(e['instances']) >= min_instances}
 
 
 def pick_candidates(text, e, k, available):
-    """Fərqli siqnalçılardan k nümunə: kameraya düz baxan və uzunluğu tipik olanlar əvvəl."""
+    """Fərqli iştirakçılardan k nümunə: kameraya düz baxan və uzunluğu tipik olanlar əvvəl."""
     if e.get('clips'):
         inst = list(e['instances'])
         random.Random(text).shuffle(inst)
@@ -179,30 +179,34 @@ def pick_candidates(text, e, k, available):
 # ───────────────────────── bir nümunənin emalı ─────────────────────────
 
 def process(job):
-    """Videonun [a-1-warm, b-1+margin] kadrları, VIDEO rejimində; çıxış a-1-margin-dən, hər stride-dan bir."""
+    """Videonun [a-1-warm, b-1+margin] kadrları, VIDEO rejimində; çıxış a-1-margin-dən, hər stride-dan bir.
+    zip_path None-dursa member adi video faylıdır (JestDili.az, tools/build_jestdili_words.py); b None — sonuna qədər."""
     zip_path, member, a, b, pose_model, margin, warm, stride, cache = job
     cache = Path(cache)
     if cache.exists():
         return json.loads(cache.read_text(encoding='utf8'))
-    data = AzsldZip.__new__(AzsldZip)            # kataloq hər prosesdə yenidən oxunmasın
-    data.path, data.pieces = Path(zip_path), Path(zip_path + '.pieces')
-    data.ents = json.loads(Path(zip_path + '.ents.json').read_text())
-    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=cache.parent) as tmp:
-        tmp.write(data.read(member))
-    first, last, out0 = max(0, a - 1 - warm), b - 1 + margin, max(0, a - 1 - margin)
-    cap = cv2.VideoCapture(tmp.name)
+    tmp = None
+    if zip_path:
+        data = AzsldZip.__new__(AzsldZip)        # kataloq hər prosesdə yenidən oxunmasın
+        data.path, data.pieces = Path(zip_path), Path(zip_path + '.pieces')
+        data.ents = json.loads(Path(zip_path + '.ents.json').read_text())
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=cache.parent) as tmp:
+            tmp.write(data.read(member))
+    first, out0 = max(0, a - 1 - warm), max(0, a - 1 - margin)
+    last = b - 1 + margin if b is not None else 10 ** 9
+    cap = cv2.VideoCapture(tmp.name if tmp else str(member))
     W, H = int(cap.get(3)), int(cap.get(4))
     fps = cap.get(5) or 30
-    imgs, i = [], 0
-    while i <= last:
-        ok, img = cap.read()
-        if not ok:
-            break
-        if i >= first:
-            imgs.append((i, cv2.cvtColor(img, cv2.COLOR_BGR2RGB)))
-        i += 1
-    cap.release()
-    os.unlink(tmp.name)
+
+    def imgs():                                  # kadr-kadr oxunur: bütün video yaddaşa yığılmır (1080p klip)
+        i = 0
+        while i <= last:
+            ok, img = cap.read()
+            if not ok:
+                return
+            if i >= first:
+                yield i, cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            i += 1
 
     hand = HandLandmarker.create_from_options(HandLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=str(HAND_MODEL)), running_mode=RunningMode.VIDEO,
@@ -215,7 +219,7 @@ def process(job):
         num_faces=1, output_face_blendshapes=True, output_facial_transformation_matrixes=True))
     aspect = W / H
     frames, face_keys = [], None
-    for i, rgb in imgs:
+    for i, rgb in imgs():
         im = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         ts = int(i * 1000 / fps)
         pr, hr, fr = pose.detect_for_video(im, ts), hand.detect_for_video(im, ts), face.detect_for_video(im, ts)
@@ -240,6 +244,9 @@ def process(job):
                  for k, hl in enumerate(hr.hand_landmarks or [])]
         sides = _assign(hands, img_pts, aspect)
         frames.append({'b': body, 'u': up, 'L': sides['L'], 'R': sides['R'], 'f': f})
+    cap.release()
+    if tmp:
+        os.unlink(tmp.name)
     hand.close()
     pose.close()
     face.close()
@@ -380,7 +387,7 @@ def main():
     ap.add_argument('--pose-model', type=Path, default=ROOT / 'public' / 'tercume' / 'assets' / 'pose_landmarker_lite.task',
                     help='heavy: data/models/pose_landmarker_heavy.task (float16/1 relizi)')
     ap.add_argument('--chest', action='store_true',
-                    help='siqnalçıların sinə xəttini index.json-a yaz: avatar dərinliyi sinədən ölçür (heavy ilə; E12)')
+                    help='iştirakçıların sinə xəttini index.json-a yaz: avatar dərinliyi sinədən ölçür (heavy ilə; E12)')
     ap.add_argument('--out-dir', type=Path, default=ROOT / 'public' / 'tercume' / 'words')
     ap.add_argument('--cache', type=Path, default=ROOT / 'data' / 'azsld' / 'lexicon_cache')
     ap.add_argument('--candidates', type=int, default=8)
@@ -395,7 +402,25 @@ def main():
     ap.add_argument('--partial', action='store_true', help='endirmə bitməyibsə, olan videolarla işlə')
     ap.add_argument('--prefetch', action='store_true',
                     help='endirmə gedərkən: son namizəd siyahısından diskdə olanları keşə emal et, lüğət yazma')
+    ap.add_argument('--alt-only', action='store_true',
+                    help='yalnız hazır lüğətin "alt" yazılışlarını ml/text_alt.csv-dən yenilə (kadrlar dəyişmir)')
     args = ap.parse_args()
+
+    if args.alt_only:
+        index_path = args.out_dir / 'index.json'
+        index = json.loads(index_path.read_text(encoding='utf8'))
+        for entry in index['words']:
+            path = args.out_dir / f"{entry['id']}.json"
+            data = json.loads(path.read_text(encoding='utf8'))
+            for d in (entry, data):
+                d.pop('alt', None)
+                if entry['text'] in ALT:
+                    d['alt'] = ALT[entry['text']]
+            path.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
+        index_path.write_text(json.dumps(index, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
+        missing = sorted(set(ALT) - {w['text'] for w in index['words']})
+        print(f'alt: {sum("alt" in w for w in index["words"])} söz' + (f'; lüğətdə yoxdur: {missing}' if missing else ''))
+        return
 
     z = AzsldZip(args.zip)
     if z.pieces.exists() and not (args.partial or args.prefetch):
@@ -435,8 +460,10 @@ def main():
 
     out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    sources, kept, is_added = added_sources(out_dir)
     for old in out_dir.glob('*.json'):
-        old.unlink()
+        if not is_added(old):
+            old.unlink()
     index, dropped, used, k = [], [], set(), 0
     face_keys = next((r['face'] for r in results if r.get('face')), None)
     for text, cands in plan.items():
@@ -455,10 +482,10 @@ def main():
                  if c['rec'] else {'video': c['member'], 'source': 'AzSLD Words 200 (Zenodo 14222948, CC BY 4.0)'})
         data = {'id': wid, 'text': text, 'label': label, **rec, **where,
                 'quality': round(res[j]['score'], 3), 'candidates': len(cands), 'typicality': typ}
-        # Əllərin bir-birinə toxunduğu işarə (BİRLİKDƏ, TƏZYİQ, KİTAB): sözün siqnalçılarının çoxunda
+        # Əllərin bir-birinə toxunduğu işarə (BİRLİKDƏ, TƏZYİQ, KİTAB): sözün iştirakçılarının çoxunda
         # barmaqlar kadrların dörddə birindən çoxunda 1.6 sm-dən yaxındır. Avatar belə sözdə
-        # siqnalçının öz əllərinin üst-üstə düşməsinə icazə verir (barmaqlar bir-birinin arasından
-        # keçir, ovuc ovucun üstündədir); təsadüfi bir siqnalçının dərinlik xətası səs vermir.
+        # iştirakçının öz əllərinin üst-üstə düşməsinə icazə verir (barmaqlar bir-birinin arasından
+        # keçir, ovuc ovucun üstündədir); təsadüfi bir iştirakçının dərinlik xətası səs vermir.
         two = [r for r in res if r['rec'] and r['rec']['hands'] == 'LR']
         if len(two) >= 3 and rec['hands'] == 'LR':
             data['contact'] = bool(sum(fingers_close(r['rec']) > 0.25 for r in two) / len(two) >= 0.5)
@@ -469,19 +496,20 @@ def main():
                                              encoding='utf8')
         index.append(entry)
     index.sort(key=lambda w: w['text'])
-    words = [json.loads(p.read_text(encoding='utf8')) for p in out_dir.glob('*.json') if p.name != 'index.json']
+    words = [json.loads(p.read_text(encoding='utf8')) for p in out_dir.glob('*.json')
+             if p.name != 'index.json' and not is_added(p)]
     chest = chest_line(words) if args.chest else None
-    # Hər blendshape-in diapazonu lüğətin bütün kadrları üzrə: median — siqnalçıların sakit üzü,
+    # Hər blendshape-in diapazonu lüğətin bütün kadrları üzrə: median — iştirakçıların sakit üzü,
     # 99-cu faiz — güclü ifadə (avatar bu aralığı öz ifadəsinin 0…tam aralığına çevirir)
     faces = np.asarray([fr['f']['s'] for w in words for fr in w['frames'] if fr.get('f')])
     face_neutral = [int(v) for v in np.median(faces, axis=0)] if len(faces) else None
     face_full = [int(v) for v in np.percentile(faces, 99, axis=0)] if len(faces) else None
     (out_dir / 'index.json').write_text(json.dumps({
-        'source': f'{SOURCE} — hər işarə üçün bir neçə siqnalçının ən tipik təmiz nümunəsi '
+        'source': f'{SOURCE} — hər işarə üçün bir neçə iştirakçının ən tipik təmiz nümunəsi '
                   f'(MediaPipe Pose {args.pose_model.stem.split("_")[-1]} + Hands + Face, VIDEO rejimi; '
                   f'tools/build_avatar_words.py)',
-        'count': len(index), 'face': face_keys, 'faceNeutral': face_neutral, 'faceFull': face_full,
-        'chest': chest, 'words': index,
+        'count': len(index) + len(kept), 'face': face_keys, 'faceNeutral': face_neutral, 'faceFull': face_full,
+        'chest': chest, 'words': index + kept, **({'sources': sources} if sources else {}),
     }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
     total = sum(p.stat().st_size for p in out_dir.glob('*.json'))
     print(f'{len(index)} söz yazıldı ({total / 1e6:.1f} MB), {len(dropped)} söz atıldı: {dropped[:20]}')

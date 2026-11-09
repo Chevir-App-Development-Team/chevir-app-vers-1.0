@@ -1,6 +1,6 @@
 // Mətn → işarə ardıcıllığı, AzSLD cümlələri üzərində (mətn + annotasiya olunmuş işarələr).
 //
-// Hər cümlə qovluğu üçün istinad: siqnalçıların ən çox işlətdiyi işarə ardıcıllığı
+// Hər cümlə qovluğu üçün istinad: iştirakçıların ən çox işlətdiyi işarə ardıcıllığı
 // (ml/splits/glosses_split.csv). Proqnoz: WordLexicon.segment — lüğətdə tapılan söz işarədir,
 // qalanı hərf-hərf göstərilir. İşarələr eyni sayılır: eyni glos (ml/gloss_spelling.csv,
 // ml/same_sign.csv, ml/lemma_groups.csv birləşmələri ilə).
@@ -50,6 +50,7 @@ const sign = (g) => { const c = canon.get(g) ?? g; return group.get(c) ?? c; };
 const ALIAS = new Map(readCsv('ml/label_text.csv').map((r) => [r.label, r.text]));
 const glossText = (g) => { const c = canon.get(g) ?? g; return azLower(ALIAS.get(c) ?? ALIAS.get(g) ?? c); };
 const isLetter = (g) => [...g].length === 1 && /\p{L}/u.test(g);
+const ADDED = new Set(['neg', 'tense', 'subject', 'with']);
 
 // İstinad: qovluq → ən çox rast gələn işarə ardıcıllığı
 const recs = new Map(readCsv('ml/splits/sentences_split.csv').map((r) => [r.rec_id, r]));
@@ -103,7 +104,9 @@ function run(lex, lemma) {
     const pred = [];
     let words = 0, signed = 0, letters = 0;
     for (const seg of lex.segment(s.text)) {
-      if (seg.kind === 'word' && (lemma || seg.via !== 'lemma')) {
+      // Əlavə işarə (YOX, zaman, mübtəda, BİRLİKDƏ) mətnin sözü deyil: proqnozdadır, söz sayına düşmür
+      if (seg.kind === 'word' && ADDED.has(seg.via)) { pred.push(sign(seg.entry.label)); continue; }
+      if (seg.kind === 'word' && (lemma || (seg.via !== 'lemma' && seg.via !== 'derived'))) {
         pred.push(sign(seg.entry.label));
         const n = seg.text.split(' ').length;
         words += n; signed += n;
@@ -132,9 +135,11 @@ function report(name, rows) {
     + ` | letters ${String(sum('letters')).padStart(5)} | same gloss: ${prf('m')} | same word: ${prf('ml')}`;
 }
 
-const lex = new WordLexicon(index);
+// AzSLD üslubu (iştirakçılar söz-söz göstərib) və doğma qaydalar (zaman, mübtəda, BİRLİKDƏ; E22)
+const lexAz = new WordLexicon(index, { native: false }), lexNative = new WordLexicon(index);
 console.log(`lexicon: ${ALL ? 'all AzSLD glosses' : WORDS} (${index.words.length} entries)`);
-for (const [name, lemma] of [['exact word form (before)', false], ['word forms → lexicon (morph.js)', true]]) {
+for (const [name, lemma, lex] of [['exact word form (before)', false, lexAz], ['word forms → lexicon (morph.js), AzSLD style', true, lexAz],
+  ['native rules (tense, subject, BİRLİKDƏ), the app', true, lexNative]]) {
   const r = run(lex, lemma);
   console.log(`\n${name}`);
   console.log('  ' + report('dev', r.dev));

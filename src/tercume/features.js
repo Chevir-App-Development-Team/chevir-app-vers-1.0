@@ -12,7 +12,7 @@
  *
  * Giriş (hər sahə T kadrlıq, sətir-sətir düz Float32Array, NaN = aşkarlanmayıb):
  *   hand        T×2×21×3   şəkil koordinatları x, y ∈ [0,1] (x en/hündürlüyə vurulMAMIŞ), z;
- *                          slot 0 = siqnalçının SAĞ əli (pozanın biləkləri qərar verir)
+ *                          slot 0 = iştirakçının SAĞ əli (pozanın biləkləri qərar verir)
  *   hand_world  T×2×21×3   əlin metrik 3D forması (MediaPipe world landmarks)
  *   pose        T×9×3      POSE_IDX nöqtələri: x, y, z (yalnız x, y işlədilir)
  *   face        T×102×2    FACE_IDX nöqtələri: x, y

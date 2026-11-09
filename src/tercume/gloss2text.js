@@ -18,7 +18,7 @@
  */
 import { Lemmatizer, candidates, variants } from './morph.js';
 import { analyze, realize, PRONOUNS } from './inflect.js';
-import { azLower } from './words.js';
+import { azLower, PERSON } from './words.js';
 
 export const textWords = (t) => azLower(t).replace(/[.,!?;"()«»“”]+/g, ' ').split(/\s+/).filter(Boolean);
 // Annotasiyada İ çox vaxt ı yerinə yazılıb (ALİNMİR): tutuşdurmada ı = i
@@ -40,6 +40,11 @@ const MODAL = new Set(['bilmək', 'bilmir', 'olmaq', 'lazım', 'istəmək']);
 const EXIST = new Set(['var', 'yox', 'deyil', 'lazım']);
 // Şəxsi mübtədadan gələn zamanlar (məsdər, -a, feli sifət, əmr şəxssizdir)
 const FINITE = new Set(['pres', 'past', 'perf', 'ev', 'fut', 'futc', 'aor', 'nec', 'cond']);
+// Doğma qaydada felin arxasındakı zaman işarələri (E22, E23)
+const NATIVE_TAM = { olmaq: 'past', olacaq: 'fut', lazım: 'nec' };
+// İki hərfli fel kökləri az və məlumdur; başqa iki hərfli "kök" adın səhv təhlilidir (kömək ≠ kö-mək)
+const SHORT_VERBS = new Set(['al', 'at', 'aç', 'as', 'az', 'de', 'ye', 'et', 'iç', 'it', 'öl', 'ol', 'öp', 'üz', 'əz', 'ək', 'ov', 'oy', 'öt']);
+const realVerb = (root) => root.length >= 3 || SHORT_VERBS.has(root);
 const isLetter = (l) => [...l].length === 1 && /\p{L}/u.test(l);
 // Barmaqla yığılan hərf: tək hərfli işarə, əvəzlik "O" deyilsə və ya yanında başqa hərf varsa (D O S T)
 const spelled = (labels, i) => isLetter(labels[i])
@@ -123,21 +128,30 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
       if (!headKeys.get(l).has(key(surface))) return { surface };     // çoxsözlü işarənin başqa sözü
       return { surface, ...rootOf(l, surface, headKeys.get(l), lem) };
     });
-    return { glosses: p.glosses, words: ws, at, info };
+    return { glosses: p.glosses, words: ws, at, info, w: p.w ?? 1 };
   });
   return { sentences, guess };
 }
 
-/** Sayma: prepare()-in cümlələrindən (keep(i) — hansıları) model (JSON). */
-export function fit({ sentences, guess }, keep = () => true) {
-  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, guess };
+const TABLES = ['forms', 'feats', 'subj', 'posCtx', 'opts'];
+const scaled = (t, a) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, typeof v === 'number' ? v * a : scaled(v, a)]));
+
+/**
+ * Sayma: prepare()-in cümlələrindən (keep(i) — hansıları) model (JSON). prior — əvvəlcədən sayılmış başqa
+ * model (korpusun süni cütləri, docs/NLP_PLAN.md S2), sayları `alpha` ilə vurulub bu cümlələrin saylarına
+ * əlavə olunur: bir cümləni çıxaran ölçmə (leave-one-out) korpusu hər dəfə yenidən saymır.
+ * model.opts — işarənin kök və növ sayları (prior üçün); brauzerin modelinə yazılmır.
+ */
+export function fit({ sentences, guess }, keep = () => true, prior = null, alpha = 1) {
+  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, opts: {}, guess };
+  if (prior) for (const t of TABLES) model[t] = scaled(prior[t], alpha);
   const used = sentences.filter((_, i) => keep(i));
-  const opts = {};
-  for (const { glosses, info } of used) {
+  const opts = model.opts;
+  for (const { glosses, info, w } of used) {
     glosses.forEach((l, i) => {
       if (info[i].surface === null) return;
-      inc(model.forms[l] ??= {}, info[i].surface);
-      if (info[i].feats) inc(opts[l] ??= {}, `${info[i].pos}:${info[i].root}`);
+      inc(model.forms[l] ??= {}, info[i].surface, w);
+      if (info[i].feats) inc(opts[l] ??= {}, `${info[i].pos}:${info[i].root}`, w);
     });
   }
   for (const [l, o] of Object.entries(opts)) {
@@ -148,25 +162,25 @@ export function fit({ sentences, guess }, keep = () => true) {
     model.lex[l] = { pos: options[0].pos, root: options[0].root, ...(options.length > 1 && { options }) };
   }
   const lexOf = (l) => model.lex[l] ?? guess[l];
-  for (const { glosses, info } of used) {
+  for (const { glosses, info, w } of used) {
     // mübtəda: adlıq haldakı ilk şəxs əvəzliyi (mənim atam — "mənim" yiyəlikdir, mübtəda deyil)
     const subj = subjectOf(glosses, (i) => info[i].feats && !info[i].feats.case);
     glosses.forEach((l, i) => {
       const a = info[i];
       if (!a.feats) return;
       const nc = classOf(glosses[i + 1], lexOf(glosses[i + 1]));
-      inc(model.posCtx[`${l}|>${nc}`] ??= {}, a.pos);
+      inc(model.posCtx[`${l}|>${nc}`] ??= {}, a.pos, w);
       const f = { ...a.feats };
       // şəxs mübtədadan gəlir: felin şəxsi ayrıca sayılır, adın xəbərliyi yalnız var/yox kimi
       if (a.pos === 'verb') {
-        if (FINITE.has(f.tam)) inc(model.subj[subj] ??= {}, String(f.pers));
+        if (FINITE.has(f.tam)) inc(model.subj[subj] ??= {}, String(f.pers), w);
         delete f.pers;
       }
       if (f.cop) f.cop = true;
       // mənsubiyyət əvvəlki əvəzliyə uyğundursa (mənim atam, sizin ananız) şəxsi yox, uyğunluğu sayılır
       if (f.poss && f.poss === SUBJECT[labelText(glosses[i - 1] ?? '')]) f.poss = 'P';
       const k = fkey(f);
-      for (const [name, c] of contexts(glosses, i, lexOf, a.pos)) inc(model.feats[`${name}:${c}`] ??= {}, k);
+      for (const [name, c] of contexts(glosses, i, lexOf, a.pos)) inc(model.feats[`${name}:${c}`] ??= {}, k, w);
     });
   }
   return model;
@@ -244,7 +258,8 @@ function subjectOf(glosses, nominative = () => true) {
 }
 
 export class GlossToText {
-  constructor(model, { weights = WEIGHTS } = {}) { this.m = model; this.w = weights; }
+  /** native: doğma işarələrin qrammatikası (#native: YOX, OLMAQ, OLACAQ, LAZIM, BİRLİKDƏ); false — yalnız sayılar. */
+  constructor(model, { weights = WEIGHTS, native = true } = {}) { this.m = model; this.w = weights; this.native = native; }
 
   #lexOf = (l) => this.m.lex[l] ?? this.m.guess[l];
 
@@ -289,6 +304,47 @@ export class GlossToText {
   }
 
   /**
+   * Doğma işarə dilinin qrammatikası (ml/EXPERIMENTS.md E21–E23): felin arxasındakı YOX inkardır, OLMAQ / OLACAQ
+   * keçmiş / gələcək zaman, LAZIM vaciblik (-malı); bu işarələr öz sözünü vermir, felin formasına keçir (MƏN GƏLMƏK YOX
+   * OLMAQ → Mən gəlmədim). Adamdan sonrakı BİRLİKDƏ adamı "-la" halına salır (anamla birlikdə). Ad + OLMAQ (xəstə olmaq)
+   * və ad + YOX (vaxtım yoxdur) dəyişmir; həm ad, həm fel ola bilən işarə (İŞLƏMƏK: iş / işləmək) belə işarədən əvvəl feldir.
+   */
+  #native(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    const asVerb = (it) => {
+      if (it?.via !== 'gen' || !it.lx) return false;
+      if (it.lx.pos === 'verb') return realVerb(it.lx.root);
+      // işarənin adı feldir (İŞLƏMƏK), sayılar adı da görüb: fel oxunuşu; adın özü ad olan (KÖMƏK) fel olmur
+      const l = it.labels[0], g = this.m.guess[l];
+      if (g?.pos !== 'verb' || !/m[aə][kq]$/.test(labelText(l))) return false;
+      const v = this.m.lex[l]?.options?.find((o) => o.pos === 'verb') ?? g;
+      if (!v) return false;
+      if (!realVerb(v.root)) return false;
+      it.lx = { ...it.lx, pos: 'verb', root: v.root };
+      it.f = { tam: 'pres' };
+      return true;
+    };
+    const drop = (it) => { it.word = ''; it.via = 'drop'; delete it.lx; delete it.f; };
+    // LAZIM -malı olur yalnız şəxs əvəzliyi olan cümlədə (Mən gəlməliyəm); şəxssiz cümlədə "içmək lazımdır" qalır (AzSLD)
+    const personal = items.some((it) => it.lx && SUBJECT[it.lx.root]);
+    for (let k = 1; k < items.length; k++) {
+      const m = items[k], n = name(m);
+      if (n === 'lazım' && !personal) continue;
+      if (n === 'yox' || NATIVE_TAM[n]) {
+        let v = k - 1;
+        if (NATIVE_TAM[n] && items[v]?.negMark) v--;                     // fel + YOX + zaman
+        if (!asVerb(items[v])) continue;
+        const f = items[v].f;
+        items[v].f = n === 'yox' ? { ...f, neg: true, tam: FINITE.has(f.tam) ? f.tam : 'pres' } : { ...f, tam: NATIVE_TAM[n] };
+        drop(m);
+        if (n === 'yox') m.negMark = true;
+      } else if (n === 'birlikdə' && items[k - 1]?.lx && PERSON.has(items[k - 1].lx.root)) {
+        items[k - 1].f = { ...items[k - 1].f, case: 'ins' };
+      }
+    }
+  }
+
+  /**
    * İşarələr → {text, words: [{labels, word, via}]}. via: 'gen' — kök + əlamətlər, 'form' — işarənin
    * öyrənilmiş sözü (rəqəm), 'letters' — hərflər bir sözdür, 'drop' — mətndə sözü olmayan işarə.
    */
@@ -320,6 +376,7 @@ export class GlossToText {
       const inh = !lx.seen && this.m.guess[l]?.inherent;
       items.push({ labels: [l], lx, f: inh ? { ...f, ...inh } : f, via: 'gen' });
     }
+    if (this.native) this.#native(items);
     // Yiyə: şəxs əvəzliyindən sonrakı ad onun mənsubiyyətindədirsə (mənim atam), əvəzlik yiyəlik haldadır;
     // ad mənsubiyyət almırsa (yer adı: Mən Bakıda), əvəzlik yiyəlikdə qalmır. Qərarı ad verir: qohumluq,
     // bədən sözləri mənsubiyyətlə işlənir, yer adları yox. Cümlənin əvvəlindəki əvəzlikdən sonra ad başqa

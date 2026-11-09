@@ -29,15 +29,25 @@ const held = new Set(rows.slice(1).filter((r) => r[hi] === 'True').map((r) => r[
 
 const labels = JSON.parse(fs.readFileSync('public/tercume/assets/cont_model/manifest.json', 'utf8')).labels
   .filter((l) => !l.startsWith('<'));
-const prep = prepare(S, merge, labels, text);
+// --pseudo: korpusdan süni cütlər (tools/build_pseudo_gloss.mjs) bir dəfə sayılır və hər modelə --pw çəkisi
+// ilə əlavə olunur (AzSLD cümləsi 1); dev-in leave-one-out-u və test dəyişmir. --pw 0.03,0.1,0.3 — bir neçə
+// çəki yalnız 1-ci bölmədə (dev-də seçmək üçün)
+const PSEUDO = opt('--pseudo', null), PWS = opt('--pw', '0.1').split(',').map(Number), PMAX = Number(opt('--pseudo-max', Infinity));
+const extra = PSEUDO ? fs.readFileSync(PSEUDO, 'utf8').trim().split(/\r?\n/).slice(0, PMAX).map((l) => JSON.parse(l)) : [];
+const prep = prepare([...S, ...extra], merge, labels, text);
 const idx = S.map((s, i) => i);
 const devIdx = idx.filter((i) => !held.has(S[i].folder)), testIdx = idx.filter((i) => held.has(S[i].folder));
-const isDev = (i) => !held.has(S[i].folder);
+const isPseudo = (i) => i >= S.length;
+const isDev = (i) => !isPseudo(i) && !held.has(S[i].folder);
+const prior = PSEUDO ? fit(prep, isPseudo) : null;
+let PW = PWS[0];
+if (PSEUDO) console.log(`pseudo pairs: ${extra.length} from ${PSEUDO}, weight ${PWS.join(', ')}`);
 let weights;
-const fitWithout = (skip) => new GlossToText(fit(prep, (i) => isDev(i) && i !== skip), { weights });
-const devModel = () => new GlossToText(fit(prep, isDev), { weights });
+const model = (keep) => new GlossToText(fit(prep, (i) => !isPseudo(i) && keep(i), prior, PW), { weights });
+const fitWithout = (skip) => model((i) => isDev(i) && i !== skip);
+const devModel = () => model(isDev);
 let all = null;
-const g2tAll = () => (all ??= new GlossToText(fit(prep), { weights }));   // bütün 492 cümlə (brauzerdəki model)
+const g2tAll = () => (all ??= model(() => true));   // bütün 492 cümlə (brauzerdəki model)
 const raw = (labels) => labels.map((l) => azLower(l.split('/')[0])).join(' ');
 
 function wer(items) {
@@ -82,15 +92,21 @@ if (args.includes('--tune')) {
 }
 
 console.log(`1. annotated glosses → text (WER, lower is better / chrF, higher is better)`);
-const gold = { dev: [], test: [] };
-for (const i of devIdx) gold.dev.push({ s: S[i], hyp: fitWithout(i).generate(S[i].glosses).text, raw: raw(S[i].glosses), ref: S[i].text });
-const dm = devModel();
-for (const i of testIdx) gold.test.push({ s: S[i], hyp: dm.generate(S[i].glosses).text, raw: raw(S[i].glosses), ref: S[i].text });
-for (const name of ['dev', 'test']) {
-  const set = gold[name];
-  console.log(`  ${name.padEnd(4)} ${String(set.length).padStart(3)} sentences | gloss string ${score(set.map((x) => ({ hyp: x.raw, ref: x.ref })))}`
-    + ` | gloss2text ${score(set)}`);
+let gold;
+for (const pw of PWS) {
+  PW = pw;
+  gold = { dev: [], test: [] };
+  for (const i of devIdx) gold.dev.push({ s: S[i], hyp: fitWithout(i).generate(S[i].glosses).text, raw: raw(S[i].glosses), ref: S[i].text });
+  const dm = devModel();
+  for (const i of testIdx) gold.test.push({ s: S[i], hyp: dm.generate(S[i].glosses).text, raw: raw(S[i].glosses), ref: S[i].text });
+  if (PSEUDO) console.log(`  pseudo weight ${pw}`);
+  for (const name of ['dev', 'test']) {
+    const set = gold[name];
+    console.log(`  ${name.padEnd(4)} ${String(set.length).padStart(3)} sentences | gloss string ${score(set.map((x) => ({ hyp: x.raw, ref: x.ref })))}`
+      + ` | gloss2text ${score(set)}`);
+  }
 }
+if (PWS.length > 1) process.exit(0);
 if (SHOW) {
   console.log(`\n  test examples:`);
   for (const x of gold.test.slice(0, SHOW)) console.log(`    ${x.s.glosses.join(' ')}\n      → ${x.hyp}\n      = ${x.ref}`);
@@ -106,15 +122,16 @@ if (fs.existsSync(DET)) {
   }
   const byFolder = new Map(S.map((s, i) => [s.folder, i]));
   const unseen = [], known = [];
-  const models = new Map();
-  for (const [rec, list] of seqs) {
-    const i = byFolder.get(rec.split('/')[0]);
-    if (i === undefined) continue;
+  // cümlə-cümlə: hər cümlənin modeli bir dəfə qurulur və yazıları bitəndə atılır (korpusla model böyükdür)
+  const recs = [...seqs].map(([rec, list]) => [byFolder.get(rec.split('/')[0]), list])
+    .filter(([i]) => i !== undefined).sort((a, b) => a[0] - b[0]);
+  let cur = -1, curModel = null;
+  for (const [i, list] of recs) {
     const labels = list.sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     const ref = S[i].text;
     // yeni cümlə: model və siyahı bu cümləsiz (bütün 492-dən, test cümlələri də öyrənməyə girir)
-    if (!models.has(i)) models.set(i, new GlossToText(fit(prep, (j) => j !== i), { weights }));
-    const g2t = models.get(i).generate(labels).text;
+    if (i !== cur) { cur = i; curModel = model((j) => j !== i); }
+    const g2t = curModel.generate(labels).text;
     const others = S.filter((_, j) => j !== i);
     const m0 = nearestSentence(labels, others);
     unseen.push({ ref, raw: raw(labels), g2t, retr: m0 ? m0.text : raw(labels), both: m0 ? m0.text : g2t, labels, others, i });

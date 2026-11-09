@@ -4,7 +4,7 @@
 //   node tools/verify_gloss_text.mjs
 import fs from 'node:fs';
 import { noun, verb, analyze, paradigm } from '../src/tercume/inflect.js';
-import { train, GlossToText } from '../src/tercume/gloss2text.js';
+import { train, prepare, fit, GlossToText } from '../src/tercume/gloss2text.js';
 import { WordLexicon } from '../src/tercume/words.js';
 import { keyOf } from '../src/tercume/morph.js';
 
@@ -66,6 +66,20 @@ const G = new GlossToText(model);
 const empty = S.filter((s) => !G.generate(s.glosses).text);
 check(!empty.length, `gloss_text.json: ${S.length} cümlənin hamısında mətn var${empty.length ? ` (boş: ${empty.length})` : ''}`);
 
+// Doğma işarə dilinin qrammatikası (E23): fel + YOX inkar, fel + OLMAQ / OLACAQ zaman, şəxsli cümlədə fel + LAZIM -malı,
+// adam + BİRLİKDƏ -la; ad + OLMAQ və şəxssiz LAZIM dəyişmir
+const native = [
+  ['MƏN GƏLMƏK OLMAQ', 'Mən gəldim'], ['MƏN SABAH GƏLMƏK OLACAQ', 'Mən sabah gələcəyəm'], ['MƏN GƏLMƏK LAZIM', 'Mən gəlməliyəm'],
+  ['MƏN GƏLMƏK YOX', 'Mən gəlmirəm'], ['SİZ İŞLƏMƏK OLACAQ', 'Siz işləyəcəksiniz'], ['O XƏSTƏ OLMAQ', 'O xəstə olmuş'],
+  ['HƏR GÜN 8 STƏKAN SU İÇMƏK LAZIM', 'Hər gün 8 stəkan su içmək lazımdır'],
+];
+for (const [labels, want] of native) {
+  const got = G.generate(labels.split(' ')).text;
+  check(got === want, `doğma: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+const birlikde = G.generate('MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ'.split(' ')).text;
+check(/anamla birlikdə/.test(birlikde) && /getdim$/.test(birlikde), `doğma: MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ → ${birlikde}`);
+
 // 4. morph.js ↔ inflect.js: lüğətin köklərindən qurulan formalar (sualsız) təhlildə öz kökünə qayıdır.
 // Qalanı əsasən omoqraflardır (adam: ad-ım / adam, bağla: bağ-a / bağla); kökün özü (əmr: al, bax) lüğət
 // sözü deyil, təhlil olunmur
@@ -81,6 +95,21 @@ for (const [pos, roots] of [['verb', [...lem.verbs]], ['noun', nouns]]) for (con
   }
 }
 check(back / n >= 0.99, `morph.js ↔ inflect.js: ${back}/${n} forma öz kökünə qayıdır (${(100 * back / n).toFixed(1)} %, hədd 99 %)`);
+
+// 5. Korpusun sayları (prior, docs/NLP_PLAN.md S2): α ilə vurulub cümlələrin saylarına əlavə olunur; cütün
+// çəkisi (w) saylarını vurur
+{
+  const pairs = [
+    { glosses: ['MƏN', 'BAKI', 'YAŞAMAQ'], text: 'Mən Bakıda yaşayıram' },
+    { glosses: ['O', 'GƏNCƏ', 'YAŞAMAQ'], text: 'O Gəncədə yaşayır', w: 2 },
+    { glosses: ['MƏN', 'BAKI', 'YAŞAMAQ'], text: 'Mən Bakıda yaşayıram' },
+  ];
+  const prep = prepare(pairs);
+  const prior = fit(prep, (i) => i < 2);
+  const m = fit(prep, (i) => i === 2, prior, 0.5);
+  const f = m.forms.YAŞAMAQ ?? {};
+  check(f.yaşayıram === 1.5 && f.yaşayır === 1, `prior: yaşayıram 0.5·1 + 1 = ${f.yaşayıram}, yaşayır 0.5·2 = ${f.yaşayır}`);
+}
 
 console.log(fails ? `\n${fails} yoxlama uğursuz` : '\nhamısı keçdi');
 process.exit(fails ? 1 : 0);
