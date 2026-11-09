@@ -75,6 +75,9 @@ function contexts(labels, i, lexOf, pos) {
 }
 // Kontekstlərin çəkisi (dev cümlələrində seçilib: tools/eval_gloss_text.mjs --tune)
 export const WEIGHTS = { lc: 8, ln: 4, l: 2, cn: 2, cc: 1, cr: 1, c: 0 };
+// Mətndə sözü olmayan işarə (AzSLD-nin mətnində tutuşmayan): əvvəl bir dəfə görünən də atılırdı (ƏLİL 13/14, VERMƏK 7/13,
+// ÖDƏMƏK 2/2, GƏTİRMƏK 1/1), yeni cümlədə məna itirdi. İndi yalnız tez-tez görünüb demək olar həmişə sözsüz qalan
+export const DROP = { min: 3, ratio: 0.7 };
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
 const inc = (m, k, n = 1) => { m[k] = (m[k] ?? 0) + n; };
@@ -259,7 +262,10 @@ function subjectOf(glosses, nominative = () => true) {
 
 export class GlossToText {
   /** native: doğma işarələrin qrammatikası (#native: YOX, OLMAQ, OLACAQ, LAZIM, BİRLİKDƏ); false — yalnız sayılar. */
-  constructor(model, { weights = WEIGHTS, native = true } = {}) { this.m = model; this.w = weights; this.native = native; }
+  /** drop: işarə mətndə sözsüz qalır, AzSLD-də ən azı `min` dəfə görünüb `ratio`-dan çox sözsüz olubsa (E26). */
+  constructor(model, { weights = WEIGHTS, native = true, drop = DROP } = {}) {
+    this.m = model; this.w = weights; this.native = native; this.drop = drop;
+  }
 
   #lexOf = (l) => this.m.lex[l] ?? this.m.guess[l];
 
@@ -345,6 +351,32 @@ export class GlossToText {
   }
 
   /**
+   * Yiyəlik cümlələri (E26). "Var / yox" ilə bitən cümlədə əvəzlik + (rəqəm) + ad: yiyəlikdir — MƏN 2 BACI VAR →
+   * Mənim 2 bacım var, SİZ EV VAR → Sizin eviniz var (AzSLD-nin sayları yalnız əvəzlik adın yanındadırsa tapırdı).
+   * Addan sonra LAZIM: ehtiyacdır — MƏN DƏRMAN LAZIM → Mənə dərman lazımdır (felin LAZIM-ı -malı olaraq #native-dədir).
+   */
+  #have(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    const content = items.filter((it) => it.via !== 'drop');
+    const last = content.at(-1), n = name(last);
+    const p0 = content.findIndex((it) => it.lx && SUBJECT[it.lx.root]);
+    if (p0 < 0 || content.length < 3) return;
+    const pron = content[p0];
+    const noun = content.at(-2);
+    const between = content.slice(p0 + 1, -2);
+    if (!noun?.lx || noun.lx.pos !== 'noun' || SUBJECT[noun.lx.root]) return;
+    if ((n === 'var' || n === 'yox') && between.every((it) => it.via === 'form')) {
+      noun.f = { ...noun.f, poss: SUBJECT[pron.lx.root] };
+      delete noun.f.case;
+      pron.f = { case: 'gen' };
+    } else if (n === 'lazım' && between.length === 0 && last.via !== 'drop') {
+      pron.f = { case: 'dat' };
+      noun.f = {};
+      last.f = { ...last.f, cop: 3 };
+    }
+  }
+
+  /**
    * İşarələr → {text, words: [{labels, word, via}]}. via: 'gen' — kök + əlamətlər, 'form' — işarənin
    * öyrənilmiş sözü (rəqəm), 'letters' — hərflər bir sözdür, 'drop' — mətndə sözü olmayan işarə.
    */
@@ -366,7 +398,7 @@ export class GlossToText {
         continue;
       }
       const tot = Object.values(forms ?? {}).reduce((a, b) => a + b, 0);
-      if (tot && (forms[''] ?? 0) / tot > 0.5) { items.push({ labels: [l], word: '', via: 'drop' }); continue; }
+      if (tot >= this.drop.min && (forms[''] ?? 0) / tot > this.drop.ratio) { items.push({ labels: [l], word: '', via: 'drop' }); continue; }
       const lx = this.#lex(labels, i);
       // kökü tapılmayan, ancaq mətndə sözü olan işarə (adında hərf səhvi): öyrənilmiş söz
       const seen = !lx.seen && Object.entries(forms ?? {}).filter(([w]) => w).sort((a, b) => b[1] - a[1])[0];
@@ -377,6 +409,7 @@ export class GlossToText {
       items.push({ labels: [l], lx, f: inh ? { ...f, ...inh } : f, via: 'gen' });
     }
     if (this.native) this.#native(items);
+    this.#have(items);
     // Yiyə: şəxs əvəzliyindən sonrakı ad onun mənsubiyyətindədirsə (mənim atam), əvəzlik yiyəlik haldadır;
     // ad mənsubiyyət almırsa (yer adı: Mən Bakıda), əvəzlik yiyəlikdə qalmır. Qərarı ad verir: qohumluq,
     // bədən sözləri mənsubiyyətlə işlənir, yer adları yox. Cümlənin əvvəlindəki əvəzlikdən sonra ad başqa

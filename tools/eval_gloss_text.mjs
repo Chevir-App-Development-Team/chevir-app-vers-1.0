@@ -43,7 +43,10 @@ const prior = PSEUDO ? fit(prep, isPseudo) : null;
 let PW = PWS[0];
 if (PSEUDO) console.log(`pseudo pairs: ${extra.length} from ${PSEUDO}, weight ${PWS.join(', ')}`);
 let weights;
-const model = (keep) => new GlossToText(fit(prep, (i) => !isPseudo(i) && keep(i), prior, PW), { weights });
+// --drop min,ratio: sözsüz işarənin həddi (gloss2text DROP)
+const DROP_OPT = opt('--drop', null);
+const drop = DROP_OPT ? { min: Number(DROP_OPT.split(',')[0]), ratio: Number(DROP_OPT.split(',')[1]) } : undefined;
+const model = (keep) => new GlossToText(fit(prep, (i) => !isPseudo(i) && keep(i), prior, PW), { weights, drop });
 const fitWithout = (skip) => model((i) => isDev(i) && i !== skip);
 const devModel = () => model(isDev);
 let all = null;
