@@ -57,7 +57,7 @@ def main():
     ap.add_argument('--cont', default=str(ROOT / 'ml/results/cont_v15/final_merged/best.pt'))
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    dev = 'cuda' if torch.cuda.is_available() else 'cpu'
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     report = {}
 
     # 1. söz modeli

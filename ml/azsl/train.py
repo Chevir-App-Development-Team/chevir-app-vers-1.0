@@ -74,7 +74,12 @@ class Bank:
         self.n += T
 
     def done(self):
-        self.data = {k: np.concatenate(v) if v else np.zeros((0,), np.float16) for k, v in self.chunks.items()}
+        # field by field, each field's chunks freed after it is joined: peak memory = the data + one field
+        self.data = {}
+        for k in list(self.chunks):
+            v = self.chunks.pop(k)
+            self.data[k] = np.concatenate(v) if v else np.zeros((0,), np.float16)
+            del v
         self.chunks = None
         self.labels = np.array([r[2] for r in self.rows], np.int64)
         self.ids = [r[6] for r in self.rows]
@@ -108,6 +113,30 @@ class Bank:
     def raw(self, i):
         off, T, label, aspect, lo, hi, _ = self.rows[i]
         return {k: self.data[k][off:off + T] for k in KEYS}, label, aspect, (lo, hi)
+
+    def to_disk(self, path):
+        """Arrays → .npy files, opened again memory-mapped: DataLoader workers on Windows (spawn) get the file
+        paths instead of a pickled copy, and the OS shares the pages between them."""
+        os.makedirs(path, exist_ok=True)
+        for k, v in self.data.items():
+            np.save(os.path.join(path, f'{k}.npy'), np.ascontiguousarray(v))
+        self._disk = path
+        self._open()
+        return self
+
+    def _open(self):
+        self.data = {k: np.load(os.path.join(self._disk, f'{k}.npy'), mmap_mode='r') for k in KEYS}
+
+    def __getstate__(self):
+        st = self.__dict__.copy()
+        if st.get('_disk'):
+            st['data'] = None
+        return st
+
+    def __setstate__(self, st):
+        self.__dict__.update(st)
+        if st.get('_disk'):
+            self._open()
 
 
 def ambiguous_oov(glosses, vocab_words, prefix=4):
@@ -391,6 +420,8 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights), num_samples=len(tr), replacement=True)
     cols, groups = FT.columns(cfg['groups']), cfg['groups']
     face = cfg['face_drop'] < 1.0                             # trained with no face at all → scored without it too
+    if cfg['workers'] > 0 and os.name == 'nt' and not getattr(tr, '_disk', None):
+        tr.to_disk(os.path.join(out_dir, '_train_bank'))      # spawned workers share it memory-mapped
     dl = torch.utils.data.DataLoader(SignDataset(tr, train=True, groups=groups, face_drop=cfg['face_drop']),
                                      batch_size=cfg['batch'], sampler=sampler,
                                      num_workers=cfg['workers'], collate_fn=collate, drop_last=True,

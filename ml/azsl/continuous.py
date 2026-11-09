@@ -76,7 +76,12 @@ class SeqBank:
         self.n += len(y)
 
     def done(self):
-        self.data = {k: np.concatenate(v) if v else np.zeros((0,), np.float16) for k, v in self.chunks.items()}
+        # field by field, each field's chunks freed after it is joined: peak memory = the data + one field
+        self.data = {}
+        for k in list(self.chunks):
+            v = self.chunks.pop(k)
+            self.data[k] = np.concatenate(v) if v else np.zeros((0,), np.float16)
+            del v
         self.labels = np.concatenate(self.lab) if self.lab else np.zeros(0, np.int16)
         self.chunks = self.lab = None
         self.ids = [r[3] for r in self.rows]
@@ -88,6 +93,31 @@ class SeqBank:
     def get(self, i):
         off, T, aspect, rid = self.rows[i]
         return {k: self.data[k][off:off + T] for k in TR.KEYS}, self.labels[off:off + T].astype(np.int64), aspect, rid
+
+    def to_disk(self, path):
+        """Arrays → .npy files, opened again memory-mapped: DataLoader workers on Windows (spawn) get the file
+        paths instead of a pickled copy of gigabytes, and the OS shares the pages between them."""
+        os.makedirs(path, exist_ok=True)
+        for k, v in [*self.data.items(), ('_labels', self.labels)]:
+            np.save(os.path.join(path, f'{k}.npy'), np.ascontiguousarray(v))
+        self._disk = path
+        self._open()
+        return self
+
+    def _open(self):
+        self.data = {k: np.load(os.path.join(self._disk, f'{k}.npy'), mmap_mode='r') for k in TR.KEYS}
+        self.labels = np.load(os.path.join(self._disk, '_labels.npy'), mmap_mode='r')
+
+    def __getstate__(self):
+        st = self.__dict__.copy()
+        if st.get('_disk'):
+            st['data'] = st['labels'] = None
+        return st
+
+    def __setstate__(self, st):
+        self.__dict__.update(st)
+        if st.get('_disk'):
+            self._open()
 
 
 def load_recordings(sentence_dirs, recs, anns, index, unknown=None, exclude=(), edge=1, side=None, log=print):
@@ -501,6 +531,9 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
                    cfg['drop'], cfg['head_drop']).to(device)
     if cfg['init']:
         init_from(model, cfg['init'], vocab_list, log)
+    if cfg['workers'] > 0 and os.name == 'nt' and not getattr(tr, '_disk', None):
+        tr.to_disk(os.path.join(out_dir, '_train_bank'))      # spawned workers share it memory-mapped
+        log(f'train bank memory-mapped from {os.path.join(out_dir, "_train_bank")} for {cfg["workers"]} workers')
     sampler = torch.utils.data.RandomSampler(tr, replacement=True, num_samples=len(tr) * cfg['repeats'])
     dl = torch.utils.data.DataLoader(SeqDataset(tr, train=True, groups=groups, face=face, crop=tuple(cfg['crop']),
                                                 face_drop=cfg['face_drop'], splice=cfg['splice'],
