@@ -8,6 +8,8 @@
 import fs from 'node:fs';
 import { Lemmatizer } from '../src/tercume/morph.js';
 import { azLower } from '../src/tercume/words.js';
+import { GlossToText, textWords } from '../src/tercume/gloss2text.js';
+import { levenshtein } from '../src/tercume/continuous.js';
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
@@ -42,9 +44,21 @@ for (const it of items) {
   if (!detKeys.length) empty++;
   rows.push({ text: it.text, signs: it.signs.join(' '), p: detKeys.length ? m / detKeys.length : 0, r: kn.length ? hk / kn.length : 1 });
 }
+// işarələrdən mətn (brauzerdəki gloss2text, doğma qaydalarla) və mətnin söz xətası (WER), AzSLD-dəki kimi
+const g2t = new GlossToText(JSON.parse(fs.readFileSync('public/tercume/assets/gloss_text.json', 'utf8')));
+let werE = 0, werN = 0;
+items.forEach((it, k) => {
+  const hyp = it.signs.length ? g2t.generate(it.signs).text : '';
+  const r = textWords(it.text);
+  werE += levenshtein(textWords(hyp), r); werN += r.length;
+  rows[k].hyp = hyp;
+});
 const P = tp / Math.max(1, det), R = hitKnown / Math.max(1, refKnown);
 console.log(`${items.length} cümlə, ${det} tanınan işarə (${(det / items.length).toFixed(2)} hər cümlədə), ${empty} cümlədə heç nə`);
 console.log(`dəqiqlik ${P.toFixed(3)} | tutma (modelin bildiyi sözlər, ${(100 * refKnown / ref).toFixed(0)} % sözlər) ${R.toFixed(3)} | F1 ${(2 * P * R / Math.max(1e-9, P + R)).toFixed(3)}`);
+console.log(`işarə → mətn (gloss2text): WER ${(100 * werE / werN).toFixed(1)} %`);
 if (SHOW) {
-  for (const r of rows.sort((a, b) => a.r - b.r).slice(0, SHOW)) console.log(`  ${r.text}\n    → ${r.signs || '-'}`);
+  for (const r of rows.slice(0, SHOW)) console.log(`  ${r.text}
+    işarələr: ${r.signs || '-'}
+    mətn:     ${r.hyp || '-'}`);
 }

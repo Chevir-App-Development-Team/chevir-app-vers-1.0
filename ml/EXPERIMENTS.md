@@ -2316,3 +2316,49 @@ signs (Pəncərəni açdım → MƏN PƏNCƏRƏ AÇMAQ OLMAQ). "ali" joins xanı
 The web text figure is lower than the 63.0 % above because the false matches no longer count. The small F1 loss
 comes from right signs that the AzSLD signers did not use: MAVİ (they signed GÖY), DƏRƏCƏ (QRUP), SAHİL and
 ƏDƏBİYYAT (spelled), MOBİL TELEFON and TANIŞ OLMAQ as one sign (two in AzSLD). All gates pass; the thresholds stay.
+
+## E25 — Phase 0 tools: native review page, recording page, set C, whole numbers, grammar on the face (no training)
+
+**Review page `/rey/`** (roadmap V2, set D; `rey/index.html`, `src/rey/main.js`, items from `tools/build_review_items.mjs`
+→ `public/rey/items.json`). 70 items per release: 50 text → sign (the interview's 13 avatar sentences, 20 AzSLD test
+sentences, 17 from set C's dev half) and 20 sign → text (one recording per AzSLD test sentence: the avatar replays the
+participants' signs, below it the text gloss2text builds from what the sentence model recognized in that recording,
+with that sentence left out of gloss2text's counts). Text → sign: the reviewer first writes what the avatar said
+without seeing the text, then sees it and rates comprehension and naturalness 1–5. Sign → text: meaning and language
+1–5, an optional corrected text. A reviewer code instead of a name; answers stay in the browser (per release and
+code) and are downloaded as CSV; `tools/review_summary.mjs` averages several files by direction and source, shows
+agreement between reviewers and the lowest-rated items. No videos of people on the page (the repo is public).
+
+**Recording page `/qeyd/`** (D4; `qeyd/index.html`, `src/qeyd/main.js`, prompts from `tools/build_record_prompts.mjs`
+→ `public/qeyd/prompts.json`): a consent text (what is kept, who gets it, that models trained on it ship but videos and
+names do not, withdrawal), a participant code, main hand, front or back camera, video on or off. Each take: 3-2-1
+countdown, MediaPipe hands + pose + face on the device (the recognizer's `landmarks.js`), MediaRecorder video, both in
+IndexedDB; quality line (body, hands, face seen; frame rate, with a note that a slow device's points are re-extracted
+from the video later); ZIP export (stored, no library: consent, per take a `chevir-qeyd-1` landmark JSON in
+`LandmarkClip.toRaw` layout and the video). 201 prompts: 28 numbers still without a sign of their own (0, 7, 9, 13,
+16–20, tens, hundreds, thousands, years, time, a phone number, money, ordinals), 15 everyday words of the interview
+list still without a sign after JestDili.az, the direction sign DOĞRU, 7 places, and set C's 150 sentences. Checked
+end to end in headless Chrome with a fake camera fed from a JestDili.az clip (consent, take, ZIP with consent, JSON
+and video). On software rendering the landmarks come at ~3 frames/s, hence the frame-rate note.
+
+**Set C draft** (V1; `ml/setc/sentences.txt` → `tools/build_setc.mjs` → `ml/setc/setc.csv`): 150 sentences written
+for the product's domains (social services / DOST and ASAN 40, health 35, bank and money 30, daily life 45), first and
+second person, questions, negation, tenses, numbers and names. A first try picked web sentences (HPLT) by domain
+keywords: they read as news ("Offşorlarda qeydiyyatdan keçən şirkətlərin pulu…") and the keywords were loose
+("hesab edirəm", "növbəti"), so it was dropped. Within each domain alternately dev / test (76 / 74). Tags from our own
+analysis: dropped subject 40, wh-question 27, yes/no question 22, past 21, negation 14, numbers 11, future 8, -malı 7.
+Three sentences that were word-level near copies of AzSLD sentences were replaced. A draft for the team and the native
+users to edit; frozen once recorded.
+
+**Whole numbers** (N7, `WordLexicon #number`): with JestDili.az's number signs (YEDDİ, DOQQUZ, the tens from ON to DOXSAN
+except İYİRMİ, YÜZ, MİN, MİLYON) a number without a sign of its own is signed in the spoken parts when every part has
+a sign: 1990 → MİN DOQQUZ YÜZ DOXSAN, 35 → 30 5, 99 → DOXSAN DOQQUZ, 300 → 3 YÜZ; 7 and 9 now have signs. Otherwise
+digit by digit as before (25 → 2 5: no İYİRMİ; long numbers and leading zeros). The native user said every number has
+its own systematic sign, so this stays a stopgap until the numbers are recorded (/qeyd/).
+
+**Grammar on the face** (N6; `t2s.js grammar()`, `VrmAvatar.setGrammar`): every step of a question sentence carries
+its type: a question word (nə, harada, necə, neçə, kim, hansı, …) → brows down and the head slightly tilted, otherwise
+a yes/no question → brows up and the head slightly forward; the face is held 0.45 s after the question ends.
+Negation (the added YOX, the YOX sign, DEYİL) shakes the head (±10°, 2.2 Hz), from the negated verb on. Layered on
+each sign's own face (max) and head motion. "Gəldim. Gəlmədin?" → MƏN GƏLMƏK OLMAQ | SƏN GƏLMƏK~ YOX~ OLMAQ, the
+second sentence with raised brows. Cases in `tools/verify_words.mjs`; to be judged by native users on /rey/.
