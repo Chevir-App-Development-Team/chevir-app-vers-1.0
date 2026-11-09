@@ -66,6 +66,20 @@ const G = new GlossToText(model);
 const empty = S.filter((s) => !G.generate(s.glosses).text);
 check(!empty.length, `gloss_text.json: ${S.length} cümlənin hamısında mətn var${empty.length ? ` (boş: ${empty.length})` : ''}`);
 
+// Doğma işarə dilinin qrammatikası (E23): fel + YOX inkar, fel + OLMAQ / OLACAQ zaman, şəxsli cümlədə fel + LAZIM -malı,
+// adam + BİRLİKDƏ -la; ad + OLMAQ və şəxssiz LAZIM dəyişmir
+const native = [
+  ['MƏN GƏLMƏK OLMAQ', 'Mən gəldim'], ['MƏN SABAH GƏLMƏK OLACAQ', 'Mən sabah gələcəyəm'], ['MƏN GƏLMƏK LAZIM', 'Mən gəlməliyəm'],
+  ['MƏN GƏLMƏK YOX', 'Mən gəlmirəm'], ['SİZ İŞLƏMƏK OLACAQ', 'Siz işləyəcəksiniz'], ['O XƏSTƏ OLMAQ', 'O xəstə olmuş'],
+  ['HƏR GÜN 8 STƏKAN SU İÇMƏK LAZIM', 'Hər gün 8 stəkan su içmək lazımdır'],
+];
+for (const [labels, want] of native) {
+  const got = G.generate(labels.split(' ')).text;
+  check(got === want, `doğma: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+const birlikde = G.generate('MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ'.split(' ')).text;
+check(/anamla birlikdə/.test(birlikde) && /getdim$/.test(birlikde), `doğma: MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ → ${birlikde}`);
+
 // 4. morph.js ↔ inflect.js: lüğətin köklərindən qurulan formalar (sualsız) təhlildə öz kökünə qayıdır.
 // Qalanı əsasən omoqraflardır (adam: ad-ım / adam, bağla: bağ-a / bağla); kökün özü (əmr: al, bax) lüğət
 // sözü deyil, təhlil olunmur

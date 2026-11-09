@@ -45,7 +45,7 @@ const roman = (s) => [...s].reduce((sum, c, i) => sum + (ROMAN[c] < (ROMAN[s[i +
 const TENSE_SIGN = { past: 'olmaq', perf: 'olmaq', ev: 'olmaq', fut: 'olacaq', futc: 'olacaq', nec: 'lazım' };
 const SUBJECT_OF = { 1: 'mən', 2: 'sən', 4: 'biz', 5: 'siz', 7: 'siz' };
 const FINITE = new Set(['pres', 'past', 'perf', 'ev', 'fut', 'futc', 'aor', 'nec', 'cond']);
-const PERSON = new Set(['mən', 'sən', 'o', 'biz', 'siz', 'onlar', 'ana', 'ata', 'bacı', 'qardaş', 'dost', 'uşaq', 'oğul',
+export const PERSON = new Set(['mən', 'sən', 'o', 'biz', 'siz', 'onlar', 'ana', 'ata', 'bacı', 'qardaş', 'dost', 'uşaq', 'oğul',
   'qız', 'ər', 'arvad', 'nənə', 'baba', 'əmi', 'dayı', 'xala', 'bibi', 'nəvə', 'övlad', 'valideyn', 'ailə', 'yoldaş',
   'həyat yoldaşı', 'adam', 'insan', 'şəxs', 'kişi', 'qadın', 'oğlan', 'körpə', 'həkim', 'müəllim', 'müəllimə', 'tələbə',
   'şagird', 'qonşu', 'qonaq', 'həmkar', 'müdir', 'rəhbər', 'tərcüməçi']);
