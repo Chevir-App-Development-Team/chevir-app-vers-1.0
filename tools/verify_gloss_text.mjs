@@ -98,7 +98,9 @@ for (const [labels, want] of [['O ƏVVƏL XƏSTƏXANA İŞLƏMƏK', 'O əvvəl x
   ['MƏN 3 ƏDƏD QƏLƏM ALMAQ İSTƏMƏK', 'Mən 3 ədəd qələm almaq istəyirəm'], ['MƏN SİYAHI DƏRMAN LAZIM', 'Mənə siyahı dərman lazımdır'],
   ['MƏN XOŞU+GƏLMƏK', 'Mənim xoşum gəlir'], ['BU ƏTİR MƏN XOŞU+GƏLMƏK', 'Bu ətir mənim xoşuma gəlir'],
   ['MƏN XOŞU+GƏLMƏK YOX', 'Mənim xoşum gəlmir'], ['MƏN BACI VƏ QARDAŞ YOX', 'Mənim bacım və qardaşım yoxdur'],
-  ['MƏN MÜAYİNƏ MÜAYİNƏ LAZIM', 'Mənə müayinə lazımdır'], ['MƏN İNDİ YATMAQ', 'Mən indi yatıram']]) {
+  ['MƏN MÜAYİNƏ MÜAYİNƏ LAZIM', 'Mənə müayinə lazımdır'], ['MƏN İNDİ YATMAQ', 'Mən indi yatıram'],
+  ['MƏN 2 OĞUL VƏ 1 QIZ VAR', 'Mənim 2 oğlum və 1 qızım var'], ['SƏN AD NƏDİR', 'Sənin adın nədir'],
+  ['MƏN SƏN BAŞA+DÜŞMƏMƏK', 'Mən səni başa düşmürəm']]) {
   const got = G.generate(labels.split(' ').map((l) => l.replaceAll('+', ' '))).text;   // + : çoxsözlü işarə
   check(got === want, `zaman/xəbər/yer/say: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }

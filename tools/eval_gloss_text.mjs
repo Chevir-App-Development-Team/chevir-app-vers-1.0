@@ -144,6 +144,11 @@ if (fs.existsSync(DET)) {
     const m1 = nearestSentence(labels, S);
     known.push({ ref, raw: raw(labels), retr: m1 ? m1.text : raw(labels), both: m1 ? m1.text : g2tAll().generate(labels).text, labels });
   }
+  if (opt('--dump', null)) {
+    const d = JSON.parse(fs.readFileSync(opt('--dump', null), 'utf8'));
+    d.new = unseen.map((x) => ({ glosses: x.labels.join(' '), hyp: x.g2t, ref: x.ref }));
+    fs.writeFileSync(opt('--dump', null), JSON.stringify(d));
+  }
   console.log(`\n2. recognized glosses (${DET}, ${unseen.length} test recordings) → text`);
   const line = (name, set, cols) => console.log(`  ${name.padEnd(13)} ` + cols.map(([c, k]) => `${c} ${score(set.map((x) => ({ hyp: x[k], ref: x.ref })))}`).join(' | '));
   line('new sentence', unseen, [['gloss string', 'raw'], ['nearest AzSLD sentence', 'retr'], ['gloss2text', 'g2t'], ['nearest, else gloss2text', 'both']]);

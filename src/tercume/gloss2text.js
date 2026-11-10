@@ -143,6 +143,8 @@ const PLACE_NAMES = new Set(['bakı', 'gəncə', 'sumqayıt', 'şamaxı', 'şək
   'ispaniya', 'çin', 'yaponiya', 'dubay', 'misir', 'kəlbəcər', 'zəngilan', 'qubadlı', 'cəbrayıl', 'xocalı', 'ağcabədi']);
 const XOSH = { 1: 'xoşum', 2: 'xoşun', 3: 'xoşu', 4: 'xoşumuz', 5: 'xoşunuz', 6: 'xoşları' };
 const XOSH_DAT = { 1: 'xoşuma', 2: 'xoşuna', 3: 'xoşuna', 4: 'xoşumuza', 5: 'xoşunuza', 6: 'xoşlarına' };
+const NEG_LABEL = /(m[aə]m[aə][kq]|m[aə]y[ıi]b|[^t]əm[iı]r|[^ə]m[ıiuü]r)$/;
+const TIME_WORDS = new Set([...PAST_MARK, 'sabah', 'bu gün', 'indi', 'həmişə', 'axşam', 'səhər', 'gecə', 'günorta', 'sonra', 'tez', 'gec']);
 const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
@@ -450,8 +452,10 @@ export class GlossToText {
     if (kin?.via === 'form' && KIN.has(name(kin))) {            // öyrənilmiş bütöv söz (oğlum): kökdən qurulur
       Object.assign(kin, { via: 'gen', lx: { pos: 'noun', root: name(kin) }, f: {} });
     }
-    if (kin?.lx?.pos === 'noun' && KIN.has(kin.lx.root) && !kin.f.case && !kin.f.poss) {
-      kin.f = { ...kin.f, poss: possOf(SUBJECT[pron.lx.root]) };
+    // feli olmayan cümlədə təsirlik ola bilməz (SİZ AD NƏDİR: adı → adınız)
+    const objCase = kin?.f?.case === 'acc' && !content.some((it) => it.lx?.pos === 'verb');
+    if (kin?.lx?.pos === 'noun' && KIN.has(kin.lx.root) && (!kin.f.case || objCase) && (!kin.f.poss || kin.f.poss !== possOf(SUBJECT[pron.lx.root]))) {
+      kin.f = { poss: possOf(SUBJECT[pron.lx.root]) };
       pron.f = { case: 'gen' }; pron.keepGen = true;
     }
     if (content.length < 3) return;
@@ -463,9 +467,13 @@ export class GlossToText {
       owner.f = { poss: possOf(SUBJECT[pron.lx.root]), case: 'gen' };   // MƏN ANA 67 YAŞ VAR → Mənim anamın 67 yaşı var
       noun.f = { poss: 3 };
       pron.f = { case: 'gen' }; pron.keepGen = true;
-    } else if ((n === 'var' || n === 'yox') && between.every((it) => it.via === 'form' || (it.lx?.pos === 'noun'
-      && !SUBJECT[it.lx.root] && !KIN.has(it.lx.root) && (!it.f.case || it.f.case === 'loc') && !it.f.poss))) {
+    } else if ((n === 'var' || n === 'yox') && between.every((it, j) => it.via === 'form' || (it.lx?.pos === 'noun'
+      && !SUBJECT[it.lx.root] && !(j === 0 && KIN.has(it.lx.root)) && (!it.f.case || it.f.case === 'loc') && (!it.f.poss || it.f.poss === 'P')))) {
       noun.f = { ...noun.f, poss: possOf(SUBJECT[pron.lx.root]) };
+      // VƏ-dən əvvəlki ad da yiyəlidir: MƏN 2 OĞUL VƏ 1 QIZ VAR → 2 oğlum və 1 qızım
+      between.forEach((it, j) => {
+        if (it.lx?.pos === 'noun' && name(between[j + 1] ?? noun) === 'və') it.f = { ...it.f, poss: possOf(SUBJECT[pron.lx.root]) };
+      });
       delete noun.f.case;
       pron.f = { case: 'gen' }; pron.keepGen = true;
     } else if (n === 'lazım' && last.via !== 'drop' && between.every((it) => it.lx?.pos === 'noun' && !SUBJECT[it.lx.root])) {
@@ -554,11 +562,13 @@ export class GlossToText {
     const content = items.filter((it) => it.via !== 'drop');
     const last = content.at(-1);
     if (!last || last.via !== 'gen' || last.lx.pos !== 'noun' || last.f.case || last.f.cop || SUBJECT[last.lx.root]) return;
-    if (QWORDS.has(last.lx.root) || EXIST.has(last.lx.root) || INFLECTED.test(last.lx.root)) return;
+    if (QWORDS.has(last.lx.root) || EXIST.has(last.lx.root) || INFLECTED.test(last.lx.root) || TIME_WORDS.has(last.lx.root)) return;
     if (items.some((it) => it.via === 'drop' && it.negMark !== undefined)) return;
     if (content.some((it) => it.lx?.pos === 'verb' || EXIST.has(it.labels.length === 1 ? labelText(it.labels[0]) : ''))) return;
     const subj = content.find((it) => it.lx && (SUBJECT[it.lx.root] || it.lx.root === 'bu') && !it.f.case);
     if (!subj || subj === last) return;
+    // aradakı ad hal alıbsa (MƏN EV QAZ İYİ: evdə), son ad o cümləciyin mübtədasıdır, xəbər deyil
+    if (content.slice(content.indexOf(subj) + 1, -1).some((it) => it.f?.case && it.f.case !== 'gen')) return;
     if (ACTION.has(last.lx.root) && SUBJECT[subj.lx.root]) {     // MƏN HƏR GÜN İDMAN → idman edirəm
       last.lx = { ...last.lx, pos: 'verb', root: 'et', prefix: last.lx.root };
       last.f = { tam: 'pres' };
@@ -599,6 +609,12 @@ export class GlossToText {
       // görünməmiş işarənin adındakı zaman və inkar (OLACAQ, BİLMİR) qorunur
       const inh = !lx.seen && this.m.guess[l]?.inherent;
       items.push({ labels: [l], lx, f: inh ? { ...f, ...inh } : f, via: 'gen' });
+    }
+    // inkar işarənin adındadır (BAŞA DÜŞMƏMƏK, GÖRMƏMƏK, İŞLƏMİR): fel inkarda qalır (E27)
+    for (const it of items) {
+      if (it.via === 'gen' && it.lx?.pos === 'verb' && it.labels.length === 1 && NEG_LABEL.test(labelText(it.labels[0])) && !it.f.neg) {
+        it.f = { ...it.f, neg: true, tam: FINITE.has(it.f.tam) ? it.f.tam : 'pres' };
+      }
     }
     if (this.native) this.#native(items);
     this.#have(items);
