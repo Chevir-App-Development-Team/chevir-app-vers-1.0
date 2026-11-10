@@ -32,8 +32,13 @@ export function harmonize(stem, suffix) {
 // Sait ilə başlayan şəkilçidən əvvəl kökün son samiti dəyişir: çoxhecalı adda k → y, q → ğ
 // (kömək → köməyə, uşaq → uşağa); fellərdən get, et → ged, ed (gedir, edəcək)
 const VERB_ALT = { get: 'ged', et: 'ed' };
+// Son hecanın saiti düşən adlar (oğul → oğlum, ağız → ağzı, şəkil → şəkli, fikir → fikrim)
+const ELIDE = { oğul: 'oğl', ağız: 'ağz', burun: 'burn', alın: 'aln', boyun: 'boyn', beyin: 'beyn', ömür: 'ömr',
+  şəkil: 'şəkl', fikir: 'fikr', sinif: 'sinf', isim: 'ism', nəsil: 'nəsl', qəbir: 'qəbr', səbir: 'səbr',
+  ətir: 'ətr', əmir: 'əmr', fəsil: 'fəsl' };
 function joinVowel(stem, verb) {
   if (verb) return VERB_ALT[stem] ?? stem;
+  if (ELIDE[stem]) return ELIDE[stem];
   if (syllables(stem) > 1 && stem.endsWith('k')) return stem.slice(0, -1) + 'y';
   if (syllables(stem) > 1 && stem.endsWith('q')) return stem.slice(0, -1) + 'ğ';
   return stem;

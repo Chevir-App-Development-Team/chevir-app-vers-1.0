@@ -77,6 +77,15 @@ for (const [labels, want] of native) {
   const got = G.generate(labels.split(' ')).text;
   check(got === want, `doğma: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
+// Yiyəlik və tamamlıq (E26): var/yox cümləsi, ad + LAZIM, ikinci əvəzliyin halı felin idarəsi ilə, ismi fel + modal,
+// qohumluq sözü əvəzlikdən sonra, son hecanın saiti düşən ad
+for (const [labels, want] of [['MƏN 2 BACI VAR', 'Mənim 2 bacım var'], ['SİZ EV VAR', 'Sizin eviniz var'],
+  ['MƏN DƏRMAN LAZIM', 'Mənə dərman lazımdır'], ['MƏN SƏN SEVMƏK', 'Mən səni sevirəm'], ['O MƏN VERMƏK', 'O mənə verməlidir'],
+  ['MƏN SƏN KÖMƏK ETMƏK BİLMƏK', 'Mən sənə kömək edə bilərəm'], ['MƏN SU VERMƏK BİLMƏK', 'Mən su verə bilərəm'],
+  ['MƏN OĞUL EŞİTMƏ MƏHDÜDİYYƏTLİ', 'Mənim oğlum eşitmə məhdüdiyyətli']]) {
+  const got = G.generate(labels.split(' ')).text;
+  check(got === want, `yiyəlik/tamamlıq: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
 const birlikde = G.generate('MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ'.split(' ')).text;
 check(/anamla birlikdə/.test(birlikde) && /getdim$/.test(birlikde), `doğma: MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ → ${birlikde}`);
 

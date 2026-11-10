@@ -78,6 +78,22 @@ export const WEIGHTS = { lc: 8, ln: 4, l: 2, cn: 2, cc: 1, cr: 1, c: 0 };
 // Mətndə sözü olmayan işarə (AzSLD-nin mətnində tutuşmayan): əvvəl bir dəfə görünən də atılırdı (ƏLİL 13/14, VERMƏK 7/13,
 // ÖDƏMƏK 2/2, GƏTİRMƏK 1/1), yeni cümlədə məna itirdi. İndi yalnız tez-tez görünüb demək olar həmişə sözsüz qalan
 export const DROP = { min: 3, ratio: 0.7 };
+// İkinci şəxs əvəzliyi (tamamlıq) felin idarəsi ilə (E26): kimə — yönlük, kimi — təsirlik. Saylarda görünməyən
+// birləşmələr üçün; görünən (MƏN SİZ GÖZLƏMƏK → sizi) sayla qalır
+const GOVERN = {
+  dat: ['kömək', 'kömək etmək', 'zəng', 'zəng etmək', 'vermək', 'demək', 'yazmaq', 'göstərmək', 'göndərmək', 'izah etmək',
+    'baxmaq', 'inanmaq', 'qulaq asmaq', 'müraciət etmək', 'təbrik etmək', 'satmaq', 'gətirmək', 'öyrətmək', 'söyləmək'],
+  acc: ['sevmək', 'gözləmək', 'görmək', 'tanımaq', 'çağırmaq', 'eşitmək', 'başa düşmək', 'anlamaq', 'aparmaq',
+    'axtarmaq', 'unutmaq', 'xatırlamaq', 'dəvət etmək', 'qorumaq', 'öpmək', 'qucaqlamaq'],
+};
+// yiyəlik şəkilçisi: onların → III şəxs (onların əmisi)
+const possOf = (p) => (p === 6 ? 3 : p);
+const CASE_OF = new Map([...GOVERN.dat.map((v) => [v, 'dat']), ...GOVERN.acc.map((v) => [v, 'acc'])]);
+// Əvəzlikdən sonra yiyəlikdə işlənən adlar: qohumluq, ad, yaş (MƏN OĞUL → mənim oğlum)
+const KIN = new Set(['ana', 'ata', 'oğul', 'qız', 'bacı', 'qardaş', 'nənə', 'baba', 'ər', 'arvad', 'yoldaş', 'həyat yoldaşı',
+  'uşaq', 'övlad', 'nəvə', 'əmi', 'dayı', 'xala', 'bibi', 'dost', 'ad', 'yaş', 'ailə']);
+// İsmi fel kimi işlənən işarə (KÖMƏK, ZƏNG): modal felin qabağında köməkçi fel alır — kömək edə bilərəm
+const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
 const inc = (m, k, n = 1) => { m[k] = (m[k] ?? 0) + n; };
@@ -360,13 +376,38 @@ export class GlossToText {
     const content = items.filter((it) => it.via !== 'drop');
     const last = content.at(-1), n = name(last);
     const p0 = content.findIndex((it) => it.lx && SUBJECT[it.lx.root]);
-    if (p0 < 0 || content.length < 3) return;
+    if (p0 < 0) return;
     const pron = content[p0];
+    // ikinci əvəzlik tamamlıqdır: halını fel (və ya KÖMƏK kimi ismi fel) verir
+    const obj = content[p0 + 1];
+    if (obj?.lx && SUBJECT[obj.lx.root] && obj.lx.root !== pron.lx.root && (!obj.f.case || obj.f.case === 'gen')) {
+      const head = content.slice(p0 + 2).find((it) => it.lx && (it.lx.pos === 'verb' || LIGHT.has(it.lx.root)));
+      const c = head && (CASE_OF.get(head.lx.root) ?? CASE_OF.get(name(head)));
+      if (c) obj.f = { case: c };
+    }
+    // ismi fel + modal (BİLMƏK, İSTƏMƏK, OLMAQ): köməkçi fel "et-" (kömək edə bilərəm, zəng etmək istəyirəm)
+    for (let k = 0; k + 1 < content.length; k++) {
+      const a = content[k], b = content[k + 1];
+      if (a.lx && LIGHT.has(a.lx.root) && !a.lx.prefix && b.lx?.pos === 'verb' && MODAL.has(b.lx.root === 'bil' ? 'bilmək' : name(b))) {
+        a.lx = { ...a.lx, pos: 'verb', root: 'et', prefix: a.lx.root };
+        a.f = { tam: name(b) === 'istəmək' ? 'inf' : 'opt' };
+      }
+    }
+    // qohumluq, ad, yaş: əvəzlikdən sonra yiyəlik (mənim oğlum), əgər ad başqa halda deyilsə
+    const kin = content[p0 + 1];
+    if (kin?.via === 'form' && KIN.has(name(kin))) {            // öyrənilmiş bütöv söz (oğlum): kökdən qurulur
+      Object.assign(kin, { via: 'gen', lx: { pos: 'noun', root: name(kin) }, f: {} });
+    }
+    if (kin?.lx?.pos === 'noun' && KIN.has(kin.lx.root) && !kin.f.case && !kin.f.poss) {
+      kin.f = { ...kin.f, poss: possOf(SUBJECT[pron.lx.root]) };
+      pron.f = { case: 'gen' };
+    }
+    if (content.length < 3) return;
     const noun = content.at(-2);
     const between = content.slice(p0 + 1, -2);
     if (!noun?.lx || noun.lx.pos !== 'noun' || SUBJECT[noun.lx.root]) return;
     if ((n === 'var' || n === 'yox') && between.every((it) => it.via === 'form')) {
-      noun.f = { ...noun.f, poss: SUBJECT[pron.lx.root] };
+      noun.f = { ...noun.f, poss: possOf(SUBJECT[pron.lx.root]) };
       delete noun.f.case;
       pron.f = { case: 'gen' };
     } else if (n === 'lazım' && between.length === 0 && last.via !== 'drop') {
