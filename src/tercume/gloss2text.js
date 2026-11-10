@@ -91,6 +91,7 @@ const possOf = (p) => (p === 6 ? 3 : p);
 const CASE_OF = new Map([...GOVERN.dat.map((v) => [v, 'dat']), ...GOVERN.acc.map((v) => [v, 'acc'])]);
 // Əvəzlikdən sonra yiyəlikdə işlənən adlar: qohumluq, ad, yaş (MƏN OĞUL → mənim oğlum)
 const KIN = new Set(['ana', 'ata', 'oğul', 'qız', 'bacı', 'qardaş', 'nənə', 'baba', 'ər', 'arvad', 'yoldaş', 'həyat yoldaşı',
+  'qayınata', 'qayınana', 'qayın', 'baldız', 'gəlin', 'kürəkən', 'valideyn', 'əmioğlu', 'xalaoğlu', 'qohum', 'qonşu',
   'uşaq', 'övlad', 'nəvə', 'əmi', 'dayı', 'xala', 'bibi', 'dost', 'ad', 'yaş', 'ailə']);
 // İsmi fel kimi işlənən işarə (KÖMƏK, ZƏNG): modal felin qabağında köməkçi fel alır — kömək edə bilərəm
 // Keçmişi bildirən zaman sözləri və il (E27): sonrakı felin indiki zamanı keçmişə keçir — MƏN DÜNƏN DOST GÖRÜŞMƏK →
@@ -145,6 +146,15 @@ const XOSH = { 1: 'xoşum', 2: 'xoşun', 3: 'xoşu', 4: 'xoşumuz', 5: 'xoşunuz
 const XOSH_DAT = { 1: 'xoşuma', 2: 'xoşuna', 3: 'xoşuna', 4: 'xoşumuza', 5: 'xoşunuza', 6: 'xoşlarına' };
 const NEG_LABEL = /(m[aə]m[aə][kq]|m[aə]y[ıi]b|[^t]əm[iı]r|[^ə]m[ıiuü]r)$/;
 const TIME_WORDS = new Set([...PAST_MARK, 'sabah', 'bu gün', 'indi', 'həmişə', 'axşam', 'səhər', 'gecə', 'günorta', 'sonra', 'tez', 'gec']);
+// öz-özünə olan hal: mübtəda şəxs deyil, onun bir şeyidir (Mənim ayağım ağrıyır)
+const UNACC = new Set(['ağrı', 'ağrımaq', 'bit', 'bitmək', 'blokla', 'bloklan', 'bloklanmaq', 'öl', 'ölmək', 'it', 'itmək', 'sın',
+  'sınmaq', 'kəsil', 'kəsilmək', 'oğurlan', 'xarab ol', 'xarab olmaq', 'dayan', 'dayanmaq', 'işləmir', 'yan', 'yanmaq', 'gecik',
+  'gecikmək', 'pozul', 'pozulmaq', 'qırıl', 'qırılmaq', 'qal', 'qalmaq']);
+const ADVERB = new Set(['çox', 'az', 'pis', 'yaxşı', 'tez', 'hələ', 'heç', 'bir', 'necə', 'neçə', 'yer', 'artıq', 'yenə', 'daha', 'hər']);
+// bədən: əvəzlikdən sonra yiyəlidir, əgər fel yoxdursa və ya fel öz-özünə olan haldırsa (ağrımaq) və ya görmək,
+// eşitmək (MƏN GÖZ PİS GÖRMƏK → Mənim gözüm pis görür; MƏN ƏL YUMAQ isə yox)
+const BODY = new Set(['baş', 'göz', 'qulaq', 'ayaq', 'əl', 'bel', 'diş', 'ürək', 'qarın', 'boğaz', 'burun', 'ağız', 'mədə',
+  'böyrək', 'qol', 'barmaq', 'diz', 'sinə', 'kürək', 'boyun', 'təzyiq']);
 const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
@@ -454,7 +464,9 @@ export class GlossToText {
     }
     // feli olmayan cümlədə təsirlik ola bilməz (SİZ AD NƏDİR: adı → adınız)
     const objCase = kin?.f?.case === 'acc' && !content.some((it) => it.lx?.pos === 'verb');
-    if (kin?.lx?.pos === 'noun' && KIN.has(kin.lx.root) && (!kin.f.case || objCase) && (!kin.f.poss || kin.f.poss !== possOf(SUBJECT[pron.lx.root]))) {
+    const verb = content.find((it) => it.lx?.pos === 'verb');
+    const body = kin?.lx && BODY.has(kin.lx.root) && (!verb || UNACC.has(verb.lx.root) || ['gör', 'eşit'].includes(verb.lx.root));
+    if (kin?.lx?.pos === 'noun' && (KIN.has(kin.lx.root) || body) && (!kin.f.case || objCase) && (!kin.f.poss || kin.f.poss !== possOf(SUBJECT[pron.lx.root]))) {
       kin.f = { poss: possOf(SUBJECT[pron.lx.root]) };
       pron.f = { case: 'gen' }; pron.keepGen = true;
     }
@@ -535,6 +547,29 @@ export class GlossToText {
         it.pers = 3;
       }
     }
+  }
+
+  /**
+   * Yiyəsi olan şeyin öz-özünə olan halı (E27): əvəzlik + ad + ağrımaq, bitmək, xarab olmaq... — əvəzlik yiyəlikdə, felin
+   * qabağındakı ad onun mənsubiyyətində, fel III şəxsdə: MƏN AYAQ AĞRIMAQ → Mənim ayağım ağrıyır, MƏN MOBİL TELEFON
+   * İŞLƏMİR → Mənim mobil telefonum işləmir.
+   */
+  #owned(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    const content = items.filter((it) => it.via !== 'drop');
+    const p0 = content.findIndex((it) => it.lx && SUBJECT[it.lx.root]);
+    if (p0 < 0 || content[p0].f.case) return;
+    const v = content.findIndex((it, k) => k > p0 + 1 && it.lx?.pos === 'verb');
+    if (v < 0 || !(UNACC.has(content[v].lx.root) || UNACC.has(name(content[v])))) return;
+    if (/(d[ıiuü]m|d[ıiuü]q|d[ıiuü]k|d[ıiuü]n)$/.test(name(content[v]) ?? '')) return;   // KƏSİLDİM: şəxs işarənin adındadır
+    const nouns = content.slice(p0 + 1, v);
+    const plain = (it) => it.lx?.pos === 'noun' && !SUBJECT[it.lx.root] && !it.f.case && !TIME_WORDS.has(it.lx.root)
+      && !it.lx.proper && !PLACE.has(it.lx.root) && !ADVERB.has(it.lx.root);
+    if (!nouns.length || !plain(nouns.at(-1)) || !nouns.every((it) => plain(it) || it.via === 'form')) return;
+    const pron = content[p0];
+    nouns.at(-1).f = { poss: possOf(SUBJECT[pron.lx.root]) };
+    pron.f = { case: 'gen' }; pron.keepGen = true;
+    content[v].pers = 3;
   }
 
   /** Yer adının halı felə görə (PLACE_CASE): felin qabağında, aradakı sözlər hal almayıbsa. */
@@ -621,6 +656,7 @@ export class GlossToText {
     this.#time(items);
     this.#like(items);
     this.#place(items);
+    this.#owned(items);
     this.#copula(items);
     // Yiyə: şəxs əvəzliyindən sonrakı ad onun mənsubiyyətindədirsə (mənim atam), əvəzlik yiyəlik haldadır;
     // ad mənsubiyyət almırsa (yer adı: Mən Bakıda), əvəzlik yiyəlikdə qalmır. Qərarı ad verir: qohumluq,
@@ -657,6 +693,7 @@ export class GlossToText {
       if (it.lx.pos === 'verb' && FINITE.has(f.tam)) {
         f.pers = it.pers ?? Number(this.#best(this.m.subj[subj]) ?? subj);
         if (f.tam === 'ev' && ![3, 6].includes(f.pers)) f.tam = 'perf';     // gəlib → mən gəlmişəm
+        else if (f.tam === 'perf' && [3, 6].includes(f.pers)) f.tam = 'ev';  // o görmüş → o görüb (E27)
       }
       if (f.cop) f.cop = subj === 6 ? 3 : subj;
       const w = realize(it.lx.root, it.lx.pos, f) ?? it.lx.root;

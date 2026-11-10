@@ -70,7 +70,7 @@ check(!empty.length, `gloss_text.json: ${S.length} cümlənin hamısında mətn 
 // adam + BİRLİKDƏ -la; ad + OLMAQ və şəxssiz LAZIM dəyişmir
 const native = [
   ['MƏN GƏLMƏK OLMAQ', 'Mən gəldim'], ['MƏN SABAH GƏLMƏK OLACAQ', 'Mən sabah gələcəyəm'], ['MƏN GƏLMƏK LAZIM', 'Mən gəlməliyəm'],
-  ['MƏN GƏLMƏK YOX', 'Mən gəlmirəm'], ['SİZ İŞLƏMƏK OLACAQ', 'Siz işləyəcəksiniz'], ['O XƏSTƏ OLMAQ', 'O xəstə olmuş'],
+  ['MƏN GƏLMƏK YOX', 'Mən gəlmirəm'], ['SİZ İŞLƏMƏK OLACAQ', 'Siz işləyəcəksiniz'], ['O XƏSTƏ OLMAQ', 'O xəstə olub'],
   ['HƏR GÜN 8 STƏKAN SU İÇMƏK LAZIM', 'Hər gün 8 stəkan su içmək lazımdır'],
 ];
 for (const [labels, want] of native) {
@@ -100,7 +100,9 @@ for (const [labels, want] of [['O ƏVVƏL XƏSTƏXANA İŞLƏMƏK', 'O əvvəl x
   ['MƏN XOŞU+GƏLMƏK YOX', 'Mənim xoşum gəlmir'], ['MƏN BACI VƏ QARDAŞ YOX', 'Mənim bacım və qardaşım yoxdur'],
   ['MƏN MÜAYİNƏ MÜAYİNƏ LAZIM', 'Mənə müayinə lazımdır'], ['MƏN İNDİ YATMAQ', 'Mən indi yatıram'],
   ['MƏN 2 OĞUL VƏ 1 QIZ VAR', 'Mənim 2 oğlum və 1 qızım var'], ['SƏN AD NƏDİR', 'Sənin adın nədir'],
-  ['MƏN SƏN BAŞA+DÜŞMƏMƏK', 'Mən səni başa düşmürəm']]) {
+  ['MƏN SƏN BAŞA+DÜŞMƏMƏK', 'Mən səni başa düşmürəm'], ['MƏN AYAQ AĞRIMAQ', 'Mənim ayağım ağrıyır'],
+  ['MƏN MOBİL TELEFON İŞLƏMİR', 'Mənim mobil telefonum işləmir'], ['O SƏNƏD İTİRMƏK', 'O sənədi itirib'],
+  ['MƏN MÜƏLLİM İŞLƏMƏK', 'Mən müəllim işləyirəm']]) {
   const got = G.generate(labels.split(' ').map((l) => l.replaceAll('+', ' '))).text;   // + : çoxsözlü işarə
   check(got === want, `zaman/xəbər/yer/say: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
