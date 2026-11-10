@@ -2535,6 +2535,12 @@ yaşayıram", "Bu mənim atamdır"); test unseen learnable without them: 0.809 b
 The decoding this run chose (min_p 0.4, min_len 8, gap 4) on `final_all_ctc`: F1 0.698 against 0.696, WER 60.7 %
 against 59.8 %; the installed decoding stays.
 
+**Installed:** `final_all_ctc500`, the same recipe with all 500 JestDili.az sentences (1,849 signs) in the CTC loss
+(`jestdili_sentence_glosses_all.json`, `--holdout 0`), 60 epochs on this PC. JestDili.az is now training data, so it
+has no new-person score of its own; the evidence is `final_all_ctc` (half held out) above. AzSLD test (seen) F1 0.975
+(was 0.979). `ml/install_continuous.py --install`: the 12 `verify_*` scripts pass (the browser port reproduces
+PyTorch), gates pass (s2t dev 42.0, test 44.1). The previous model is kept outside git (D:/chevir/backup).
+
 **Sign → text grammar** (gloss2text; each rule kept only if it did not hurt AzSLD dev (leave-one-out), test, the
 recognized new sentences and the JestDili.az sentences; sentence-by-sentence diffs with `eval_gloss_text.mjs --dump`).
 Word error rates:
