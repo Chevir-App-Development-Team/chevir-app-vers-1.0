@@ -50,7 +50,7 @@ const formCases = [
   ['evdə', 'w:ev'], ['anam', 'w:ana'], ['Bakıda', 'w:Bakı'], ['oğlum', 'w:oğul'], ['uşağın', 'w:uşaq'],
   ['köynəyini', 'w:köynək'], ['gedəcəm', 'w:getmək'], ['yaşayıram', 'w:yaşamaq'], ['istəyirsən', 'w:istəyir'],
   ['bilirəm', 'w:bilmək'], ['bilmirəm', 'w:bilmir'], ['bilmədim', 'w:bilmir'], ['düşmürəm', 'w:düşməmək'],
-  ['olan', 'w:olmaq'], ['itib', 'w:itib'], ['it', 't:it'], ['ilə', 'd:ilə'], ['yadımda', 't:yadımda'],
+  ['olan', 'w:olmaq'], ['itib', 'w:itib'], ['it', 't:it'], ['ilə', 'd:ilə'], ['də', 'd:də'], ['isə', 'd:isə'], ['yadımda', 't:yadımda'],
   ['şənbə günü', 't:şənbə _ w:gün'], ['ad günündə', 'w:ad günü'],
   ['DOST mərkəzi', 't:dost _ t:mərkəzi'], ['DOST', 'w:dost'],
   // inkarlı felin öz işarəsi yoxdursa: fel + YOX (müsbət işarə tək qalmır), hər zamanda

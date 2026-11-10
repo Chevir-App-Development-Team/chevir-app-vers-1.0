@@ -15,8 +15,8 @@ export const azLower = (s) => s.replace(/I/g, 'ı').replace(/İ/g, 'i').toLocale
 const EDGE_PUNCT = /^[.,!?;:"'“”‘’«»()[\]…–—-]+|[.,!?;:"'“”‘’«»()[\]…–—-]+$/g;
 
 // Lüğətdə işarəsi olmayan köməkçi sözlər: AzSLD iştirakçıları onları göstərmir (ilə 0/6, idi 0/4,
-// ki 0/2 cümlədə, ml/EXPERIMENTS.md E16), hərf-hərf göstərmək cümləni uzadır
-const DROP = new Set(['ilə', 'idi', 'ki']);
+// ki 0/2 cümlədə, ml/EXPERIMENTS.md E16; da / də 0/2, isə, E27), hərf-hərf göstərmək cümləni uzadır
+const DROP = new Set(['ilə', 'idi', 'ki', 'da', 'də', 'isə']);
 
 // Rəqəmlər: lüğətdə öz işarəsi olmayan ədəd rəqəm-rəqəm göstərilir (25 → 2 5); işarəsi olmayan
 // rəqəm (0, 7, 9) adı ilə hərf-hərf. Sözlə yazılan say və sıra sayı (beş, üçüncü, III) ədədin
