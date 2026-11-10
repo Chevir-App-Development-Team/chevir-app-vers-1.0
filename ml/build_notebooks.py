@@ -957,6 +957,7 @@ SPELLING = __SPELLING__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
 NONE_PER_LETTER = 1.0   # <none> samples per letter sign of the sentences, per split
 TRAIN_ON_VAL = False    # final model: val signers / contributors too (runs then need save_epoch)
+TRAIN_ON_ALL = False    # shipped model: test signers and contributors too; nothing is left to test (E27)
 # v2: hand shape + movement only ('hand') or with the hand's place in the image and the presence flags
 # ('hand_pos'): val macro-F1 0.907 / 0.913, top-1 0.922 / 0.925, val photos (another camera distance)
 # 0.902 / 0.888 → 'hand', best epoch 51 (test top-1 0.918; the old model 0.214 on the same samples).
@@ -1010,6 +1011,10 @@ if TRAIN_ON_VAL:
     tags['split'] = tags.split.replace({'val': 'train'})
     fsplit['split'] = fsplit.split.replace({'val': 'train'})
     assert all(r.get('save_epoch') for r in RUNS.values()), 'without val, every run needs a fixed save_epoch'
+if TRAIN_ON_ALL:
+    assert TRAIN_ON_VAL, 'TRAIN_ON_ALL is a final model: TRAIN_ON_VAL too'
+    tags['split'] = tags.split.replace({'test': 'train'})
+    fsplit['split'] = fsplit.split.replace({'test': 'train'})
 lt = L.letter_tags(tags)
 if SMOKE:
     lt = lt.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 150), random_state=0))
