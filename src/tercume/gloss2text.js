@@ -737,6 +737,14 @@ export class GlossToText {
       it.word = it.lx.proper
         ? word.split(' ').map((t, j) => (it.lx.proper[j] ? t[0].toLocaleUpperCase('az') + t.slice(1) : t)).join(' ') : word;
     }
+    // hərflə göstərilən ad AD-dan sonra (E27): böyük hərflə, cümlənin sonundadırsa xəbər — Mənim adım Samirdir
+    items.forEach((it, k) => {
+      const prev = items.slice(0, k).reverse().find((x) => x.via !== 'drop');
+      if (it.via !== 'letters' || !prev?.lx || prev.lx.root !== 'ad' || it.word.length < 2) return;
+      const last = !items.slice(k + 1).some((x) => x.via !== 'drop');
+      const w = last ? realize(it.word, 'noun', { cop: 3 }) ?? it.word : it.word;
+      it.word = w[0].toLocaleUpperCase('az') + w.slice(1);
+    });
     const words = items.map(({ labels: ls, word, via }) => ({ labels: ls, word, via }));
     const text = words.map((w) => w.word).filter(Boolean).join(' ');
     return { text: text ? text[0].toLocaleUpperCase('az') + text.slice(1) : '', words };
