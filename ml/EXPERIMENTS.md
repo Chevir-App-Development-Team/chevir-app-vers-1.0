@@ -2501,6 +2501,24 @@ Slovo checkpoint: every layer, and the head rows of the 167 mapped labels):
 Ahead early (epoch 25: signs macro-F1 0.797 against 10a's 0.778 at epoch 20), level at the end, on AzSLD's test
 signers and on the new person. Initialization alone does not carry Slovo's 194 people into the model.
 
+**JestDili.az sentences without frame labels (CTC).** The person's 500 sentences have text but no glosses or sign
+boundaries. `tools/jestdili_sentence_glosses.mjs` turns the text into the sentence model's labels (text → sign path
+in AzSLD style, sign_merge; words with no sign or a sign the model does not know become `<unk>`); half of the
+sentences (md5 of the id) stay out for testing. The other 254 (933 signs) train through a CTC loss next to the
+frame loss (`continuous.fit(weak=)`: weight 0.3, a batch of 4 whole recordings every 4th step; notebook 06
+`JESTDILI_CTC`). `final_all_ctc` = the installed model's recipe (all signers) with it, scored on the 246 held-out
+sentences:
+
+| | precision | recall (known words) | F1 | sign → text WER |
+|---|---|---|---|---|
+| installed (final_all) | 0.605 | 0.736 | 0.664 | 60.9 % |
+| + CTC on 254 other sentences | 0.627 | 0.782 | **0.696** | **59.8 %** |
+
+Paired bootstrap over sentences (`tools/compare_jestdili.mjs`, 2,000 resamples): F1 difference 95 % interval [+0.012,
++0.053]; 82 sentences better, 53 worse. The first clear gain on the new person. (The WER favours the installed model:
+some gloss2text rules came from its JestDili.az output.) On AzSLD's test recordings, seen by both, F1 0.977 against
+0.979.
+
 **Sign → text grammar** (gloss2text; each rule kept only if it did not hurt AzSLD dev (leave-one-out), test, the
 recognized new sentences and the JestDili.az sentences; sentence-by-sentence diffs with `eval_gloss_text.mjs --dump`).
 Word error rates:
