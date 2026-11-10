@@ -2501,6 +2501,23 @@ Slovo checkpoint: every layer, and the head rows of the 167 mapped labels):
 Ahead early (epoch 25: signs macro-F1 0.797 against 10a's 0.778 at epoch 20), level at the end, on AzSLD's test
 signers and on the new person. Initialization alone does not carry Slovo's 194 people into the model.
 
+**Slovo clips as training signs** (`slovo_clips_s1`: 10a's recipe, notebook 04 `SLOVO = 'slovo_azsld.csv'`: 3,438
+Slovo clips of the 167 mapped words join the train signers' 65,939 signs). AzSLD test level with 10a (words top-1
+0.851, words macro-F1 0.855, signs macro-F1 0.817, side macro-F1 0.759, open 0.847). On JestDili.az, by whether the
+word is in the map:
+
+| JestDili.az top-1 / top-5 | mapped words (128 clips) | other words (212) | all (340) |
+|---|---|---|---|
+| run 11 (train + val signers) | 0.422 / 0.641 | 0.344 / 0.524 | 0.374 / 0.568 |
+| run 13 (installed: all signers) | 0.453 / 0.633 | 0.368 / 0.528 | 0.400 / 0.568 |
+| Slovo init (train signers) | 0.438 / 0.609 | 0.354 / 0.524 | 0.385 / 0.556 |
+| Slovo clips (train signers) | **0.531** / **0.727** | 0.321 / 0.481 | **0.400** / **0.574** |
+
+Slovo's 194 people make the mapped words +8 to +11 points top-1 for the new person (against run 13: right only with
+Slovo clips on 19 mapped clips, only with run 13 on 9), so the draft map is mostly right. The other words lose: the
+mapped classes now have many more samples (the sampler weights count^-0.5, so a class's share grows with its count)
+and draw predictions. Not installed: the map is unconfirmed, and the next run weighs the Slovo clips down.
+
 **JestDili.az sentences without frame labels (CTC).** The person's 500 sentences have text but no glosses or sign
 boundaries. `tools/jestdili_sentence_glosses.mjs` turns the text into the sentence model's labels (text → sign path
 in AzSLD style, sign_merge; words with no sign or a sign the model does not know become `<unk>`); half of the
