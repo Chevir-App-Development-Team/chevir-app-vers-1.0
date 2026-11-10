@@ -82,7 +82,8 @@ export const DROP = { min: 3, ratio: 0.7 };
 // birləşmələr üçün; görünən (MƏN SİZ GÖZLƏMƏK → sizi) sayla qalır
 const GOVERN = {
   dat: ['kömək', 'kömək etmək', 'zəng', 'zəng etmək', 'vermək', 'demək', 'yazmaq', 'göstərmək', 'göndərmək', 'izah etmək',
-    'baxmaq', 'inanmaq', 'qulaq asmaq', 'müraciət etmək', 'təbrik etmək', 'satmaq', 'gətirmək', 'öyrətmək', 'söyləmək'],
+    'baxmaq', 'inanmaq', 'qulaq asmaq', 'müraciət etmək', 'təbrik etmək', 'satmaq', 'gətirmək', 'öyrətmək', 'söyləmək',
+    'xəbər', 'xəbər etmək', 'xəbər vermək', 'cavab', 'cavab vermək', 'məsləhət', 'icazə', 'mane olmaq', 'yaxınlaşmaq'],
   acc: ['sevmək', 'gözləmək', 'görmək', 'tanımaq', 'çağırmaq', 'eşitmək', 'başa düşmək', 'anlamaq', 'aparmaq',
     'axtarmaq', 'unutmaq', 'xatırlamaq', 'dəvət etmək', 'qorumaq', 'öpmək', 'qucaqlamaq'],
 };
@@ -156,7 +157,7 @@ const ADVERB = new Set(['çox', 'az', 'pis', 'yaxşı', 'tez', 'hələ', 'heç',
 const BODY = new Set(['baş', 'göz', 'qulaq', 'ayaq', 'əl', 'bel', 'diş', 'ürək', 'qarın', 'boğaz', 'burun', 'ağız', 'mədə',
   'böyrək', 'qol', 'barmaq', 'diz', 'sinə', 'kürək', 'boyun', 'təzyiq']);
 const REQUEST = new Set(['kömək', 'ver', 'de', 'göstər', 'izah', 'gətir', 'öyrət']);
-const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak']);
+const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak', 'xəbər']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
 const inc = (m, k, n = 1) => { m[k] = (m[k] ?? 0) + n; };
