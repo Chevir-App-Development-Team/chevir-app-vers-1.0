@@ -131,8 +131,8 @@ def subset_view(bank, ids, side):
 
 
 def load_slovo(dirs, margin=8, log=print):
-    """Slovo (rus işarə dili, tools/extract_slovo.py) → ({'train', 'val'}: train.Bank, etiketlər). Hər videonun
-    işarəsi annotasiyanın begin..end kadrları ±margin kontekstlə; "no_event" (işarəsiz) bütöv klipdir. Slovo-nun öz
+    """Slovo (rus işarə dili, tools/extract_slovo.py) → ({'train', 'val'}: train.Bank, etiketlər). Hər klip bütöv
+    bir işarədir (Kaggle versiyasında videolar begin..end-ə kəsilib; "no_event" işarəsizdir). Slovo-nun öz
     bölgüsü: train → train, test → val (ön öyrətmənin seçimi üçün; adamlar ayrıdır)."""
     store = LandmarkStore(dirs)
     idx = store.index
@@ -143,10 +143,7 @@ def load_slovo(dirs, margin=8, log=print):
     for item_id, r in idx.iterrows():
         raw = FT.reduce(store.get(item_id, dtype=np.float16))
         T = raw['hand'].shape[0]
-        if str(r['name']) == 'no_event':
-            a, b = 0, T
-        else:
-            a, b = max(0, min(int(r['begin']), T - 1)), min(T, int(r['end']))
+        a, b = 0, T          # Kaggle-dakı videolar artıq işarənin kadrlarına (begin..end) kəsilib
         if b - a < 4:
             skipped += 1
             continue

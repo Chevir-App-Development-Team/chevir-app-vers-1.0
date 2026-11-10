@@ -42,12 +42,14 @@ def main():
     args = ap.parse_args()
     paths = landmarks.ensure_models(str(args.models or args.out / 'models'))
 
-    ann = sorted(args.src.rglob('annotations.csv'), key=lambda p: len(p.parts))
+    # arxivdə iki annotations.csv var: işarənin kadrları (begin, end) yalnız üst qovluqdakındadır
+    ann = [p for p in sorted(args.src.rglob('annotations.csv'), key=lambda p: len(p.parts))
+           if 'begin' in p.open(encoding='utf-8').readline()]
     if not ann:
-        sys.exit(f'{args.src}: annotations.csv yoxdur')
+        sys.exit(f'{args.src}: begin/end sütunlu annotations.csv yoxdur')
     videos = {p.stem: p for p in args.src.rglob('*.mp4')}
     tasks = []
-    with open(ann[-1], encoding='utf-8') as f:
+    with open(ann[0], encoding='utf-8') as f:
         sep = '\t' if '\t' in f.readline() else ','
         f.seek(0)
         for r in csv.DictReader(f, delimiter=sep):
@@ -57,7 +59,7 @@ def main():
             split = 'train' if str(r.get('train', '')).strip().lower() in ('true', '1') else 'test'
             tasks.append((r['attachment_id'], str(vid), {'name': r['text'], 'user': r['user_id'], 'split': split,
                                                          'begin': int(float(r['begin'])), 'end': int(float(r['end']))}))
-    print(f'{ann[-1]}: {len(tasks)} video ({len(videos)} mp4 tapıldı)')
+    print(f'{ann[0]}: {len(tasks)} video ({len(videos)} mp4 tapıldı)')
     tasks = tasks[:args.limit] if args.limit else tasks
     writer = store.PartWriter(str(args.out / 'slovo'), items_per_part=500)
     pipeline.run_pool(tasks, _file_job, writer, (paths, True, False, None), workers=args.workers,
