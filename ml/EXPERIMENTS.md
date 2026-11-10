@@ -2519,6 +2519,22 @@ Paired bootstrap over sentences (`tools/compare_jestdili.mjs`, 2,000 resamples):
 some gloss2text rules came from its JestDili.az output.) On AzSLD's test recordings, seen by both, F1 0.977 against
 0.979.
 
+Does it cost AzSLD's new sentences? The same CTC under the v5 protocol (`seq_splice_ctc`: train signers only,
+held-out sentences out, epoch and decoding chosen on val unseen learnable), against the local baseline:
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | test side | JestDili.az held-out F1 / WER |
+|---|---|---|---|---|---|---|---|
+| baseline | 0.788 | 0.899 | 0.650 | **0.804** | **0.865** | **0.864** | 0.619 / 68.1 % |
+| + CTC | **0.838** | **0.900** | **0.653** | 0.799 | 0.853 | 0.859 | **0.689** / **62.2 %** |
+
+Ahead from the first epochs on val (epoch 14: 0.687 against 0.540 per-epoch unseen learnable), level on test: as with
+EMA and corpus order, the val gain does not reach AzSLD's test sentences, and nothing there is lost beyond noise
+(letters −0.012). On the new person: F1 +0.070, 95 % interval [+0.045, +0.091], 108 sentences better, 39 worse.
+Leakage check: two of the 49 held-out AzSLD sentences have the text of a CTC training sentence ("Mən Bakıda
+yaşayıram", "Bu mənim atamdır"); test unseen learnable without them: 0.809 baseline, 0.799 CTC (they did not help).
+The decoding this run chose (min_p 0.4, min_len 8, gap 4) on `final_all_ctc`: F1 0.698 against 0.696, WER 60.7 %
+against 59.8 %; the installed decoding stays.
+
 **Sign → text grammar** (gloss2text; each rule kept only if it did not hurt AzSLD dev (leave-one-out), test, the
 recognized new sentences and the JestDili.az sentences; sentence-by-sentence diffs with `eval_gloss_text.mjs --dump`).
 Word error rates:
