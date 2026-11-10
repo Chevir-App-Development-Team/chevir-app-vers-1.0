@@ -2516,7 +2516,14 @@ word is in the map:
 Slovo's 194 people make the mapped words +8 to +11 points top-1 for the new person (against run 13: right only with
 Slovo clips on 19 mapped clips, only with run 13 on 9), so the draft map is mostly right. The other words lose: the
 mapped classes now have many more samples (the sampler weights count^-0.5, so a class's share grows with its count)
-and draw predictions. Not installed: the map is unconfirmed, and the next run weighs the Slovo clips down.
+and draw predictions. Not installed: the map is unconfirmed, and the next run weighs the Slovo clips down
+(`train.fit(source_weight={'slovo': w})`: those samples are drawn w times as often).
+
+**Letters on all signers** (notebook 07 `TRAIN_ON_ALL`, the installed `final_hand` recipe: hand shape and movement,
+seed 1, saved at epoch 51; 3,411 letter signs of the sentences, 879 gaps, the fingerspelling photos and clips of
+every contributor): 60 epochs in 6 minutes. Nothing is left to test it on, and no other person's fingerspelling is
+in our data: not installed. JestDili.az's alphabet (32 letters, a photo or two each, another person) would be that
+test; it is not downloaded yet.
 
 **JestDili.az sentences without frame labels (CTC).** The person's 500 sentences have text but no glosses or sign
 boundaries. `tools/jestdili_sentence_glosses.mjs` turns the text into the sentence model's labels (text → sign path

@@ -58,6 +58,8 @@ DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label
                 init=None,              # checkpoint whose layers start this model (pretraining, R2); head rows of shared labels
                 ema=0.0,                # decay of an exponential moving average of the weights, scored and saved
                                         # instead of the raw weights (0 = off; 0.999 ≈ the last 1,000 steps)
+                source_weight=None,     # {sample id prefix: factor}, e.g. {'slovo': 0.3}: another source's signs are
+                                        # drawn less often, so their classes do not draw predictions (E27)
                 fold=None, split_id=None)
 
 
@@ -438,6 +440,8 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     unk = vocab_list.index(UNKNOWN) if UNKNOWN in vocab_list else None
     if unk is not None:
         weights[tr.labels == unk] *= cfg['unknown']          # 0: this run learns the known words only
+    for prefix, w in (cfg['source_weight'] or {}).items():
+        weights[np.array([str(i).startswith(prefix + '|') for i in tr.ids])] *= w
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights), num_samples=len(tr), replacement=True)
     cols, groups = FT.columns(cfg['groups']), cfg['groups']
     face = cfg['face_drop'] < 1.0                             # trained with no face at all → scored without it too
