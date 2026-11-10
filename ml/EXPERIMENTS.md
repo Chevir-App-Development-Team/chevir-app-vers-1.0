@@ -2447,6 +2447,19 @@ saved; option added to `continuous.fit` and `train.fit`, default off). Same prot
 Ahead early (epoch 20: 0.62 against 0.55 per-epoch val), level at the end; the val gain does not reach test. Not
 adopted. (JestDili.az WERs here use the E27 gloss2text, so the baseline's 69.6 % became 68.7 %.)
 
+**Spliced sentences in corpus word order** (roadmap R1; `corpus=0.5`: half of the spliced sentences take 2–6
+consecutive signs of a corpus sentence instead of random signs; 60,198 sign sequences from E18's pseudo-glosses of
+HPLT, fingerspelled runs removed, `tools/corpus_sign_seqs.mjs`; notebook 06 `CORPUS`):
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | test side | JestDili.az F1 / WER |
+|---|---|---|---|---|---|---|---|
+| baseline | 0.788 | 0.899 | **0.651** | **0.805** | 0.865 | 0.864 | 0.625 / 68.2 % |
+| corpus order | **0.819** | **0.900** | 0.642 | 0.800 | **0.871** | **0.869** | **0.627** / **67.2 %** (baseline decoding) |
+
+(Sign → text WER now with the latest gloss2text.) Again the val gain mostly does not reach AzSLD's unseen test
+sentences; the new person improves a little. A final all-signer model with it is compared with the installed one
+on JestDili.az below.
+
 **Sign → text grammar** (gloss2text; each rule kept only if it did not hurt AzSLD dev (leave-one-out), test, the
 recognized new sentences and the JestDili.az sentences; sentence-by-sentence diffs with `eval_gloss_text.mjs --dump`).
 Word error rates:
