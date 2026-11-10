@@ -2362,3 +2362,57 @@ a yes/no question → brows up and the head slightly forward; the face is held 0
 Negation (the added YOX, the YOX sign, DEYİL) shakes the head (±10°, 2.2 Hz), from the negated verb on. Layered on
 each sign's own face (max) and head motion. "Gəldim. Gəlmədin?" → MƏN GƏLMƏK OLMAQ | SƏN GƏLMƏK~ YOX~ OLMAQ, the
 second sentence with raised brows. Cases in `tools/verify_words.mjs`; to be judged by native users on /rey/.
+
+## E26 — All signers, a first test outside AzSLD (JestDili.az), sign → text rules
+
+**Landmarks of JestDili.az** (`tools/extract_jestdili.py`, the Kaggle extraction's code and md5-pinned models, run on
+this PC with 22 processes, ~110 frames/s): 2,765 word clips (one file unreadable) and the 500 sentence videos, with the
+sentences' Azerbaijani text. Stores in `D:/chevir/landmarks/` (outside the repo). The AzSLD landmark stores came down
+from the Kaggle notebook outputs (01, 02 ×4, 02c1 ×4, 03: 10,189 front and 9,571 side recordings), checked complete;
+the downloaded splits equal `ml/splits/`.
+
+**Local training** (`ml/run_local.py`): runs a notebook's code cells as they are, with the downloaded outputs as input
+and the GPU of this PC (RTX 4070 Laptop, CUDA PyTorch in a Python 3.12 venv on D:, pandas < 3 like Kaggle). On Windows
+the DataLoader spawns its workers, which would each get a pickled copy of the 4–5 GB training bank; the banks now go
+to `.npy` files once and are opened memory-mapped (`SeqBank.to_disk`, `Bank.to_disk`), so 6 workers share them:
+an epoch of the sentence model 170 s → 52 s (GPU 13 % busy before).
+
+**The current models on a new person** (`ml/eval_jestdili.py`, `tools/score_jestdili.mjs`). The JestDili.az person
+signs standing in a studio, filmed at 1080p; nobody like that is in AzSLD.
+- Word model (run 11), 340 clips of words in its vocabulary: top-1 0.374, top-5 0.568 (AzSLD test signers ~0.86).
+  Part of the misses are forms of the same word, which the word model keeps apart (ALMAQ ↔ ALMALIYAM, AZ ↔ AZDIR,
+  AY ↔ BU AY), part may be other signs for the same word.
+- Sentence model (final_merged), 500 natively signed sentences, no glosses: the recognized signs and the text are
+  compared by morph.js root, order ignored. 3.7 signs per sentence; 60 % of them are in the text (the added subject
+  pronoun counts as wrong); 73 % of the text's words that the model knows are found (81 % of the words); F1 0.658.
+  Sign → text (gloss2text on the recognized signs): word error rate 66.7 % (AzSLD recognized new sentences: 51.8 %).
+
+**Trained on all AzSLD signers** (`TRAIN_ON_ALL`, notebooks 04 v13 and 06 v16 on Kaggle, the recipes of the installed
+models): the test signers' recordings become training data; their "test" scores are then seen data (04: 0.878 top-1,
+06: F1 0.975) and only show that the run worked. The fair check is the JestDili.az person:
+
+| | before | all signers |
+|---|---|---|
+| word model, top-1 / top-5 | 0.374 / 0.568 | **0.400** / 0.568 |
+| sentence model: precision / recall / F1 | 0.601 / 0.727 / 0.658 | 0.604 / **0.743** / **0.666** |
+| sign → text WER (same gloss2text) | 66.7 % | **66.0 %** |
+
+Both installed (word model run 13 `final_all_words`, sentence model `final_all`); the JS ports reproduce PyTorch
+(word model max logit difference 3e-6), `verify_cont_model`, `verify_continuous` and the gates pass. The word model's
+word-mode settings are run 11's (same recipe, chosen on val), with no test score in the manifest.
+
+**Sign → text rules** (gloss2text, from the JestDili.az errors; every change measured on AzSLD dev / test, recognized
+new sentences, and JestDili.az; word error rates):
+
+| | dev | test | recognized new | JestDili.az |
+|---|---|---|---|---|
+| before | 48.5 | 49.3 | 51.8 | 66.0 |
+| a sign is dropped only if seen ≥ 3 times and wordless > 70 % (`DROP`; was: seen once, > 50 %) | 47.5 | 48.9 | 50.9 | 66.2 |
+| have-sentences (pronoun + (number) + noun + VAR / YOX → possessive), noun + LAZIM → dative + lazımdır | 46.9 | 47.6 | 50.4 | 65.6 |
+| second pronoun's case from the verb (GOVERN: dative / accusative), light verb before modals (kömək edə bilərəm), kinship nouns after a pronoun are possessive, ONLAR's possessive is III person | 46.7 | 47.2 | 50.3 | 65.5 |
+| stem vowel elision before vowel suffixes (oğul → oğlum, ağız → ağzı, şəkil → şəkli; inflect.js `ELIDE`) | **46.5** | **47.2** | **50.1** | **65.3** |
+
+The drop threshold was chosen on dev (other settings: 2/0.5 → 47.8, 5/0.7 → 47.6, never → 47.6); the old rule dropped
+signs whose AzSLD text did not align (ƏLİL 13/14, VERMƏK 7/13, ÖDƏMƏK, GƏTİRMƏK), so "MƏN SU VERMƏK BİLMƏK" lost the
+verb ("Mən su bilərəm" → "Mən su verə bilərəm"). Gates raised: s2t dev ≤ 47.9, test ≤ 48.6. Cases in
+`tools/verify_gloss_text.mjs`.
