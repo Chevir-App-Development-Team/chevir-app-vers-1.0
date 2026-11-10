@@ -474,6 +474,14 @@ export class GlossToText {
       kin.f = { poss: possOf(SUBJECT[pron.lx.root]) };
       pron.f = { case: 'gen' }; pron.keepGen = true;
     }
+    // qohumun adı, yaşı (E27, JestDili.az): MƏN QARDAŞ AD ... → Mənim qardaşımın adı ..., SİZ ATA AD NƏDİR → Sizin atanızın adı
+    const attr = content[p0 + 2];
+    if (kin?.lx && KIN.has(kin.lx.root) && attr?.lx && ['ad', 'yaş'].includes(attr.lx.root) && attr.via === 'gen') {
+      kin.f = { poss: possOf(SUBJECT[pron.lx.root]), case: 'gen' };
+      attr.f = { poss: 3 };
+      pron.f = { case: 'gen' }; pron.keepGen = true;
+      return;
+    }
     if (content.length < 3) return;
     const noun = content.at(-2);
     const between = content.slice(p0 + 1, -2);

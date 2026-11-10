@@ -2478,7 +2478,8 @@ Word error rates:
 | negation in the sign's name (BAŞA DÜŞMƏMƏK, GÖRMƏMƏK), kin across VƏ in have-sentences, no copula after a case-marked noun or a time word, no accusative in a verbless sentence (Sizin adınız nədir) | 43.4 | 45.0 | 47.8 | 63.8 |
 | a possessed thing's own state (Mənim ayağım ağrıyır, Mənim mobil telefonum işləmir), body parts possessive before such verbs, more kin words, III person perfect → -ib | 42.8 | 45.0 | 47.5 | 63.8 |
 | BİLMƏK / İSTƏMƏK with no subject → I person (AzSLD: 10 of 15 such sentences; Harda gözləyə bilərəm?); a genitive I/II pronoun before them becomes the subject unless a kin word or a name follows | 42.3 | 44.1 | 46.9 | 63.6 |
-| requests: MƏN + KÖMƏK / VERMƏK / DEMƏK / GÖSTƏRMƏK + BİLMƏK and no other pronoun or verb → Mənə ... bilərsinizmi? (AzSLD 3 / 3; JestDili.az "Mənə su verə bilərsən"); analysis fix: no verb root under 3 letters outside the short-verb list (KÖMƏK was read as kö-mək), the sign's own word is a root (browser model `gloss_text.json` rebuilt) | **42.0** | **44.1** | **46.5** | **63.1** |
+| requests: MƏN + KÖMƏK / VERMƏK / DEMƏK / GÖSTƏRMƏK + BİLMƏK and no other pronoun or verb → Mənə ... bilərsinizmi? (AzSLD 3 / 3; JestDili.az "Mənə su verə bilərsən"); analysis fix: no verb root under 3 letters outside the short-verb list (KÖMƏK was read as kö-mək), the sign's own word is a root (browser model `gloss_text.json` rebuilt) | 42.0 | 44.1 | 46.5 | 63.1 |
+| xəbər / cavab take a dative object; a kin word's name or age (from the JestDili.az errors): MƏN QARDAŞ AD → Mənim qardaşımın adı | **42.0** | **44.1** | **46.5** | **62.3** |
 
 Tried and dropped: a separate verb-person table for sentences with no subject pronoun (AzSLD's subjectless
 sentences are 73 % III person: no change); body parts possessive before any verb (JestDili.az 63.8 → 64.1: "Mənim
