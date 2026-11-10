@@ -2463,9 +2463,12 @@ Word error rates:
 | bare number before counters (3 ədəd, 6 yaş), ablative before SONRA (6-dan sonra); numbers skipped when choosing the possessor | 44.3 | 45.0 | 48.6 | 64.2 |
 | XOŞU GƏLMƏK (Mənim xoşum gəlir; xoşuma when the liked thing comes first), possessive across VƏ, a sign recognized twice in a row is one word, İNDİ → present | 43.8 | 45.0 | 48.1 | 64.0 |
 | negation in the sign's name (BAŞA DÜŞMƏMƏK, GÖRMƏMƏK), kin across VƏ in have-sentences, no copula after a case-marked noun or a time word, no accusative in a verbless sentence (Sizin adınız nədir) | 43.4 | 45.0 | 47.8 | 63.8 |
-| a possessed thing's own state (Mənim ayağım ağrıyır, Mənim mobil telefonum işləmir), body parts possessive before such verbs, more kin words, III person perfect → -ib | **42.8** | **45.0** | **47.5** | **63.8** |
+| a possessed thing's own state (Mənim ayağım ağrıyır, Mənim mobil telefonum işləmir), body parts possessive before such verbs, more kin words, III person perfect → -ib | 42.8 | 45.0 | 47.5 | 63.8 |
+| BİLMƏK / İSTƏMƏK with no subject → I person (AzSLD: 10 of 15 such sentences; Harda gözləyə bilərəm?); a genitive I/II pronoun before them becomes the subject unless a kin word or a name follows | 42.3 | 44.1 | 46.9 | 63.6 |
+| requests: MƏN + KÖMƏK / VERMƏK / DEMƏK / GÖSTƏRMƏK + BİLMƏK and no other pronoun or verb → Mənə ... bilərsinizmi? (AzSLD 3 / 3; JestDili.az "Mənə su verə bilərsən"); analysis fix: no verb root under 3 letters outside the short-verb list (KÖMƏK was read as kö-mək), the sign's own word is a root (browser model `gloss_text.json` rebuilt) | **42.0** | **44.1** | **46.5** | **63.1** |
 
 Tried and dropped: a separate verb-person table for sentences with no subject pronoun (AzSLD's subjectless
 sentences are 73 % III person: no change); body parts possessive before any verb (JestDili.az 63.8 → 64.1: "Mənim
-gözüm bilmir"); MÜƏLLİM as a kin word ("Mən müəllim işləyirəm"). Gates: s2t dev ≤ 43.8, test ≤ 46.0. Cases in
+gözüm bilmir"); MÜƏLLİM as a kin word ("Mən müəllim işləyirəm"); the verb overriding a learned place case
+(evdə gəlmək → evə: no change). Gates: s2t dev ≤ 43.0, test ≤ 45.1. Cases in
 `tools/verify_gloss_text.mjs`.

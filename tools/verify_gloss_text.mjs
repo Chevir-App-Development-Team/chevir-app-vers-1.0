@@ -81,7 +81,7 @@ for (const [labels, want] of native) {
 // qohumluq sözü əvəzlikdən sonra, son hecanın saiti düşən ad
 for (const [labels, want] of [['MƏN 2 BACI VAR', 'Mənim 2 bacım var'], ['SİZ EV VAR', 'Sizin eviniz var'],
   ['MƏN DƏRMAN LAZIM', 'Mənə dərman lazımdır'], ['MƏN SƏN SEVMƏK', 'Mən səni sevirəm'], ['O MƏN VERMƏK', 'O mənə verməlidir'],
-  ['MƏN SƏN KÖMƏK ETMƏK BİLMƏK', 'Mən sənə kömək edə bilərəm'], ['MƏN SU VERMƏK BİLMƏK', 'Mən su verə bilərəm'],
+  ['MƏN SƏN KÖMƏK ETMƏK BİLMƏK', 'Mən sənə kömək edə bilərəm'], ['MƏN SU VERMƏK BİLMƏK', 'Mənə su verə bilərsinizmi'],
   ['MƏN OĞUL EŞİTMƏ MƏHDÜDİYYƏTLİ', 'Mənim oğlum eşitmə məhdüdiyyətli']]) {
   const got = G.generate(labels.split(' ')).text;
   check(got === want, `yiyəlik/tamamlıq: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
@@ -103,7 +103,8 @@ for (const [labels, want] of [['O ƏVVƏL XƏSTƏXANA İŞLƏMƏK', 'O əvvəl x
   ['MƏN SƏN BAŞA+DÜŞMƏMƏK', 'Mən səni başa düşmürəm'], ['MƏN AYAQ AĞRIMAQ', 'Mənim ayağım ağrıyır'],
   ['MƏN MOBİL TELEFON İŞLƏMİR', 'Mənim mobil telefonum işləmir'], ['O SƏNƏD İTİRMƏK', 'O sənədi itirib'],
   ['MƏN MÜƏLLİM İŞLƏMƏK', 'Mən müəllim işləyirəm'], ['HARA GÖZLƏMƏK BİLMƏK', 'Harda gözləyə bilərəm'],
-  ['O GƏLMƏK BİLMƏK', 'O gələ bilər']]) {
+  ['O GƏLMƏK BİLMƏK', 'O gələ bilər'], ['MƏN KÖMƏK/YARDİM EDƏ BİLMƏK', 'Mənə kömək edə bilərsinizmi'],
+  ['MƏN ZƏNG BİLMƏK', 'Mən zəng edə bilərəmmi']]) {
   const got = G.generate(labels.split(' ').map((l) => l.replaceAll('+', ' '))).text;   // + : çoxsözlü işarə
   check(got === want, `zaman/xəbər/yer/say: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }

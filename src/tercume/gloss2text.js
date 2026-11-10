@@ -155,6 +155,7 @@ const ADVERB = new Set(['çox', 'az', 'pis', 'yaxşı', 'tez', 'hələ', 'heç',
 // eşitmək (MƏN GÖZ PİS GÖRMƏK → Mənim gözüm pis görür; MƏN ƏL YUMAQ isə yox)
 const BODY = new Set(['baş', 'göz', 'qulaq', 'ayaq', 'əl', 'bel', 'diş', 'ürək', 'qarın', 'boğaz', 'burun', 'ağız', 'mədə',
   'böyrək', 'qol', 'barmaq', 'diz', 'sinə', 'kürək', 'boyun', 'təzyiq']);
+const REQUEST = new Set(['kömək', 'ver', 'de', 'göstər', 'izah', 'gətir', 'öyrət']);
 const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
@@ -296,8 +297,10 @@ function rootOf(label, surface, keys, lem) {
   const roots = new Set([surface]);
   for (const c of candidates(surface)) for (const v of [...variants(c.stem, true), ...variants(c.stem)]) roots.add(v);
   for (const r of [...roots].sort((a, b) => a.length - b.length)) {
-    if (!keys?.has(norm(r)) && !keys?.has(`${norm(r)}-`)) continue;
+    // işarənin öz sözü də kökdür: lemmatizer "kömək"-i kö-mək kimi açır (E27)
+    if (!keys?.has(norm(r)) && !keys?.has(`${norm(r)}-`) && norm(r) !== norm(t)) continue;
     for (const p of lem.verbs.has(norm(r)) ? ['verb', 'noun'] : ['noun', 'verb']) {
+      if (p === 'verb' && !realVerb(r)) continue;        // kömək ≠ kö-mək
       const a = analyze(surface, r, p);
       if (a) return { root: r, pos: p, feats: a.feats };
     }
@@ -689,6 +692,18 @@ export class GlossToText {
     // I, II şəxs əvəzliyi yiyəlikdədirsə (Mənim təhsilim ... istəyir), o mübtədadır (Mən təhsilim ... istəyirəm)
     const modal = items.find((it) => it.via === 'gen' && it.lx?.pos === 'verb' && ['bil', 'istə'].includes(it.lx.root)
       && FINITE.has(it.f.tam) && it.pers === undefined);
+    // xahiş (E27): MƏN + kömək / vermək / demək / göstərmək + BİLMƏK, başqa əvəzlik yoxdursa — Mənə kömək edə
+    // bilərsinizmi? (AzSLD: 3 / 3; "MƏN ZƏNG BİLMƏK" isə Mən zəng edə bilərəm)
+    const prons = items.filter((it) => it.lx && SUBJECT[it.lx.root]);
+    const isRequest = (it) => (it.lx && REQUEST.has(it.lx.prefix ?? it.lx.root))
+      || (it.labels.length === 1 && REQUEST.has(labelText(it.labels[0]).replace(/m[əa][kq]$/, '')));
+    if (modal?.lx.root === 'bil' && !modal.f.neg && prons.length === 1 && prons[0] === items.find((it) => it.lx)
+      && SUBJECT[prons[0].lx.root] === 1 && !prons[0].f.case
+      && items.some(isRequest) && items.every((it) => it.lx?.pos !== 'verb' || it === modal || isRequest(it) || it.lx.root === 'et')) {
+      prons[0].f = { case: 'dat' };
+      modal.pers = 5;
+      modal.f = { ...modal.f, q: true };
+    }
     if (modal && !items.some((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case)) {
       const pr = items.find((it) => it.lx && [1, 2, 4, 5].includes(SUBJECT[it.lx.root]) && it.f.case === 'gen' && !it.keepGen);
       const owned = pr && items[items.indexOf(pr) + 1];

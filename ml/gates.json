@@ -2,5 +2,5 @@
   "_note": "Regression limits for tools/ci_gates.mjs: current value minus 0.005 F1, plus 1 point WER (E22, E23; s2t raised in E26, E27). Raise them when a change improves the numbers.",
   "t2s_azsld": { "f1": 0.888, "signs": 95.0 },
   "t2s_native": { "f1": 0.851, "signs": 95.0 },
-  "s2t": { "dev": 43.3, "test": 45.1 }
+  "s2t": { "dev": 43.0, "test": 45.1 }
 }
