@@ -2457,8 +2457,49 @@ HPLT, fingerspelled runs removed, `tools/corpus_sign_seqs.mjs`; notebook 06 `COR
 | corpus order | **0.819** | **0.900** | 0.642 | 0.800 | **0.871** | **0.869** | **0.627** / **67.2 %** (baseline decoding) |
 
 (Sign → text WER now with the latest gloss2text.) Again the val gain mostly does not reach AzSLD's unseen test
-sentences; the new person improves a little. A final all-signer model with it is compared with the installed one
-on JestDili.az below.
+sentences; the new person improves a little. The final all-signer model with it (`final_all_corpus`: the installed
+model's recipe, `TRAIN_ON_ALL`, `corpus=0.5`) on all 500 JestDili.az sentences: F1 0.663, WER 64.2 %, against the
+installed model's 0.666 / 62.3 % (the WER favours the installed model a little: some gloss2text rules came from its
+JestDili.az output). Not installed.
+
+**JestDili.az signs in the word model** (`final_all_words_jd`: the installed word model's recipe, run 13, plus the
+person's clips of half of the vocabulary words; the other half, by label md5, stays out: `JESTDILI_HOLDOUT = 0.5`).
+On the 172 held-out clips (150 words):
+
+| | top-1 | top-5 |
+|---|---|---|
+| installed (run 13) | 0.378 | 0.564 |
+| + JestDili.az clips | 0.390 | 0.593 |
+
+Clip by clip, top-1 is right for 12 clips only with the installed model and for 14 only with the new one (top-5: 8
+and 13): not a clear gain. Installed model unchanged. (Testing a word model on this PC crashed on Windows: a large
+test bank was pickled into each DataLoader worker. `train.predict` now reads such banks in the main process.)
+
+**Slovo (roadmap D3, R2).** 20,400 clips (1,000 signs + "no_event", 194 people) through our landmark pipeline
+(`tools/extract_slovo.py`, 2.7 h with 14 processes; 329 clips failed when RAM ran out and were redone). A draft map
+of shared signs, `ml/slovo_azsld.csv`: 172 Russian glosses with an AzSLD word-model label of the same meaning (167
+labels; numbers, pronouns, time words, family, common verbs and adjectives). It is not confirmed by a native user.
+Pretraining (`ml/pretrain_slovo.py --map`): the word model's network on Slovo, mapped signs under their AzSLD label,
+Slovo's own split (new people in val), 40 epochs in 10 minutes: val top-1 0.744, macro-F1 0.734 (996 classes;
+train 0.985).
+
+A check of the map without any AzSL training: the pretrained model alone on JestDili.az's clips of mapped words
+(128 clips): top-1 0.203, top-5 0.383 among 996 classes. Right on 26 words (ANA, AİLƏ, BİLMƏK, BƏLİ, EV, GÖZ, SU,
+YEMƏK, İÇMƏK, ŞƏNBƏ, …); several misses are the RSL sign of a related word (UŞAQ → детский, QIZ → дочь, BÜTÜN →
+целый, BİZ → нас, İŞLƏMƏK → делать). So many AzSL signs are recognizable from Russian signers alone.
+
+The word model from the pretrained weights (`slovo_init_s1`: run 10a's recipe, train signers only, `init=` the
+Slovo checkpoint: every layer, and the head rows of the 167 mapped labels):
+
+| | test words top-1 | test signs top-1 | test signs macro-F1 | test side macro-F1 | test open acc | JestDili.az top-1 / top-5 (340 clips) |
+|---|---|---|---|---|---|---|
+| 10a (Kaggle, seeds 1 / 2) | 0.839 / 0.858 | 0.850 / 0.851 | 0.815 / 0.812 | 0.756 / 0.755 | 0.848 / 0.849 | |
+| run 11 (10a's recipe, train + val signers) | | | | | | 0.374 / 0.568 |
+| run 13 (installed: all signers) | | | | | | 0.400 / 0.568 |
+| Slovo init | 0.840 | 0.849 | 0.815 | 0.751 | 0.847 | 0.385 / 0.556 |
+
+Ahead early (epoch 25: signs macro-F1 0.797 against 10a's 0.778 at epoch 20), level at the end, on AzSLD's test
+signers and on the new person. Initialization alone does not carry Slovo's 194 people into the model.
 
 **Sign → text grammar** (gloss2text; each rule kept only if it did not hurt AzSLD dev (leave-one-out), test, the
 recognized new sentences and the JestDili.az sentences; sentence-by-sentence diffs with `eval_gloss_text.mjs --dump`).

@@ -384,6 +384,8 @@ def scores(logits: np.ndarray, y: np.ndarray) -> dict:
 @torch.no_grad()
 def predict(model, bank, device, batch=128, workers=2, tta=False, groups=None, face=True):
     model.eval()
+    if workers and os.name == 'nt' and not getattr(bank, '_disk', None):
+        workers = 0          # Windows spawns workers with a pickled copy of the bank: a big one fails (truncated pickle)
     outs = []
     for flip in ([False, True] if tta else [False]):
         dl = torch.utils.data.DataLoader(SignDataset(bank, flip=flip, groups=groups, face=face), batch_size=batch, shuffle=False,

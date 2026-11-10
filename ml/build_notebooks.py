@@ -354,6 +354,8 @@ TRAIN_ON_VAL = False   # final model: val signers' signs become training data (r
 TRAIN_ON_ALL = False   # shipped model: test signers too; "test" is then seen data (a check only)
 JESTDILI = False       # JestDili.az clips (tools/extract_jestdili.py) of vocabulary words as training signs
 JESTDILI_HOLDOUT = 0.0  # fraction of those words kept out of training (by label md5), to test on the person's unseen words
+SLOVO = None           # file name among the inputs (ml/slovo_azsld.csv): Slovo's clips of the signs mapped to an AzSLD
+                       # label join the training signs (RSL, 194 people; the map is a draft, not confirmed by a native user)
 LABEL_FIX = {label_fix}
 EXCLUDE_HELDOUT = True  # leave out the train signs of the held-out sentences (heldout_sentence); vocabulary unchanged
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
@@ -459,6 +461,15 @@ if JESTDILI:
         print(f'JestDili.az: {len(held)} words kept out of training (jestdili_holdout.json)')
     signs['train'] = T.Bank.merge(signs['train'], EX.load_signs(jd_dirs, gloss_of, vocab, margin=CFG['margin']))
     print('train with JestDili.az:', len(signs['train']), 'signs')
+if SLOVO:
+    import csv as _csv
+    from azsl import extra as EX
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO), recursive=True))[0], encoding='utf-8') as f:
+        rename = {r['slovo']: r['azsld'] for r in _csv.DictReader(f)}
+    sl_dirs = find('slovo/manifest.csv')
+    signs['train'] = T.Bank.merge(signs['train'], EX.load_signs(sl_dirs, EX.slovo_glosses(sl_dirs, rename), vocab,
+                                                                margin=CFG['margin'], whole=True, tag='slovo'))
+    print('train with Slovo:', len(signs['train']), 'signs')
 """),
         md('### Training — one line per epoch per run (`*` = new best on val macro-F1)'),
         code("""
