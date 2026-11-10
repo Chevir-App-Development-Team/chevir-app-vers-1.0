@@ -56,6 +56,8 @@ def main():
     ap.add_argument('--word', default=str(ROOT / 'ml/results/run11_model/final_side_noface/best.pt'))
     ap.add_argument('--cont', default=str(ROOT / 'ml/results/cont_v15/final_merged/best.pt'))
     ap.add_argument('--decode', default='', help='JSON, manifestdəki deşifrə əvəzinə (müqayisə üçün)')
+    ap.add_argument('--sentences', default='', help='JSON (tools/jestdili_sentence_glosses.mjs): cümlə modeli yalnız '
+                    'onun "holdout" cümlələri ilə ölçülür (yarısı CTC təlimində olanda)')
     ap.add_argument('--only', default='', help='JSON siyahı: söz modeli yalnız bu etiketlərin klipləri ilə ölçülür '
                     '(təlimdən kənarda qalan JestDili.az sözləri, jestdili_holdout.json)')
     args = ap.parse_args()
@@ -102,8 +104,11 @@ def main():
         unk = vocab.index('<unk>') if '<unk>' in vocab else None
         short = set(CT.short_classes(vocab))
         store = LandmarkStore(str(args.landmarks / 'jestdili_sentences'))
+        keep = set(json.loads(Path(args.sentences).read_text(encoding='utf8'))['holdout']) if args.sentences else None
         out = []
         for item_id, r in store.index.iterrows():
+            if keep is not None and item_id not in keep:
+                continue
             raw = FT.reduce(store.get(item_id))
             aspect = float(r['width']) / float(r['height'])
             P = CT.stream_probs(net, raw, aspect, cfg['groups'], cfg.get('face_drop', 1.0) < 1, dev, **CT.STREAM)

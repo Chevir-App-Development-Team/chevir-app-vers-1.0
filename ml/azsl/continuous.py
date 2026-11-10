@@ -41,6 +41,10 @@ DEFAULTS = dict(TR.DEFAULTS, epochs=80, batch=32, crop=(48, 160), repeats=2, edg
                 fps_aug=0.0,         # P(a training window comes as a slower camera gives it, refilled to 30 fps)
                 fps_min=8.0,         # its frame rate: uniform in [fps_min, 30]
                 spell=0.0,           # P(a training sample is a spelled sequence: 3-8 letter signs of other recordings)
+                weak=0.0,            # weight of a CTC loss on recordings with a sign sequence but no frame labels
+                                     # (fit's weak: JestDili.az sentences, their sequence from the text; E27)
+                weak_batch=8,
+                weak_every=1,        # the CTC batch every n-th step (few recordings: less repetition)
                 corpus=0.0,          # P(a spliced sentence follows 2-6 consecutive signs of a text corpus sentence
                                      # (fit's seqs: pseudo-glosses, E18) instead of random signs; roadmap R1)
                 ema=0.0,             # decay of an exponential moving average of the weights, scored and saved
@@ -309,6 +313,62 @@ class SeqDataset(torch.utils.data.Dataset):
         return torch.from_numpy(x if self.cols is None else x[:, self.cols]), torch.from_numpy(y[idx])
 
 
+class WeakDataset(torch.utils.data.Dataset):
+    """Whole recordings with a sign sequence (no frame labels) for the CTC loss: augmented like the training
+    windows (speed, crop jitter, rotation), never cropped in time; longer than max_len frames are resampled."""
+
+    def __init__(self, items, groups=None, face=False, max_len=320):
+        self.items, self.groups, self.face, self.max_len = items, groups, face, max_len
+        self.cols = FT.columns(groups) if groups else None
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, i):
+        raw, aspect, target = self.items[i]
+        raw = {k: v.astype(np.float32) for k, v in raw.items()}
+        T = raw['hand'].shape[0]
+        if T > self.max_len:
+            keep = np.linspace(0, T - 1, self.max_len).round().astype(int)
+            raw = {k: v[keep] for k, v in raw.items()}
+        rng = np.random.default_rng()
+        d = FT.augment(FT.to_square(raw, aspect), rng, aspect)
+        if not self.face:
+            d = FT.drop_face(d)
+        x = FT.features(d, max_len=None)
+        return torch.from_numpy(x if self.cols is None else x[:, self.cols]), torch.tensor(target, dtype=torch.long)
+
+
+def collate_weak(batch):
+    T = max(x.shape[0] for x, _ in batch)
+    X = torch.zeros(len(batch), T, batch[0][0].shape[1])
+    M = torch.zeros(len(batch), T, dtype=torch.bool)
+    for i, (x, _) in enumerate(batch):
+        X[i, :len(x)], M[i, :len(x)] = x, True
+    lens = torch.tensor([len(x) for x, _ in batch])
+    return X, M, torch.cat([t for _, t in batch]), lens, torch.tensor([len(t) for _, t in batch])
+
+
+def load_weak(dirs, glosses, index, log=print):
+    """{item_id: [label, ...]} of a landmark store (JestDili.az sentences) → WeakDataset items; unknown labels
+    become the UNKNOWN index if the model has one, else are dropped."""
+    store = LandmarkStore(dirs)
+    unk = index.get(TR.UNKNOWN)
+    items = []
+    for item_id, seq in glosses.items():
+        if item_id not in store.index.index:
+            continue
+        target = [index[g] if g in index else unk for g in seq]
+        target = [t for t in target if t is not None and t > 0]
+        if not target:
+            continue
+        raw = FT.reduce(store.get(item_id, dtype=np.float16))
+        aspect = float(store.index.at[item_id, 'width']) / float(store.index.at[item_id, 'height'])
+        items.append((raw, aspect, target))
+    log(f'weak: {len(items)} recordings with a sign sequence ({sum(len(t) for *_, t in items)} signs)')
+    return items
+
+
 def collate(batch):
     T = max(x.shape[0] for x, _ in batch)
     X = torch.zeros(len(batch), T, batch[0][0].shape[1])
@@ -543,7 +603,7 @@ def score(probs, bank, anns, vocab_list, decode_p, unknown, fam=None, keep=None,
 
 # ---------------------------------------------------------------- training
 
-def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs=None):
+def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs=None, weak=None):
     """cfg['select']: the val score that picks the checkpoint ('f1_all', or on banks['val_unseen']:
     'f1_unseen', 'f1_unseen_learnable' = only annotations of the glosses in unseen_keep). seqs: label-index
     sequences of corpus sentences for cfg['corpus']."""
@@ -578,6 +638,17 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs
                                      batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
                                      collate_fn=collate, drop_last=True, persistent_workers=cfg['workers'] > 0,
                                      pin_memory=device.type == 'cuda')
+    weak_it = None
+    if weak and cfg['weak']:
+        wdl = torch.utils.data.DataLoader(WeakDataset(weak, groups=groups, face=face), batch_size=cfg['weak_batch'],
+                                          shuffle=True, drop_last=True, collate_fn=collate_weak,
+                                          num_workers=min(2, cfg['workers']), persistent_workers=cfg['workers'] > 0)
+
+        def cycle():
+            while True:
+                yield from wdl
+        weak_it = cycle()
+        log(f"weak: CTC loss × {cfg['weak']} on {len(weak)} recordings, batch {cfg['weak_batch']} per step")
     if seqs and cfg['corpus'] and cfg['splice']:
         log(f"corpus: {len(seqs):,} sign sequences, {cfg['corpus']:.0%} of the spliced sentences follow them")
     opt = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
@@ -597,7 +668,7 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs
         f'{len(tr)} train recordings ({tr.n:,} frames, {len(lab):,} scored, blank {counts[0] / counts.sum():.1%}) | '
         f'{len(dl)} steps/epoch' + (f' | val {len(val)} recordings' if has_val else ' | no val'))
 
-    history, best, best_ep = [], -1.0, 0
+    history, best, best_ep, step_i = [], -1.0, 0, 0
     for ep in range(1, cfg['epochs'] + 1):
         model.train()
         t0, tl, tc, tn = time.time(), 0.0, 0, 0
@@ -607,6 +678,14 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs
                 logits = model(X, M)
             loss = F.cross_entropy(logits.float().reshape(-1, C), Y.reshape(-1), weight=weight,
                                    ignore_index=IGNORE, label_smoothing=cfg['label_smoothing'])
+            step_i += 1
+            if weak_it is not None and step_i % cfg['weak_every'] == 0:
+                Xw, Mw, Tw, Lin, Lt = next(weak_it)
+                with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=device.type == 'cuda'):
+                    lw = model(Xw.to(device, non_blocking=True), Mw.to(device, non_blocking=True))
+                lp = F.log_softmax(lw.float(), -1).transpose(0, 1)
+                ctc = F.ctc_loss(lp, Tw.to(device), Lin.to(device), Lt.to(device), blank=0, zero_infinity=True)
+                loss = loss + cfg['weak'] * ctc
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
