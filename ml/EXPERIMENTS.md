@@ -2519,6 +2519,22 @@ mapped classes now have many more samples (the sampler weights count^-0.5, so a 
 and draw predictions. Not installed: the map is unconfirmed, and the next run weighs the Slovo clips down
 (`train.fit(source_weight={'slovo': w})`: those samples are drawn w times as often).
 
+With `source_weight={'slovo': 0.3}` (`slovo_w03_s1`): mapped 0.523 / 0.734, other 0.297 / 0.500, all 0.382 / 0.588;
+AzSLD test words top-1 0.862, signs macro-F1 0.813. The other words do not recover: it is not the sampling. Their
+wrong answers go to a mapped label more often with Slovo clips (51 % and 48 % of them, against 34 % with Slovo init
+and 40 % for run 13): Slovo's 194 people widen the mapped classes, and some mapped RSL signs may not be AzSL's.
+
+**The map, sign by sign** (`ml/slovo_map_check.py`): the Slovo-only model on AzSLD's Words_200 clips of the mapped
+signs (cut from sentences; train split only, so the test signers and JestDili.az stay out of the decision): 76
+mapped signs, 3,806 clips. Recognized well: ANA, AD, KÖMƏK (top-5 1.00), SOYUQ, UNUTMUŞAM, YEMƏK, İŞLƏMƏK, BİTMƏK,
+DÜNƏN, EV (≥ 0.84), and most family words, numbers and common verbs. Never in the top 5: GETMƏK, GƏLMƏK, SALAM,
+OXUMAQ, BALACA, YOL, ÖYRƏNMƏK, MƏNƏ, and pointing signs (MƏN 0.01 over 1,764 clips, BİZ, BU, BURDA, HAMI). Some
+AzSL signs come out as another, related RSL sign: UŞAQ → детский, HAVA → воздух, BİLMƏK → мочь, İSTƏMƏK → желание,
+LAZIM → нуждаться, SƏN → тебя, YEMƏK → ланч / прием пищи, GUN → днем, İNDİ → немедленный, BU → который. Map v2
+(`ml/slovo_azsld.csv`, column `basis`): the 14 unrecognized signs out (GETMƏK, MƏNƏ, GƏLMƏK, SALAM, OXUMAQ, BALACA,
+YOL, ÖYRƏNMƏK, MƏN, BİZ, HAMI, BURDA, ÇANTA, SAAT), the related RSL signs in (теперь, это, этот replaced): 168 rows,
+153 labels. v1 is commit 43e7042's file. This is evidence for the native review (D3), not a replacement for it.
+
 **Letters on all signers** (notebook 07 `TRAIN_ON_ALL`, the installed `final_hand` recipe: hand shape and movement,
 seed 1, saved at epoch 51; 3,411 letter signs of the sentences, 879 gaps, the fingerspelling photos and clips of
 every contributor): 60 epochs in 6 minutes. Nothing is left to test it on, and no other person's fingerspelling is
