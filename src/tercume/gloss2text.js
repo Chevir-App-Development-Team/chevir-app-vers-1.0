@@ -141,6 +141,8 @@ const PLACE_NAMES = new Set(['bakı', 'gəncə', 'sumqayıt', 'şamaxı', 'şək
   'abşeron', 'xırdalan', 'qarabağ', 'azərbaycan', 'türkiyə', 'rusiya', 'almaniya', 'gürcüstan', 'iran', 'moskva', 'istanbul',
   'ankara', 'tbilisi', 'london', 'paris', 'amerika', 'fransa', 'ingiltərə', 'ukrayna', 'qazaxıstan', 'özbəkistan', 'italiya',
   'ispaniya', 'çin', 'yaponiya', 'dubay', 'misir', 'kəlbəcər', 'zəngilan', 'qubadlı', 'cəbrayıl', 'xocalı', 'ağcabədi']);
+const XOSH = { 1: 'xoşum', 2: 'xoşun', 3: 'xoşu', 4: 'xoşumuz', 5: 'xoşunuz', 6: 'xoşları' };
+const XOSH_DAT = { 1: 'xoşuma', 2: 'xoşuna', 3: 'xoşuna', 4: 'xoşumuza', 5: 'xoşunuza', 6: 'xoşlarına' };
 const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
@@ -407,6 +409,7 @@ export class GlossToText {
         if (!asVerb(items[v])) continue;
         const f = items[v].f;
         items[v].f = n === 'yox' ? { ...f, neg: true, tam: FINITE.has(f.tam) ? f.tam : 'pres' } : { ...f, tam: NATIVE_TAM[n] };
+        if (NATIVE_TAM[n]) items[v].nativeTam = true;
         drop(m);
         if (n === 'yox') m.negMark = true;
       } else if (n === 'birlikdə' && items[k - 1]?.lx && PERSON.has(items[k - 1].lx.root)) {
@@ -478,7 +481,7 @@ export class GlossToText {
    */
   #time(items) {
     const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
-    let past = false;
+    let past = false, now = false;
     for (let k = 0; k < items.length; k++) {
       const it = items[k], n = name(it);
       if (it.labels.length === 1 && isYear(it.labels[0])) {
@@ -489,9 +492,40 @@ export class GlossToText {
           // ildən sonra fel varsa, il zaman yeridir: 2019-cu ildə köçüb
           if (il.via === 'gen' && !il.f.case && items.slice(k + 2).some((x) => x.lx?.pos === 'verb')) il.f = { ...il.f, case: 'loc' };
         }
-      } else if (PAST_MARK.has(n)) past = true;
-      else if (n === 'indi' || n === 'bu gün' || n === 'sabah') past = false;
+      } else if (PAST_MARK.has(n)) { past = true; now = false; }
+      else if (n === 'indi') { past = false; now = true; }
+      else if (n === 'bu gün' || n === 'sabah') past = now = false;
       else if (past && it.via === 'gen' && it.lx?.pos === 'verb' && it.f.tam === 'pres') it.f = { ...it.f, tam: 'ev' };
+      else if (now && it.via === 'gen' && it.lx?.pos === 'verb' && ['past', 'perf', 'ev'].includes(it.f.tam) && !it.nativeTam) {
+        it.f = { ...it.f, tam: 'pres' };                      // MƏN İNDİ YATMAQ → yatıram
+      }
+    }
+  }
+
+  /**
+   * XOŞU GƏLMƏK (E27): bəyənən yiyəlikdə, "xoş" onun mənsubiyyətində, fel III şəxsdə — MƏN XOŞU GƏLMƏK → Mənim xoşum
+   * gəlir (AzSLD: xoşum gəlir 3, xoşuma gəlir 1; bəyənilən əvvəldədirsə xoşuma). Eyni işarə dalbadal iki dəfə tanınıbsa bir sözdür.
+   */
+  #like(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    for (let k = 1; k < items.length; k++) {
+      const it = items[k];
+      if (it.via === 'gen' && name(it) === name(items[k - 1]) && it.lx?.pos === 'noun' && !SUBJECT[it.lx.root]) {
+        const prev = items[k - 1];
+        prev.word = ''; prev.via = 'drop'; delete prev.lx; delete prev.f;
+      }
+    }
+    for (let k = 1; k < items.length; k++) {
+      const it = items[k];
+      if (name(it) === 'xoşu gəlmək' && it.via === 'gen' && it.lx?.pos === 'verb') {
+        const pron = items.slice(0, k).reverse().find((x) => x.lx && SUBJECT[x.lx.root]);
+        if (!pron) continue;
+        pron.f = { case: 'gen' }; pron.keepGen = true;
+        // bəyənilən əvvəldədirsə (BU ƏTİR MƏN XOŞU GƏLMƏK): xoşuma gəlir
+        const thing = items.slice(0, items.indexOf(pron)).some((x) => x.lx?.pos === 'noun');
+        it.lx = { ...it.lx, prefix: (thing ? XOSH_DAT : XOSH)[SUBJECT[pron.lx.root]] };
+        it.pers = 3;
+      }
     }
   }
 
@@ -569,6 +603,7 @@ export class GlossToText {
     if (this.native) this.#native(items);
     this.#have(items);
     this.#time(items);
+    this.#like(items);
     this.#place(items);
     this.#copula(items);
     // Yiyə: şəxs əvəzliyindən sonrakı ad onun mənsubiyyətindədirsə (mənim atam), əvəzlik yiyəlik haldadır;
@@ -591,6 +626,12 @@ export class GlossToText {
       }
       if (a.f.case === 'gen' && !a.keepGen) a.f = {};
     }
+    // ad + VƏ + ad (E27): ikinci ad birincinin yiyəsini alır (bacım və qardaşım)
+    for (let k = 1; k + 1 < items.length; k++) {
+      const a = items[k - 1], v = items[k], b = items[k + 1];
+      if (v.labels.length === 1 && labelText(v.labels[0]) === 'və' && a.lx?.pos === 'noun' && typeof a.f.poss === 'number'
+        && b.lx?.pos === 'noun' && (!b.f.poss || b.f.poss === 'P') && !SUBJECT[b.lx.root]) b.f = { ...b.f, poss: a.f.poss };
+    }
     for (const it of items) if (it.f?.poss === 'P') { const { poss, ...rest } = it.f; it.f = rest; }  // yiyəsiz
     const at = items.findIndex((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case);
     const subj = at >= 0 ? SUBJECT[items[at].lx.root] : 3;
@@ -598,7 +639,7 @@ export class GlossToText {
       if (it.via !== 'gen') continue;
       const f = { ...it.f };
       if (it.lx.pos === 'verb' && FINITE.has(f.tam)) {
-        f.pers = Number(this.#best(this.m.subj[subj]) ?? subj);
+        f.pers = it.pers ?? Number(this.#best(this.m.subj[subj]) ?? subj);
         if (f.tam === 'ev' && ![3, 6].includes(f.pers)) f.tam = 'perf';     // gəlib → mən gəlmişəm
       }
       if (f.cop) f.cop = subj === 6 ? 3 : subj;

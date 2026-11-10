@@ -86,16 +86,20 @@ for (const [labels, want] of [['MƏN 2 BACI VAR', 'Mənim 2 bacım var'], ['SİZ
   const got = G.generate(labels.split(' ')).text;
   check(got === want, `yiyəlik/tamamlıq: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
-// Zaman, xəbər, yer, say (E27): keçmiş zaman sözündən sonrakı fel, il + İL, xəbər ad, iş adı + et-, yer adının halı
-// felə görə, qohumun yaşı, sayılan sözdən əvvəl rəqəm, SONRA-dan əvvəl çıxışlıq
+// Zaman, xəbər, yer, say (E27): keçmiş zaman sözündən sonrakı fel (İNDİ-dən sonra indiki), il + İL, xəbər ad, iş adı +
+// et-, yer adının halı felə görə, qohumun yaşı, sayılan sözdən əvvəl rəqəm, SONRA-dan əvvəl çıxışlıq, XOŞU GƏLMƏK,
+// ad + VƏ + ad, dalbadal tanınmış eyni işarə
 for (const [labels, want] of [['O ƏVVƏL XƏSTƏXANA İŞLƏMƏK', 'O əvvəl xəstəxanada işləyib'],
   ['MƏN ƏVVƏL GƏNCƏ YAŞAMAQ AMMA İNDİ BAKI YAŞAMAQ', 'Mən əvvəl Gəncədə yaşamışam amma indi Bakıda yaşayıram'],
   ['MƏN 2010 İL BAKI GƏLMƏK', 'Mən 2010-cu ildə Bakıya gəldim'], ['MƏN XƏSTƏ', 'Mən xəstəyəm'],
   ['BU MƏN QARDAŞ', 'Bu mənim qardaşımdır'], ['MƏN HƏR GÜN İDMAN', 'Mən hər gün idman edirəm'],
   ['MƏN QIZ 5 YAŞ VAR', 'Mənim qızımın 5 yaşı var'], ['MƏN BİR SUAL VAR', 'Mənim bir sualım var'],
   ['SİZ SAAT 6 SONRA İŞLƏMƏK', 'Siz saat 6-dan sonra işləyirsiniz'],
-  ['MƏN 3 ƏDƏD QƏLƏM ALMAQ İSTƏMƏK', 'Mən 3 ədəd qələm almaq istəyirəm'], ['MƏN SİYAHI DƏRMAN LAZIM', 'Mənə siyahı dərman lazımdır']]) {
-  const got = G.generate(labels.split(' ')).text;
+  ['MƏN 3 ƏDƏD QƏLƏM ALMAQ İSTƏMƏK', 'Mən 3 ədəd qələm almaq istəyirəm'], ['MƏN SİYAHI DƏRMAN LAZIM', 'Mənə siyahı dərman lazımdır'],
+  ['MƏN XOŞU+GƏLMƏK', 'Mənim xoşum gəlir'], ['BU ƏTİR MƏN XOŞU+GƏLMƏK', 'Bu ətir mənim xoşuma gəlir'],
+  ['MƏN XOŞU+GƏLMƏK YOX', 'Mənim xoşum gəlmir'], ['MƏN BACI VƏ QARDAŞ YOX', 'Mənim bacım və qardaşım yoxdur'],
+  ['MƏN MÜAYİNƏ MÜAYİNƏ LAZIM', 'Mənə müayinə lazımdır'], ['MƏN İNDİ YATMAQ', 'Mən indi yatıram']]) {
+  const got = G.generate(labels.split(' ').map((l) => l.replaceAll('+', ' '))).text;   // + : çoxsözlü işarə
   check(got === want, `zaman/xəbər/yer/say: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
 const { ordinal } = await import('../src/tercume/gloss2text.js');
