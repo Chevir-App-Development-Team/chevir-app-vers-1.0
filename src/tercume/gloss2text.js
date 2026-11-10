@@ -685,6 +685,18 @@ export class GlossToText {
         && b.lx?.pos === 'noun' && (!b.f.poss || b.f.poss === 'P') && !SUBJECT[b.lx.root]) b.f = { ...b.f, poss: a.f.poss };
     }
     for (const it of items) if (it.f?.poss === 'P') { const { poss, ...rest } = it.f; it.f = rest; }  // yiyəsiz
+    // BİLMƏK / İSTƏMƏK (E27): mübtədası olmayan cümlədə "mən" (AzSLD: 10 / 15 I şəxs: Harda gözləyə bilərəm?);
+    // I, II şəxs əvəzliyi yiyəlikdədirsə (Mənim təhsilim ... istəyir), o mübtədadır (Mən təhsilim ... istəyirəm)
+    const modal = items.find((it) => it.via === 'gen' && it.lx?.pos === 'verb' && ['bil', 'istə'].includes(it.lx.root)
+      && FINITE.has(it.f.tam) && it.pers === undefined);
+    if (modal && !items.some((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case)) {
+      const pr = items.find((it) => it.lx && [1, 2, 4, 5].includes(SUBJECT[it.lx.root]) && it.f.case === 'gen' && !it.keepGen);
+      const owned = pr && items[items.indexOf(pr) + 1];
+      // mənim atam ... bilmir: qohum mübtədadır; Zərifə, hamı ... : mübtəda addır
+      const person = (it) => it?.lx && (it.lx.proper || KIN.has(it.lx.root) || PERSON.has(it.lx.root) || it.lx.root === 'hamı');
+      if (pr && !person(owned)) pr.f = {};
+      else if (!pr && !items.some((it) => it.lx && SUBJECT[it.lx.root]) && !person(items.find((it) => it.lx))) modal.pers = 1;
+    }
     const at = items.findIndex((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case);
     const subj = at >= 0 ? SUBJECT[items[at].lx.root] : 3;
     for (const it of items) {
