@@ -353,6 +353,7 @@ SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1     # alignment quality a recording ne
 TRAIN_ON_VAL = False   # final model: val signers' signs become training data (runs then need save_epoch)
 TRAIN_ON_ALL = False   # shipped model: test signers too; "test" is then seen data (a check only)
 JESTDILI = False       # JestDili.az clips (tools/extract_jestdili.py) of vocabulary words as training signs
+JESTDILI_HOLDOUT = 0.0  # fraction of those words kept out of training (by label md5), to test on the person's unseen words
 LABEL_FIX = {label_fix}
 EXCLUDE_HELDOUT = True  # leave out the train signs of the held-out sentences (heldout_sentence); vocabulary unchanged
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
@@ -450,6 +451,12 @@ if JESTDILI:
     from azsl.store import LandmarkStore
     jd_dirs = find('jestdili_words/manifest.csv')
     gloss_of = EX.jestdili_glosses(LandmarkStore(jd_dirs), words_list, LABEL_FIX, SPELLING)
+    if JESTDILI_HOLDOUT:
+        gloss_of, held = EX.holdout(gloss_of, JESTDILI_HOLDOUT)
+        os.makedirs(OUT, exist_ok=True)
+        with open(os.path.join(OUT, 'jestdili_holdout.json'), 'w', encoding='utf-8') as f:
+            json.dump(held, f, ensure_ascii=False)
+        print(f'JestDili.az: {len(held)} words kept out of training (jestdili_holdout.json)')
     signs['train'] = T.Bank.merge(signs['train'], EX.load_signs(jd_dirs, gloss_of, vocab, margin=CFG['margin']))
     print('train with JestDili.az:', len(signs['train']), 'signs')
 """),

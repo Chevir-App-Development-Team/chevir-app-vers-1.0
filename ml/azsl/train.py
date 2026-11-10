@@ -55,6 +55,7 @@ DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label
                 select='words',         # checkpoint on val Words_200 macro-F1; 'open': val open-set accuracy
                 save_epoch=None,        # keep this epoch's weights, no val choice (a final model on train + val signers)
                 side=True,              # train on the side-camera samples too, if they were loaded
+                init=None,              # checkpoint whose layers start this model (pretraining, R2); head rows of shared labels
                 ema=0.0,                # decay of an exponential moving average of the weights, scored and saved
                                         # instead of the raw weights (0 = off; 0.999 ≈ the last 1,000 steps)
                 fold=None, split_id=None)
@@ -403,6 +404,22 @@ def reads_face(groups) -> bool:
 
 # ---------------------------------------------------------------- training
 
+def init_body(model, ckpt_path, vocab_list, log=print):
+    """Start from another checkpoint (a pretrained encoder, R2): every layer of the same shape, and the head's
+    row of each label both share."""
+    ck = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    state, old = ck['model'], {g: i for i, g in enumerate(ck['vocab'])}
+    own = model.state_dict()
+    body = {k: v for k, v in state.items() if not k.startswith('head.') and k in own and own[k].shape == v.shape}
+    model.load_state_dict(body, strict=False)
+    shared = [(i, old[g]) for i, g in enumerate(vocab_list) if g in old]
+    with torch.no_grad():
+        for i, j in shared:
+            model.head.weight[i] = state['head.weight'][j].to(model.head.weight.device)
+            model.head.bias[i] = state['head.bias'][j].to(model.head.bias.device)
+    log(f'init from {ckpt_path}: {len(body)} of {len(own)} tensors, head rows for {len(shared)} of {len(vocab_list)} labels')
+
+
 def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     """signs/words: dict split → Bank. Writes history.csv, best.pt, metrics.json, … to out_dir."""
     cfg = {**DEFAULTS, **cfg}
@@ -433,12 +450,15 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
                                ('val_side', signs.get('val_side'))) if b is not None and len(b)}
     # the 200 words (the classes of Words_200): with a bigger vocabulary, sentence-cut scores on them alone
     # stay comparable with the 200-word runs
-    core = np.unique(np.concatenate([b.labels for b in words.values() if b is not None and len(b)]))
-    core = core if len(core) < C - (unk is not None) else None
+    wl = [b.labels for b in words.values() if b is not None and len(b)]
+    core = np.unique(np.concatenate(wl)) if wl else None
+    core = core if core is not None and len(core) < C - (unk is not None) else None
     major = int(np.bincount(tr.labels[tr.labels != unk] if unk is not None else tr.labels, minlength=C).argmax())
 
     model = Net(len(cols), C, cfg['dim'], cfg['stages'], cfg['convs'], cfg['kernel'], cfg['heads'],
                 cfg['drop'], cfg['head_drop']).to(device)
+    if cfg.get('init'):
+        init_body(model, cfg['init'], vocab_list, log)
     n_params = sum(p.numel() for p in model.parameters())
     opt = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     steps, warm = cfg['epochs'] * len(dl), max(1, cfg['warmup'] * len(dl))

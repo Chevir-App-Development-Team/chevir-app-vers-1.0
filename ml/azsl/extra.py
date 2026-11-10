@@ -42,6 +42,15 @@ def jestdili_glosses(store, labels, fix=None, spelling=None, merge=None):
     return out
 
 
+def holdout(gloss_of, frac):
+    """JestDili.az sözlərinin bir hissəsi təlimdən kənarda (bu adamın görünməmiş sözləri ilə ölçmək üçün): etiketin
+    md5-i ilə, hər dəfə eyni. → (təlim üçün {item_id: etiket}, kənarda qalan etiketlər)"""
+    import hashlib
+    out = {g for g in set(gloss_of.values())
+           if int(hashlib.md5(g.encode('utf-8')).hexdigest()[:8], 16) / 0xFFFFFFFF < frac}
+    return {k: g for k, g in gloss_of.items() if g not in out}, sorted(out)
+
+
 def active_span(raw, pad=2):
     """İşarənin kadrları: əlin göründüyü ilk və son kadr (ayaq üstə dayanan adamın istirahətdəki əlləri kadrdan
     aşağıdadır). Əl yoxdursa (0, T)."""
@@ -119,3 +128,32 @@ def subset_view(bank, ids, side):
             raw, y, aspect, rid = bank.get(i)
             out.add(raw, y, aspect, rid)
     return out.done()
+
+
+def load_slovo(dirs, margin=8, log=print):
+    """Slovo (rus işarə dili, tools/extract_slovo.py) → ({'train', 'val'}: train.Bank, etiketlər). Hər videonun
+    işarəsi annotasiyanın begin..end kadrları ±margin kontekstlə; "no_event" (işarəsiz) bütöv klipdir. Slovo-nun öz
+    bölgüsü: train → train, test → val (ön öyrətmənin seçimi üçün; adamlar ayrıdır)."""
+    store = LandmarkStore(dirs)
+    idx = store.index
+    names = sorted(set(map(str, idx['name'])))
+    vocab = {g: i for i, g in enumerate(names)}
+    banks = {'train': TR.Bank(), 'val': TR.Bank()}
+    skipped = 0
+    for item_id, r in idx.iterrows():
+        raw = FT.reduce(store.get(item_id, dtype=np.float16))
+        T = raw['hand'].shape[0]
+        if str(r['name']) == 'no_event':
+            a, b = 0, T
+        else:
+            a, b = max(0, min(int(r['begin']), T - 1)), min(T, int(r['end']))
+        if b - a < 4:
+            skipped += 1
+            continue
+        lo, hi = max(0, a - margin), min(T, b + margin)
+        aspect = float(r['width']) / float(r['height'])
+        split = 'train' if str(r['split']) == 'train' else 'val'
+        banks[split].add({k: v[lo:hi] for k, v in raw.items()}, vocab[str(r['name'])], aspect, (a - lo, b - lo),
+                         f'slovo|{item_id}')
+    log(f"Slovo: {len(banks['train'])} train / {len(banks['val'])} val signs, {len(names)} labels, {skipped} too short")
+    return {k: b.done() for k, b in banks.items()}, names

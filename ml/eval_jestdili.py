@@ -56,6 +56,8 @@ def main():
     ap.add_argument('--word', default=str(ROOT / 'ml/results/run11_model/final_side_noface/best.pt'))
     ap.add_argument('--cont', default=str(ROOT / 'ml/results/cont_v15/final_merged/best.pt'))
     ap.add_argument('--decode', default='', help='JSON, manifestdəki deşifrə əvəzinə (müqayisə üçün)')
+    ap.add_argument('--only', default='', help='JSON siyahı: söz modeli yalnız bu etiketlərin klipləri ilə ölçülür '
+                    '(təlimdən kənarda qalan JestDili.az sözləri, jestdili_holdout.json)')
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -69,10 +71,11 @@ def main():
         for i, t in texts.items():
             by_text.setdefault(t, i)
         store = LandmarkStore(str(args.landmarks / 'jestdili_words'))
+        only = set(json.loads(Path(args.only).read_text(encoding='utf8'))) if args.only else None
         rows = []
         for item_id, r in store.index.iterrows():
             name = az_lower(str(r['name'])).split('(')[0].strip()
-            if name not in by_text:
+            if name not in by_text or (only is not None and vocab[by_text[name]] not in only):
                 continue
             raw = FT.reduce(store.get(item_id))
             aspect = float(r['width']) / float(r['height'])
