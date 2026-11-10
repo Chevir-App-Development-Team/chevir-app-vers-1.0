@@ -93,6 +93,54 @@ const CASE_OF = new Map([...GOVERN.dat.map((v) => [v, 'dat']), ...GOVERN.acc.map
 const KIN = new Set(['ana', 'ata', 'oğul', 'qız', 'bacı', 'qardaş', 'nənə', 'baba', 'ər', 'arvad', 'yoldaş', 'həyat yoldaşı',
   'uşaq', 'övlad', 'nəvə', 'əmi', 'dayı', 'xala', 'bibi', 'dost', 'ad', 'yaş', 'ailə']);
 // İsmi fel kimi işlənən işarə (KÖMƏK, ZƏNG): modal felin qabağında köməkçi fel alır — kömək edə bilərəm
+// Keçmişi bildirən zaman sözləri və il (E27): sonrakı felin indiki zamanı keçmişə keçir — MƏN DÜNƏN DOST GÖRÜŞMƏK →
+// görüşmüşəm (AzSLD-nin mətnlərində -mış; 3-cü şəxsdə -ıb). İNDİ yenidən indiki zamandır
+const PAST_MARK = new Set(['dünən', 'əvvəl', 'öncə', 'keçən', 'srağagün', 'bayaq']);
+const isYear = (l) => /^\d{4}$/.test(l) && Number(l) >= 1900 && Number(l) < 2026;
+// sıra sayının şəkilçisi son rəqəmin (sıfırlarda onluğun, yüzün, minin) adına görə: 1979-cu, 2018-ci, 1990-cı
+const ORD_SUFFIX = { 1: 'ci', 2: 'ci', 3: 'cü', 4: 'cü', 5: 'ci', 6: 'cı', 7: 'ci', 8: 'ci', 9: 'cu' };
+const ORD_TENS = { 1: 'cu', 2: 'ci', 3: 'cu', 4: 'cı', 5: 'ci', 6: 'cı', 7: 'ci', 8: 'ci', 9: 'cı' };
+// rəqəmin adı ilə sayılan sözlər (bu sözlərdən əvvəl rəqəm şəkilçisiz yazılır)
+const COUNTER = new Set(['yaş', 'nəfər', 'ədəd', 'manat', 'qəpik', 'saat', 'dəqiqə', 'saniyə', 'gün', 'gun', 'ay', 'həftə', 'dəfə',
+  'stəkan', 'bilet', 'kilo', 'kiloqram', 'metr', 'litr', 'dənə', 'uşaq', 'otaq', 'mərtəbə', 'faiz']);
+// rəqəmin çıxışlıq şəkilçisi (6-dan, 5-dən): son rəqəmin (sıfırlarda onluğun, yüzün, minin) adının saitinə görə
+const ABL_DIGIT = { 1: 'dən', 2: 'dən', 3: 'dən', 4: 'dən', 5: 'dən', 6: 'dan', 7: 'dən', 8: 'dən', 9: 'dan' };
+const ABL_TENS = { 1: 'dan', 2: 'dən', 3: 'dan', 4: 'dan', 5: 'dən', 6: 'dan', 7: 'dən', 8: 'dən', 9: 'dan' };
+function ablative(n) {
+  const d = String(n);
+  if (/[1-9]$/.test(d)) return ABL_DIGIT[d.at(-1)];
+  const m = d.match(/([1-9])(0+)$/);
+  if (!m) return 'dan';
+  return m[2].length === 1 ? ABL_TENS[m[1]] : 'dən';
+}
+export function ordinal(n) {
+  const d = String(n);
+  if (/[1-9]$/.test(d)) return `${d}-${ORD_SUFFIX[d.at(-1)]}`;
+  const m = d.match(/([1-9])(0+)$/);
+  if (!m) return d;
+  const z = m[2].length;
+  return `${d}-${z === 1 ? ORD_TENS[m[1]] : z === 2 ? 'cü' : 'ci'}`;
+}
+// Sözün özündə şəkilçi qalıbsa (BAHADIR, FANATIYAM, OĞURLAYIBLAR): xəbər şəkilçisi artırılmır
+const INFLECTED = /(d[ıiuü]r|d[ıiuü]|l[aə]r|y[aə]m|[ıiuü]b|[ıiuüa]r[aə]m)$/;
+// cümlənin sonunda feli olmayan iş adı: "et-" köməkçi feli ilə (Mən hər gün idman edirəm, özümü yaxşı hiss edirəm)
+const ACTION = new Set(['idman', 'hiss', 'zəng', 'kömək', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak', 'təmir', 'söhbət',
+  'səyahət', 'istirahət', 'şikayət', 'xahiş', 'təşəkkür', 'izah', 'rəqs', 'məşq']);
+// Yer: felin qabağındakı yer adı (xüsusi ad və ya yer sözü) felə görə hal alır (E27) — yaşamaq, işləmək → -da
+// (Bakıda yaşayıram), getmək, gəlmək → -a (Sumqayıta gedirəm). Arada nəqliyyat, zaman sözü ola bilər
+const PLACE_CASE = new Map([...['yaşamaq', 'işləmək', 'oxumaq', 'qalmaq', 'oturmaq', 'gözləmək', 'dərs keçmək'].map((v) => [v, 'loc']),
+  ...['getmək', 'gəlmək', 'qayıtmaq', 'köçmək', 'uçmaq', 'daxil olmaq', 'zəng etmək', 'çatmaq', 'girmək'].map((v) => [v, 'dat'])]);
+const PLACE = new Set(['ev', 'məktəb', 'universitet', 'xəstəxana', 'poliklinika', 'bank', 'mağaza', 'bazar', 'park', 'kənd',
+  'şəhər', 'rayon', 'ölkə', 'mərkəz', 'ofis', 'aptek', 'apteka', 'restoran', 'kafe', 'otel', 'hava limanı', 'vağzal', 'metro',
+  'toy', 'dəniz', 'bağ', 'kino', 'teatr', 'muzey', 'kitabxana', 'şirkət', 'zavod', 'fabrik', 'idarə', 'nazirlik', 'klinika',
+  'xaric', 'bağça', 'kollec', 'institut', 'akademiya', 'stadion', 'çimərlik', 'meşə', 'dağ', 'mikrorayon', 'qəsəbə']);
+// Yer adları (AzSLD-nin mətnində görünməsə də böyük hərflə yazılır və yer kimi hal alır)
+const PLACE_NAMES = new Set(['bakı', 'gəncə', 'sumqayıt', 'şamaxı', 'şəki', 'quba', 'lənkəran', 'mingəçevir', 'naxçıvan', 'şuşa',
+  'qəbələ', 'qusar', 'şirvan', 'xaçmaz', 'zaqatala', 'qax', 'masallı', 'astara', 'füzuli', 'ağdam', 'kəlbəcər', 'laçın',
+  'xankəndi', 'qazax', 'tovuz', 'ağstafa', 'şəmkir', 'göygöl', 'naftalan', 'bərdə', 'yevlax', 'ağdaş', 'göyçay', 'ismayıllı',
+  'abşeron', 'xırdalan', 'qarabağ', 'azərbaycan', 'türkiyə', 'rusiya', 'almaniya', 'gürcüstan', 'iran', 'moskva', 'istanbul',
+  'ankara', 'tbilisi', 'london', 'paris', 'amerika', 'fransa', 'ingiltərə', 'ukrayna', 'qazaxıstan', 'özbəkistan', 'italiya',
+  'ispaniya', 'çin', 'yaponiya', 'dubay', 'misir', 'kəlbəcər', 'zəngilan', 'qubadlı', 'cəbrayıl', 'xocalı', 'ağcabədi']);
 const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
@@ -294,6 +342,7 @@ export class GlossToText {
   /** İşarənin kökü və növü: iki növü varsa (İŞLƏMƏK: iş / işlə), sonrakı işarənin sinfinə görə. */
   #lex(labels, i) {
     const l = labels[i];
+    if (PLACE_NAMES.has(labelText(l))) return { pos: 'noun', root: labelText(l), proper: [true], seen: !!this.m.lex[l] };
     const g = this.m.guess[l] ?? { pos: 'noun', root: labelText(l) };
     const lx = this.m.lex[l];
     if (!lx) return { ...g, seen: false };
@@ -400,21 +449,86 @@ export class GlossToText {
     }
     if (kin?.lx?.pos === 'noun' && KIN.has(kin.lx.root) && !kin.f.case && !kin.f.poss) {
       kin.f = { ...kin.f, poss: possOf(SUBJECT[pron.lx.root]) };
-      pron.f = { case: 'gen' };
+      pron.f = { case: 'gen' }; pron.keepGen = true;
     }
     if (content.length < 3) return;
     const noun = content.at(-2);
     const between = content.slice(p0 + 1, -2);
     if (!noun?.lx || noun.lx.pos !== 'noun' || SUBJECT[noun.lx.root]) return;
-    if ((n === 'var' || n === 'yox') && between.every((it) => it.via === 'form')) {
+    const owner = between[0];
+    if ((n === 'var' || n === 'yox') && owner?.lx && KIN.has(owner.lx.root) && between.slice(1).every((it) => it.via === 'form')) {
+      owner.f = { poss: possOf(SUBJECT[pron.lx.root]), case: 'gen' };   // MƏN ANA 67 YAŞ VAR → Mənim anamın 67 yaşı var
+      noun.f = { poss: 3 };
+      pron.f = { case: 'gen' }; pron.keepGen = true;
+    } else if ((n === 'var' || n === 'yox') && between.every((it) => it.via === 'form' || (it.lx?.pos === 'noun'
+      && !SUBJECT[it.lx.root] && !KIN.has(it.lx.root) && (!it.f.case || it.f.case === 'loc') && !it.f.poss))) {
       noun.f = { ...noun.f, poss: possOf(SUBJECT[pron.lx.root]) };
       delete noun.f.case;
-      pron.f = { case: 'gen' };
-    } else if (n === 'lazım' && between.length === 0 && last.via !== 'drop') {
+      pron.f = { case: 'gen' }; pron.keepGen = true;
+    } else if (n === 'lazım' && last.via !== 'drop' && between.every((it) => it.lx?.pos === 'noun' && !SUBJECT[it.lx.root])) {
       pron.f = { case: 'dat' };
       noun.f = {};
       last.f = { ...last.f, cop: 3 };
     }
+  }
+
+  /**
+   * Zaman (E27): il + İL — sıra sayı (MƏN 1979 İL ANADAN OLMAQ → 1979-cu ildə); keçmiş zaman sözündən (DÜNƏN,
+   * ƏVVƏL, ÖNCƏ, il) sonrakı fel indiki zamandadırsa keçmişə keçir (İNDİ-yə qədər).
+   */
+  #time(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    let past = false;
+    for (let k = 0; k < items.length; k++) {
+      const it = items[k], n = name(it);
+      if (it.labels.length === 1 && isYear(it.labels[0])) {
+        past = true;
+        const il = items[k + 1];
+        if (name(il) === 'il') {
+          it.word = ordinal(it.labels[0]);
+          // ildən sonra fel varsa, il zaman yeridir: 2019-cu ildə köçüb
+          if (il.via === 'gen' && !il.f.case && items.slice(k + 2).some((x) => x.lx?.pos === 'verb')) il.f = { ...il.f, case: 'loc' };
+        }
+      } else if (PAST_MARK.has(n)) past = true;
+      else if (n === 'indi' || n === 'bu gün' || n === 'sabah') past = false;
+      else if (past && it.via === 'gen' && it.lx?.pos === 'verb' && it.f.tam === 'pres') it.f = { ...it.f, tam: 'ev' };
+    }
+  }
+
+  /** Yer adının halı felə görə (PLACE_CASE): felin qabağında, aradakı sözlər hal almayıbsa. */
+  #place(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    for (let k = 1; k < items.length; k++) {
+      const v = items[k];
+      if (v.via !== 'gen' || v.lx?.pos !== 'verb') continue;
+      const c = PLACE_CASE.get(name(v)) ?? PLACE_CASE.get(`${v.lx.prefix ?? ''} ${v.lx.root}mək`.trim());
+      if (!c) continue;
+      for (let j = k - 1; j >= 0 && j >= k - 3; j--) {
+        const it = items[j];
+        if (it.via === 'drop') continue;
+        if (!it.lx || it.lx.pos !== 'noun' || SUBJECT[it.lx.root] || it.f.case) break;
+        if (it.lx.proper || PLACE.has(it.lx.root)) { it.f = { ...it.f, case: c }; break; }
+      }
+    }
+  }
+
+  /**
+   * Xəbər ad olan cümlə (E27): feli, VAR / YOX / LAZIM / DEYİL-i olmayan, mübtədası şəxs əvəzliyi olan cümlənin
+   * sonundakı ad (sifət) xəbərdir, şəxs şəkilçisi alır — MƏN SUBAY → Mən subayam, BU MƏN ATA → Bu mənim atamdır.
+   */
+  #copula(items) {
+    const content = items.filter((it) => it.via !== 'drop');
+    const last = content.at(-1);
+    if (!last || last.via !== 'gen' || last.lx.pos !== 'noun' || last.f.case || last.f.cop || SUBJECT[last.lx.root]) return;
+    if (QWORDS.has(last.lx.root) || EXIST.has(last.lx.root) || INFLECTED.test(last.lx.root)) return;
+    if (items.some((it) => it.via === 'drop' && it.negMark !== undefined)) return;
+    if (content.some((it) => it.lx?.pos === 'verb' || EXIST.has(it.labels.length === 1 ? labelText(it.labels[0]) : ''))) return;
+    const subj = content.find((it) => it.lx && (SUBJECT[it.lx.root] || it.lx.root === 'bu') && !it.f.case);
+    if (!subj || subj === last) return;
+    if (ACTION.has(last.lx.root) && SUBJECT[subj.lx.root]) {     // MƏN HƏR GÜN İDMAN → idman edirəm
+      last.lx = { ...last.lx, pos: 'verb', root: 'et', prefix: last.lx.root };
+      last.f = { tam: 'pres' };
+    } else last.f = { ...last.f, cop: 3 };
   }
 
   /**
@@ -435,7 +549,10 @@ export class GlossToText {
       const forms = this.m.forms[l];
       if (isNumber(l)) {                                   // 6 → 6-dan (öyrənilmiş yazılış), yoxsa 6
         const seen = Object.entries(forms ?? {}).filter(([w]) => w).sort((a, b) => b[1] - a[1]);
-        items.push({ labels: [l], word: seen[0]?.[0] ?? l, via: 'form' });
+        // sayılan sözdən əvvəl çılpaq rəqəm (3 ədəd, 67 yaş), SONRA / ƏVVƏL-dən əvvəl çıxışlıq (6-dan sonra) (E27)
+        const next = labels[i + 1] && labelText(labels[i + 1]);
+        const word = COUNTER.has(next) ? l : (next === 'sonra' || next === 'əvvəl') ? `${l}-${ablative(l)}` : seen[0]?.[0] ?? l;
+        items.push({ labels: [l], word, via: 'form' });
         continue;
       }
       const tot = Object.values(forms ?? {}).reduce((a, b) => a + b, 0);
@@ -451,20 +568,28 @@ export class GlossToText {
     }
     if (this.native) this.#native(items);
     this.#have(items);
+    this.#time(items);
+    this.#place(items);
+    this.#copula(items);
     // Yiyə: şəxs əvəzliyindən sonrakı ad onun mənsubiyyətindədirsə (mənim atam), əvəzlik yiyəlik haldadır;
     // ad mənsubiyyət almırsa (yer adı: Mən Bakıda), əvəzlik yiyəlikdə qalmır. Qərarı ad verir: qohumluq,
     // bədən sözləri mənsubiyyətlə işlənir, yer adları yox. Cümlənin əvvəlindəki əvəzlikdən sonra ad başqa
     // haldadırsa (evimə, çantamı), ad mübtəda deyil, əvəzlik mübtəda qalır: Mən evimə gedirəm
     for (let k = 0; k + 1 < items.length; k++) {
-      const a = items[k], b = items[k + 1];
+      const a = items[k];
       const p = a.lx && SUBJECT[a.lx.root];
-      if (!p || !b.lx || b.lx.pos !== 'noun' || SUBJECT[b.lx.root]) continue;
-      if (b.f.poss === p || b.f.poss === 'P') {
-        b.f = { ...b.f, poss: p };
+      if (!p) continue;
+      // rəqəmi keçib (MƏN 3 ƏDƏD QƏLƏM: rəqəmdən sonra yiyəsi olmayan ad — əvəzlik yiyəlikdə qalmır)
+      let b = items[k + 1];
+      for (let j = k + 1; b && !b.lx && b.via === 'form' && isNumber(b.labels[0]); j++) b = items[j + 1];
+      if (!b?.lx) { if (b !== items[k + 1] && a.f.case === 'gen' && !a.keepGen) a.f = {}; continue; }
+      if (b.lx.pos !== 'noun' || SUBJECT[b.lx.root]) continue;
+      if (b.f.poss === possOf(p) || b.f.poss === 'P') {
+        b.f = { ...b.f, poss: possOf(p) };
         a.f = k === 0 && b.f.case && b.f.case !== 'gen' ? {} : { case: 'gen' };
         continue;
       }
-      if (a.f.case === 'gen') a.f = {};
+      if (a.f.case === 'gen' && !a.keepGen) a.f = {};
     }
     for (const it of items) if (it.f?.poss === 'P') { const { poss, ...rest } = it.f; it.f = rest; }  // yiyəsiz
     const at = items.findIndex((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case);

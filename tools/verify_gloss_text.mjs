@@ -47,7 +47,7 @@ const toy = train([
 ], undefined, undefined, { BAKI: 'Bakı' });
 const g = new GlossToText(toy);
 const cases = [
-  ['SİZ ŞUŞA YAŞAMAQ', 'Siz şuşada yaşayırsınız'],    // görünməmiş ad: felin istədiyi hal; fel mübtədanın şəxsində
+  ['SİZ ŞUŞA YAŞAMAQ', 'Siz Şuşada yaşayırsınız'],    // görünməmiş ad: felin istədiyi hal, yer adı böyük hərflə (E27); fel mübtədanın şəxsində
   ['MƏN ANA İŞLƏMƏK', 'Mənim anam işləyir'],          // yiyə: mənim + mənsubiyyət, fel 3-cü şəxsdə (mübtəda anadır)
   ['MƏN YAZMAQ BİLMƏK', 'Mən yaza bilərəm'],          // BİLMƏK-dən əvvəl -a forması
   ['B A K I', 'Bakı'],                                // barmaqla yığılan hərflər bir söz
@@ -86,6 +86,21 @@ for (const [labels, want] of [['MƏN 2 BACI VAR', 'Mənim 2 bacım var'], ['SİZ
   const got = G.generate(labels.split(' ')).text;
   check(got === want, `yiyəlik/tamamlıq: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
+// Zaman, xəbər, yer, say (E27): keçmiş zaman sözündən sonrakı fel, il + İL, xəbər ad, iş adı + et-, yer adının halı
+// felə görə, qohumun yaşı, sayılan sözdən əvvəl rəqəm, SONRA-dan əvvəl çıxışlıq
+for (const [labels, want] of [['O ƏVVƏL XƏSTƏXANA İŞLƏMƏK', 'O əvvəl xəstəxanada işləyib'],
+  ['MƏN ƏVVƏL GƏNCƏ YAŞAMAQ AMMA İNDİ BAKI YAŞAMAQ', 'Mən əvvəl Gəncədə yaşamışam amma indi Bakıda yaşayıram'],
+  ['MƏN 2010 İL BAKI GƏLMƏK', 'Mən 2010-cu ildə Bakıya gəldim'], ['MƏN XƏSTƏ', 'Mən xəstəyəm'],
+  ['BU MƏN QARDAŞ', 'Bu mənim qardaşımdır'], ['MƏN HƏR GÜN İDMAN', 'Mən hər gün idman edirəm'],
+  ['MƏN QIZ 5 YAŞ VAR', 'Mənim qızımın 5 yaşı var'], ['MƏN BİR SUAL VAR', 'Mənim bir sualım var'],
+  ['SİZ SAAT 6 SONRA İŞLƏMƏK', 'Siz saat 6-dan sonra işləyirsiniz'],
+  ['MƏN 3 ƏDƏD QƏLƏM ALMAQ İSTƏMƏK', 'Mən 3 ədəd qələm almaq istəyirəm'], ['MƏN SİYAHI DƏRMAN LAZIM', 'Mənə siyahı dərman lazımdır']]) {
+  const got = G.generate(labels.split(' ')).text;
+  check(got === want, `zaman/xəbər/yer/say: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+const { ordinal } = await import('../src/tercume/gloss2text.js');
+const ords = [1979, 2018, 1990, 2000, 1940, 1800, 30].map(ordinal).join(' ');
+check(ords === '1979-cu 2018-ci 1990-cı 2000-ci 1940-cı 1800-cü 30-cu', `sıra sayı: ${ords}`);
 const birlikde = G.generate('MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ'.split(' ')).text;
 check(/anamla birlikdə/.test(birlikde) && /getdim$/.test(birlikde), `doğma: MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ → ${birlikde}`);
 

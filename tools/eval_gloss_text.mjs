@@ -110,6 +110,9 @@ for (const pw of PWS) {
   }
 }
 if (PWS.length > 1) process.exit(0);
+// --dump <file>: dev və test cümlələrinin mətnləri (qaydaların müqayisəsi üçün)
+if (opt('--dump', null)) fs.writeFileSync(opt('--dump', null), JSON.stringify(Object.fromEntries(['dev', 'test'].map((n) => [n,
+  gold[n].map((x) => ({ glosses: x.s.glosses.join(' '), hyp: x.hyp, ref: x.ref }))])), null, 0));
 if (SHOW) {
   console.log(`\n  test examples:`);
   for (const x of gold.test.slice(0, SHOW)) console.log(`    ${x.s.glosses.join(' ')}\n      → ${x.hyp}\n      = ${x.ref}`);
