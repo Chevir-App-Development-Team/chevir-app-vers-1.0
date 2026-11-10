@@ -2472,3 +2472,15 @@ sentences are 73 % III person: no change); body parts possessive before any verb
 gözüm bilmir"); MÜƏLLİM as a kin word ("Mən müəllim işləyirəm"); the verb overriding a learned place case
 (evdə gəlmək → evə: no change). Gates: s2t dev ≤ 43.0, test ≤ 45.1. Cases in
 `tools/verify_gloss_text.mjs`.
+
+**Text → sign coverage** (set C's 150 draft sentences, words the avatar would spell letter by letter; set C is not
+used to choose rules, only counted):
+- 80 JestDili.az entries named several words ("xəstə, xəstəlik", "gün, gündüz, günorta", "banket (qonaqlıq,
+  ziyafət") matched none of them: the first word is now the text and the rest `alt`; a single word in brackets is
+  the sense ("dolu (təbiət hadisəsi)"). `build_jestdili_words.py --install` does it; index and 80 word files updated.
+- "da", "də", "isə" are dropped like ilə / idi / ki (AzSLD signers: da / də 0 of 2).
+- Set C words as signs 90.9 % → 92.4 %; AzSLD test 95.6 % → 96.4 % (gate ≥ 95.5), same-gloss F1 unchanged. What
+  is left is mostly words with no sign at all (yorğun, ürək, hesab, maaş, şikayət, bankomat, kommunal: D4).
+- Tried and dropped: derivation into JestDili.az words (açılır → AÇMAQ, xoşlayıram → XOŞ): 5 right matches in set C
+  and AzSLD, but in 20k HPLT sentences 1,386 new matches with many false ones (qarşı → QAR, adlı → AT, ərinin →
+  ƏRİMƏK, qəbilələri → QƏBİR); the inner lexicon keeps E24's own-forms rule.
