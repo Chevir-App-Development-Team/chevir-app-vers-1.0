@@ -755,6 +755,9 @@ TRAIN_ON_VAL = True                            # final model: val signers too (r
 TRAIN_ON_ALL = False                           # shipped model: test signers too; "test" is then seen data (a check only)
 JESTDILI = False                               # JestDili.az clips (tools/extract_jestdili.py) as training recordings:
                                                # another person and camera; also spliced into new sentences
+CORPUS = None                                  # file name among the inputs: sign sequences of text corpus sentences
+                                               # (tools/corpus_sign_seqs.mjs, one per line, tab-separated) for runs
+                                               # with corpus= (roadmap R1)
 LABEL_FIX = __LABEL_FIX__
 DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
 DECODE_GRID['min_len_short'] = (6,)            # v7's choice for letters and digits
@@ -848,6 +851,14 @@ banks['val_unseen'] = CT.subset(banks['val'], unseen)          # per-epoch score
 SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, learnable)}
 letters = {g for g in words if len(g) == 1}                 # fingerspelled letters and digits
 SUBSETS['letters'] = (set(tags[tags.gloss.isin(letters)].rec_id), letters)   # their recordings, letters only
+seqs = None
+if CORPUS:
+    path = sorted(glob.glob(os.path.join(INPUT, '**', CORPUS), recursive=True))[0]
+    with open(path, encoding='utf-8') as f:
+        seqs = [[index[merge(g)] for g in line.rstrip('\\n').split('\\t') if merge(g) in index and merge(g) != T.UNKNOWN]
+                for line in f]
+    seqs = [q for q in seqs if len(q) >= 2]
+    print(f'corpus: {len(seqs):,} sequences of known signs from {path}')
 """),
         md('### Training and evaluation, one run after another'),
         code("""
@@ -876,7 +887,7 @@ for name, change in RUNS.items():
         res = {'best_epoch': epoch, 'params': sum(p.numel() for p in net.parameters()),
                'n_features': len(FT.columns(cfg['groups'])), 'cfg': cfg}
     else:
-        net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable)
+        net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable, seqs=seqs)
     # decoding fixed before: a final model (TRAIN_ON_VAL, cfg['decode']) or chosen by an earlier run here
     fixed = (decided[cfg['decode_from']] if cfg.get('decode_from') else cfg.get('fixed_decode')
              or (cfg['decode'] if TRAIN_ON_VAL else None))

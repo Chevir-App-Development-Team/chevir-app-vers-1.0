@@ -2416,3 +2416,56 @@ The drop threshold was chosen on dev (other settings: 2/0.5 → 47.8, 5/0.7 → 
 signs whose AzSLD text did not align (ƏLİL 13/14, VERMƏK 7/13, ÖDƏMƏK, GƏTİRMƏK), so "MƏN SU VERMƏK BİLMƏK" lost the
 verb ("Mən su bilərəm" → "Mən su verə bilərəm"). Gates raised: s2t dev ≤ 47.9, test ≤ 48.6. Cases in
 `tools/verify_gloss_text.mjs`.
+
+## E27 — Training on this PC, more data, sign → text grammar
+
+**Local baseline** (`ml/run_local.py 06`, the v5 protocol: train signers only, held-out sentences left out, epoch and
+decoding chosen on val unseen sentences, learnable words): `seq_splice_local`, best epoch 53, 69 minutes on the RTX
+4070 Laptop. Test F1 0.899 (WER 0.134), test unseen sentences 0.651, unseen learnable 0.805, val unseen learnable
+0.788, in line with Kaggle's v5 `seq_splice`. On the JestDili.az sentences: F1 0.625, sign → text WER 69.6 %
+(the all-signer model in the app: 0.666 / 66.0 %, so more signers help with a new person).
+
+**JestDili.az signs as training data** (`JESTDILI = True`: the person's 331 isolated clips of vocabulary words, blank
+outside the active span, its label inside). Same protocol and seed:
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | JestDili.az F1 / WER |
+|---|---|---|---|---|---|
+| baseline | 0.788 | **0.899** | **0.651** | **0.805** | **0.625** / **69.6 %** |
+| + JestDili.az clips | 0.827 | 0.895 | 0.641 | 0.789 | 0.613 / 71.3 % (same decoding) |
+
+The val gain is the selection metric; every held-out number is lower, also on the person's own sentences. Isolated
+citation forms of one person do not teach the model continuous signing; not used.
+
+**Weight averaging** (`ema=0.999`: an exponential moving average of the weights, ≈ the last 1,000 steps, is scored and
+saved; option added to `continuous.fit` and `train.fit`, default off). Same protocol and seed:
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | JestDili.az F1 / WER |
+|---|---|---|---|---|---|---|
+| baseline | 0.788 | 0.899 | 0.651 | **0.805** | **0.865** | 0.625 / **68.7 %** |
+| EMA | **0.811** | **0.901** | **0.653** | 0.801 | 0.860 | **0.626** / 69.3 % (baseline decoding) |
+
+Ahead early (epoch 20: 0.62 against 0.55 per-epoch val), level at the end; the val gain does not reach test. Not
+adopted. (JestDili.az WERs here use the E27 gloss2text, so the baseline's 69.6 % became 68.7 %.)
+
+**Sign → text grammar** (gloss2text; each rule kept only if it did not hurt AzSLD dev (leave-one-out), test, the
+recognized new sentences and the JestDili.az sentences; sentence-by-sentence diffs with `eval_gloss_text.mjs --dump`).
+Word error rates:
+
+| | dev | test | recognized new | JestDili.az |
+|---|---|---|---|---|
+| E26 | 46.5 | 47.2 | 50.1 | 65.3 |
+| past tense after DÜNƏN / ƏVVƏL / ÖNCƏ / a year until İNDİ (`-ib`, I/II person `-mış`), year + İL → ordinal (1979-cu ildə) | 46.3 | 46.3 | 49.9 | |
+| nominal predicate gets the copula (Mən subayam, Bu mənim atamdır) unless the word already carries one; a final action noun gets "et-" (idman edirəm) | 46.1 | 45.9 | 49.7 | |
+| kin owner in have-sentences (Mənim anamın 67 yaşı var) | 46.0 | 45.4 | 49.7 | |
+| place case from the verb (yaşamaq, işləmək → -da; getmək, köçmək → -a), Azerbaijani place names as proper nouns | 45.7 | 45.0 | 49.5 | |
+| year + İL before a verb → ildə; ONLAR as possessor | 45.5 | 45.0 | 49.4 | |
+| have-sentences with adjuncts (Mənim evdə 2 pişiyim var, Mənim bir sualım var); the genitive they set is kept | 44.6 | 45.0 | 48.8 | |
+| bare number before counters (3 ədəd, 6 yaş), ablative before SONRA (6-dan sonra); numbers skipped when choosing the possessor | 44.3 | 45.0 | 48.6 | 64.2 |
+| XOŞU GƏLMƏK (Mənim xoşum gəlir; xoşuma when the liked thing comes first), possessive across VƏ, a sign recognized twice in a row is one word, İNDİ → present | 43.8 | 45.0 | 48.1 | 64.0 |
+| negation in the sign's name (BAŞA DÜŞMƏMƏK, GÖRMƏMƏK), kin across VƏ in have-sentences, no copula after a case-marked noun or a time word, no accusative in a verbless sentence (Sizin adınız nədir) | 43.4 | 45.0 | 47.8 | 63.8 |
+| a possessed thing's own state (Mənim ayağım ağrıyır, Mənim mobil telefonum işləmir), body parts possessive before such verbs, more kin words, III person perfect → -ib | **42.8** | **45.0** | **47.5** | **63.8** |
+
+Tried and dropped: a separate verb-person table for sentences with no subject pronoun (AzSLD's subjectless
+sentences are 73 % III person: no change); body parts possessive before any verb (JestDili.az 63.8 → 64.1: "Mənim
+gözüm bilmir"); MÜƏLLİM as a kin word ("Mən müəllim işləyirəm"). Gates: s2t dev ≤ 43.8, test ≤ 46.0. Cases in
+`tools/verify_gloss_text.mjs`.

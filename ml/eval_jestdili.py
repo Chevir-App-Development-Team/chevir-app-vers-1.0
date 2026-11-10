@@ -55,6 +55,7 @@ def main():
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--word', default=str(ROOT / 'ml/results/run11_model/final_side_noface/best.pt'))
     ap.add_argument('--cont', default=str(ROOT / 'ml/results/cont_v15/final_merged/best.pt'))
+    ap.add_argument('--decode', default='', help='JSON, manifestdəki deşifrə əvəzinə (müqayisə üçün)')
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -93,7 +94,7 @@ def main():
     if args.cont and (args.landmarks / 'jestdili_sentences').exists():
         net, cfg, vocab, _ = CT.load_checkpoint(args.cont, dev)
         man = json.loads((Path(args.cont).parent / 'manifest.json').read_text(encoding='utf8'))
-        decode_p = man.get('decode') or cfg.get('decode') or CT.DECODE
+        decode_p = json.loads(args.decode) if args.decode else (man.get('decode') or cfg.get('decode') or CT.DECODE)
         texts = label_texts(vocab)
         unk = vocab.index('<unk>') if '<unk>' in vocab else None
         short = set(CT.short_classes(vocab))

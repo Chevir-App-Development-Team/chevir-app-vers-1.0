@@ -55,6 +55,8 @@ DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label
                 select='words',         # checkpoint on val Words_200 macro-F1; 'open': val open-set accuracy
                 save_epoch=None,        # keep this epoch's weights, no val choice (a final model on train + val signers)
                 side=True,              # train on the side-camera samples too, if they were loaded
+                ema=0.0,                # decay of an exponential moving average of the weights, scored and saved
+                                        # instead of the raw weights (0 = off; 0.999 ≈ the last 1,000 steps)
                 fold=None, split_id=None)
 
 
@@ -443,6 +445,10 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm) * 0.5 * (
         1 + math.cos(math.pi * min(1.0, max(0, s - warm) / max(1, steps - warm)))))
     scaler = torch.amp.GradScaler(enabled=device.type == 'cuda')
+    ema = None
+    if cfg.get('ema'):
+        ema = torch.optim.swa_utils.AveragedModel(
+            model, multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(cfg['ema']), use_buffers=True)
 
     log(f'{device} | {n_params / 1e6:.2f} M params | {len(cols)} features | {len(tr)} train signs | {C} classes | '
         f'{len(dl)} steps/epoch | majority class "{vocab_list[major]}"' +
@@ -466,10 +472,13 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
             scaler.step(opt)
             scaler.update()
             sched.step()
+            if ema is not None:
+                ema.update_parameters(model)
             tl, tc, tn = tl + loss.item() * len(y), tc + int((logits.argmax(1) == y).sum()), tn + len(y)
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / tn, 'train_acc': tc / tn}
+        net = ema.module if ema is not None else model        # the weights scored and saved
         for k, b in evals.items():
-            p = predict(model, b, device, workers=min(2, cfg['workers']), groups=groups, face=face)
+            p = predict(net, b, device, workers=min(2, cfg['workers']), groups=groups, face=face)
             if k == 'val_unk':
                 row['val_unk_rejected'] = float((p.argmax(1) == unk).mean())
                 continue
@@ -494,7 +503,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         row['best'] = row.get(key, 0) > best if not cfg['save_epoch'] else ep == cfg['save_epoch']
         if row['best']:
             best, best_ep = row.get(key, 0), ep
-            torch.save({'model': model.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep,
+            torch.save({'model': net.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep,
                         'feature_version': FT.FEATURE_VERSION}, os.path.join(out_dir, 'best.pt'))
         history.append(row)
         with open(hist_path, 'w', newline='') as f:

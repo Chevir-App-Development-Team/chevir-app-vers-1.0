@@ -41,6 +41,10 @@ DEFAULTS = dict(TR.DEFAULTS, epochs=80, batch=32, crop=(48, 160), repeats=2, edg
                 fps_aug=0.0,         # P(a training window comes as a slower camera gives it, refilled to 30 fps)
                 fps_min=8.0,         # its frame rate: uniform in [fps_min, 30]
                 spell=0.0,           # P(a training sample is a spelled sequence: 3-8 letter signs of other recordings)
+                corpus=0.0,          # P(a spliced sentence follows 2-6 consecutive signs of a text corpus sentence
+                                     # (fit's seqs: pseudo-glosses, E18) instead of random signs; roadmap R1)
+                ema=0.0,             # decay of an exponential moving average of the weights, scored and saved
+                                     # instead of the raw weights (0 = off; 0.999 ≈ the last 1,000 steps)
                 stream=None)         # browser streaming (window, stride, lookahead); None = STREAM
 
 
@@ -216,7 +220,7 @@ class SeqDataset(torch.utils.data.Dataset):
     whole recording through features.preprocess (no length cap)."""
 
     def __init__(self, bank, train=False, groups=None, face=True, crop=(48, 160), face_drop=0.0, splice=0.0,
-                 splice_power=0.0, fps_aug=0.0, fps_min=8.0, spell=0.0, short=()):
+                 splice_power=0.0, fps_aug=0.0, fps_min=8.0, spell=0.0, short=(), seqs=None, corpus=0.0):
         self.bank, self.train, self.groups, self.face, self.crop, self.face_drop = bank, train, groups, face, crop, face_drop
         self.fps_aug, self.fps_min = fps_aug, fps_min
         self.cols = FT.columns(groups) if groups else None
@@ -226,12 +230,42 @@ class SeqDataset(torch.utils.data.Dataset):
         if self.units and spell:
             self.letters = {k: [x for x in u if x[3] in short] for k, u in self.units.items()}
             self.letter_cdf = {k: unit_cdf(u, 0.5) for k, u in self.letters.items()}
+        # corpus sequences: one flat array + offsets (cheap to send to the workers); units by label and camera
+        self.corpus, self.seq_flat, self.seq_off = corpus, None, None
+        if self.units and splice and corpus and seqs:
+            seqs = [np.asarray(q, np.int32) for q in seqs if len(q) >= 2]
+            self.seq_flat = np.concatenate(seqs)
+            self.seq_off = np.cumsum([0] + [len(q) for q in seqs])
+            self.by_label = {k: {} for k in self.units}
+            for k, u in self.units.items():
+                for j, x in enumerate(u):
+                    self.by_label[k].setdefault(x[3], []).append(j)
+
+    def _corpus_picks(self, rng, side):
+        """2-6 consecutive signs of a random corpus sentence → indices of units of those labels (this camera);
+        labels with no unit are skipped. None if fewer than 2 remain after a few tries."""
+        by = self.by_label[side]
+        for _ in range(5):
+            q = int(rng.integers(len(self.seq_off) - 1))
+            seq = self.seq_flat[self.seq_off[q]:self.seq_off[q + 1]]
+            n = int(rng.integers(2, 7))
+            a = int(rng.integers(0, max(1, len(seq) - n + 1)))
+            picks = [by[l][int(rng.integers(len(by[l])))] for l in seq[a:a + n] if l in by]
+            if len(picks) >= 2:
+                return picks
+        return None
 
     def _spliced(self, rng, side, letters=False):
         units, cdf = (self.letters[side], self.letter_cdf[side]) if letters else (self.units[side], self.cdf[side])
         parts, ys, aspect, ref = [], [], None, None
-        for _ in range(int(rng.integers(3, 9) if letters else rng.integers(2, 7))):
-            i, a, b, _ = units[min(int(np.searchsorted(cdf, rng.random(), side='right')), len(units) - 1)]
+        picks = None
+        if not letters and self.seq_flat is not None and rng.random() < self.corpus:
+            picks = self._corpus_picks(rng, side)
+        if picks is None:
+            picks = [min(int(np.searchsorted(cdf, rng.random(), side='right')), len(units) - 1)
+                     for _ in range(int(rng.integers(3, 9) if letters else rng.integers(2, 7)))]
+        for j in picks:
+            i, a, b, _ = units[j]
             raw, y, asp, _ = self.bank.get(i)
             raw = {k: v[a:b].astype(np.float32) for k, v in raw.items()}
             c, w = _shoulders(raw)
@@ -509,9 +543,10 @@ def score(probs, bank, anns, vocab_list, decode_p, unknown, fam=None, keep=None,
 
 # ---------------------------------------------------------------- training
 
-def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
+def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs=None):
     """cfg['select']: the val score that picks the checkpoint ('f1_all', or on banks['val_unseen']:
-    'f1_unseen', 'f1_unseen_learnable' = only annotations of the glosses in unseen_keep)."""
+    'f1_unseen', 'f1_unseen_learnable' = only annotations of the glosses in unseen_keep). seqs: label-index
+    sequences of corpus sentences for cfg['corpus']."""
     cfg = {**DEFAULTS, **cfg}
     os.makedirs(out_dir, exist_ok=True)
     torch.manual_seed(cfg['seed'])
@@ -539,15 +574,21 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
                                                 face_drop=cfg['face_drop'], splice=cfg['splice'],
                                                 splice_power=cfg['splice_power'], fps_aug=cfg['fps_aug'],
                                                 fps_min=cfg['fps_min'], spell=cfg['spell'],
-                                                short=short_classes(vocab_list)),
+                                                short=short_classes(vocab_list), seqs=seqs, corpus=cfg['corpus']),
                                      batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
                                      collate_fn=collate, drop_last=True, persistent_workers=cfg['workers'] > 0,
                                      pin_memory=device.type == 'cuda')
+    if seqs and cfg['corpus'] and cfg['splice']:
+        log(f"corpus: {len(seqs):,} sign sequences, {cfg['corpus']:.0%} of the spliced sentences follow them")
     opt = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     steps, warm = cfg['epochs'] * len(dl), max(1, cfg['warmup'] * len(dl))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm) * 0.5 * (
         1 + math.cos(math.pi * min(1.0, max(0, s - warm) / max(1, steps - warm)))))
     scaler = torch.amp.GradScaler(enabled=device.type == 'cuda')
+    ema = None
+    if cfg.get('ema'):
+        ema = torch.optim.swa_utils.AveragedModel(
+            model, multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(cfg['ema']), use_buffers=True)
     n_params = sum(p.numel() for p in model.parameters())
     val = banks.get('val')
     has_val = val is not None and len(val) > 0
@@ -573,16 +614,19 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
             scaler.step(opt)
             scaler.update()
             sched.step()
+            if ema is not None:
+                ema.update_parameters(model)
             ok = Y != IGNORE
             tl += loss.item() * int(ok.sum())
             tc, tn = tc + int((logits.argmax(-1)[ok] == Y[ok]).sum()), tn + int(ok.sum())
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / max(1, tn), 'train_frame_acc': tc / max(1, tn)}
+        net = ema.module if ema is not None else model        # the weights scored and saved
         if has_val:
-            m = score(offline_probs(model, val, groups, face, device), val, anns, vocab_list, DECODE, unk)
+            m = score(offline_probs(net, val, groups, face, device), val, anns, vocab_list, DECODE, unk)
             row.update({f'val_{k}': m[k] for k in ('frame_acc', 'precision', 'recall_all', 'f1_all', 'wer_all')})
             if val_unseen is not None and len(val_unseen):         # sentences no training recording has, streamed
-                model.eval()
-                pu = [stream_probs(model, r, a, groups, face, device, **(cfg['stream'] or STREAM))
+                net.eval()
+                pu = [stream_probs(net, r, a, groups, face, device, **(cfg['stream'] or STREAM))
                       for r, _, a, _ in (val_unseen.get(i) for i in range(len(val_unseen)))]
                 m = score(pu, val_unseen, anns, vocab_list, DECODE, unk)
                 row.update({'val_f1_unseen': m['f1_all'], 'val_wer_unseen': m['wer_all']})
@@ -595,7 +639,7 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
         row['best'] = key > best if not cfg['save_epoch'] else ep == cfg['save_epoch']
         if row['best']:
             best, best_ep = key, ep
-            torch.save({'model': model.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep, 'kind': 'continuous',
+            torch.save({'model': net.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep, 'kind': 'continuous',
                         'feature_version': FT.FEATURE_VERSION}, os.path.join(out_dir, 'best.pt'))
         history.append(row)
         with open(os.path.join(out_dir, 'history.csv'), 'w', newline='') as f:
