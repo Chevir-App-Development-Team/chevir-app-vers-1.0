@@ -2535,6 +2535,22 @@ LAZIM → нуждаться, SƏN → тебя, YEMƏK → ланч / прие�
 YOL, ÖYRƏNMƏK, MƏN, BİZ, HAMI, BURDA, ÇANTA, SAAT), the related RSL signs in (теперь, это, этот replaced): 168 rows,
 153 labels. v1 is commit 43e7042's file. This is evidence for the native review (D3), not a replacement for it.
 
+Slovo clips with map v2 (`slovo_v2_s1`, same recipe: 3,357 clips of 153 words). AzSLD test level (words top-1
+0.853, words macro-F1 0.861, signs macro-F1 0.816, side 0.754, open 0.850). JestDili.az (untouched by the map
+decisions), split by map v2's labels:
+
+| JestDili.az top-1 / top-5 | mapped (112 clips) | other (228) | all (340) |
+|---|---|---|---|
+| run 13 (installed: all signers) | 0.464 / 0.652 | 0.368 / 0.526 | 0.400 / 0.568 |
+| Slovo init (train signers) | 0.455 / 0.634 | 0.351 / 0.518 | 0.385 / 0.556 |
+| Slovo clips, map v1 | 0.554 / 0.759 | 0.325 / 0.482 | 0.400 / 0.574 |
+| Slovo clips, map v1, weight 0.3 | 0.554 / 0.768 | 0.298 / 0.500 | 0.382 / 0.588 |
+| Slovo clips, map v2 | **0.607** / **0.804** | 0.338 / 0.500 | **0.426** / **0.600** |
+
+With the train signers only, the best word model so far on the new person (against run 13, trained on all 27
+signers: top-1 right only here on 33 clips, only there on 24, p = 0.29; top-5 26 / 15, p = 0.12). The other words
+still lose a little (−0.03 top-1).
+
 **Letters on all signers** (notebook 07 `TRAIN_ON_ALL`, the installed `final_hand` recipe: hand shape and movement,
 seed 1, saved at epoch 51; 3,411 letter signs of the sentences, 879 gaps, the fingerspelling photos and clips of
 every contributor): 60 epochs in 6 minutes. Nothing is left to test it on, and no other person's fingerspelling is
