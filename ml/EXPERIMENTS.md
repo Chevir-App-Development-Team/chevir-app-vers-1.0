@@ -2551,6 +2551,19 @@ With the train signers only, the best word model so far on the new person (again
 signers: top-1 right only here on 33 clips, only there on 24, p = 0.29; top-5 26 / 15, p = 0.12). The other words
 still lose a little (−0.03 top-1).
 
+**The installed word model's recipe with Slovo v2** (`final_all_words_slovo`: run 13, all 27 signers, saved at epoch
+59, plus the 3,357 Slovo clips; 97,507 signs):
+
+| JestDili.az top-1 / top-5 | mapped (112 clips) | other (228) | all (340) |
+|---|---|---|---|
+| run 13 (installed) | 0.464 / 0.652 | 0.368 / 0.526 | 0.400 / 0.568 |
+| run 13 + Slovo v2 | **0.598** / **0.777** | 0.351 / **0.539** | **0.432** / **0.618** |
+
+Clip by clip against run 13: top-5 right only here on 33 clips, only there on 16 (sign test p = 0.021); top-1 34
+against 23 (p = 0.19). The other words are now level. AzSLD test (seen by both) words top-1 0.897 against 0.878.
+Not installed yet: it rests on the draft map (not confirmed by a native user) and on Slovo's CC BY-SA 4.0 licence
+(whether a model trained on it is share-alike: a decision for the team).
+
 **Letters on all signers** (notebook 07 `TRAIN_ON_ALL`, the installed `final_hand` recipe: hand shape and movement,
 seed 1, saved at epoch 51; 3,411 letter signs of the sentences, 879 gaps, the fingerspelling photos and clips of
 every contributor): 60 epochs in 6 minutes. Nothing is left to test it on, and no other person's fingerspelling is
