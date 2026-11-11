@@ -2561,8 +2561,16 @@ still lose a little (−0.03 top-1).
 
 Clip by clip against run 13: top-5 right only here on 33 clips, only there on 16 (sign test p = 0.021); top-1 34
 against 23 (p = 0.19). The other words are now level. AzSLD test (seen by both) words top-1 0.897 against 0.878.
-Not installed yet: it rests on the draft map (not confirmed by a native user) and on Slovo's CC BY-SA 4.0 licence
-(whether a model trained on it is share-alike: a decision for the team).
+It rests on the map (not yet confirmed by a native user) and on Slovo's licence, so it waited for the team's decision.
+
+**Installed (2026-11-11, approved by the team):** `final_all_words_slovo` as the browser's word model
+(`ml/make_manifest.py --install`). Word-mode settings kept from run 11 / 13 (`segment` in the manifest), with a
+`note` and `sources` entry for Slovo. The 12 `verify_*` scripts pass (`verify_recognizer`: the browser reproduces the
+PyTorch logits), gates pass. The previous model is kept outside git (D:/chevir/backup/word_model_before_slovo).
+Slovo's licence (`license/en_us.pdf` in its repository) is not a Creative Commons licence but a reworking of CC BY-SA
+4.0: commercial use allowed, attribution with a link to the licence, adapted material under the same or a
+BY-SA-compatible licence. Credited in the README's sources, in `docs/DATA.md` and in the manifest; whether trained
+weights count as adapted material stays open (the repo has no licence file).
 
 **Letters on all signers** (notebook 07 `TRAIN_ON_ALL`, the installed `final_hand` recipe: hand shape and movement,
 seed 1, saved at epoch 51; 3,411 letter signs of the sentences, 879 gaps, the fingerspelling photos and clips of

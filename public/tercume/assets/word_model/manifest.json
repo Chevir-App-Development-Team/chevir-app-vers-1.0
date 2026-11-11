@@ -1022,7 +1022,7 @@
   "train_fps": 30,
   "normalization": "x *= width/height; centre = median mid-shoulder, unit = median shoulder width (fallbacks: mean hand point, 0.3); hand xy, z, velocity, pose xy, face xy are (p - centre) / unit; hand_world * 10; NaN → 0; clip to ±10"
  },
- "run": "final_all_words",
+ "run": "final_all_words_slovo",
  "seed": 1,
  "fold": null,
  "split_id": "23179a6aad",
@@ -1030,70 +1030,70 @@
  "params": 1754515,
  "metrics": {
   "test_words": {
-   "top1": 0.8782945736434109,
+   "top1": 0.8968992248062015,
    "top5": 0.9968992248062015,
-   "macro_f1": 0.9545524024683337,
-   "balanced_acc": 0.9584425454259616,
+   "macro_f1": 0.955980817032618,
+   "balanced_acc": 0.9641434423868608,
    "n": 1290,
-   "unk_rate": 0.004651162790697674,
+   "unk_rate": 0.0007751937984496124,
    "majority_acc": 0.30930232558139537
   },
   "test_words_known": {
-   "top1": 0.8829457364341086,
+   "top1": 0.8976744186046511,
    "top5": 0.9968992248062015,
-   "macro_f1": 0.9548674141654592,
-   "balanced_acc": 0.9589400578637727,
+   "macro_f1": 0.9560304268183333,
+   "balanced_acc": 0.9642263611264957,
    "n": 1290
   },
   "test_words_tta": {
-   "top1": 0.875968992248062,
+   "top1": 0.8937984496124031,
    "top5": 0.9968992248062015,
-   "macro_f1": 0.9518509255823476,
-   "balanced_acc": 0.9546488529653099,
+   "macro_f1": 0.954371156733566,
+   "balanced_acc": 0.9629905601813467,
    "n": 1290
   },
   "test_signs": {
-   "top1": 0.9465851714057932,
-   "top5": 0.9996013818761627,
-   "macro_f1": 0.9795714268243845,
-   "balanced_acc": 0.9884275536790897,
+   "top1": 0.9501727345203296,
+   "top5": 0.9994685091682168,
+   "macro_f1": 0.9805538599278905,
+   "balanced_acc": 0.9884832642071603,
    "n": 7526,
-   "unk_rate": 0.007307998937018337,
+   "unk_rate": 0.007175126229072549,
    "majority_acc": 0.09978740366728674
   },
   "test_signs200": {
-   "top1": 0.9207188160676533,
-   "top5": 0.9993657505285413,
-   "macro_f1": 0.9655809712659201,
-   "balanced_acc": 0.9706605400065637,
+   "top1": 0.9253699788583509,
+   "top5": 0.999154334038055,
+   "macro_f1": 0.9671629132435576,
+   "balanced_acc": 0.9702906257002595,
    "n": 4730
   },
   "test_signs_known": {
-   "top1": 0.941137390380016,
-   "top5": 0.9930906191868191,
-   "macro_f1": 0.9751896499805558,
-   "balanced_acc": 0.9871786578690924,
+   "top1": 0.9445920807866064,
+   "top5": 0.9929577464788732,
+   "macro_f1": 0.9765309999190497,
+   "balanced_acc": 0.9875450290291088,
    "n": 7526
   },
   "test_signs_tta": {
-   "top1": 0.9471166622375764,
-   "top5": 0.9996013818761627,
-   "macro_f1": 0.9796267756745148,
-   "balanced_acc": 0.9882915849157377,
+   "top1": 0.9500398618123838,
+   "top5": 0.9994685091682168,
+   "macro_f1": 0.9807488966515698,
+   "balanced_acc": 0.9883251948273878,
    "n": 7526
   },
   "test_side": {
-   "top1": 0.9506620209059233,
-   "top5": 0.999581881533101,
-   "macro_f1": 0.9804573462669025,
-   "balanced_acc": 0.9881766739533014,
+   "top1": 0.9502439024390243,
+   "top5": 0.9994425087108014,
+   "macro_f1": 0.9813346540395854,
+   "balanced_acc": 0.988649398604521,
    "n": 7175
   },
   "test_side200": {
-   "top1": 0.9284145805884936,
-   "top5": 0.9993412384716732,
-   "macro_f1": 0.9687090159014379,
-   "balanced_acc": 0.9719225285133852,
+   "top1": 0.9266578831796223,
+   "top5": 0.9991216512955643,
+   "macro_f1": 0.9698370935761829,
+   "balanced_acc": 0.9709464244794566,
    "n": 4554
   }
  },
@@ -1127,6 +1127,9 @@
   "select": "open",
   "save_epoch": 59,
   "side": true,
+  "init": null,
+  "ema": 0.0,
+  "source_weight": null,
   "fold": null,
   "split_id": "23179a6aad"
  },
@@ -1142,10 +1145,14 @@
    "min_p": 0.7,
    "max_overlap": 0.5
   },
-  "chosen_on": "val sentence recordings, with the train-only run of the same recipe (notebook 05); kept for run 13 (the same recipe on all signers)",
+  "chosen_on": "val sentence recordings, with the train-only run of the same recipe (notebook 05); kept for run 13 and for this run (run 13 + Slovo clips)",
   "val": null,
   "test": null,
-  "note": "run 13 trained on the test signers too: no test score; the new-person check is JestDili.az (E26)"
+  "note": "trained on the test signers too: no test score; the new-person check is JestDili.az (E26, E27)"
  },
- "note": "run 11 recipe (final_side_noface) on train + val + test signers (TRAIN_ON_ALL); \"test\" metrics are seen data. New person (JestDili.az, 340 clips of vocabulary words): top-1 0.400 (run 11: 0.374)"
+ "note": "run 13 recipe (all AzSLD signers, TRAIN_ON_ALL) plus 3,357 Slovo clips (Russian Sign Language; licence in sources) of the 153 signs mapped to an AzSLD label in ml/slovo_azsld.csv (draft map, not yet confirmed by a native user); \"test\" metrics are seen data. New person (JestDili.az, 340 clips of vocabulary words): top-1 0.432, top-5 0.618 (run 13: 0.400 / 0.568) (E27)",
+ "sources": [
+  "AzSLD (Alishzade & Hasanov, 2025; CC BY 4.0)",
+  "Slovo (Kapitanov et al., 2023; https://github.com/hukenovs/slovo): \"Public license with attribution and conditions reserved\", a reworking of CC BY-SA 4.0 (attribution; adapted material under the same or a BY-SA-compatible licence): https://github.com/hukenovs/slovo/blob/master/license/en_us.pdf"
+ ]
 }

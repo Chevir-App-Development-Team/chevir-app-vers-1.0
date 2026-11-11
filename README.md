@@ -399,7 +399,11 @@ paylaşım paneli açılanda.
 12. Camgöz, N. C., et al. (2016). *BosphorusSign: A Turkish Sign Language Recognition Corpus in Health and Finance Domains*. LREC'16. [PDF Link](https://aclanthology.org/L16-1220.pdf)
 13. SyncWords & Signapse (2025). *SyncWords and Signapse Launch Live Automatic Sign Language for Streaming*. [Link](https://www.prnewswire.com/news-releases/syncwords-and-signapse-launch-live-automatic-sign-language-for-streaming-302605280.html)
 14. Alishzade, N. & Hasanov, J. (2025). *AzSLD: Azerbaijani Sign Language Dataset for Fingerspelling, Word, and Sentence Translation with Baseline Software*. Data in Brief. [DOI: 10.1016/j.dib.2024.111230](https://doi.org/10.1016/j.dib.2024.111230)
+15. Kapitanov, A., Kvanchiani, K., Nagaev, A. & Petrova, E. (2023). *Slovo: Russian Sign Language Dataset*. International Conference on Computer Vision Systems (ICVS), 63–73. [arXiv: 2305.14527](https://arxiv.org/abs/2305.14527), [dataset](https://github.com/hukenovs/slovo)
 
 **Üçüncü tərəf komponentlər:** three.js (MIT), @pixiv/three-vrm (MIT), GSAP, Lenis (MIT),
 MediaPipe Tasks Vision və `hand_landmarker.task` (Apache-2.0), AzSLD Fingerspelling (CC BY 4.0).
+Söz modeli AzSLD-dən (CC BY 4.0) başqa Slovo-nun 3 357 klipi ilə də öyrədilib (AzSL ilə ortaq 153 işarə,
+`ml/slovo_azsld.csv`): Slovo © Kapitanov və b., [lisenziya](https://github.com/hukenovs/slovo/blob/master/license/en_us.pdf)
+(CC BY-SA 4.0 əsasında, müəllif göstərilməklə; landmark-lar çıxarılıb, kliplər paylaşılmır).
 Saytın ilkin versiyası [Gulshan-hu/chevir-site](https://github.com/Gulshan-hu/chevir-site) repo-sundan köçürülüb.
