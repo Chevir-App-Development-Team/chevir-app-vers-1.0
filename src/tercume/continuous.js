@@ -143,6 +143,20 @@ export class SentenceStream {
   /** Axın bitdi: gözləyən sözlər də yekundur, cümlə bağlanır. */
   flush() { return this.#update(true); }
 
+  /**
+   * Canlı göstəriş: bərkimiş kadrlar + pəncərənin hələ bərkiməmiş kadrları (tail, k×C) → hələ yekun olmayan
+   * sözlər. Vəziyyəti dəyişmir; yekun sözlər yenə yalnız add()/flush()-dan çıxır (Python ilə eyni qaydalar),
+   * bu isə işarəni göstərilən anda ekrana gətirir (bərkimə ~1 s gecikir).
+   */
+  peek(tail, k) {
+    const T0 = this.rows.length, T = T0 + k, C = this.C;
+    if (!T) return [];
+    const P = new Float32Array(T * C);
+    this.rows.forEach((r, t) => P.set(r, t * C));
+    if (k) P.set(tail.subarray(0, k * C), T0 * C);
+    return decode(P, T, C, this.dp, this.unknown, this.short).slice(this.emitted);
+  }
+
   #update(final) {
     const T = this.rows.length, C = this.C;
     const P = new Float32Array(T * C);

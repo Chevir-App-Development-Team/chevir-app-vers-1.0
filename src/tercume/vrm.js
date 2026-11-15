@@ -18,7 +18,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import {
   FINGER_CHAINS, measureRig, handTarget, frameSource, signAnchor, solveArm, solveFingers,
-  restArm, readyHand, relaxedFingers, trajectory, quatToVec, vecToQuat,
+  restArm, readyHand, relaxedFingers, trajectory, quatToVec, vecToQuat, elbowRaise,
 } from './retarget.js';
 
 const SIDES = ['left', 'right'];
@@ -920,9 +920,12 @@ export class VrmAvatar {
         // Namizədlər IK-nın özünün hesabladığı maneə qiyməti ilə sıralanır (arm.info.body):
         // bu, pulsuzdur, tam ölçmə isə skeletin bütün sümüklərini yeniləməyi tələb edir və
         // söz həllini saniyələrlə uzadır (ölçülüb).
+        // Dirsəyi "qanad" kimi qaldırmaq yalnız bədənə xeyli girmə olanda: 5 sm qalxma ~1 sm girmə qədər bahadır
+        // (E28; əvvəl bir neçə mm-lik toxunuş üçün də dirsək çiyin hündürlüyünə qalxırdı)
         const score = (arm, gap) => gap * (gap < 0 ? 12 : 1)
           - 3 * Math.max(0, arm.info.hard - start0.hard)
-          - 0.8 * arm.info.E.distanceToSquared(dataElbow);
+          - 0.8 * arm.info.E.distanceToSquared(dataElbow)
+          - 0.12 * elbowRaise(rig, arm.info.E.clone().sub(rig.S), dataElbow);
         // Hər namizəd skelet üzərində həqiqətən ölçülür: ucuz göstərici (IK-nın maneə
         // qiyməti) yalnız beş nöqtəyə baxır və barmaqları görmür — onunla sıralamaq
         // nəticəni pisləşdirir (ölçülüb: 51 → 81 problemli söz).

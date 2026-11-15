@@ -46,6 +46,10 @@ for (const [i, d] of meta.decode.entries()) {
   for (let t = 0; t < d.T; t += 8) {
     const k = Math.min(8, d.T - t);
     words.push(...ss.add(P.subarray(t * d.C, (t + k) * d.C), k).added);
+    // canlı göstəriş (/danis/): peek vəziyyəti dəyişmir və qalan kadrlarla bütöv decode-un qalan sözlərini verir
+    const rest = d.T - t - k;
+    const pk = ss.peek(P.subarray((t + k) * d.C, d.T * d.C), rest).map((s) => [s.a, s.b, s.c]);
+    if (!same(pk, e.slice(words.length))) fail(`SentenceStream.peek ${i} t=${t}: ${JSON.stringify(pk)} vs ${JSON.stringify(e.slice(words.length))}`);
   }
   words.push(...ss.flush().added);
   if (!same(words.map((s) => [s.a, s.b, s.c]), e)) fail(`SentenceStream ${i}: ${JSON.stringify(words.map((s) => [s.a, s.b, s.c]))}`);

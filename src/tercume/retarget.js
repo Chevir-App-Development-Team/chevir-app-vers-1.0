@@ -221,6 +221,19 @@ export function frameSource(pose, frame, side, landmarks = pose?.frames?.[frame]
 
 /* ───────────────────────── qol ───────────────────────── */
 
+/**
+ * Söz işarəsində dirsəyin "qanad" kimi qalxması və çölə açılması (E28): iştirakçının dirsəyindən (və təbii həddən,
+ * çiyindən 17 sm aşağı, 9 sm çölə) yuxarı və çölə hər sm baha. İştirakçı dirsəyi həqiqətən qaldırırsa (başın üstündə
+ * işarə), hədd onunla birlikdə qalxır. rE — dirsək çiyinə nisbətən, elbow — iştirakçının dirsəyi (dünya).
+ */
+export const RAISE = { y: -0.17, x: 0.09, slack: 0.03, w: 600 };
+export function elbowRaise(rig, rE, elbow) {
+  const dy = elbow.y - rig.S.y, dx = (elbow.x - rig.S.x) * rig.out;
+  const up = Math.max(0, rE.y - Math.max(RAISE.y, dy + RAISE.slack));
+  const out = Math.max(0, rE.x * rig.out - Math.max(RAISE.x, dx + RAISE.slack));
+  return RAISE.w * (up * up + out * out);
+}
+
 export function evalArm(rig, R, T, swivel, elbow = null, avoid = null, cutoff = Infinity) {
   const toT = T.clone().sub(rig.S);
   const dist = toT.length();
@@ -270,7 +283,8 @@ export function evalArm(rig, R, T, swivel, elbow = null, avoid = null, cutoff = 
   const zone = elbow
     ? 40 * over(rE.y, -0.34, 0.04) ** 2 +
       40 * over(rE.x * rig.out, -0.05, 0.30) ** 2 +
-      30 * over(rE.z, -0.10, 0.26) ** 2
+      30 * over(rE.z, -0.10, 0.26) ** 2 +
+      elbowRaise(rig, rE, elbow)
     : 40 * over(rE.y, -0.30, -0.08) ** 2 +          // dirsək çiyindən aşağıda, "qanad" kimi qalxmasın
       40 * over(rE.x * rig.out, -0.02, 0.20) ** 2 + // bədənin içinə girməsin, "qanad" açılmasın
       20 * over(rE.z, -0.14, 0.20) ** 2;

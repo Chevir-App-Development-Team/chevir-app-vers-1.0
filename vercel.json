@@ -4,6 +4,7 @@
     { "source": "/nsosyal", "destination": "/nsosyal/", "permanent": true },
     { "source": "/en", "destination": "/en/", "permanent": true },
     { "source": "/rey", "destination": "/rey/", "permanent": true },
-    { "source": "/qeyd", "destination": "/qeyd/", "permanent": true }
+    { "source": "/qeyd", "destination": "/qeyd/", "permanent": true },
+    { "source": "/danis", "destination": "/danis/", "permanent": true }
   ]
 }

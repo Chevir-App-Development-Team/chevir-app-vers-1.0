@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Chevir - Azərbaycan işarə dilində danışın, kamera mətnə çevirsin. Video cihazdan çıxmır."
+    />
+    <title>Chevir - işarə dilində danış</title>
+  </head>
+  <body class="tercume tool danis">
+    <div id="site-nav"></div>
+
+    <main class="danis-main">
+      <section class="danis-stage">
+        <div class="viewport danis-view">
+          <video id="cam" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="danis-status" id="status"><span class="dot"></span><span id="status-text">Yüklənir…</span></div>
+          <div class="danis-hint" id="hint" hidden></div>
+          <div class="danis-caption" id="caption" aria-live="polite">
+            <p class="danis-text" id="live-text"><span class="muted">İşarə ilə danışın - mətn burada görünəcək</span></p>
+            <p class="danis-signs" id="live-signs"></p>
+          </div>
+          <button class="btn btn-primary danis-start" id="btn-start" hidden>Kameranı aç</button>
+        </div>
+        <div class="row danis-controls">
+          <button class="btn" id="btn-stop" disabled>Dayandır</button>
+          <button class="btn btn-ghost" id="btn-clear">Təmizlə</button>
+          <button class="btn btn-ghost" id="btn-copy" disabled>Mətni köçür</button>
+          <label class="danis-toggle"><input type="checkbox" id="show-signs" checked /> İşarələri göstər</label>
+        </div>
+      </section>
+
+      <aside class="danis-side">
+        <div class="card">
+          <div class="card-head"><h2>Söhbət</h2><span class="badge" id="count">0</span></div>
+          <ol class="danis-history" id="history"><li class="muted">Hələ cümlə yoxdur</li></ol>
+        </div>
+        <div class="card">
+          <p class="hint">Kameraya baxın, belinizdən yuxarı və hər iki əliniz kadrda olsun. Sadəcə danışın: söz göstərilən
+            kimi boz yazılır, təsdiqlənəndə ağ olur. Sözlər arasında əlləri endirmək lazım deyil; iki saniyə susanda cümlə
+            söhbətə keçir.</p>
+          <p class="hint">Model AzSLD-nin ~700 sözünü tanıyır; tanımadığı sözü buraxa bilər. Video və
+            nöqtələr yalnız bu cihazda emal olunur, heç yerə göndərilmir.</p>
+          <p class="hint"><a href="../tercume/">Tərcümə sistemi</a>: hərflər, ayrı sözlər, mətn → avatar.</p>
+        </div>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/danis/main.js"></script>
+  </body>
+</html>

@@ -2656,3 +2656,48 @@ used to choose rules, only counted):
 - Tried and dropped: derivation into JestDili.az words (açılır → AÇMAQ, xoşlayıram → XOŞ): 5 right matches in set C
   and AzSLD, but in 20k HPLT sentences 1,386 new matches with many false ones (qarşı → QAR, adlı → AT, ərinin →
   ƏRİMƏK, qəbilələri → QƏBİR); the inner lexicon keeps E24's own-forms rule.
+
+## E28 — Signing live, the avatar's elbow, a bigger vocabulary from Slovo (R4)
+
+**Signing live: `/danis/`** (from the team's test of the app: signing worked only in steps, sign, then lower the
+hands for the text to appear). A page that opens straight into signing: the sentence model and the trackers load,
+the camera starts (the browser asks once), and the person just signs. Text appears as captions over the video.
+- `SentenceStream.peek()` decodes the fixed frames plus the window's not yet fixed frames (the 24-frame lookahead)
+  without changing the stream: the sign being made shows at once in grey, and turns white when the Python-verified
+  rules make it final (~1 s later). On a JestDili.az video ("Mənim vaxtım yoxdur"): MƏN VAXT pending at frame 32,
+  MƏN final at 48, VAXT at 64, YOX at the end. `s2s.js onLive` sends final + pending words and the text built from
+  all of them (gloss2text; the AzSLD sentence's own text only on an exact gloss match, not the 0.34-distance match
+  the old panel used, which could show another sentence).
+- No need to lower the hands: two seconds without a new word moves the sentence into the conversation list. Hints
+  when the body is out of frame; `?video=<url>` runs a video through the same path (demo and test without a camera).
+- Linked from the translator's header ("Canlı danış"); `/danis` in vite and vercel redirects.
+
+**New default avatar file** (from the team, 2026-11-15): the same "Chevir Avatar" (VRM 1.0, same 54 humanoid bones,
+every bone in the same rest position 0.0 mm apart, same 18 expressions and 13 morph targets), 3.1 MB instead of
+5.5 MB: the duplicate sclera meshes are gone, 11 textures instead of 15. Installed as `public/tercume/assets/avatar.vrm`
+(old file kept outside git). Its VRM metadata (as in the old file) says `allowRedistribution: false`,
+`commercialUsage: personalNonProfit`, `modification: prohibited`; the README says the team's own model may be
+redistributed and used commercially, so the metadata should be updated by its author.
+
+**The raised elbow** (team feedback: "the avatar putting the right hand up looks weird most of the time"). Headless
+contact sheets (`scratch/avatar_sheet.mjs`) showed it: in SABAH, SƏN, NƏ the right upper arm went out sideways almost
+to shoulder height while the hand worked at the chin or chest. Measured over 300 words (13,352 arm frames,
+`scratch/elbow_stats.mjs`): the avatar's right elbow was within 15 cm of shoulder height and over 12 cm out in 9.0 % of
+frames (the signers' own elbows, mapped to the avatar: 3.0 %), in 23 % of words for ≥ 3 frames. Two sources: the IK
+of word frames allowed the elbow up to shoulder height (the zone was wide because some signs do raise it), and the body
+fix (`#fixBody`) swept the elbow around the shoulder-wrist axis and took any candidate that cleared a few millimetres
+of contact with the chest, the elbow's distance from the signer's barely counting. Fix (`retarget.js elbowRaise`): every
+cm of elbow above max(17 cm below the shoulder, the signer's elbow + 3 cm) or out beyond max(9 cm, the signer's + 3 cm)
+costs, in the word IK and in the body fix's choice (there 5 cm of raise weighs like 1 cm of body contact). Same 500
+sampled words before and after (`tools/measure_hands.mjs --words`):
+
+| | right elbow raised (frames) | words with ≥ 3 raised frames (right / left) | palm in body (words) | arm in body | wrist > 5° over the limit | over the hard ceiling | hands overlapping |
+|---|---|---|---|---|---|---|---|
+| before | 9.0 % | 23.4 % / 17.0 % | 248 | 309 | 339 | 64 | 30 |
+| weight 400, 14 / 12 cm | 6.1 % | 14.4 % / 9.4 % | 237 | 325 | 368 | 72 | 27 |
+| **weight 600, 17 / 9 cm** | **4.2 %** | **9.0 % / 4.9 %** | 238 | 328 | 389 | 83 | 26 |
+| weight 1200, 18 / 8 cm | 3.6 % | 7.4 % / 3.6 % | 231 | 332 | 396 | 97 | 27 |
+
+The middle setting is kept: the strongest one gains little and bends wrists past their limit in more words. Hands
+are placed a little less exactly (p90 placement error 3.6 → 4.1 cm). The sheets after the change: SƏN keeps the elbow
+down by the body, SABAH and NƏ lower but still a little open.

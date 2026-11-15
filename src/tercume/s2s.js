@@ -22,10 +22,12 @@ export class SignToSentence {
    * @param {(e: {words, added, sentence, text, ms}) => void} [o.onWords] yeni yekun sözlər (cari cümlə)
    * @param {(e: {words, match, text}) => void} [o.onSentence] cümlə bağlandı; match — ən yaxın AzSLD cümləsi,
    *   text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
+   * @param {(e: {words, pending, text, match}) => void} [o.onLive] hər pəncərədə (~0.27 s), dəyişəndə: yekun sözlər,
+   *   hələ yekun olmayan sözlər (işarə göstərilən anda, sonra dəyişə bilər) və hamısından qurulan mətn
    * @param {(e: {stage, message}) => void} [o.onStatus]
    */
-  constructor({ video, onFrame, onWords, onSentence, onStatus, base = CONT_MODEL_BASE } = {}) {
-    Object.assign(this, { video, onFrame, onWords, onSentence, onStatus, base });
+  constructor({ video, onFrame, onWords, onSentence, onLive, onStatus, base = CONT_MODEL_BASE } = {}) {
+    Object.assign(this, { video, onFrame, onWords, onSentence, onLive, onStatus, base });
     this.words = [];
     this.sentences = [];
     this.known = [];
@@ -126,7 +128,9 @@ export class SignToSentence {
     this.words = [];
     this.sentences = [];
     this.#reset();
+    this._liveKey = null;
     this.onWords?.({ words: [], added: [], sentence: null, ms: 0 });
+    this.onLive?.({ words: [], pending: [], text: '', match: null });
   }
 
   #reset() {
@@ -173,6 +177,10 @@ export class SignToSentence {
       const res = this.ss.add(probs.subarray((w.from - w.a) * C, (w.to - w.a) * C), k);
       this.#emit(res, performance.now() - t0);
       if (flush) this.#emit(this.ss.flush(), 0);
+      if (this.onLive) {                       // hələ bərkiməmiş kadrlardakı sözlər: dərhal, boz
+        const pending = flush ? [] : this.ss.peek(probs.subarray((w.to - w.a) * C, (w.b - w.a) * C), w.b - w.to);
+        this.#live(pending.map((s) => ({ label: this.rec.labels[s.c], p: s.p, pending: true })));
+      }
     }).catch((err) => {
       console.error(err);
       this.onStatus?.({ stage: 'error', message: 'Tanıma xətası: ' + err.message });
@@ -193,6 +201,21 @@ export class SignToSentence {
       this.onSentence?.({ words: this.words, match, text });
       this.words = [];
     }
+  }
+
+  /** Mətn: tanınan ardıcıllıq AzSLD cümləsi ilə eynidirsə onun mətni, yoxsa işarələrdən qurulmuş mətn. */
+  textOf(seq) {
+    if (!seq.length) return { text: '', match: null };
+    const match = nearestSentence(seq, this.known, 0);
+    return { text: match ? match.text : this.g2t?.generate(seq).text ?? seq.join(' '), match };
+  }
+
+  #live(pending) {
+    const all = [...this.words, ...pending];
+    const key = all.map((w) => w.label + (w.pending ? '?' : '')).join(' ');
+    if (key === this._liveKey) return;       // dəyişməyibsə yenidən çəkmə
+    this._liveKey = key;
+    this.onLive?.({ words: this.words, pending, ...this.textOf(all.map((w) => w.label)) });
   }
 
   async #end() {
