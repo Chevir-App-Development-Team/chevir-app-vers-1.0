@@ -2725,3 +2725,13 @@ those classes: an unbiased estimate for adding Slovo signs blindly. The unchecke
 Slovo signs are not the person's signs (another sign for the word, or the translation is off), and they cost the old
 words 3 points. The checked half's numbers are optimistic (the same clips chose them). With the 101 checked classes the
 old words lose 1.4 points top-1, within noise of the 340-clip set; the vocabulary grows 757 → 858.
+
+**Installed: `final_all_words_r4`** (the installed word model's recipe, all 27 signers, Slovo v2 clips, the 101 checked
+new classes; 858 labels, 802 words in the browser after same-sign merges). JestDili.az, against the installed
+`final_all_words_slovo`: old words top-1 0.426 / top-5 0.603 against 0.432 / 0.618 (clip by clip 26 against 28 right
+only in one, p = 0.89; top-5 14 / 19, p = 0.49: no difference), new words 0.553 / 0.796 on 103 clips (somewhat
+optimistic: the Slovo-only model chose these classes on the same clips, though this model never saw them).
+`make_manifest.py --install` with the word-mode settings kept and a `note`; the 12 `verify_*` scripts and the gates
+pass; the app's word mode loads it ("Hazır · 802 söz"). The previous model is kept outside git
+(D:/chevir/backup/word_model_before_r4). Roadmap R4 target for phase 1 was 1,000 classes: 858 now; the next ones need
+the native review of the 55 Slovo glosses that match AzSLD labels and of the 106 unchecked ones.
