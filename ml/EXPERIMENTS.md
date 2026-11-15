@@ -2666,8 +2666,10 @@ the camera starts (the browser asks once), and the person just signs. Text appea
   without changing the stream: the sign being made shows at once in grey, and turns white when the Python-verified
   rules make it final (~1 s later). On a JestDili.az video ("Mənim vaxtım yoxdur"): MƏN VAXT pending at frame 32,
   MƏN final at 48, VAXT at 64, YOX at the end. `s2s.js onLive` sends final + pending words and the text built from
-  all of them (gloss2text; the AzSLD sentence's own text only on an exact gloss match, not the 0.34-distance match
-  the old panel used, which could show another sentence).
+  all of them (gloss2text; the AzSLD sentence's own text only when the signs are within distance 0.2 of it). The old
+  panel took the nearest AzSLD sentence within 0.34, which can show another sentence; on the recognized test recordings
+  (`eval_gloss_text.mjs --sweep`) WER for new sentences / known sentences is 50.3 % / 9.3 % at 0.34, 48.8 % / 14.5 % at
+  0.2, 48.8 % / 21.5 % at 0 (exact). People sign new sentences, so 0.2, in both the new page and the translator.
 - No need to lower the hands: two seconds without a new word moves the sentence into the conversation list. Hints
   when the body is out of frame; `?video=<url>` runs a video through the same path (demo and test without a camera).
 - Linked from the translator's header ("Canlı danış"); `/danis` in vite and vercel redirects.

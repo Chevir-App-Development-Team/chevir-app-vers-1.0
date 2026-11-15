@@ -171,8 +171,9 @@ function initS2T() {
           state.skelS2T?.setPose(hands[0] ?? null);
           $('#ring-label').textContent = hands.length ? 'jest' : 'istirahət';
         },
-        onWords: ({ words, added, sentence, text, ms }) => {
-          renderSentence(words, added.length, sentence, text);
+        // hələ yekun olmayan sözlər də (boz) dərhal görünür; mətn hamısından qurulur (/danis/ ilə eyni)
+        onLive: ({ words, pending, text, match }) => renderSentence([...words, ...pending], 0, match, text || null),
+        onWords: ({ added, ms }) => {
           const last = added[added.length - 1];
           if (last) renderPredictions([{ label: last.label, p: last.p }]);
           $('#sentence-info').textContent = `+${added.length} · ${Math.round(ms)} ms`;
@@ -313,7 +314,7 @@ function renderSigns(signs, nNew = 0) {
 
 function renderSentence(words, nNew, match, text = null) {
   $('#sentence-words').innerHTML = words.length
-    ? words.map((w, i) => `<span class="s${i >= words.length - nNew ? ' new' : ''}">${escapeHtml(w.label)}<em>${Math.round(w.p * 100)}%</em></span>`).join('')
+    ? words.map((w, i) => `<span class="s${i >= words.length - nNew ? ' new' : ''}${w.pending ? ' unsure' : ''}">${escapeHtml(w.label)}<em>${Math.round(w.p * 100)}%</em></span>`).join('')
     : '<span class="muted">boş</span>';
   // Mətn: AzSLD-də yaxın cümlə varsa onun mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
   const m = $('#sentence-match');

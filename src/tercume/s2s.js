@@ -20,8 +20,8 @@ export class SignToSentence {
    * @param {HTMLVideoElement} o.video
    * @param {(e: {frame, aspect, fileProgress?}) => void} [o.onFrame] hər emal olunmuş kamera kadrı
    * @param {(e: {words, added, sentence, text, ms}) => void} [o.onWords] yeni yekun sözlər (cari cümlə)
-   * @param {(e: {words, match, text}) => void} [o.onSentence] cümlə bağlandı; match — ən yaxın AzSLD cümləsi,
-   *   text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
+   * @param {(e: {words, match, text}) => void} [o.onSentence] cümlə bağlandı; match — işarələri çox yaxın olan AzSLD
+   *   cümləsi (textOf), text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
    * @param {(e: {words, pending, text, match}) => void} [o.onLive] hər pəncərədə (~0.27 s), dəyişəndə: yekun sözlər,
    *   hələ yekun olmayan sözlər (işarə göstərilən anda, sonra dəyişə bilər) və hamısından qurulan mətn
    * @param {(e: {stage, message}) => void} [o.onStatus]
@@ -192,9 +192,7 @@ export class SignToSentence {
     const labels = this.rec.labels;
     const fresh = added.map((s) => ({ label: labels[s.c], p: s.p, a: s.a, b: s.b }));
     this.words.push(...fresh);
-    const seq = this.words.map((x) => x.label);
-    const match = nearestSentence(seq, this.known);
-    const text = match ? match.text : seq.length ? this.g2t?.generate(seq).text ?? null : null;
+    const { text, match } = this.textOf(this.words.map((x) => x.label));
     if (fresh.length) this.onWords?.({ words: this.words, added: fresh, sentence: match, text, ms });
     if (sentenceEnded && this.words.length) {
       this.sentences.push({ words: this.words, match, text });
@@ -203,10 +201,14 @@ export class SignToSentence {
     }
   }
 
-  /** Mətn: tanınan ardıcıllıq AzSLD cümləsi ilə eynidirsə onun mətni, yoxsa işarələrdən qurulmuş mətn. */
+  /**
+   * Mətn: tanınan ardıcıllıq AzSLD cümləsinə çox yaxındırsa (normallaşdırılmış məsafə ≤ 0.2) onun mətni, yoxsa
+   * işarələrdən qurulmuş mətn. 0.34 yeni cümlələrdə başqa cümləni göstərirdi; tanınan test yazılarında (E28,
+   * eval_gloss_text --sweep) 0.2-də yeni cümlənin WER-i 0-dakı kimidir (48.8 %), məlum cümlənin 14.5 % (0-da 21.5 %).
+   */
   textOf(seq) {
     if (!seq.length) return { text: '', match: null };
-    const match = nearestSentence(seq, this.known, 0);
+    const match = nearestSentence(seq, this.known, 0.2);
     return { text: match ? match.text : this.g2t?.generate(seq).text ?? seq.join(' '), match };
   }
 
