@@ -2703,3 +2703,25 @@ sampled words before and after (`tools/measure_hands.mjs --words`):
 The middle setting is kept: the strongest one gains little and bends wrists past their limit in more words. Hands
 are placed a little less exactly (p90 placement error 3.6 → 4.1 cm). The sheets after the change: SƏN keeps the elbow
 down by the body, SABAH and NƏ lower but still a little open.
+
+**R4: new recognizer classes from Slovo, checked on JestDili.az.** AzSLD gives the word model 757 labels; Slovo has
+1,000 RSL signs with ~20 people each, and AzSL shares most signs with RSL. Of the 797 Slovo glosses not yet mapped, I
+translated the ones with a clear Azerbaijani word (`D:/chevir/slovo/r4/ru_az.txt`, outside git): 55 are AzSLD labels
+already (left for the native review of the map), 208 are JestDili.az words with no AzSLD sign. Is the Slovo sign the
+AzSL one? The Slovo-only model (E27 pretraining, never saw AzSL) on JestDili.az's clip of each of those words, among
+996 classes: rank 1 for 26 % of the clips, top 5 43 %, top 10 47 % (chance 0.5 %), median rank 13. TİMSAH, KƏPƏNƏK,
+CANAVAR, AÇAR, QADIN, DOQQUZ, DOXSAN, NOYABR, ÇƏRŞƏNBƏ AXŞAMI, AŞPAZ are rank 1. `ml/slovo_new.csv`: 207 rows
+(Russian gloss, new label, `basis` = that rank), 199 labels; notebook 04 `SLOVO_NEW` adds them as classes trained on
+Slovo's clips, `SLOVO_NEW_MAX_RANK` keeps only the checked ones. Run 10a's recipe (train signers), JestDili.az clips:
+
+| | old words (340 clips) top-1 / top-5 | new words, rank ≤ 10 (102) | new words, rank > 10 (101) | AzSLD test words top-1 / signs macro-F1 |
+|---|---|---|---|---|
+| Slovo map v2, no new classes | **0.426** / **0.600** | – | – | 0.853 / 0.816 |
+| + all 199 new classes | 0.397 / 0.550 | 0.549 / 0.853 | 0.089 / 0.218 | 0.854 / 0.824 |
+| + the 101 checked ones | 0.412 / 0.588 | 0.578 / 0.843 | – | 0.847 / 0.815 |
+
+With all 199, the new words reach top-1 0.32 / top-5 0.54 on a person the model never saw and no AzSL example of
+those classes: an unbiased estimate for adding Slovo signs blindly. The unchecked half is mostly wrong (0.09): those
+Slovo signs are not the person's signs (another sign for the word, or the translation is off), and they cost the old
+words 3 points. The checked half's numbers are optimistic (the same clips chose them). With the 101 checked classes the
+old words lose 1.4 points top-1, within noise of the 340-clip set; the vocabulary grows 757 → 858.

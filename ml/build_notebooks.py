@@ -356,6 +356,9 @@ JESTDILI = False       # JestDili.az clips (tools/extract_jestdili.py) of vocabu
 JESTDILI_HOLDOUT = 0.0  # fraction of those words kept out of training (by label md5), to test on the person's unseen words
 SLOVO = None           # file name among the inputs (ml/slovo_azsld.csv): Slovo's clips of the signs mapped to an AzSLD
                        # label join the training signs (RSL, 194 people; the map is a draft, not confirmed by a native user)
+SLOVO_NEW = None       # file name among the inputs (ml/slovo_new.csv): Slovo signs with an Azerbaijani word that AzSLD
+                       # has no sign for become NEW classes, trained on Slovo's clips (roadmap R4; needs SLOVO)
+SLOVO_NEW_MAX_RANK = None  # keep only new classes whose JestDili.az clip the Slovo-only model ranked this high
 LABEL_FIX = {label_fix}
 EXCLUDE_HELDOUT = True  # leave out the train signs of the held-out sentences (heldout_sentence); vocabulary unchanged
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
@@ -403,6 +406,15 @@ tags = tags[tags.has_landmarks & tags.split.notna() & ~tags.dup.astype(bool)]
 tags['gloss'] = tags.gloss.replace(SPELLING)
 words_list = (T.learnable_vocab(tags, wsplit.gloss.unique(), VOCAB_MIN_TRAIN) if VOCAB_MIN_TRAIN
               else sorted(wsplit.gloss.unique()))
+new_rows = []
+if SLOVO_NEW:
+    import csv as _csv
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO_NEW), recursive=True))[0], encoding='utf-8') as f:
+        new_rows = [r for r in _csv.DictReader(f) if r['azsld'] not in set(words_list)]
+    if SLOVO_NEW_MAX_RANK:     # basis "jestdili rank N": the Slovo-only model's rank of the label on the JestDili.az clip
+        new_rows = [r for r in new_rows if r['basis'].split()[-1].isdigit() and int(r['basis'].split()[-1]) <= SLOVO_NEW_MAX_RANK]
+    words_list = words_list + sorted({r['azsld'] for r in new_rows})
+    print(f'R4: {len({r["azsld"] for r in new_rows})} new classes from Slovo ({len(new_rows)} Russian glosses)')
 vocab_list = words_list + ([T.UNKNOWN] if UNKNOWN else [])
 vocab = {g: i for i, g in enumerate(vocab_list)}
 print(f'vocabulary: {len(words_list)} words ({len(set(words_list) - set(wsplit.gloss))} beyond the 200), '
@@ -466,6 +478,7 @@ if SLOVO:
     from azsl import extra as EX
     with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO), recursive=True))[0], encoding='utf-8') as f:
         rename = {r['slovo']: r['azsld'] for r in _csv.DictReader(f)}
+    rename.update({r['slovo']: r['azsld'] for r in new_rows})
     sl_dirs = find('slovo/manifest.csv')
     signs['train'] = T.Bank.merge(signs['train'], EX.load_signs(sl_dirs, EX.slovo_glosses(sl_dirs, rename), vocab,
                                                                 margin=CFG['margin'], whole=True, tag='slovo'))
