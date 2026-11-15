@@ -2682,9 +2682,9 @@ every bone in the same rest position 0.0 mm apart, same 18 expressions and 13 mo
 redistributed and used commercially, so the metadata should be updated by its author.
 
 **The raised elbow** (team feedback: "the avatar putting the right hand up looks weird most of the time"). Headless
-contact sheets (`scratch/avatar_sheet.mjs`) showed it: in SABAH, SƏN, NƏ the right upper arm went out sideways almost
+contact sheets (`tools/avatar_sheet.mjs`) showed it: in SABAH, SƏN, NƏ the right upper arm went out sideways almost
 to shoulder height while the hand worked at the chin or chest. Measured over 300 words (13,352 arm frames,
-`scratch/elbow_stats.mjs`): the avatar's right elbow was within 15 cm of shoulder height and over 12 cm out in 9.0 % of
+`tools/measure_elbows.mjs`): the avatar's right elbow was within 15 cm of shoulder height and over 12 cm out in 9.0 % of
 frames (the signers' own elbows, mapped to the avatar: 3.0 %), in 23 % of words for ≥ 3 frames. Two sources: the IK
 of word frames allowed the elbow up to shoulder height (the zone was wide because some signs do raise it), and the body
 fix (`#fixBody`) swept the elbow around the shoulder-wrist axis and took any candidate that cleared a few millimetres
