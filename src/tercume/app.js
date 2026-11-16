@@ -18,6 +18,21 @@ import './layout.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
+// Kamera overlay-nin (#overlay canvas) rəngləri CSS dəyişənlərindən - hər kadrda
+// deyil, yalnız yükləmədə və 'chevir:theme' hadisəsində yenilənir (performans).
+const camColors = { line: '', glow: '', wrist: '', pink: '', dot: '' };
+function readCamColors() {
+  const cs = getComputedStyle(document.body);
+  const get = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+  camColors.line = get('--t-cam-line', 'rgba(63,193,232,.9)');
+  camColors.glow = get('--t-cam-glow', 'rgba(63,193,232,.8)');
+  camColors.wrist = get('--t-cam-wrist', '#f5b94f');
+  camColors.pink = get('--t-cam-pink', '#ff4f97');
+  camColors.dot = get('--t-cam-dot', '#f1ede9');
+}
+readCamColors();
+document.addEventListener('chevir:theme', readCamColors);
+
 // Söz rejimində halqanın yazısı (bax s2w.js)
 const WORD_STATE_LABEL = { rest: 'istirahət', signing: 'jest', recognizing: 'tanınır' };
 
@@ -102,6 +117,7 @@ function initS2T() {
   const video = $('#cam');
   const canvas = $('#overlay');
   const ctx = canvas.getContext('2d');
+  const camViewport = video.closest('.viewport');
 
   const s2t = new SignToText({
     model: state.model, decoder: state.decoder, video,
@@ -213,6 +229,7 @@ function initS2T() {
       const runner = state.kind === 'words' ? await ensureS2W() : state.kind === 'sentence' ? await ensureS2S() : s2t;
       await runner.start();
       $('#btn-stop').disabled = false;
+      camViewport.classList.add('is-live');
     } catch (err) {
       setStatus('Kamera açılmadı: ' + err.message, 'error');
       $('#btn-start').disabled = false;
@@ -222,6 +239,7 @@ function initS2T() {
     current()?.stop();
     $('#btn-start').disabled = false;
     $('#btn-stop').disabled = true;
+    camViewport.classList.remove('is-live');
     state.skelS2T?.clearPose();
   });
   $('#btn-finish').addEventListener('click', () => s2t.finish());
@@ -235,7 +253,9 @@ function initS2T() {
   // Kamerasız sınaq üçün klaviatura girişi
   addEventListener('keydown', (e) => {
     if (!$('#tab-s2t').classList.contains('is-active') || state.kind !== 'letters') return;
-    if (e.target.matches('input,textarea,select')) return;
+    // #theme-toggle öz Enter/Space aktivasiyasını almalıdır (native button
+    // davranışı) - bu qlobal qısayol onu əvvəl tutub preventDefault edirdi.
+    if (e.target.matches('input,textarea,select') || e.target.id === 'theme-toggle') return;
     if (e.key === 'Enter') { e.preventDefault(); s2t.finish(); return; }
     if (e.key === 'Backspace') { e.preventDefault(); s2t.undo(); return; }
     const ch = e.key.toLowerCase();
@@ -266,8 +286,8 @@ function drawOverlay(ctx, canvas, video, hands) {
 
 function drawHand(ctx, w, h, landmarks) {
   ctx.lineWidth = Math.max(2, w / 420);
-  ctx.strokeStyle = 'rgba(63,193,232,.9)';
-  ctx.shadowColor = 'rgba(63,193,232,.8)';
+  ctx.strokeStyle = camColors.line;
+  ctx.shadowColor = camColors.glow;
   ctx.shadowBlur = 10;
   ctx.beginPath();
   for (const [a, b] of HAND_CONNECTIONS) {
@@ -279,7 +299,7 @@ function drawHand(ctx, w, h, landmarks) {
   const tips = new Set([4, 8, 12, 16, 20]);
   landmarks.forEach((p, i) => {
     ctx.beginPath();
-    ctx.fillStyle = i === 0 ? '#f5b94f' : tips.has(i) ? '#ff4f97' : '#f1ede9';
+    ctx.fillStyle = i === 0 ? camColors.wrist : tips.has(i) ? camColors.pink : camColors.dot;
     ctx.arc(p.x * w, p.y * h, Math.max(3, w / 260), 0, Math.PI * 2);
     ctx.fill();
   });

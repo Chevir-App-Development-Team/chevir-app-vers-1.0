@@ -271,7 +271,17 @@ export class VrmAvatar {
 
     const w = container.clientWidth || 480, h = container.clientHeight || 480;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x060d24);
+    // Fon bir dəfə yaradılan kiçik canvas-dan gələn şaquli gradient - applyTheme() hər tema
+    // dəyişikliyində YALNIZ bu canvas-ı yenidən boyayır (renderer/WebGL context toxunulmur).
+    this._bgCanvas = document.createElement('canvas');
+    this._bgCanvas.width = 4;
+    this._bgCanvas.height = 256;
+    this._bgCtx = this._bgCanvas.getContext('2d');
+    this._bgTexture = new THREE.CanvasTexture(this._bgCanvas);
+    // colorSpace MÜTLƏQ lazımdır - yoxsa canvas-dan gələn gradient rəngləri linear fəzada
+    // şərh olunub solğun/yuyulmuş çıxır (kəşf edilib).
+    this._bgTexture.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = this._bgTexture; // applyTheme() aşağıda dərhal boyayır
 
     this.camera = new THREE.PerspectiveCamera(34, w / h, 0.1, 40);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -293,7 +303,29 @@ export class VrmAvatar {
 
     this._onResize = () => this.resize();
     addEventListener('resize', this._onResize);
+    this._onTheme = () => this.applyTheme();
+    document.addEventListener('chevir:theme', this._onTheme);
+    this.applyTheme();
     this.#loop();
+  }
+
+  /**
+   * Fon gradientini CSS dəyişənlərindən (--t-avatar-bg-top/-bottom) oxuyub mövcud canvas-ı
+   * yenidən boyayır - avatar işıqlandırması/materialları TOXUNULMUR. Dark-da hər iki dayanma
+   * eyni rəngdir (düz fon, piksel-identik), light-da ağ köynək/dəri fonla qarışmasın deyə
+   * kontrastlı orta-mavi gradient.
+   */
+  applyTheme() {
+    const cs = getComputedStyle(document.body);
+    const top = cs.getPropertyValue('--t-avatar-bg-top').trim() || '#060d24';
+    const bottom = cs.getPropertyValue('--t-avatar-bg-bottom').trim() || '#060d24';
+    const ctx = this._bgCtx, h = this._bgCanvas.height;
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, top);
+    grad.addColorStop(1, bottom);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, this._bgCanvas.width, h);
+    this._bgTexture.needsUpdate = true;
   }
 
   async load(url) {
@@ -1926,6 +1958,7 @@ export class VrmAvatar {
   dispose() {
     cancelAnimationFrame(this._raf);
     removeEventListener('resize', this._onResize);
+    document.removeEventListener('chevir:theme', this._onTheme);
     if (this.vrm) VRMUtils.deepDispose(this.vrm.scene);
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
