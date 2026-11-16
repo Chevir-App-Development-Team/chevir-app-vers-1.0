@@ -25,6 +25,28 @@ const MENU_ENABLED_PAGES = ['home', 'tercume', 'nsosyal']
 // EN düyməsində ana səhifənin EN nüsxəsinə (fallback) aparır.
 const PAGE_EN_PATH = { home: 'en/' }
 
+// /tercume-ə xas tema (dark/light) keçid düyməsi - yalnız bu səhifənin
+// navbar-ına əlavə olunur (bax navbarMarkup-dakı `page === 'tercume'` şərti),
+// digər səhifələrin markup-u dəyişmir. localStorage/klik məntiqi
+// src/tercume/layout.js-dədir (id ilə seçir, DOM-dakı yerindən asılı deyil).
+const TERCUME_THEME_TOGGLE_MARKUP = `
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-pressed="false" aria-label="Açıq rejimə keç">
+      <svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+      <svg class="theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>`
+
 // "AZ | EN" keçidi - iki yerdə işlədilir (masaüstündə CTA-nın yanında,
 // hamburger menyusunda ayrıca sətirdə) - bax navbarMarkup aşağıda.
 // modifierClass ilə iki nüsxə eyni DOM/CSS əsasını paylaşır, yalnız
@@ -90,7 +112,7 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
     ${links}${menuLangBlock}${menuCtaBlock}
   </nav>
   <div class="navbar__end">
-    ${langSwitchMarkup(page)}
+    ${langSwitchMarkup(page)}${page === 'tercume' ? TERCUME_THEME_TOGGLE_MARKUP : ''}
     <a class="navbar__cta" href="${home ? '' : BASE}#pilot">${t('common.nav.cta')}</a>
   </div>
   <button class="navbar__toggle" type="button" aria-expanded="false" aria-controls="navbar-links" aria-label="${t('common.nav.toggleAriaLabel')}">

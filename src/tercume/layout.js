@@ -414,7 +414,68 @@ function initFit() {
   });
 }
 
+// Dark/light keçid düyməsi. Açılış dəyəri artıq tercume/index.html-dəki inline
+// flash-prevention script tərəfindən (html data-theme + color-scheme) boyadan
+// ƏVVƏL qoyulub - burada yalnız localStorage-i YENİDƏN oxuyuruq (DOM-dan
+// deyil) ki, iki mənbə arasında uyğunsuzluq riski olmasın, və klik/klaviatura
+// davranışını qoşuruq.
+const THEME_KEY = 'chevir-tercume-theme';
+
+function readStoredTheme() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return v === 'light' || v === 'dark' ? v : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+function writeStoredTheme(theme) {
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // localStorage yoxdursa (məxfilik rejimi və s.) seçim sessiya daxilində qalır
+  }
+}
+
+function applyTheme(theme, { animate = false } = {}) {
+  const html = document.documentElement;
+  html.setAttribute('data-theme', theme);
+  html.style.colorScheme = theme;
+  const metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+  if (metaColorScheme) metaColorScheme.setAttribute('content', theme);
+
+  const btn = document.querySelector('#theme-toggle');
+  if (btn) {
+    const isLight = theme === 'light';
+    btn.setAttribute('aria-pressed', String(isLight));
+    btn.setAttribute('aria-label', isLight ? 'Tünd rejimə keç' : 'Açıq rejimə keç');
+  }
+
+  document.dispatchEvent(new CustomEvent('chevir:theme', { detail: { theme } }));
+
+  // Rəng keçidi animasiyası YALNIZ klik/klaviatura ilə dəyişəndə (animate=true) -
+  // ilk yükləmədə (boot() çağırışında) heç vaxt. .theme-anim CSS-dəki
+  // transition qaydalarını aktivləşdirən tək açardır (bax tercume.css).
+  if (!animate) return;
+  html.classList.add('theme-anim');
+  window.clearTimeout(applyTheme._animTimer);
+  applyTheme._animTimer = window.setTimeout(() => html.classList.remove('theme-anim'), 260);
+}
+
+function initThemeToggle() {
+  const btn = document.querySelector('#theme-toggle');
+  applyTheme(readStoredTheme(), { animate: false });
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    writeStoredTheme(next);
+    applyTheme(next, { animate: true });
+  });
+}
+
 function boot() {
+  initThemeToggle();
   setNavbarHeightVar();
   initMobileLayout();
   initTopbarControls();

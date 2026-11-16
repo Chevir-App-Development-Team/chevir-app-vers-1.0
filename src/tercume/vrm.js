@@ -271,7 +271,17 @@ export class VrmAvatar {
 
     const w = container.clientWidth || 480, h = container.clientHeight || 480;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x060d24);
+    // Fon bir dəfə yaradılan kiçik canvas-dan gələn şaquli gradient - applyTheme() hər tema
+    // dəyişikliyində YALNIZ bu canvas-ı yenidən boyayır (renderer/WebGL context toxunulmur).
+    this._bgCanvas = document.createElement('canvas');
+    this._bgCanvas.width = 4;
+    this._bgCanvas.height = 256;
+    this._bgCtx = this._bgCanvas.getContext('2d');
+    this._bgTexture = new THREE.CanvasTexture(this._bgCanvas);
+    // colorSpace MÜTLƏQ lazımdır - yoxsa canvas-dan gələn gradient rəngləri linear fəzada
+    // şərh olunub solğun/yuyulmuş çıxır (kəşf edilib).
+    this._bgTexture.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = this._bgTexture; // applyTheme() aşağıda dərhal boyayır
 
     this.camera = new THREE.PerspectiveCamera(34, w / h, 0.1, 40);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -293,7 +303,29 @@ export class VrmAvatar {
 
     this._onResize = () => this.resize();
     addEventListener('resize', this._onResize);
+    this._onTheme = () => this.applyTheme();
+    document.addEventListener('chevir:theme', this._onTheme);
+    this.applyTheme();
     this.#loop();
+  }
+
+  /**
+   * Fon gradientini CSS dəyişənlərindən (--t-avatar-bg-top/-bottom) oxuyub mövcud canvas-ı
+   * yenidən boyayır - avatar işıqlandırması/materialları TOXUNULMUR. Dark-da hər iki dayanma
+   * eyni rəngdir (düz fon, piksel-identik), light-da ağ köynək/dəri fonla qarışmasın deyə
+   * kontrastlı orta-mavi gradient.
+   */
+  applyTheme() {
+    const cs = getComputedStyle(document.body);
+    const top = cs.getPropertyValue('--t-avatar-bg-top').trim() || '#060d24';
+    const bottom = cs.getPropertyValue('--t-avatar-bg-bottom').trim() || '#060d24';
+    const ctx = this._bgCtx, h = this._bgCanvas.height;
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, top);
+    grad.addColorStop(1, bottom);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, this._bgCanvas.width, h);
+    this._bgTexture.needsUpdate = true;
   }
 
   async load(url) {
@@ -341,7 +373,7 @@ export class VrmAvatar {
     for (const side of SIDES) this.#toRest(side);
     this.snap();
     if (vrm.lookAt) vrm.lookAt.target = this.camera;   // göz izləyiciyə baxır
-    this.#frameCamera();
+    this.#frameCamera('rest');
     return vrm;
   }
 
@@ -1788,7 +1820,8 @@ export class VrmAvatar {
 
   /**
    * Kamera: hərfdə işarə edən əlin tərəfinə yaxın, sözdə gövdənin mərkəzinə
-   * (iki əl, üz və sinə birlikdə görünsün). Çərçivələr arasında yumşaq keçir.
+   * (iki əl, üz və sinə birlikdə görünsün), boşda (rest) başın üstündə boşluq
+   * qalsın deyə başa yaxın və bir az geriyə çəkilir. Çərçivələr arasında yumşaq keçir.
    */
   #frameCamera(kind = 'letter', bounds = null) {
     if (!this.rigs) return;
@@ -1800,6 +1833,17 @@ export class VrmAvatar {
       target = bounds.getCenter(new THREE.Vector3());
       target.z = this.body.mid.z + 0.08;
       dist = THREE.MathUtils.clamp(Math.max(size.y / 2 / tan, size.x / 2 / (tan * this.camera.aspect)) + 0.1, 1.4, 2.4);
+    } else if (kind === 'rest') {
+      // Boş/istirahət vəziyyəti: işarə çərçivəsi (bias 0.78, sinəyə yaxın) burada yoxdur —
+      // başa yaxın hədəf + yüngül yuxarı sürüşmə, başın üstündə boşluq qalsın, etiket saça
+      // toxunmasın. load()-dan (ilk görünüş) və pause→rest keçidindən (yalnız "Dayandır"
+      // basılanda, sözlər/hərflər arası fasilələrdə YOX - t2s.js heç vaxt clearHandPose
+      // çağırmır) çağırılır.
+      const rig = this.rigs[this.hand];
+      const space = signAnchor(rig, UP).lerp(signAnchor(rig, DOWN), 0.5);
+      target = rig.head.clone().lerp(space, 0.12);
+      target.y += 0.08;
+      dist = 1.55;
     } else {
       const rig = this.rigs[this.hand];
       const c = this.camFrame ?? { bias: 0.78, dist: 1.25, lift: 0 };
@@ -1833,6 +1877,7 @@ export class VrmAvatar {
     if (this.mode === 'pause' && (this.idle += dt) > PAUSE_TO_REST) {
       for (const side of SIDES) this.#toRest(side);
       this.mode = 'rest';
+      this.#frameCamera('rest');
     }
     if (this.mode !== 'sign') { this.face.target = {}; this.face.head = [0, 0, 0]; }
     const kf = 1 - Math.exp(-14 * dt);
@@ -1926,6 +1971,7 @@ export class VrmAvatar {
   dispose() {
     cancelAnimationFrame(this._raf);
     removeEventListener('resize', this._onResize);
+    document.removeEventListener('chevir:theme', this._onTheme);
     if (this.vrm) VRMUtils.deepDispose(this.vrm.scene);
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
