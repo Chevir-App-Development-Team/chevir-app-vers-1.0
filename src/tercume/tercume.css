@@ -164,10 +164,10 @@ html[data-theme='light'] body.tercume {
      mənim data-theme atribut keçidimi SINDIRIRDI (CSS dəyişənləri heç vaxt
      düzgün dəyişmirdi - kəşf edilib, bax commit mesajı). */
 
-  --t-bg: linear-gradient(180deg, #f7faff 0%, #dde9f9 38%, #bdd2f0 72%, #a6c0e8 100%);
+  --t-bg: linear-gradient(180deg, #f7faff 0%, #e6effb 40%, #d3e2f6 75%, #c3d6f1 100%);
   --t-bg-top: #f7faff;
-  --t-card: rgba(255, 255, 255, 0.9);
-  --t-card-solid: #ffffff;
+  --t-card: rgba(250, 252, 255, 0.86);
+  --t-card-solid: #fbfcff;
   --t-panel-2: #eef3fb;
   --t-select-bg: #ffffff;
   --t-seg: #eef3fb;
@@ -310,7 +310,7 @@ html[data-theme='light'] body.tercume .spelled i {
   padding: 8px 2px;
   border-radius: 4px;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, var(--press-transition);
+  transition: color 0.15s, var(--press-transition);
 }
 
 .tab:hover {
@@ -324,7 +324,6 @@ html[data-theme='light'] body.tercume .spelled i {
 .tab.is-active {
   color: var(--t-text);
   font-weight: 700;
-  border-bottom-color: var(--t-accent);
 }
 
 .status {
@@ -481,6 +480,23 @@ html[data-theme='light'] body.tercume .spelled i {
    Kənar kontur dəyişmir (.viewport-un öz border-u artıq var(--t-line) ilə işləyir). */
 html[data-theme='light'] #tab-s2t .stage .viewport:first-child {
   box-shadow: none;
+}
+
+/* Light-da skeleton panelinin dibində nazik tünd xətt görünür - skeleton.js-dəki
+   3D grid-in üfüq xəttinə doğru sıxlaşan xətləri bir-birinin üstünə düşüb tünd
+   zolaq kimi görünür (dark-da eyni şey var, amma tünd fonda seçilmir). Canvas-a
+   TOXUNMADAN, panelin öz fon rənginə (--t-panel-bg-bottom) əriyən nazik feyd
+   bu zolağı örtür. */
+html[data-theme='light'] #s2t-skeleton::after,
+html[data-theme='light'] #t2s-skeleton::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30px;
+  background: linear-gradient(to bottom, transparent, var(--t-panel-bg-bottom) 65%);
+  pointer-events: none;
 }
 
 /* Canvas mütləq yerləşir: pəncərənin hündürlüyünü CSS təyin edir, canvas-ın öz
@@ -2451,9 +2467,14 @@ body.is-mobile #topbar-ctrl-t2s .spelled i.done {
    Naviqasiya — YALNIZ /tercume, YALNIZ light tema. navbar.js/
    navbar.css-ə TOXUNULMUR - paylaşılan `.is-light` mexanizmi
    home-un scroll-bölməsi vəziyyətinə bağlıdır (fərqli ox,
-   fərqli göy loqo), bura uyğun deyil. Bütün yeni qaydalar bu
-   compound selektorla məhdudlaşır ki, digər səhifələrə (home,
-   nsosyal) sıçramasın.
+   fərqli göy loqo), bura uyğun deyil. Rənglər isə home-un
+   `.navbar.is-light` qaydalarından (navbar.css) birbaşa
+   götürülüb - piksel baxımından eyni olsun deyə: loqo mətni
+   --ink-on-light (#091638), linklər/AZ|EN --bridge-blue
+   (#0021bf), .is-scrolled fonu rgba(243,247,252,.82). Loqo
+   ikonu home kimi öz qradiyentində qalır (fill override YOX).
+   Bütün yeni qaydalar bu compound selektorla məhdudlaşır ki,
+   digər səhifələrə (home, nsosyal) sıçramasın.
    ══════════════════════════════════════════════════════════ */
 html[data-theme='light'] body.tercume [data-navbar] .navbar__logo-svg--dark {
   opacity: 0;
@@ -2463,21 +2484,24 @@ html[data-theme='light'] body.tercume [data-navbar] .navbar__logo-svg--light {
   opacity: 1;
 }
 
-/* Göy qradiyent SVG nüsxəsi götürülür, fill-i həll CSS-dən sabit tündə
-   dəyişdirilir (CSS fill presentasiya atributunu üstələyir) - yeni SVG
-   markup/JS lazım deyil. */
-html[data-theme='light'] body.tercume [data-navbar] .navbar__logo-svg--light [data-logo-part] {
-  fill: #091638;
+html[data-theme='light'] body.tercume [data-navbar] .navbar__name {
+  color: #091638;
 }
 
-html[data-theme='light'] body.tercume [data-navbar] .navbar__name,
-html[data-theme='light'] body.tercume [data-navbar] .navbar__link,
+html[data-theme='light'] body.tercume [data-navbar] .navbar__link {
+  color: #0021bf;
+  opacity: 1;
+}
+
 html[data-theme='light'] body.tercume [data-navbar] .navbar__lang-link {
-  color: #3b4a6b;
+  color: #0021bf;
+  opacity: 0.82;
 }
 
 html[data-theme='light'] body.tercume [data-navbar] .navbar__lang-link.is-active {
-  color: #091638;
+  color: #0021bf;
+  font-weight: 600;
+  opacity: 1;
 }
 
 html[data-theme='light'] body.tercume [data-navbar] .navbar__toggle {
@@ -2490,20 +2514,22 @@ html[data-theme='light'] body.tercume [data-navbar] .navbar__toggle-bar {
 }
 
 /* Scroll olunmuş vəziyyətdə paylaşılan tünd yarı-şəffaf zolaq (rgba(9,22,56,.82))
-   açıq fonda loqo/mətni batırardı - opak işıq səthi ilə əvəzlənir. */
+   açıq fonda loqo/mətni batırardı - home-un `.navbar.is-light.is-scrolled`
+   ilə EYNİ dəyərlə əvəzlənir (backdrop-filter:blur(14px) bazadakı
+   `.is-scrolled` qaydasından miras qalır, təkrarlanmır). */
 html[data-theme='light'] body.tercume [data-navbar].is-scrolled {
-  background: var(--t-card-solid);
+  background: rgba(243, 247, 252, 0.82);
   box-shadow: 0 1px 0 rgba(9, 22, 56, 0.08);
 }
 
 /* CTA (Pilot tərəfdaş olun) hər iki temada eyni mavi+ağ qalır - toxunulmur. */
 
 /* ══════════════════════════════════════════════════════════
-   Tema keçid düyməsi — .topbar-ın son uşağı (#topbar-ctrl-* qruplarından
-   sonra), bütün 3 tabda görünür. Fit rejimində topbar-ctrl-un
-   margin-left:auto-su onu avtomatik sağ kənara itələyir (yeni
-   mövqeləndirmə qaydası lazım deyil). Mobil reparent-ə (layout.js
-   initMobileLayout(), #topbar-ctrl-s2t/t2s-i id-lə seçir) toxunulmur.
+   Tema keçid düyməsi — naviqasiyada (.navbar__end, AZ|EN-dən sonra,
+   CTA-dan əvvəl, bax navbar.js TERCUME_THEME_TOGGLE_MARKUP), topbar-a yox.
+   Yerləşmə ≤1023px-ə qədər dəyişmir, ≤600px-dəki hamburger toqquşması
+   aşağıda ayrıca həll olunur (bax "Naviqasiya — tema düyməsinin mobil
+   yeri").
    ══════════════════════════════════════════════════════════ */
 .theme-toggle {
   flex: none;
@@ -2551,9 +2577,14 @@ html[data-theme='light'] .theme-toggle .theme-toggle__sun {
   opacity: 1;
 }
 
-@media (max-width: 1099px), (max-height: 559px) {
-  .theme-toggle {
-    order: 5; /* .topbar-ctrl-un order:4-ündən sonra, hər zaman ən sonda */
+/* Naviqasiya — tema düyməsinin mobil yeri. ≤600px-də hamburger ikonu
+   (.navbar__toggle) .navbar__end-in sütununa (3) keçir (bax navbar.css) -
+   CTA/AZ|EN artıq gizli olsa da, bu sütunda qalan tema düyməsi onunla eyni
+   xanada toqquşmasın deyə mərkəz sütuna (2) ötürülür. */
+@media (max-width: 600px) {
+  body.tercume [data-navbar] .navbar__end {
+    grid-column: 2;
+    justify-self: center;
   }
 }
 
