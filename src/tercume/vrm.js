@@ -373,7 +373,7 @@ export class VrmAvatar {
     for (const side of SIDES) this.#toRest(side);
     this.snap();
     if (vrm.lookAt) vrm.lookAt.target = this.camera;   // göz izləyiciyə baxır
-    this.#frameCamera();
+    this.#frameCamera('rest');
     return vrm;
   }
 
@@ -1820,7 +1820,8 @@ export class VrmAvatar {
 
   /**
    * Kamera: hərfdə işarə edən əlin tərəfinə yaxın, sözdə gövdənin mərkəzinə
-   * (iki əl, üz və sinə birlikdə görünsün). Çərçivələr arasında yumşaq keçir.
+   * (iki əl, üz və sinə birlikdə görünsün), boşda (rest) başın üstündə boşluq
+   * qalsın deyə başa yaxın və bir az geriyə çəkilir. Çərçivələr arasında yumşaq keçir.
    */
   #frameCamera(kind = 'letter', bounds = null) {
     if (!this.rigs) return;
@@ -1832,6 +1833,17 @@ export class VrmAvatar {
       target = bounds.getCenter(new THREE.Vector3());
       target.z = this.body.mid.z + 0.08;
       dist = THREE.MathUtils.clamp(Math.max(size.y / 2 / tan, size.x / 2 / (tan * this.camera.aspect)) + 0.1, 1.4, 2.4);
+    } else if (kind === 'rest') {
+      // Boş/istirahət vəziyyəti: işarə çərçivəsi (bias 0.78, sinəyə yaxın) burada yoxdur —
+      // başa yaxın hədəf + yüngül yuxarı sürüşmə, başın üstündə boşluq qalsın, etiket saça
+      // toxunmasın. load()-dan (ilk görünüş) və pause→rest keçidindən (yalnız "Dayandır"
+      // basılanda, sözlər/hərflər arası fasilələrdə YOX - t2s.js heç vaxt clearHandPose
+      // çağırmır) çağırılır.
+      const rig = this.rigs[this.hand];
+      const space = signAnchor(rig, UP).lerp(signAnchor(rig, DOWN), 0.5);
+      target = rig.head.clone().lerp(space, 0.12);
+      target.y += 0.08;
+      dist = 1.55;
     } else {
       const rig = this.rigs[this.hand];
       const c = this.camFrame ?? { bias: 0.78, dist: 1.25, lift: 0 };
@@ -1865,6 +1877,7 @@ export class VrmAvatar {
     if (this.mode === 'pause' && (this.idle += dt) > PAUSE_TO_REST) {
       for (const side of SIDES) this.#toRest(side);
       this.mode = 'rest';
+      this.#frameCamera('rest');
     }
     if (this.mode !== 'sign') { this.face.target = {}; this.face.head = [0, 0, 0]; }
     const kf = 1 - Math.exp(-14 * dt);

@@ -219,16 +219,19 @@ export class CyberHand {
     const read = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
     const cyan = read('--t-skl-cyan', '#3fc1e8');
     const gridColor = read('--t-skl-grid', '#2a241e');
-    // Mərkəz xətti ayrıca tokendir (bones/joint-lərin cyan-ından DEKUPLAJ edilib) - grid-in
-    // mərkəz xətti "ağ-mavi ton" olmalıdır, bones-un öz rənginə bağlı qalmamalıdır. Dark-da
-    // fallback bones-un öz cyan-ı (piksel-identik, ayrıca dark tokeni lazım deyil).
-    const gridCenter = read('--t-skl-grid-center', cyan);
+    // Mərkəz xətti ayrıca tokendir, YALNIZ light-da (bones/joint-lərin cyan-ından DEKUPLAJ
+    // edilib) - grid-in mərkəz xətti "ağ-mavi ton" olmalıdır. Dark-da əvvəllər cyan fallback-ı
+    // mərkəz xəttini adi grid xətlərindən kəskin fərqləndirib panelin ortasında nazik şaquli/üfüqi
+    // xətt kimi görünürdü (GridHelper-in iki mərkəz xətti bu kamera bucağından belə proyeksiya olunur)
+    // - indi dark-da adi gridColor-la eynidir, seçilmir.
+    const gridCenter = isLight ? read('--t-skl-grid-center', cyan) : gridColor;
     const planeColor = read('--t-skl-plane', '#1a1612');
 
     const grid = new THREE.GridHelper(14, 28, new THREE.Color(gridCenter), new THREE.Color(gridColor));
     grid.material.transparent = true;
-    // Light-da ağ xətlər ("yarı-şəffaf", 0.55) - dark dəyişmir (0.18, piksel-identik).
-    grid.material.opacity = isLight ? 0.55 : 0.18;
+    // Light-da xətlər - 0.55 çox sıx idi, horizonta yaxın sıxlaşan xətlər bir-birinə qarışıb
+    // boz zolaq kimi görünürdü (ölçülüb). 0.22-də ayrı-ayrı xətlər qalır, zolaq itir. Dark dəyişmir.
+    grid.material.opacity = isLight ? 0.22 : 0.18;
     grid.position.y = -1.9;
     this.scene.add(grid);
     this.grid = grid;

@@ -48,6 +48,7 @@
   --t-line-2: #2a447e;
   --t-ghost-bg: #13265a;
   --t-btn-hover: #1a3470;
+  --t-btn-border-hover: var(--t-line-2); /* dark-da bazadakı ilə eyni (piksel-identik), light-da tündləşir */
 
   /* ── mətn ── */
   --t-text: #eef3fc;
@@ -111,6 +112,7 @@
   --radius-sm: 12px;
   --gutter: clamp(1.25rem, 5vw, 4rem);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --press-transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); /* bütün düymələrdə :active scale(0.97) üçün */
   /* sağ panel: tablist-kart və kart-kart boşluğu eyni mənbədən (r5 item 2) */
   --panel-gap: 16px;
 }
@@ -185,6 +187,7 @@ html[data-theme='light'] body.tercume {
   --t-line-2: rgba(150, 180, 225, 0.8);
   --t-ghost-bg: #eef3fb;
   --t-btn-hover: #e1e9f6;
+  --t-btn-border-hover: rgba(100, 145, 210, 0.9); /* --t-line-dən bir az tünd - hover-da kontur ayrılsın */
 
   --t-text: #091638;
   --t-muted: #5d6e90;
@@ -210,7 +213,7 @@ html[data-theme='light'] body.tercume {
   /* panel üzərindəki pill-lər (etiket, sayğac, capture-ring) - açıq yarı-şəffaf
      fon + tünd mətn (--t-muted artıq tünd-tərəfə keçib, yuxarıda) */
   --t-label-bg: rgba(255, 255, 255, 0.78);
-  --t-ring-bg: rgba(255, 255, 255, 0.6);
+  --t-ring-bg: rgba(255, 255, 255, 0.32);
   /* bunlar əvvəlcə tünd fon üzərində AZ-görünən açıq overlay idi (ring-track,
      pred-bar-dim) - indi əksinə, açıq fon üzərində AZ-görünən tünd overlay */
   --t-ring-track: rgba(9, 22, 56, 0.12);
@@ -240,19 +243,19 @@ html[data-theme='light'] body.tercume {
    */
 }
 
+/* Oynatma token çipləri (.spelled i) - fon (--t-chip) hər iki temada eynidir, amma
+   light-da fon açıq səhifə fonuna çox yaxın olduğu üçün çip demək olar görünmürdü
+   (ölçülüb). Yalnız light-da nazik kontur əlavə olunur, dark dəyişmir. */
+html[data-theme='light'] body.tercume .spelled i {
+  border: 1px solid var(--t-chip-line);
+}
+
 /* QEYD: .tercume select{color-scheme:dark} (aşağıda, base-select dəstəklənməyən
    köhnə brauzerlər üçün fallback) qəsdən light-da override edilmir - eyni
    Lightning CSS `light-dark()` avtomatik-aşkarlama problemi (yuxarıdakı qeydə
    bax) `color-scheme` dəyərini CSS-də yenidən yazsaq təkrarlana bilər. Təsiri
    minimaldır: yalnız native form kontrolların OS-səviyyəli rəngini bağlayır,
    SVG ox fallback-ı kimi artıq qəbul edilmiş kiçik gap-dır. */
-
-/* "Dayandır"/"Təmizlə" (outline-tərzi ikinci dərəcəli düymələr) konturu light-da
-   tünd - fon artıq açıq olduğu üçün tünd kontur daha aydın ayırır. */
-html[data-theme='light'] body.tercume .btn,
-html[data-theme='light'] body.tercume .btn-ghost {
-  border-color: #091638;
-}
 
 .tercume h1,
 .tercume h2,
@@ -299,6 +302,7 @@ html[data-theme='light'] body.tercume .btn-ghost {
 .tab {
   appearance: none;
   border: 0;
+  border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--t-muted);
   font: inherit;
@@ -306,25 +310,43 @@ html[data-theme='light'] body.tercume .btn-ghost {
   padding: 8px 2px;
   border-radius: 4px;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: color 0.15s, border-color 0.15s, var(--press-transition);
 }
 
 .tab:hover {
   color: var(--t-text);
 }
 
+.tab:active {
+  transform: scale(0.97);
+}
+
 .tab.is-active {
   color: var(--t-text);
   font-weight: 700;
+  border-bottom-color: var(--t-accent);
 }
 
 .status {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  max-width: 220px;
   font-size: 12px;
   color: var(--t-muted);
   font-family: var(--mono);
+}
+
+.status[hidden] {
+  display: none;
+}
+
+#status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status .dot {
@@ -421,6 +443,39 @@ html[data-theme='light'] body.tercume .btn-ghost {
   background: var(--t-cam-live-bg);
 }
 
+/* Kamera hələ başlamayıb/dayandırılıb - orta ikon + bir sətir izah. Kamera canlı olanda
+   (app.js-in artıq qoyduğu .is-live) gizlənir, yeni JS lazım deyil. */
+.cam-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 24px;
+  text-align: center;
+  color: var(--t-muted);
+  pointer-events: none;
+}
+
+.cam-empty svg {
+  width: 40px;
+  height: 40px;
+  opacity: 0.6;
+}
+
+.cam-empty p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 32ch;
+}
+
+.viewport.is-live .cam-empty {
+  display: none;
+}
+
 /* Light-da canlı/letterbox panellərin arxasından keçən boz inset vinyet pisdir (dark-a
    uyğunlaşdırılıb) - açıq mavi fonla ziddiyyət yaratmasın deyə yalnız kamera panelində söndürülür.
    Kənar kontur dəyişmir (.viewport-un öz border-u artıq var(--t-line) ilə işləyir). */
@@ -480,12 +535,12 @@ html[data-theme='light'] #tab-s2t .stage .viewport:first-child {
   bottom: 12px;
   right: 12px;
   z-index: 3;
-  min-width: 60px;
+  width: 60px;
   height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 14px;
+  padding: 0;
   border-radius: 999px;
   background: var(--t-ring-bg);
   box-sizing: border-box;
@@ -522,9 +577,12 @@ html[data-theme='light'] #tab-s2t .stage .viewport:first-child {
   position: relative;
   z-index: 1;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9px;
+  line-height: 1.15;
   color: var(--t-muted);
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
+  max-width: 40px;
 }
 
 /* ── kartlar ── */
@@ -533,6 +591,12 @@ html[data-theme='light'] #tab-s2t .stage .viewport:first-child {
   border: 1px solid var(--t-line);
   border-radius: var(--radius);
   padding: 14px;
+}
+
+/* Kamera dayandırılanda "Cari proqnoz" köhnə nəticəni göstərir - məntiqə toxunmadan
+   vizual olaraq köhnə olduğunu bildirir (app.js #btn-start/#btn-stop toggle edir). */
+.card.is-stale {
+  opacity: 0.45;
 }
 
 .card-head {
@@ -584,20 +648,25 @@ html[data-theme='light'] #tab-s2t .stage .viewport:first-child {
   padding: 9px 12px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.08s;
+  transition: background 0.15s, border-color 0.15s, var(--press-transition);
 }
 
 .btn:hover:not(:disabled) {
   background: var(--t-btn-hover);
-  border-color: var(--t-line-2);
+  border-color: var(--t-btn-border-hover);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 
-.btn:disabled {
-  opacity: 0.55;
+.btn:disabled,
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  background: var(--t-chip);
+  border-color: var(--t-line-2);
+  color: var(--t-muted);
+  opacity: 1;
   cursor: not-allowed;
 }
 
@@ -620,6 +689,7 @@ html[data-theme='light'] #tab-s2t .stage .viewport:first-child {
 
 .btn-ghost:hover:not(:disabled) {
   background: var(--t-btn-hover);
+  border-color: var(--t-btn-border-hover);
 }
 
 .field {
@@ -692,6 +762,16 @@ html[data-theme='light'] #tab-s2t .stage .viewport:first-child {
 .tercume textarea:focus {
   outline: 2px solid var(--t-accent-wash-45);
   outline-offset: 1px;
+}
+
+.tercume button:focus-visible,
+.tercume a:focus-visible,
+.tercume select:focus-visible,
+.tercume textarea:focus-visible,
+.tercume input:focus-visible,
+.tercume [tabindex]:focus-visible {
+  outline: 2px solid var(--t-accent);
+  outline-offset: 2px;
 }
 
 /* Açılan siyahı (dropdown) "Variant 1" - dəstəkləyən brauzerlərdə (Chrome/
@@ -1184,12 +1264,16 @@ kbd {
   aspect-ratio: 1;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.12s, transform 0.08s;
+  transition: background 0.12s, var(--press-transition);
 }
 
 .abc button:hover {
   background: var(--t-panel-2);
   transform: translateY(-1px);
+}
+
+.abc button:active {
+  transform: scale(0.97);
 }
 
 .abc button.is-on {
@@ -1228,7 +1312,7 @@ kbd {
 }
 
 .words::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .words::-webkit-scrollbar-thumb {
@@ -1255,11 +1339,15 @@ kbd {
   padding: 5px 10px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.12s, var(--press-transition);
 }
 
 .words button:hover {
   background: var(--t-panel-2);
+}
+
+.words button:active {
+  transform: scale(0.97);
 }
 
 .words button.is-on {
@@ -1586,11 +1674,15 @@ kbd {
   padding: 6px 14px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, var(--press-transition);
 }
 
 .fit-tab:hover {
   color: var(--t-text);
+}
+
+.fit-tab:active {
+  transform: scale(0.97);
 }
 
 .fit-tab.is-active {
@@ -2428,6 +2520,11 @@ html[data-theme='light'] body.tercume [data-navbar].is-scrolled {
   cursor: pointer;
   appearance: none;
   padding: 0;
+  transition: background 0.15s, var(--press-transition);
+}
+
+.theme-toggle:active {
+  transform: scale(0.97);
 }
 
 .theme-toggle:hover {
@@ -2501,5 +2598,14 @@ html.theme-anim .theme-toggle {
   html.theme-anim .abc button,
   html.theme-anim .theme-toggle {
     transition: none;
+  }
+
+  .btn:active:not(:disabled),
+  .tab:active,
+  .fit-tab:active,
+  .theme-toggle:active,
+  .abc button:active,
+  .words button:active {
+    transform: none;
   }
 }
