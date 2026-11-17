@@ -21,16 +21,16 @@ const LINKS = {
 // yox, ona görə bura səhifə əlavə etmək CSS-ə TOXUNMADAN kifayətdir).
 const MENU_ENABLED_PAGES = ['home', 'tercume', 'nsosyal']
 
-// Səhifənin EN qarşılığı. Qarşılığı olmayan səhifə (hələlik tercume/nsosyal)
+// Səhifənin EN qarşılığı. Qarşılığı olmayan səhifə (hələlik nsosyal)
 // EN düyməsində ana səhifənin EN nüsxəsinə (fallback) aparır.
-const PAGE_EN_PATH = { home: 'en/' }
+const PAGE_EN_PATH = { home: 'en/', tercume: 'en/tercume/' }
 
 // /tercume-ə xas tema (dark/light) keçid düyməsi - yalnız bu səhifənin
 // navbar-ına əlavə olunur (bax navbarMarkup-dakı `page === 'tercume'` şərti),
 // digər səhifələrin markup-u dəyişmir. localStorage/klik məntiqi
 // src/tercume/layout.js-dədir (id ilə seçir, DOM-dakı yerindən asılı deyil).
 const TERCUME_THEME_TOGGLE_MARKUP = `
-    <button type="button" id="theme-toggle" class="theme-toggle" aria-pressed="false" aria-label="Açıq rejimə keç">
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-pressed="false" aria-label="${t('common.nav.themeToggle.switchToLight')}">
       <svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="5" />
         <line x1="12" y1="1" x2="12" y2="3" />
@@ -74,11 +74,16 @@ function langSwitchMarkup(page, modifierClass = '') {
 export function navbarMarkup({ page = 'home', light = false } = {}) {
   const home = page === 'home'
   const hasMenu = MENU_ENABLED_PAGES.includes(page)
+  // EN-də bu səhifənin özünün yox, QARDAŞ səhifələrin keçidləri EN qarşılığına
+  // yönəlməlidir (məs. /en/tercume/-dən "Ana səhifə" linki /en/-ə, yox /-ə getsin).
+  // EN qarşılığı olmayan səhifə (nsosyal) öz AZ href-inə düşür - PAGE_EN_PATH-də yoxdur.
+  const homeBase = currentLang === 'en' ? `${BASE}${PAGE_EN_PATH.home}` : BASE
   const links = Object.entries(LINKS)
     .filter(([key]) => key !== page)
     .sort(([a], [b]) => (a === 'home' ? -1 : b === 'home' ? 1 : 0))
-    .map(([, l], i) => {
-      const href = l.external ? l.href : `${BASE}${l.href}`
+    .map(([key, l], i) => {
+      const relHref = currentLang === 'en' ? (PAGE_EN_PATH[key] ?? l.href) : l.href
+      const href = l.external ? l.href : `${BASE}${relHref}`
       const extAttrs = l.external ? ' target="_blank" rel="noopener noreferrer"' : ''
       return `<a class="navbar__link${i ? ' navbar__link--extra' : ''}" href="${href}"${extAttrs}>${l.label}</a>`
     })
@@ -95,13 +100,13 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
   // yoxdur. Ona görə hamburger-dropdown-u olan HƏR səhifədə CTA dropdown-un
   // son sətri kimi də təkrarlanır (bütün səhifələrdə eyni mobil davranış).
   const menuCtaBlock = hasMenu
-    ? `\n    <a class="navbar__cta navbar__cta--menu" href="${home ? '' : BASE}#pilot">${t('common.nav.cta')}</a>`
+    ? `\n    <a class="navbar__cta navbar__cta--menu" href="${home ? '' : homeBase}#pilot">${t('common.nav.cta')}</a>`
     : ''
   const cls = `${home ? '' : ' is-revealed'}${light ? ' is-light' : ''}`
   const navMenuAttr = hasMenu ? ' data-nav-menu' : ''
   return `
 <header class="navbar${cls}" data-navbar data-page="${page}"${navMenuAttr}>
-  <a class="navbar__brand" href="${home ? '#top' : BASE}">
+  <a class="navbar__brand" href="${home ? '#top' : homeBase}">
     <span class="navbar__logo" aria-hidden="true">
       <svg class="navbar__logo-svg navbar__logo-svg--dark" viewBox="${BRAND_LOGO_VIEWBOX}">${BRAND_LOGO_MARKUP_WHITE}</svg>
       <svg class="navbar__logo-svg navbar__logo-svg--light" viewBox="${BRAND_LOGO_VIEWBOX}">${NAVBAR_LOGO_MARKUP_BLUE}</svg>
@@ -113,7 +118,7 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
   </nav>
   <div class="navbar__end">
     ${langSwitchMarkup(page)}${page === 'tercume' ? TERCUME_THEME_TOGGLE_MARKUP : ''}
-    <a class="navbar__cta" href="${home ? '' : BASE}#pilot">${t('common.nav.cta')}</a>
+    <a class="navbar__cta" href="${home ? '' : homeBase}#pilot">${t('common.nav.cta')}</a>
   </div>
   <button class="navbar__toggle" type="button" aria-expanded="false" aria-controls="navbar-links" aria-label="${t('common.nav.toggleAriaLabel')}">
     <span class="navbar__toggle-bar"></span>
