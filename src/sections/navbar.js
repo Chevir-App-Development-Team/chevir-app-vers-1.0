@@ -53,14 +53,25 @@ const TERCUME_THEME_TOGGLE_MARKUP = `
 // görünmə şərti (media query) fərqlidir.
 function langSwitchMarkup(page, modifierClass = '') {
   const azHref = `${BASE}${LINKS[page]?.href ?? ''}`
-  const enHref = `${BASE}${PAGE_EN_PATH[page] ?? 'en/'}`
+  const enPath = PAGE_EN_PATH[page]
   const isEn = currentLang === 'en'
   const azLabel = t('common.nav.lang.az')
   const enLabel = t('common.nav.lang.en')
+  // EN qarşılığı olan səhifədə (home) adi keçid - əvvəlki davranış dəyişmir.
+  // Olmayan səhifədə (tercume, nsosyal) EN heç yerə aparmayan düymədir,
+  // öz sarğısına (`.navbar__lang-en-wrap`) alınır ki, bitişik tooltip
+  // (bax document click listener aşağıda) MƏHZ EN düyməsinin altında
+  // mərkəzlənsin - bütöv "AZ EN" sətrinin yox (bax navbar.css).
+  const enBlock = enPath
+    ? `<a class="navbar__lang-link${isEn ? ' is-active' : ''}" href="${BASE}${enPath}" lang="en" hreflang="en"${isEn ? ' aria-current="page"' : ''}>${enLabel}</a>`
+    : `<span class="navbar__lang-en-wrap">
+        <button type="button" class="navbar__lang-link navbar__lang-link--soon" lang="en">${enLabel}</button>
+        <span class="navbar__lang-soon" role="status" aria-live="polite" data-message="${t('common.nav.lang.enSoon')}"></span>
+      </span>`
   return `
     <span class="navbar__lang${modifierClass}">
       <a class="navbar__lang-link${!isEn ? ' is-active' : ''}" href="${azHref}" lang="az" hreflang="az"${!isEn ? ' aria-current="page"' : ''}>${azLabel}</a>
-      <a class="navbar__lang-link${isEn ? ' is-active' : ''}" href="${enHref}" lang="en" hreflang="en"${isEn ? ' aria-current="page"' : ''}>${enLabel}</a>
+      ${enBlock}
     </span>`
 }
 
@@ -168,4 +179,40 @@ document.addEventListener('keydown', (event) => {
   if (!openNavbar) return
   closeNavbarMenu(openNavbar)
   openNavbar.querySelector('.navbar__toggle')?.focus()
+})
+
+// EN qarşılığı olmayan səhifədə (bax PAGE_EN_PATH + langSwitchMarkup
+// yuxarıda) "coming soon" tooltip - bitişik `.navbar__lang-soon` span-ına
+// mətni yazır, 2s sonra özü sönür. Timer düymənin üzərindəki DOM node-a
+// bağlıdır (hər nüsxə - masaüstü/menyu - öz taymerini saxlayır), ona görə
+// təkrar klik köhnə taymeri ləğv edib yenisini qurur.
+const SOON_VISIBLE_MS = 2000
+
+document.addEventListener('click', (event) => {
+  const trigger = event.target.closest('.navbar__lang-link--soon')
+  if (!trigger) return
+  const tooltip = trigger.nextElementSibling
+  if (!tooltip || !tooltip.classList.contains('navbar__lang-soon')) return
+  clearTimeout(tooltip._soonHideTimer)
+  // aria-live yenidən oxusun deyə hər göstərmədə DOM mutasiyası lazımdır -
+  // köhnə mətn eyni olsa belə, textContent təyini uşaq node-u əvəz edir.
+  tooltip.textContent = tooltip.dataset.message
+  tooltip.classList.add('is-visible')
+  tooltip._soonHideTimer = setTimeout(() => {
+    tooltip.classList.remove('is-visible')
+  }, SOON_VISIBLE_MS)
+})
+
+// Mətni YALNIZ fade-out HƏQİQƏTƏN bitəndən sonra silir (bax navbar.css
+// `.navbar__lang-soon` keçid/visibility gecikməsi) - əvvəllər klikdəki
+// `setTimeout` mətni dərhal silirdi, fon/padding isə 180ms ərzində hələ
+// görünən qalırdı ("boş pill" baqı). `transitionend` interrupted fade-in-i
+// (təkrar klik) ÖZÜ filtrləyir: əgər gizlənmə yarımçıq kəsilib yenidən
+// göstərilirsə, həmin 1→0 keçid LƏĞV OLUNUR və onun `transitionend`-i heç
+// vaxt atəşlənmir, ona görə mətn səhvən silinmir.
+document.addEventListener('transitionend', (event) => {
+  if (event.propertyName !== 'opacity') return
+  const tooltip = event.target
+  if (!tooltip.classList?.contains('navbar__lang-soon')) return
+  if (!tooltip.classList.contains('is-visible')) tooltip.textContent = ''
 })

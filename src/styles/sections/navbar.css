@@ -293,6 +293,93 @@
   opacity: 1;
 }
 
+/* EN qarşılığı olmayan səhifədə (bax PAGE_EN_PATH, navbar.js) EN artıq
+   <button>-dir, heç yerə aparmır - görünüşü `.navbar__lang-link`-dən irsən
+   alır, burada yalnız native button görünüşü sıfırlanır. */
+.navbar__lang-link--soon {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* EN düyməsini öz lövbərinə alır ki, tooltip bütöv "AZ EN" sətrinin yox,
+   MƏHZ EN-in altında mərkəzlənsin (bax `.navbar__lang-soon` aşağıda). */
+.navbar__lang-en-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Klikdə görünən "coming soon" bildirişi - həmişə DOM-da (boş), JS mətni
+   yazıb/silir (bax navbar.js click listener, mətn yalnız fade-out BİTƏNDƏN
+   sonra silinir). Default: EN-in altında mərkəzlənir (`left: 50%` +
+   `translateX(-50%)`). Dar ekranda (hamburger dropdown) kənardan çıxmaması
+   üçün aşağıda sağa-yapışan override var. `width: max-content` MƏCBURİDİR -
+   lövbər dar (shrink-to-fit) olduğu üçün, bu olmadan `width:auto` mövcud eni
+   həmin dar konteynerdən hesablayır və mətn hər sözdə sətir keçir (yoxlanıb).
+   `visibility` gizlənmə zamanı YALNIZ opacity keçidi bitəndən sonra (0.25s
+   gecikmə ilə) `hidden`-ə keçir - əks halda fon/kontur/kölgə keçid ərzində
+   "boş pill" kimi görünən qalırdı (yoxlanıb). Göstərmə zamanı (`.is-visible`)
+   gecikmə YOXDUR - həmin selektor `visibility`-ni transition siyahısına
+   salmır, ona görə dəyər DƏRHAL `visible` olur, fade-in başdan görünür. */
+.navbar__lang-soon {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  z-index: 70;
+  width: max-content;
+  max-width: min(230px, calc(100vw - 2.5rem));
+  padding: 0.5rem 0.75rem;
+  border-radius: 11px;
+  background: var(--cloud);
+  color: var(--midnight);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: left;
+  box-shadow: 0 14px 28px rgba(9, 22, 56, 0.18);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(-4px);
+  transition: opacity 0.25s ease-in, transform 0.25s ease-in, visibility 0s linear 0.25s;
+}
+
+.navbar__lang-soon.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar__lang-soon {
+    transform: translateX(-50%);
+    transition: opacity 0.25s ease-in, visibility 0s linear 0.25s;
+  }
+
+  .navbar__lang-soon.is-visible {
+    transition: opacity 0.25s ease-out;
+  }
+}
+
+/* Açıq navbarda (home-un `.is-light` bölmələri və /tercume açıq teması)
+   tooltip ağ kart görünüşünə keçir - tünd pill açıq fonda çox ağır görünürdü.
+   /tercume açıq teması naviqasiyaya `.is-light` sinfini ƏLAVƏ ETMİR (öz
+   ayrıca `html[data-theme='light'] body.tercume [data-navbar]` qaydaları
+   ilə işləyir, bax tercume.css) - həmin PATTERN burada təkrarlanır, yalnız
+   bu tooltip sinfi üçün, tercume.css-ə toxunmadan. Kontur rəngi /tercume-un
+   açıq temadakı kart xətti ilə eynidir. */
+.navbar.is-light .navbar__lang-soon,
+html[data-theme='light'] body.tercume [data-navbar] .navbar__lang-soon {
+  background: #ffffff;
+  color: #091638;
+  border: 1px solid rgba(150, 180, 225, 0.8);
+  box-shadow: 0 8px 24px rgba(9, 22, 56, 0.1);
+}
+
 /* Hamburger-dropdown nüsxəsi (`--menu`) və onun ayırıcı xətti default GİZLİ
    - yalnız açıq dropdown daxilində görünür (bax ≤1023px bloku aşağıda),
    əks halda masaüstü sətirində (`.navbar__links` həmişə DOM-da olan ikinci
@@ -437,6 +524,31 @@
     padding: 0.4rem 0.75rem 0.2rem;
     opacity: 1;
     visibility: visible;
+  }
+
+  /* Dropdown-da AZ|EN-dən dərhal sonra CTA sətri gəlir (bax aşağı) - tooltip
+     aşağı açılsa CTA-nın üzərinə düşür, ona görə bu kontekstdə YUXARI açılır
+     (divider/linklər tərəfində boşluq var, CTA toxunulmaz qalır). Üfüqi
+     mərkəzləmə də ləğv olunur - dropdown ≤600px-də sağ kənara yapışır (bax
+     aşağı), EN-in altında mərkəzlənsə bəzi enlərdə kənardan çıxa bilər, ona
+     görə bura sağa-yapışan sabit lövbər işlədilir (CTA-nın sağ kənarı ilə
+     eyni xətt - dropdown-un özü artıq kənardan daşmır). */
+  .navbar[data-nav-menu].is-menu-open .navbar__lang--menu .navbar__lang-soon {
+    top: auto;
+    bottom: calc(100% + 10px);
+    left: auto;
+    right: 0;
+    transform: translateY(4px);
+  }
+
+  .navbar[data-nav-menu].is-menu-open .navbar__lang--menu .navbar__lang-soon.is-visible {
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .navbar[data-nav-menu].is-menu-open .navbar__lang--menu .navbar__lang-soon {
+      transform: none;
+    }
   }
 
   /* Dropdown-un son sətri: CTA - sətir-daxili (.navbar__end) nüsxəsi
