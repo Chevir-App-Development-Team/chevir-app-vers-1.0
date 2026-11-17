@@ -428,6 +428,21 @@ html[data-theme='light'] body.tercume .spelled i {
   box-shadow: inset 0 0 60px var(--t-shadow-lg);
 }
 
+/* Skeleton/avatar panelləri canvas-ın öz fonunu almazdan əvvəl (CyberHand/VrmAvatar
+   asinxron yüklənmə bitənə qədər, bax skeleton.js/vrm.js applyTheme()) bu placeholder
+   görünür. Baza --t-stage/--t-shadow-lg (yuxarı .viewport) light-da canvas-ın son
+   fonundan (--t-panel-bg-*) fərqli idi və üstəlik tünd vinyetli - keçid boz-ağ dumanlı
+   yanıb-sönmə kimi görünürdü (ölçülüb). Bu üç panel tam canvas-la örtülür, letterbox
+   yoxdur, ona görə kamera panelindəki kimi (aşağı şərhə bax) --t-panel-bg-* cütünə
+   keçid və vinyetin söndürülməsi təhlükəsizdir. Dark-da fallback --t-stage-ə düşür
+   (--t-panel-bg-* yalnız light blokda təyin olunur) - piksel-identik qalır. */
+#s2t-skeleton,
+#t2s-skeleton,
+#t2s-avatar {
+  background: linear-gradient(180deg, var(--t-panel-bg-top, var(--t-stage)), var(--t-panel-bg-bottom, var(--t-stage)));
+  box-shadow: none;
+}
+
 /* Kamera paneli: video object-fit:contain olduğu üçün kamera nisbəti konteynerdən fərqli
    olanda ətrafda .viewport-un öz fonu görünür (letterbox). Boş/placeholder vəziyyətdə temaya
    uyğun yumşaq gradient, video faktiki axın verəndə (app.js .is-live əlavə edir) temadan
