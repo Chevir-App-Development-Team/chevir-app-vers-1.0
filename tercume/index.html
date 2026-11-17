@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="az">
+<html lang="{{tercume.meta.htmlLang}}" data-page="tercume">
   <head>
     <meta charset="UTF-8" />
     <!-- Flaş qarşısı: CSS-dən/modul skriptindən ƏVVƏL, data-theme-i localStorage-dən
@@ -20,42 +20,42 @@
     <meta name="color-scheme" content="dark" />
     <meta
       name="description"
-      content="Chevir tərcümə sistemi - Azərbaycan jest dilinin barmaq əlifbasını kameradan mətnə, mətndən avatara çevirir. Hər şey brauzerdə işləyir."
+      content="{{tercume.meta.description}}"
     />
-    <title>Chevir - tərcümə sistemi</title>
+    <title>{{tercume.meta.title}}</title>
   </head>
   <body class="tercume">
     <div id="site-nav"></div>
 
     <header class="topbar">
       <div class="page-title">
-        <h1>Tərcümə sistemi</h1>
-        <p>Azərbaycan jest dilinin barmaq əlifbası · hər şey brauzerdə işləyir</p>
+        <h1>{{tercume.header.pageTitle}}</h1>
+        <p>{{tercume.header.pageSubtitle}}</p>
       </div>
       <nav class="tabs" role="tablist">
-        <button class="tab is-active" data-tab="s2t" role="tab">Jest → Mətn</button>
-        <button class="tab" data-tab="t2s" role="tab">Mətn → Jest</button>
-        <button class="tab" data-tab="about" role="tab">Model</button>
+        <button class="tab is-active" data-tab="s2t" role="tab">{{tercume.header.tabs.s2t}}</button>
+        <button class="tab" data-tab="t2s" role="tab">{{tercume.header.tabs.t2s}}</button>
+        <button class="tab" data-tab="about" role="tab">{{tercume.header.tabs.about}}</button>
       </nav>
-      <div class="status" id="status"><span class="dot"></span><span id="status-text">Yüklənir…</span></div>
+      <div class="status" id="status"><span class="dot"></span><span id="status-text">{{tercume.header.statusLoading}}</span></div>
 
       <div class="topbar-ctrl" id="topbar-ctrl-s2t">
         <label class="field inline">
-          <span>Nə tanınsın</span>
+          <span>{{tercume.header.s2tKindLabel}}</span>
           <select id="s2t-kind">
-            <option value="letters" selected>hərflər - barmaq əlifbası</option>
-            <option value="words">sözlər - AzSLD-nin 701 sözü (sınaq)</option>
-            <option value="sentence">cümlə - fasiləsiz, söz-söz (sınaq)</option>
+            <option value="letters" selected>{{tercume.header.s2tKind.letters}}</option>
+            <option value="words">{{tercume.header.s2tKind.words}}</option>
+            <option value="sentence">{{tercume.header.s2tKind.sentence}}</option>
           </select>
         </label>
         <div class="row">
-          <button class="btn btn-primary" id="btn-start">Kameranı başlat</button>
-          <button class="btn" id="btn-stop" disabled>Dayandır</button>
+          <button class="btn btn-primary" id="btn-start">{{tercume.header.btnStart}}</button>
+          <button class="btn" id="btn-stop" disabled>{{tercume.header.btnStop}}</button>
         </div>
       </div>
 
       <div class="topbar-ctrl" id="topbar-ctrl-t2s" hidden>
-        <div class="card-head"><h2>Oynatma</h2><span class="badge" id="play-progress">-</span></div>
+        <div class="card-head"><h2>{{tercume.header.playbackHeading}}</h2><span class="badge" id="play-progress">-</span></div>
         <div class="spelled" id="spelled"><span class="muted">-</span></div>
         <div class="current-letter" id="current-letter"></div>
       </div>
@@ -68,7 +68,7 @@
             <div class="viewport">
               <video id="cam" playsinline muted></video>
               <canvas id="overlay"></canvas>
-              <div class="viewport-label">Kamera <span class="muted">· aşkarlama xam kadr üzərində</span></div>
+              <div class="viewport-label">{{tercume.s2t.stage.cameraLabel}} <span class="muted">· {{tercume.s2t.stage.cameraSub}}</span></div>
               <div class="capture-ring"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" id="ring" cx="20" cy="20" r="17"/></svg><span id="ring-label">0/30</span></div>
               <div class="cam-empty" id="cam-empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -76,33 +76,33 @@
                   <circle cx="10.25" cy="12" r="3"/>
                   <path d="M18.5 10.5 21 9v7l-2.5-1.5"/>
                 </svg>
-                <p>Başlamaq üçün «Kameranı başlat» düyməsinə basın</p>
+                <p>{{tercume.s2t.camEmptyText}}</p>
               </div>
             </div>
             <div class="viewport" id="s2t-skeleton">
-              <div class="viewport-label">Cyber skeleton <span class="muted">· modelin gördüyü 21 nöqtə</span></div>
+              <div class="viewport-label">{{tercume.s2t.stage.skeletonLabel}} <span class="muted">· {{tercume.s2t.stage.skeletonSub}}</span></div>
             </div>
           </section>
 
           <div class="fit-strip">
             <div class="card fit-strip-card" data-kind="letters">
-              <div class="card-head"><h2>Beam + leksikon</h2></div>
+              <div class="card-head"><h2>{{tercume.s2t.beamHeading}}</h2></div>
               <div class="decoded" id="decoded"><span class="muted">-</span></div>
               <div class="suggest" id="suggest"></div>
               <div class="row">
-                <button class="btn btn-primary" id="btn-finish" data-kind="letters">Sözü tamamla (enter)</button>
-                <button class="btn btn-ghost" id="btn-clear">Təmizlə</button>
+                <button class="btn btn-primary" id="btn-finish" data-kind="letters">{{tercume.s2t.btnFinish}}</button>
+                <button class="btn btn-ghost" id="btn-clear">{{tercume.s2t.btnClear}}</button>
               </div>
             </div>
 
             <div class="card fit-strip-card" data-kind="words" hidden>
-              <div class="card-head"><h2>Tanınan sözlər</h2><span class="badge" id="signs-info">-</span></div>
-              <div class="signs" id="signs"><span class="muted">boş</span></div>
+              <div class="card-head"><h2>{{tercume.s2t.wordsHeading}}</h2><span class="badge" id="signs-info">-</span></div>
+              <div class="signs" id="signs"><span class="muted">{{tercume.s2t.emptyMuted}}</span></div>
             </div>
 
             <div class="card fit-strip-card" data-kind="sentence" hidden>
-              <div class="card-head"><h2>Cümlə</h2><span class="badge" id="sentence-info">-</span></div>
-              <div class="signs" id="sentence-words"><span class="muted">boş</span></div>
+              <div class="card-head"><h2>{{tercume.s2t.sentenceHeading}}</h2><span class="badge" id="sentence-info">-</span></div>
+              <div class="signs" id="sentence-words"><span class="muted">{{tercume.s2t.emptyMuted}}</span></div>
               <p class="sentence-match" id="sentence-match" hidden></p>
               <ol class="sentence-history" id="sentence-history"></ol>
             </div>
@@ -110,34 +110,34 @@
         </div>
 
         <aside class="sidebar fit-right">
-          <nav class="fit-tabs" role="tablist" aria-label="Jest → Mətn idarəetmə paneli">
-            <button class="fit-tab is-active" type="button" data-fit-tab="proqnoz" role="tab" aria-selected="true">Proqnoz</button>
-            <button class="fit-tab" type="button" data-fit-tab="herfler" role="tab" aria-selected="false">Hərflər</button>
-            <button class="fit-tab" type="button" data-fit-tab="komek" role="tab" aria-selected="false">Kömək</button>
+          <nav class="fit-tabs" role="tablist" aria-label="{{tercume.s2t.fitTabsAriaLabel}}">
+            <button class="fit-tab is-active" type="button" data-fit-tab="proqnoz" role="tab" aria-selected="true">{{tercume.s2t.fitTab.proqnoz}}</button>
+            <button class="fit-tab" type="button" data-fit-tab="herfler" role="tab" aria-selected="false">{{tercume.s2t.fitTab.herfler}}</button>
+            <button class="fit-tab" type="button" data-fit-tab="komek" role="tab" aria-selected="false">{{tercume.s2t.fitTab.komek}}</button>
           </nav>
           <div class="fit-tabpanels">
             <div class="fit-tabpanel is-active" data-fit-tabpanel="proqnoz">
               <div class="card">
-                <div class="card-head"><h2>Cari proqnoz</h2><span class="badge" id="pred-quality">-</span></div>
+                <div class="card-head"><h2>{{tercume.s2t.predHeading}}</h2><span class="badge" id="pred-quality">-</span></div>
                 <div class="pred-grid" id="pred-grid">
-                  <div class="pred-empty">Hələ proqnoz yoxdur</div>
+                  <div class="pred-empty">{{tercume.s2t.predEmpty}}</div>
                 </div>
               </div>
 
               <div class="card" data-kind="letters">
                 <label class="field">
-                  <span>Leksikon rejimi</span>
+                  <span>{{tercume.s2t.modeLabel}}</span>
                   <select id="mode">
-                    <option value="soft" selected>soft - kənara çıxmağa cərimə</option>
-                    <option value="strict">strict - yalnız real söz prefiksi</option>
-                    <option value="off">off - leksikon yoxdur</option>
+                    <option value="soft" selected>{{tercume.s2t.mode.soft}}</option>
+                    <option value="strict">{{tercume.s2t.mode.strict}}</option>
+                    <option value="off">{{tercume.s2t.mode.off}}</option>
                   </select>
                 </label>
               </div>
 
               <div class="card" data-kind="letters">
-                <div class="card-head"><h2>Yığılan hərflər</h2></div>
-                <div class="letters" id="letters"><span class="muted">Tanınan hərflər burada yığılacaq</span></div>
+                <div class="card-head"><h2>{{tercume.s2t.lettersHeading}}</h2></div>
+                <div class="letters" id="letters"><span class="muted">{{tercume.s2t.lettersEmpty}}</span></div>
               </div>
             </div>
 
@@ -149,19 +149,12 @@
 
             <div class="fit-tabpanel" data-fit-tabpanel="komek">
               <div class="card">
-                <p class="hint" data-kind="letters">Hər hərfi ~1 saniyə göstər: statik hərfdə əli tərpətmə, hərəkətli hərfləri
-                  (ç, d, g, k, ö, ü, y, z) adi kimi göstər. Eyni hərfi təkrar yazmaq üçün əli pozadan çıxar.</p>
-                <p class="hint" data-kind="letters">Kamera yoxdursa, klaviaturadan hərf yazıb dekoderi sına: <kbd>a…z</kbd>, <kbd>Enter</kbd>, <kbd>Backspace</kbd>.</p>
-                <p class="hint" data-kind="words" hidden>Əllər aşağıda dincəlir. Sözü və ya bir neçə sözü göstər, sonra əlləri
-                  endir: model jestin hamısına baxıb sözləri ayırır. Bədən və əllər kadrda görünməlidir.</p>
-                <p class="hint" data-kind="words" hidden>Model AzSLD-də görmədiyi insanlar üzərində yoxlanılıb
-                  (macro-F1 <b id="words-f1">-</b>), amma canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
-                <p class="hint" data-kind="sentence" hidden>Cümləni fasiləsiz göstər: hər söz göstərildikdən ~1 saniyə sonra
-                  yazılır, sözlər arasında əlləri endirmək lazım deyil. Cümlə bitəndə əlləri endir - iki saniyəlik fasilə
-                  cümləni bağlayır.</p>
-                <p class="hint" data-kind="sentence" hidden>Model AzSLD-də görmədiyi insanların cümlələri üzərində yoxlanılıb
-                  (söz F1 <b id="sentence-f1">-</b>). AzSLD-də olmayan yeni cümlələrdə daha zəifdir (F1 ~0.6, tanıdığı
-                  sözlərdə ~0.8). Canlı kamerada hələ sınaqdadır. Video cihazdan çıxmır.</p>
+                <p class="hint" data-kind="letters">{{tercume.s2t.hint.lettersHold}}</p>
+                <p class="hint" data-kind="letters">{{tercume.s2t.hint.lettersKeyboard}} <kbd>a…z</kbd>, <kbd>Enter</kbd>, <kbd>Backspace</kbd>.</p>
+                <p class="hint" data-kind="words" hidden>{{tercume.s2t.hint.wordsRest}}</p>
+                <p class="hint" data-kind="words" hidden>{{tercume.s2t.hint.wordsF1Prefix}} <b id="words-f1">-</b>{{tercume.s2t.hint.wordsF1Suffix}}</p>
+                <p class="hint" data-kind="sentence" hidden>{{tercume.s2t.hint.sentenceContinuous}}</p>
+                <p class="hint" data-kind="sentence" hidden>{{tercume.s2t.hint.sentenceF1Prefix}} <b id="sentence-f1">-</b>{{tercume.s2t.hint.sentenceF1Suffix}}</p>
               </div>
             </div>
           </div>
@@ -173,20 +166,20 @@
         <div class="fit-left">
           <section class="stage">
             <div class="viewport" id="t2s-avatar">
-              <div class="viewport-label">VRM avatar <span class="muted">· poza bütün qola ötürülür</span></div>
+              <div class="viewport-label">{{tercume.t2s.stage.avatarLabel}} <span class="muted">· {{tercume.t2s.stage.avatarSub}}</span></div>
             </div>
             <div class="viewport" id="t2s-skeleton">
-              <div class="viewport-label">Cyber skeleton <span class="muted">· eyni poza, xam landmark</span></div>
+              <div class="viewport-label">{{tercume.s2t.stage.skeletonLabel}} <span class="muted">· {{tercume.t2s.stage.skeletonSub}}</span></div>
             </div>
           </section>
 
           <div class="fit-strip">
             <div class="card fit-strip-card">
-              <div class="card-head"><h2>Mətn</h2></div>
-              <textarea id="t2s-input" rows="3" placeholder="Məsələn: salam dünya">salam</textarea>
+              <div class="card-head"><h2>{{tercume.t2s.textHeading}}</h2></div>
+              <textarea id="t2s-input" rows="3" placeholder="{{tercume.t2s.inputPlaceholder}}">salam</textarea>
               <div class="row">
-                <button class="btn btn-primary" id="btn-play">Jest dilində göstər</button>
-                <button class="btn" id="btn-stop-play">Dayandır</button>
+                <button class="btn btn-primary" id="btn-play">{{tercume.t2s.btnPlay}}</button>
+                <button class="btn" id="btn-stop-play">{{tercume.t2s.btnStopPlay}}</button>
               </div>
               <div id="t2s-warn" class="warn" hidden></div>
             </div>
@@ -194,37 +187,36 @@
         </div>
 
         <aside class="sidebar fit-right">
-          <nav class="fit-tabs" role="tablist" aria-label="Mətn → Jest idarəetmə paneli">
-            <button class="fit-tab is-active" type="button" data-fit-tab="lugat" role="tab" aria-selected="true">Lüğət</button>
-            <button class="fit-tab" type="button" data-fit-tab="elifba" role="tab" aria-selected="false">Əlifba</button>
-            <button class="fit-tab" type="button" data-fit-tab="ayarlar" role="tab" aria-selected="false">Ayarlar</button>
+          <nav class="fit-tabs" role="tablist" aria-label="{{tercume.t2s.fitTabsAriaLabel}}">
+            <button class="fit-tab is-active" type="button" data-fit-tab="lugat" role="tab" aria-selected="true">{{tercume.t2s.fitTab.lugat}}</button>
+            <button class="fit-tab" type="button" data-fit-tab="elifba" role="tab" aria-selected="false">{{tercume.t2s.fitTab.elifba}}</button>
+            <button class="fit-tab" type="button" data-fit-tab="ayarlar" role="tab" aria-selected="false">{{tercume.t2s.fitTab.ayarlar}}</button>
           </nav>
           <div class="fit-tabpanels">
             <div class="fit-tabpanel is-active" data-fit-tabpanel="lugat">
               <div class="card">
-                <div class="card-head"><h2>Lüğət</h2><span class="badge" id="word-count">-</span></div>
-                <input type="text" id="word-search" class="word-search" placeholder="Söz axtar…" autocomplete="off" />
+                <div class="card-head"><h2>{{tercume.t2s.dictHeading}}</h2><span class="badge" id="word-count">-</span></div>
+                <input type="text" id="word-search" class="word-search" placeholder="{{tercume.t2s.wordSearchPlaceholder}}" autocomplete="off" />
                 <div class="words" id="words"></div>
-                <p class="hint">Sözə toxun - işarəsi hər iki görüntüdə göstərilir. <b>2</b> - iki əlli işarə.
-                  Lüğətdə olmayan söz hərf-hərf göstərilir. Mənbə: AzSLD (CC BY 4.0) və JestDili.az (icazə ilə).</p>
+                <p class="hint">{{tercume.t2s.dictHintBefore}} <b>2</b> {{tercume.t2s.dictHintAfter}}</p>
               </div>
             </div>
 
             <div class="fit-tabpanel" data-fit-tabpanel="elifba">
               <div class="card">
-                <div class="card-head"><h2>Əlifba</h2><span class="badge" id="abc-count">-</span></div>
+                <div class="card-head"><h2>{{tercume.t2s.abcHeading}}</h2><span class="badge" id="abc-count">-</span></div>
                 <div class="abc" id="abc"></div>
-                <p class="hint">Hərfə toxun - pozası hər iki görüntüdə göstərilir. <b>D</b> işarəsi dinamik hərfdir (hərəkətli).</p>
+                <p class="hint">{{tercume.t2s.abcHintBefore}} <b>D</b> {{tercume.t2s.abcHintAfter}}</p>
               </div>
             </div>
 
             <div class="fit-tabpanel" data-fit-tabpanel="ayarlar">
               <div class="card">
                 <div class="row compact">
-                  <label class="field inline"><span>Hərf müddəti</span><input type="range" id="hold" min="220" max="1400" step="20" value="620"><b id="hold-val">620ms</b></label>
+                  <label class="field inline"><span>{{tercume.t2s.holdLabel}}</span><input type="range" id="hold" min="220" max="1400" step="20" value="620"><b id="hold-val">620ms</b></label>
                 </div>
                 <div class="row compact">
-                  <label class="field inline"><span>Sürət</span>
+                  <label class="field inline"><span>{{tercume.t2s.speedLabel}}</span>
                     <select id="speed">
                       <option value="0.25">0.25×</option>
                       <option value="0.5">0.5×</option>
@@ -238,15 +230,15 @@
                   </label>
                 </div>
                 <div class="row compact">
-                  <label class="field inline"><span>Əl</span>
-                    <select id="hand"><option value="right" selected>sağ</option><option value="left">sol</option></select>
+                  <label class="field inline"><span>{{tercume.t2s.handLabel}}</span>
+                    <select id="hand"><option value="right" selected>{{tercume.t2s.hand.right}}</option><option value="left">{{tercume.t2s.hand.left}}</option></select>
                   </label>
                 </div>
                 <div class="row compact">
-                  <label class="field inline"><span>Avatar</span>
+                  <label class="field inline"><span>{{tercume.t2s.avatarLabel}}</span>
                     <select id="avatar-select">
-                      <option value="avatar.vrm" selected>Standart</option>
-                      <option value="avatarfem.vrm">Qadın</option>
+                      <option value="avatar.vrm" selected>{{tercume.t2s.avatar.standard}}</option>
+                      <option value="avatarfem.vrm">{{tercume.t2s.avatar.female}}</option>
                     </select>
                   </label>
                 </div>

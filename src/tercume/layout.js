@@ -1,3 +1,5 @@
+import { t } from '../lib/i18n.js';
+
 // Masaüstü "fit" düzülüşü (Variant A): yalnız CSS sinif/aria-selected toggle edir,
 // heç bir DOM elementini daşımır/dublikatlaşdırmır, s2t/t2s/ML datasına toxunmur.
 const FIT_QUERY = '(min-width: 1100px) and (min-height: 560px)';
@@ -449,7 +451,7 @@ function applyTheme(theme, { animate = false } = {}) {
   if (btn) {
     const isLight = theme === 'light';
     btn.setAttribute('aria-pressed', String(isLight));
-    btn.setAttribute('aria-label', isLight ? 'Tünd rejimə keç' : 'Açıq rejimə keç');
+    btn.setAttribute('aria-label', isLight ? t('common.nav.themeToggle.switchToDark') : t('common.nav.themeToggle.switchToLight'));
   }
 
   document.dispatchEvent(new CustomEvent('chevir:theme', { detail: { theme } }));

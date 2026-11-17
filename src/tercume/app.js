@@ -13,10 +13,16 @@ import { CyberHand } from './skeleton.js';
 import { SignToText } from './s2t.js';
 import { TextToSign, loadPoses } from './t2s.js';
 import { HAND_CONNECTIONS } from './hands.js';
+import { t, currentLang } from '../lib/i18n.js';
+import { translateStatusMessage } from './ui-i18n.js';
 import './layout.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
+
+// Model sənədindəki böyük ədədlər (söz/parametr sayı və s.) bu lokalla formatlaşdırılır -
+// yalnız minlik ayırıcı dəyişir, hesablanan dəyərlərin özü toxunulmaz qalır.
+const locale = currentLang === 'en' ? 'en-US' : 'az';
 
 // Kamera overlay-nin (#overlay canvas) rəngləri CSS dəyişənlərindən - hər kadrda
 // deyil, yalnız yükləmədə və 'chevir:theme' hadisəsində yenilənir (performans).
@@ -34,16 +40,20 @@ readCamColors();
 document.addEventListener('chevir:theme', readCamColors);
 
 // Söz rejimində halqanın yazısı (bax s2w.js)
-const WORD_STATE_LABEL = { rest: 'istirahət', signing: 'jest', recognizing: 'tanınır' };
+const WORD_STATE_LABEL = {
+  rest: t('tercume.status.wordState.rest'),
+  signing: t('tercume.status.wordState.signing'),
+  recognizing: t('tercume.status.wordState.recognizing'),
+};
 
 // Kamera halqasının altındakı vəziyyət yazısı (bax s2t.js — hərf yazma şərtləri)
 const GATE_LABEL = {
   idle: '-',
-  'wait-hand': 'əl yoxdur',
-  moving: 'hərəkət',
-  unsure: 'qeyri-müəyyən',
-  hold: 'saxla',
-  typed: 'yazıldı',
+  'wait-hand': t('tercume.status.gate.waitHand'),
+  moving: t('tercume.status.gate.moving'),
+  unsure: t('tercume.status.gate.unsure'),
+  hold: t('tercume.status.gate.hold'),
+  typed: t('tercume.status.gate.typed'),
 };
 
 const state = {
@@ -60,10 +70,11 @@ let t2sIdleStatus = { text: '', stateName: '' };   // son bilinən avatar hazır
 // Status zolağı tab-a görə hədəflənir: 's2t' kamera, 't2s' avatar/oynatma, 'global' hər zaman
 // (yükləmə mərhələsi, hələ heç bir tab aktiv deyilkən). showTab() cari tab üçün uyğun olanı yenidən çəkir.
 function setStatus(text, stateName = '', scope = 'global') {
-  if (scope === 's2t') state.camStatus = { text, stateName };
-  else if (scope === 't2s') state.t2sStatus = { text, stateName };
+  const translated = translateStatusMessage(text);
+  if (scope === 's2t') state.camStatus = { text: translated, stateName };
+  else if (scope === 't2s') state.t2sStatus = { text: translated, stateName };
   if (scope !== 'global' && scope !== state.activeTab) return;
-  $('#status-text').textContent = text;
+  $('#status-text').textContent = translated;
   $('#status').dataset.state = stateName;
 }
 
@@ -79,7 +90,7 @@ function syncStatusForTab(name) {
 /* ══════════════════ yükləmə ══════════════════ */
 async function boot() {
   try {
-    setStatus('Model yüklənir…', '', 's2t');
+    setStatus(t('tercume.status.modelLoading'), '', 's2t');
     const [model, decoder, poses, evalData, lexicon] = await Promise.all([
       loadLetterModel({ assetBase: ASSET_BASE }),
       LexiconDecoder.load(`${ASSET_BASE}lm.json`, `${ASSET_BASE}vocab.json`, `${ASSET_BASE}prefixes.json`),
@@ -88,7 +99,7 @@ async function boot() {
       WordLexicon.load(`${WORDS_BASE}index.json`),
     ]);
     Object.assign(state, { model, decoder, poses, eval: evalData, lexicon });
-    setStatus(`${model.labels.length} sinif · ${decoder.words.length.toLocaleString('az')} söz`, 'ready', 's2t');
+    setStatus(t('tercume.status.modelReady', { classes: model.labels.length, words: decoder.words.length.toLocaleString(locale) }), 'ready', 's2t');
 
     window.__chevir = state;   // sazlama qarmağı (brauzer konsolundan tənzimləmə)
     initTabs();
@@ -97,7 +108,7 @@ async function boot() {
     showTab('s2t');
   } catch (err) {
     console.error(err);
-    setStatus('Yükləmə xətası: ' + err.message, 'error');
+    setStatus(`${t('tercume.status.loadError')} (${err.message})`, 'error');
   }
 }
 
@@ -150,7 +161,7 @@ function initS2T() {
       $('#ring-label').textContent = GATE_LABEL[gate] ?? '';
     },
     onPrediction: ({ top, quality }) => {
-      $('#pred-quality').textContent = `əl ${Math.round(quality * 100)}%`;
+      $('#pred-quality').textContent = t('tercume.status.handConfidence', { q: Math.round(quality * 100) });
       renderPredictions(top);
     },
     onDecode: renderDecode,
@@ -177,11 +188,13 @@ function initS2T() {
           renderSigns(signs, added.length);
           const last = added[added.length - 1];
           const unk = s2w.rec.manifest.unknown_label;
-          if (last) renderPredictions(last.top.map((t) => (t.label === unk ? { ...t, label: 'naməlum' } : t)));
+          if (last) renderPredictions(last.top.map((p) => (p.label === unk ? { ...p, label: t('tercume.status.unknown') } : p)));
           $('#signs-info').textContent = added.length
-            ? `+${added.length} · ${Math.round(ms)} ms` : signs.length ? `${signs.length} söz` : '-';
+            ? t('tercume.status.signsCountNew', { n: added.length, ms: Math.round(ms) })
+            : signs.length ? t('tercume.status.wordCount', { n: signs.length }) : '-';
           $('#pred-quality').textContent = !last ? '-'
-            : last.unsure ? `əmin deyil · ${Math.round(last.p * 100)}%` : `əmin ${Math.round(last.p * 100)}%`;
+            : last.unsure ? t('tercume.status.unsureWithPercent', { p: Math.round(last.p * 100) })
+            : t('tercume.status.confidentWithPercent', { p: Math.round(last.p * 100) });
         },
       });
       await s2w.init();
@@ -205,13 +218,13 @@ function initS2T() {
           const hands = [0, 1].map((s) => slotLandmarks(frame.hand, s)).filter(Boolean);
           drawOverlay(ctx, canvas, video, hands);
           state.skelS2T?.setPose(hands[0] ?? null);
-          $('#ring-label').textContent = hands.length ? 'jest' : 'istirahət';
+          $('#ring-label').textContent = hands.length ? WORD_STATE_LABEL.signing : WORD_STATE_LABEL.rest;
         },
         onWords: ({ words, added, sentence, text, ms }) => {
           renderSentence(words, added.length, sentence, text);
           const last = added[added.length - 1];
           if (last) renderPredictions([{ label: last.label, p: last.p }]);
-          $('#sentence-info').textContent = `+${added.length} · ${Math.round(ms)} ms`;
+          $('#sentence-info').textContent = t('tercume.status.signsCountNew', { n: added.length, ms: Math.round(ms) });
         },
         onSentence: ({ words, match, text }) => {
           const li = document.createElement('li');
@@ -239,8 +252,8 @@ function initS2T() {
     $('#ring-label').textContent = state.kind !== 'letters' ? WORD_STATE_LABEL.rest : GATE_LABEL.idle;
     $('#pred-quality').textContent = '-';
     renderPredictions([]);
-    if (state.kind === 'words') ensureS2W().catch((err) => setStatus('Söz modeli yüklənmədi: ' + err.message, 'error', 's2t'));
-    if (state.kind === 'sentence') ensureS2S().catch((err) => setStatus('Cümlə modeli yüklənmədi: ' + err.message, 'error', 's2t'));
+    if (state.kind === 'words') ensureS2W().catch((err) => setStatus(`${t('tercume.status.wordModelFailed')} (${err.message})`, 'error', 's2t'));
+    if (state.kind === 'sentence') ensureS2S().catch((err) => setStatus(`${t('tercume.status.sentenceModelFailed')} (${err.message})`, 'error', 's2t'));
   });
 
   $('#btn-start').addEventListener('click', async () => {
@@ -252,7 +265,7 @@ function initS2T() {
       camViewport.classList.add('is-live');
       $('#pred-grid').closest('.card').classList.remove('is-stale');
     } catch (err) {
-      setStatus('Kamera açılmadı: ' + err.message, 'error', 's2t');
+      setStatus(`${t('tercume.status.cameraFailed')} (${err.message})`, 'error', 's2t');
       $('#btn-start').disabled = false;
     }
   });
@@ -330,13 +343,13 @@ function drawHand(ctx, w, h, landmarks) {
 
 function renderPredictions(top) {
   const box = $('#pred-grid');
-  if (!top.length) { box.innerHTML = '<div class="pred-empty">Hələ proqnoz yoxdur</div>'; return; }
-  box.innerHTML = top.slice(0, 3).map((t) => {
-    const label = t.label === ' ' ? '␣' : t.label;
+  if (!top.length) { box.innerHTML = `<div class="pred-empty">${escapeHtml(t('tercume.s2t.predEmpty'))}</div>`; return; }
+  box.innerHTML = top.slice(0, 3).map((p) => {
+    const label = p.label === ' ' ? '␣' : p.label;
     return `<div class="pred">
       <div class="pred-ch">${escapeHtml(label)}</div>
-      <div class="pred-bar"><i style="width:${(t.p * 100).toFixed(1)}%"></i></div>
-      <div class="pred-p">${(t.p * 100).toFixed(1)}%</div>
+      <div class="pred-bar"><i style="width:${(p.p * 100).toFixed(1)}%"></i></div>
+      <div class="pred-p">${(p.p * 100).toFixed(1)}%</div>
     </div>`;
   }).join('');
 }
@@ -345,34 +358,35 @@ function renderSigns(signs, nNew = 0) {
   $('#signs').innerHTML = signs.length
     ? signs.map((s, i) => {
       const unk = state.s2w?.rec.manifest.unknown_label;
-      const alt = s.top.map((t) => `${t.label === unk ? 'naməlum' : t.label} ${(t.p * 100).toFixed(0)}%`).join(' · ');
+      const unknownLabel = t('tercume.status.unknown');
+      const alt = s.top.map((p) => `${p.label === unk ? unknownLabel : p.label} ${(p.p * 100).toFixed(0)}%`).join(' · ');
       const cls = ['s', i >= signs.length - nNew && 'new', s.unsure && 'unsure'].filter(Boolean).join(' ');
-      const label = s.unknown ? 'naməlum' : s.unsure ? `${s.label}?` : s.label;
+      const label = s.unknown ? unknownLabel : s.unsure ? `${s.label}?` : s.label;
       return `<span class="${cls}" title="${escapeHtml(alt)}">${escapeHtml(label)}<em>${Math.round(s.p * 100)}%</em></span>`;
     }).join('')
-    : '<span class="muted">boş</span>';
+    : `<span class="muted">${escapeHtml(t('tercume.s2t.emptyMuted'))}</span>`;
 }
 
 function renderSentence(words, nNew, match, text = null) {
   $('#sentence-words').innerHTML = words.length
     ? words.map((w, i) => `<span class="s${i >= words.length - nNew ? ' new' : ''}">${escapeHtml(w.label)}<em>${Math.round(w.p * 100)}%</em></span>`).join('')
-    : '<span class="muted">boş</span>';
+    : `<span class="muted">${escapeHtml(t('tercume.s2t.emptyMuted'))}</span>`;
   // Mətn: AzSLD-də yaxın cümlə varsa onun mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
   const m = $('#sentence-match');
   m.hidden = !text;
-  if (text) m.textContent = match ? `AzSLD-də ən yaxın cümlə: ${text}` : `Mətn (işarələrdən qurulub): ${text}`;
+  if (text) m.textContent = match ? t('tercume.status.sentenceMatchKnown', { text }) : t('tercume.status.sentenceMatchGenerated', { text });
 }
 
 function renderDecode({ candidates, best, verified, suggestions, letters }) {
   $('#letters').innerHTML = letters?.length
     ? letters.map((l) => `<span class="l">${escapeHtml(l === ' ' ? '␣' : l)}</span>`).join('')
-    : '<span class="muted">Tanınan hərflər burada yığılacaq</span>';
+    : `<span class="muted">${escapeHtml(t('tercume.s2t.lettersEmpty'))}</span>`;
 
   const dec = $('#decoded');
   if (!best) { dec.innerHTML = '<span class="muted">-</span>'; }
   else {
     dec.innerHTML = `<span class="${verified ? 'ok' : 'no'}">${escapeHtml(best.text)}</span>` +
-      (verified ? '<span class="tick">lüğətdə var</span>' : '');
+      (verified ? `<span class="tick">${escapeHtml(t('tercume.status.inVocab'))}</span>` : '');
   }
 
   $('#candidates').innerHTML = (candidates ?? []).slice(0, 5).map((c, i) =>
@@ -384,7 +398,7 @@ function renderDecode({ candidates, best, verified, suggestions, letters }) {
 
   const sg = (suggestions ?? []).filter((s) => s.dist > 0);
   $('#suggest').innerHTML = sg.length
-    ? 'Ən yaxın real sözlər: ' + sg.map((s) => `<b>${escapeHtml(s.word)}</b>`).join('')
+    ? `${escapeHtml(t('tercume.status.suggestPrefix'))} ` + sg.map((s) => `<b>${escapeHtml(s.word)}</b>`).join('')
     : '';
 }
 
@@ -393,20 +407,20 @@ async function bootT2SViews() {
   state.skelT2S = new CyberHand($('#t2s-skeleton'));
   const { VrmAvatar } = await import('./vrm.js');
   state.avatar = new VrmAvatar($('#t2s-avatar'));
-  setStatus('Avatar yüklənir…', '', 't2s');
+  setStatus(t('tercume.status.avatarLoading'), '', 't2s');
   try {
     const vrmFile = $('#avatar-select')?.value || 'avatar.vrm';
     await state.avatar.load(`${ASSET_BASE}${vrmFile}`);
     state.avatar.setHand($('#hand')?.value || 'right');
-    t2sIdleStatus = { text: 'Avatar hazır', stateName: 'ready' };
+    t2sIdleStatus = { text: t('tercume.status.avatarReady'), stateName: 'ready' };
     setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
   } catch (err) {
     console.error(err);
-    t2sIdleStatus = { text: 'Avatar yüklənmədi: ' + err.message, stateName: 'error' };
+    t2sIdleStatus = { text: `${t('tercume.status.avatarFailed')} (${err.message})`, stateName: 'error' };
     setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
     $('#t2s-avatar').insertAdjacentHTML('beforeend',
       `<div class="warn" style="position:absolute;inset:auto 12px 12px 12px">
-         VRM avatarı yüklənmədi - cyber skeleton işləməyə davam edir.</div>`);
+         ${escapeHtml(t('tercume.status.vrmFailWarning'))}</div>`);
   }
   state.t2s.targets = [state.avatar, state.skelT2S].filter(Boolean);
 }
@@ -426,9 +440,9 @@ function initT2S() {
       $$('.abc button').forEach((b) => b.classList.toggle('is-on', b.dataset.ch === char));
     },
     onState: ({ playing, index, total }) => {
-      $('#play-progress').textContent = playing ? `${index + 1}/${total}` : 'hazır';
+      $('#play-progress').textContent = playing ? `${index + 1}/${total}` : t('tercume.status.playReady');
       if (playing) {
-        setStatus('Jest göstərilir', 'running', 't2s');
+        setStatus(t('tercume.status.signPlaying'), 'running', 't2s');
       } else {
         $('#current-letter').textContent = '';
         $$('.abc button').forEach((b) => b.classList.remove('is-on'));
@@ -449,7 +463,7 @@ function initT2S() {
     const warn = $('#t2s-warn');
     warn.hidden = !miss.length;
     if (miss.length) {
-      warn.textContent = `Bu simvolların pozası yoxdur, buraxılacaq: ${miss.join(' ')}`;
+      warn.textContent = t('tercume.status.missingChars', { chars: miss.join(' ') });
     }
   };
   input.addEventListener('input', refresh);
@@ -459,7 +473,7 @@ function initT2S() {
     t2s.stop();
     state.avatar?.clearHandPose();
     state.skelT2S?.clearPose();
-    $('#play-progress').textContent = 'hazır';
+    $('#play-progress').textContent = t('tercume.status.playReady');
   });
   $('#hold').addEventListener('input', (e) => {
     t2s.opts.holdMs = +e.target.value;
@@ -474,14 +488,14 @@ function initT2S() {
   const avatarSelect = $('#avatar-select');
   if (avatarSelect) {
     avatarSelect.addEventListener('change', async (e) => {
-      setStatus('Avatar yüklənir…', '', 't2s');
+      setStatus(t('tercume.status.avatarLoading'), '', 't2s');
       try {
         await state.avatar?.load(`${ASSET_BASE}${e.target.value}`);
         state.avatar?.setHand($('#hand').value);
-        t2sIdleStatus = { text: 'Avatar hazır', stateName: 'ready' };
+        t2sIdleStatus = { text: t('tercume.status.avatarReady'), stateName: 'ready' };
         setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
       } catch (err) {
-        t2sIdleStatus = { text: 'Avatar yüklənmədi: ' + err.message, stateName: 'error' };
+        t2sIdleStatus = { text: `${t('tercume.status.avatarFailed')} (${err.message})`, stateName: 'error' };
         setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
       }
     });
@@ -499,14 +513,14 @@ function initT2S() {
     if (ids.length < 2) return w.text;
     return w.sense ? `${w.text} (${w.sense})` : `${w.text} ${ids.indexOf(w.id) + 1}`;
   };
-  $('#word-count').textContent = `${entries.length} söz`;
+  $('#word-count').textContent = t('tercume.status.wordCount', { n: entries.length });
   const renderWords = (q = '') => {
     const needle = azLower(q.trim());
     const list = entries.filter((w) => !needle || w.text.includes(needle));
     $('#words').innerHTML = list.length
       ? list.map((w) => `<button data-w="${escapeHtml(w.text)}" data-id="${escapeHtml(w.id)}" class="${w.hands === 'LR' ? 'two' : ''}"
-          title="${escapeHtml(w.text)}${w.sense ? ` · ${escapeHtml(w.sense)}` : ''}${w.hands === 'LR' ? ' · iki əlli' : ''}">${escapeHtml(label(w))}</button>`).join('')
-      : '<span class="muted">tapılmadı</span>';
+          title="${escapeHtml(w.text)}${w.sense ? ` · ${escapeHtml(w.sense)}` : ''}${w.hands === 'LR' ? ` · ${escapeHtml(t('tercume.status.twoHanded'))}` : ''}">${escapeHtml(label(w))}</button>`).join('')
+      : `<span class="muted">${escapeHtml(t('tercume.status.notFound'))}</span>`;
   };
   renderWords();
   $('#word-search').addEventListener('input', (e) => renderWords(e.target.value));
@@ -519,11 +533,11 @@ function initT2S() {
 
   // Əlifba vərəqi
   const letters = Object.keys(state.poses.letters);
-  $('#abc-count').textContent = `${letters.length} hərf`;
+  $('#abc-count').textContent = t('tercume.status.letterCount', { n: letters.length });
   $('#abc').innerHTML = letters.map((ch) => {
     const dyn = state.poses.letters[ch].type === 'dynamic';
     return `<button data-ch="${escapeHtml(ch)}" class="${dyn ? 'dyn' : ''}"
-      title="${escapeHtml(ch)}${dyn ? ' - dinamik' : ''}">${escapeHtml(ch)}</button>`;
+      title="${escapeHtml(ch)}${dyn ? ` - ${escapeHtml(t('tercume.status.dynamicLetter'))}` : ''}">${escapeHtml(ch)}</button>`;
   }).join('');
   $('#abc').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-ch]');
@@ -548,59 +562,43 @@ function renderAbout() {
   ).join('')}</div>`;
 
   $('#doc').innerHTML = `
-    <h2>Model və ölçmələr</h2>
-    <p>Sistem barmaq əlifbası modelini (<code>fingerspelling_33.h5</code>) olduğu kimi işlədir. Keras çəkiləri
-    xam <code>float32</code> kimi çıxarılıb, irəli keçid JS-də 4 matmul ilə hesablanır -
-    TensorFlow.js lazım deyil. Port numpy referansı ilə yoxlanılıb, maksimal fərq
-    <code>4.8e-7</code> (float32 həddi).</p>
+    <h2>${t('tercume.about.heading')}</h2>
+    <p>${t('tercume.about.nonLetters.intro')}</p>
 
-    <h3>Memarlıq</h3>
+    <h3>${t('tercume.about.architectureHeading')}</h3>
     <table>
-      <tr><th>Giriş</th><td class="n">${m.input.frames} kadr × ${m.input.features} = ${m.input.flat}</td></tr>
-      <tr><th>Qatlar</th><td class="n">${arch}</td></tr>
-      <tr><th>Parametr</th><td class="n">${m.params.toLocaleString('az')}</td></tr>
-      <tr><th>Sinif</th><td class="n">${m.labels.length} (32 hərf + boşluq/enter/backspace)</td></tr>
-      <tr><th>Xüsusiyyət</th><td class="n">MediaPipe Hands, birinci əl, xam x/y/z</td></tr>
+      <tr><th>${t('tercume.about.th.input')}</th><td class="n">${t('tercume.about.nonLetters.inputValue', { frames: m.input.frames, features: m.input.features, flat: m.input.flat })}</td></tr>
+      <tr><th>${t('tercume.about.nonLetters.th.layers')}</th><td class="n">${arch}</td></tr>
+      <tr><th>${t('tercume.about.nonLetters.th.params')}</th><td class="n">${m.params.toLocaleString(locale)}</td></tr>
+      <tr><th>${t('tercume.about.th.classes')}</th><td class="n">${t('tercume.about.nonLetters.classesValue', { n: m.labels.length })}</td></tr>
+      <tr><th>${t('tercume.about.nonLetters.th.features')}</th><td class="n">${t('tercume.about.nonLetters.featuresValue')}</td></tr>
     </table>
 
-    <h3>Dekoder</h3>
-    <p>Hər proqnozdan ən yaxşı 3 hərf beam-ə düşür. Namizədlər hərf-bigram dil modeli ilə
-    çəkilir (leksikondan: ${state.decoder.words.length.toLocaleString('az')} unikal söz,
-    ${state.decoder.prefixes.size.toLocaleString('az')} prefiks). Sonda lüğət yoxlaması:
-    tam uyğunluq bonus alır, uyğunluq yoxdursa redaktə məsafəsi ilə ən yaxın real sözlər təklif olunur.</p>
+    <h3>${t('tercume.about.decoderHeading')}</h3>
+    <p>${t('tercume.about.decoderBody', { words: state.decoder.words.length.toLocaleString(locale), prefixes: state.decoder.prefixes.size.toLocaleString(locale) })}</p>
 
-    <h3>Hərf nə vaxt yazılır</h3>
-    <p>Kameradan hərf yalnız əl sabit olanda yazılır: pəncərənin hər 20 kadrında əl görünməli,
-    hərəkət ölçüsü kiçik olmalı (sabit poza 0.00-0.04, keçid 0.06-0.11), model ən azı
-    <b>45%</b> əmin olmalı və eyni hərf ardıcıl 3 proqnozda təsdiqlənməlidir. Bu şərtlər olmadan
-    əlin kadra girdiyi an boş kadrlarla birlikdə dinamik hərf kimi oxunurdu - məsələn
-    5 boş kadr + 15 kadr “s” model üçün <code>ö</code> (0.89) deməkdir.</p>
+    <h3>${t('tercume.about.whenWrittenHeading')}</h3>
+    <p>${t('tercume.about.nonLetters.whenWrittenBody')}</p>
 
     ${e ? `
-    <h3>Real AzSLD datasında ölçmə</h3>
-    <p>${e.images.toLocaleString('az')} şəkil (AzSLD Fingerspelling, Zenodo 14222948),
-    ${(e.detectRate * 100).toFixed(1)}%-də əl aşkarlandı.</p>
+    <h3>${t('tercume.about.azsldHeading')}</h3>
+    <p>${t('tercume.about.azsldIntro', { images: e.images.toLocaleString(locale), detectRate: (e.detectRate * 100).toFixed(1) })}</p>
     <table>
-      <tr><th>Qrup</th><th>Hərf</th><th>Orta top-1</th><th>Median</th><th>≥90%</th></tr>
-      <tr><td>Statik</td><td class="n">${e.static.n}</td><td class="n">${e.static.mean.toFixed(1)}%</td>
+      <tr><th>${t('tercume.about.azsldTable.group')}</th><th>${t('tercume.about.azsldTable.letter')}</th><th>${t('tercume.about.azsldTable.meanTop1')}</th><th>${t('tercume.about.azsldTable.median')}</th><th>${t('tercume.about.azsldTable.ge90')}</th></tr>
+      <tr><td>${t('tercume.about.azsldTable.static')}</td><td class="n">${e.static.n}</td><td class="n">${e.static.mean.toFixed(1)}%</td>
           <td class="n">${e.static.median.toFixed(1)}%</td><td class="n">${e.static.ge90}/${e.static.n}</td></tr>
-      <tr><td>Dinamik</td><td class="n">${e.dynamic.n}</td><td class="n">${e.dynamic.mean.toFixed(1)}%</td>
+      <tr><td>${t('tercume.about.azsldTable.dynamic')}</td><td class="n">${e.dynamic.n}</td><td class="n">${e.dynamic.mean.toFixed(1)}%</td>
           <td class="n">${e.dynamic.median.toFixed(1)}%</td><td class="n">${e.dynamic.ge90}/${e.dynamic.n}</td></tr>
     </table>
-    <div class="note"><b>İki vacib qeyd.</b>
-    (1) Dinamik hərflərin sıfıra yaxın nəticəsi modelin uğursuzluğu deyil, ölçmə üsulunun
-    nəticəsidir: bir kadr 20 dəfə təkrarlanaraq verilir, hərəkət isə belə təmsil oluna bilmir.
-    Real ardıcıllıqla verildikdə <b>ç</b> və <b>ö</b> düzgün tanınır.
-    (2) Bu şəkillər modelin təlim datası ola bilər - yəni rəqəmlər <b>optimistdir</b>,
-    kənarlaşdırılmış test dəsti deyil.</div>
-    <h3>Statik hərflər üzrə dəqiqlik</h3>
+    <div class="note"><b>${t('tercume.about.azsldNoteHeading')}</b>
+    ${t('tercume.about.azsldNote1')}
+    ${t('tercume.about.azsldNote2')}</div>
+    <h3>${t('tercume.about.staticAccuracyHeading')}</h3>
     ${bars(e.perLetter.filter((r) => r.type === 'static').map((r) => [r.letter, r.acc]))}
     ` : ''}
 
-    <h3>Niyə hər şey brauzerdə</h3>
-    <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və sistem statik fayl kimi
-    hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil -
-    jest dili videosu istifadəçinin üzünü və kimliyini daşıyır.</p>`;
+    <h3>${t('tercume.about.whyBrowserHeading')}</h3>
+    <p>${t('tercume.about.whyBrowserBody')}</p>`;
 }
 
 /** Landmark hərf modeli (notebook 07): manifest-dəki ölçmələr, köhnə modelin eyni nümunələrdəki nəticəsi ilə. */
@@ -609,56 +607,44 @@ function renderAboutLetters() {
   const test = m.metrics?.test ?? {};
   const old = m.old_model?.test ?? {};
   const pct = (v) => (v === undefined ? '-' : `${(v * 100).toFixed(1)}%`);
-  const SOURCES = [['sentence', 'AzSLD cümlələrindəki hərflər, ön kamera'], ['side', 'eyni hərflər, yan kamera'],
-    ['photo', 'Fingerspelling şəkilləri (statik hərflər)'], ['clip', 'Fingerspelling klipləri (hərəkətli hərflər)'],
-    ['all', 'hamısı']];
+  const SOURCES = [['sentence', t('tercume.about.letters.sources.sentence')], ['side', t('tercume.about.letters.sources.side')],
+    ['photo', t('tercume.about.letters.sources.photo')], ['clip', t('tercume.about.letters.sources.clip')],
+    ['all', t('tercume.about.letters.sources.all')]];
   const rows = SOURCES.filter(([k]) => test[k]).map(([k, name]) =>
     `<tr><td>${name}</td><td class="n">${test[k].n}</td><td class="n">${pct(test[k].top1)}</td>`
     + `<td class="n">${pct(test[k].macro_f1)}</td><td class="n">${pct(old[k]?.top1)}</td></tr>`).join('');
   const per = Object.entries(m.test_per_letter ?? {}).sort((a, b) => a[0].localeCompare(b[0], 'az'));
-  const bars = per.length ? `<h3>Hərf üzrə test (görmədiyi insanlar)</h3><div class="bars">${per.map(([ch, r]) =>
+  const bars = per.length ? `<h3>${t('tercume.about.letters.perLetterHeading')}</h3><div class="bars">${per.map(([ch, r]) =>
     `<div><span>${escapeHtml(ch)}</span><u><i style="width:${(r.recall * 100).toFixed(1)}%"></i></u>`
     + `<em>${(r.recall * 100).toFixed(0)}%</em></div>`).join('')}</div>` : '';
   $('#doc').innerHTML = `
-    <h2>Model və ölçmələr</h2>
-    <p>Barmaq əlifbası modeli MediaPipe əl nöqtələrindən <b>əlin formasını</b> (metrlə, kameradan və əlin
-    kadrdakı yerindən asılı deyil) və <b>hərəkətini</b> oxuyur, son ${m.input.window} kadra baxır (30 fps-də
-    ${(m.input.window / 30).toFixed(1)} s). Bədən və üz istifadə olunmur. 32 hərfin hamısını, hərəkətli hərfləri
-    (${m.dynamic.join(', ')}) də tanıyır və “hərf yoxdur” (<code>${escapeHtml(m.none_label)}</code>) deyə bilir.</p>
+    <h2>${t('tercume.about.heading')}</h2>
+    <p>${t('tercume.about.letters.intro', { window: m.input.window, seconds: (m.input.window / 30).toFixed(1), dynamicList: m.dynamic.join(', '), noneLabel: escapeHtml(m.none_label) })}</p>
 
-    <h3>Memarlıq</h3>
+    <h3>${t('tercume.about.architectureHeading')}</h3>
     <table>
-      <tr><th>Model</th><td class="n">Conv1D + Transformer, ${(m.params / 1e6).toFixed(2)} M parametr</td></tr>
-      <tr><th>Giriş</th><td class="n">${m.input.n_features} xüsusiyyət × kadr (${m.input.groups.join(', ')})</td></tr>
-      <tr><th>Sinif</th><td class="n">${m.labels.length} (32 hərf + hərf yoxdur)</td></tr>
-      <tr><th>Təlim</th><td class="n">AzSLD: cümlələrdəki hərflər (iki kamera), Fingerspelling şəkilləri və klipləri</td></tr>
+      <tr><th>${t('tercume.about.letters.th.model')}</th><td class="n">${t('tercume.about.letters.modelValue', { params: (m.params / 1e6).toFixed(2) })}</td></tr>
+      <tr><th>${t('tercume.about.th.input')}</th><td class="n">${t('tercume.about.letters.inputValue', { nFeatures: m.input.n_features, groups: m.input.groups.join(', ') })}</td></tr>
+      <tr><th>${t('tercume.about.th.classes')}</th><td class="n">${t('tercume.about.letters.classesValue', { n: m.labels.length })}</td></tr>
+      <tr><th>${t('tercume.about.letters.th.training')}</th><td class="n">${t('tercume.about.letters.trainingValue')}</td></tr>
     </table>
 
-    <h3>Test: modelin görmədiyi insanlar</h3>
+    <h3>${t('tercume.about.letters.testHeading')}</h3>
     <table>
-      <tr><th>Mənbə</th><th>Nümunə</th><th>Top-1</th><th>Makro-F1</th><th>Köhnə model, top-1</th></tr>
+      <tr><th>${t('tercume.about.letters.testTable.source')}</th><th>${t('tercume.about.letters.testTable.sample')}</th><th>${t('tercume.about.letters.testTable.top1')}</th><th>${t('tercume.about.letters.testTable.macroF1')}</th><th>${t('tercume.about.letters.testTable.oldModel')}</th></tr>
       ${rows}
     </table>
-    <div class="note">Köhnə model (20 kadrın xam əl koordinatları, 4 qatlı şəbəkə) eyni test nümunələrində
-    ölçülüb. Fingerspelling şəkilləri ona təlimdə tanış ola bilər - həmin sətirdə onun nəticəsi optimistdir.</div>
+    <div class="note">${t('tercume.about.letters.testNote')}</div>
     ${bars}
 
-    <h3>Hərf nə vaxt yazılır</h3>
-    <p>Model hər ${state.s2t?.gate?.stride ?? 2} kadrdan bir proqnoz verir. Hərf əl pəncərənin hər kadrında görünəndə, model ən azı
-    <b>${Math.round(state.s2t?.gate?.minConfidence * 100 || 50)}%</b> əmin olanda və eyni hərf ardıcıl
-    ${state.s2t?.gate?.dwell ?? 3} proqnozda təsdiqlənəndə yazılır. Statik hərflərdə əl sabit olmalıdır;
-    hərəkətli hərflərdə bu şərt yoxdur. Eyni hərfi təkrar yazmaq üçün əli pozadan çıxar və ya başqa hərf göstər.</p>
+    <h3>${t('tercume.about.whenWrittenHeading')}</h3>
+    <p>${t('tercume.about.letters.whenWrittenBody', { stride: state.s2t?.gate?.stride ?? 2, confidence: Math.round(state.s2t?.gate?.minConfidence * 100 || 50), dwell: state.s2t?.gate?.dwell ?? 3 })}</p>
 
-    <h3>Dekoder</h3>
-    <p>Hər proqnozdan ən yaxşı 3 hərf beam-ə düşür. Namizədlər hərf-bigram dil modeli ilə
-    çəkilir (leksikondan: ${state.decoder.words.length.toLocaleString('az')} unikal söz,
-    ${state.decoder.prefixes.size.toLocaleString('az')} prefiks). Sonda lüğət yoxlaması:
-    tam uyğunluq bonus alır, uyğunluq yoxdursa redaktə məsafəsi ilə ən yaxın real sözlər təklif olunur.</p>
+    <h3>${t('tercume.about.decoderHeading')}</h3>
+    <p>${t('tercume.about.decoderBody', { words: state.decoder.words.length.toLocaleString(locale), prefixes: state.decoder.prefixes.size.toLocaleString(locale) })}</p>
 
-    <h3>Niyə hər şey brauzerdə</h3>
-    <p>Server yoxdur: video cihazdan çıxmır, gecikmə minimaldır və sistem statik fayl kimi
-    hər yerdə host oluna bilər. Əlçatanlıq məhsulu üçün məxfilik təsadüfi seçim deyil -
-    jest dili videosu istifadəçinin üzünü və kimliyini daşıyır.</p>`;
+    <h3>${t('tercume.about.whyBrowserHeading')}</h3>
+    <p>${t('tercume.about.whyBrowserBody')}</p>`;
 }
 
 function escapeHtml(s) {
