@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'node:path'
 import { i18nHtmlPlugin } from './src/i18n/html-plugin.js'
+import { syncEnTercumeHtmlPlugin } from './src/i18n/sync-tercume-html.js'
 
-// /tercume, /nsosyal, /en (slash-sız) → slash-lı: Vite-in SPA fallback-i
-// slash-sız ünvanda ana səhifəni qaytarır. Production-da eyni yönləndirmə
-// vercel.json-dadır.
-const PAGES = ['/tercume', '/nsosyal', '/en']
+// /tercume, /nsosyal, /en, /en/tercume (slash-sız) → slash-lı: Vite-in SPA
+// fallback-i slash-sız ünvanda ana səhifəni qaytarır. Production-da eyni
+// yönləndirmə vercel.json-dadır.
+const PAGES = ['/tercume', '/nsosyal', '/en', '/en/tercume']
 function redirectPages(req, res, next) {
   const [path, query] = req.url.split('?')
   if (!PAGES.includes(path)) return next()
@@ -28,6 +29,7 @@ export default defineConfig({
         server.middlewares.use(redirectPages)
       },
     },
+    syncEnTercumeHtmlPlugin(import.meta.dirname),
     i18nHtmlPlugin(import.meta.dirname),
   ],
   // onnxruntime-web öz .wasm faylını import.meta.url ilə tapır: əvvəlcədən paketlənsə (dev) yol
@@ -39,6 +41,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         en: resolve(import.meta.dirname, 'en/index.html'),
         tercume: resolve(import.meta.dirname, 'tercume/index.html'),
+        enTercume: resolve(import.meta.dirname, 'en/tercume/index.html'),
         nsosyal: resolve(import.meta.dirname, 'nsosyal/index.html'),
       },
     },

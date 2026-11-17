@@ -8,5 +8,7 @@
   "nav.cta": "Become a pilot partner",
   "nav.toggleAriaLabel": "Menu",
   "nav.lang.az": "AZ",
-  "nav.lang.en": "EN"
+  "nav.lang.en": "EN",
+  "nav.themeToggle.switchToDark": "Switch to dark mode",
+  "nav.themeToggle.switchToLight": "Switch to light mode"
 }

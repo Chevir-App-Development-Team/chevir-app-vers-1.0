@@ -10,9 +10,10 @@ export const SITE_URL = 'https://chevirapp.com'
 export const DEFAULT_LOCALE = 'az'
 
 // page-açarı → həmin səhifənin istifadə etdiyi i18n JSON fayllarının adları
-// (src/i18n/<lang>/<namespace>.json). Hələlik yalnız "home" aktivdir.
+// (src/i18n/<lang>/<namespace>.json).
 export const NAMESPACES_BY_PAGE = {
   home: ['common', 'home'],
+  tercume: ['common', 'tercume'],
 }
 
 // HTML giriş nöqtəsi (layihə kökündən nisbi yol, vite.config.js-dəki
@@ -20,4 +21,6 @@ export const NAMESPACES_BY_PAGE = {
 export const HTML_ENTRIES = {
   'index.html': { page: 'home', lang: 'az', path: '/' },
   'en/index.html': { page: 'home', lang: 'en', path: '/en/' },
+  'tercume/index.html': { page: 'tercume', lang: 'az', path: '/tercume/' },
+  'en/tercume/index.html': { page: 'tercume', lang: 'en', path: '/en/tercume/' },
 }

@@ -8,5 +8,7 @@
   "nav.cta": "Pilot tərəfdaş olun",
   "nav.toggleAriaLabel": "Menyu",
   "nav.lang.az": "AZ",
-  "nav.lang.en": "EN"
+  "nav.lang.en": "EN",
+  "nav.themeToggle.switchToDark": "Tünd rejimə keç",
+  "nav.themeToggle.switchToLight": "Açıq rejimə keç"
 }
