@@ -73,8 +73,10 @@ const COMITATIVE = ['ylə', 'yla', 'lə', 'la'];
 const SENTENCE_END = /[.!?…]["'»”)]*$/;
 const PAUSE = /[,;:–—]["'»”)]*$/;
 // Felin 3-cü şəxsinin isim və feli sifət kimi də işlənən forması (gələcək: "gələcək il", "gələcəkdə"; keçmiş, itmiş):
-// cümlənin və ya budağın sonunda, ya da bu sözlərdən əvvəl xəbərdir (fel + zaman işarəsi), başqa yerdə addır
+// cümlənin və ya budağın sonunda, ya da bu sözlərdən əvvəl xəbərdir (fel + zaman işarəsi), başqa yerdə addır.
+// -ib də (gəlib) yalnız sonda xəbərdir, ortada feli bağlamadır; isim deyil (BİTİB, İTİB öz işarəsidir)
 const NOMINAL = new Set(['fut', 'perf']);
+const CLAUSE_FINAL = new Set([...NOMINAL, 'ev']);
 const AFTER_PREDICATE = new Set(['idi', 'imiş', 'isə', 'ki', 'mi', 'mı', 'mu', 'mü', 'amma', 'ancaq', 'lakin', 'çünki', 'yoxsa']);
 
 /** Əlavə işarə (YOX, zaman, mübtəda, BİRLİKDƏ): mətndə öz sözü yoxdur, from/to aid olduğu sözündür. */
@@ -378,20 +380,33 @@ export class WordLexicon {
       if (match) {
         const at = { from: it.from, to: items[match.last].to };
         const toks = items.slice(i, match.last + 1).filter((x) => x.tok).map((x) => x.tok);
-        let v = this.native && (this.addedIds.has(match.entry.id) ? this.extra : this).#verb(toks.at(-1), toks.length > 1);
-        if (v) {
-          // gələcək: budağın sonunda fel (GƏLMƏK + OLACAQ), başqa yerdə isim və ya feli sifət (gələcək il: zaman işarəsi yox)
-          const bare = v.pers === 3 && !v.q && !v.neg && NOMINAL.has(v.tam);
+        const lex = this.addedIds.has(match.entry.id) ? this.extra : this;
+        let v = lex.#verb(toks.at(-1), this.native && toks.length > 1);
+        if (v && this.native) {
+          // gələcək: budağın sonunda fel (GƏLMƏK + OLACAQ), başqa yerdə isim və ya feli sifət (gələcək il: zaman işarəsi
+          // yox); -ib budağın ortasında feli bağlamadır (gəlib getdi: GƏLMƏK GETMƏK OLMAQ, AzSLD-də də OLMAQ-sız)
+          const bare = v.pers === 3 && !v.q && !v.neg && CLAUSE_FINAL.has(v.tam);
           const own = toks.length === 1 && (!bare || clauseEnd(match.last)) && this.#verbSign(v, match.entry);
           if (own) match = { ...match, entry: own, via: 'lemma' };
           else if (bare && !clauseEnd(match.last)) v = null;
+        }
+        // olmaq-ın gələcəyi OLACAQ-dır (olacam, olacağam → OLACAQ; AzSLD: olacaqsınızmı 23/23 OLACAQ). Sözün öz
+        // gələcək işarəsi varsa (OLACAQ, OLACAĞIQ) o qalır; inkarda və ifadədə OLACAQ zaman işarəsi kimi gəlir
+        // (olmayacağam = OLMAMAQ OLACAQ, tanış olacağıq = TANIŞ OLMAQ OLACAQ)
+        let olFuture = false;
+        if (v?.root === 'ol' && TENSE_SIGN[v.tam] === 'olacaq') {
+          const e = lex.#verb(azLower(match.entry.text));
+          const olacaq = this.byText.get('olacaq');
+          if (e && TENSE_SIGN[e.tam] === 'olacaq') { /* söz özü gələcəkdir */ }
+          else if (toks.length === 1 && !v.neg && !match.neg && olacaq) match = { ...match, entry: olacaq, via: 'lemma' };
+          else olFuture = true;
         }
         out.push({ kind: 'word', text: match.entry.text, entry: match.entry, via: match.via, ...at });
         const no = match.neg && this.byText.get('yox');
         if (no) out.push({ kind: 'word', text: no.text, entry: no, via: 'neg', ...at });
         if (this.native) {
           const t = v && TENSE_SIGN[v.tam];
-          const mark = t && !(v.root === 'ol' && t !== 'lazım') && this.#sign(t, 'tense', at);
+          const mark = t && !(v.root === 'ol' && t !== 'lazım' && !olFuture) && this.#sign(t, 'tense', at);
           if (mark) out.push(mark);
           if (v && FINITE.has(v.tam) && SUBJECT_OF[v.pers] && !subject) subject = { pers: v.pers, at };
           const w = toks.length === 1 && this.#withPerson(toks[0], match.entry) && this.#sign('birlikdə', 'with', at);

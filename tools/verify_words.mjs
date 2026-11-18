@@ -127,8 +127,9 @@ for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarş
 
 // E36-da tapılanlar: gələcək (isim) ilə gələcək (fel) ayrılır; idiomun feli hər formada; ifadənin ad forması (text_alt.csv)
 {
-  const words = [...['sabah', 'gəlmək', 'gələcək', 'il', 'gözəl', 'olacaq', 'olmaq', 'mən', 'sən', 'o', 'siz', 'bu', 'iş',
-    'yox', 'var'].map((text) => ({ id: text, text })), { id: 'tamamlamaq', text: 'tamamlamaq', alt: ['yerinə yetirmək'] },
+  const words = [...['sabah', 'gəlmək', 'gələcək', 'il', 'gözəl', 'olacaq', 'olmaq', 'mən', 'sən', 'o', 'biz', 'siz', 'bu', 'iş',
+    'yox', 'var', 'həkim', 'getmək', 'tanış olmaq'].map((text) => ({ id: text, text })),
+  { id: 'tamamlamaq', text: 'tamamlamaq', alt: ['yerinə yetirmək'] },
   { id: 'eşitmə məhdudiyyətli', text: 'eşitmə məhdudiyyətli', alt: ['eşitmə məhdudiyyəti'] }];
   const lex = { doğma: new WordLexicon({ words }), AzSLD: new WordLexicon({ words }, { native: false }) };
   for (const [mode, text, want] of [
@@ -143,6 +144,12 @@ for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarş
     ['AzSLD', 'yerinə yetirəcəyik', 'w:tamamlamaq'], ['AzSLD', 'yerinə yetir', 'w:tamamlamaq'],
     ['doğma', 'Sizin eşitmə məhdudiyyətiniz var?', 'w:siz _ w:eşitmə məhdudiyyətli _ w:var'],
     ['AzSLD', 'eşitmə məhdudiyyətim', 'w:eşitmə məhdudiyyətli'], ['AzSLD', 'eşitmə məhdudiyyətliyəm', 'w:eşitmə məhdudiyyətli'],
+    // olmaq-ın gələcəyi OLACAQ-dır; inkarda və ifadədə OLACAQ zaman işarəsidir; keçmişi OLMAQ-ın özü
+    ['doğma', 'Həkim olacam.', 'w:mən w:həkim _ w:olacaq'], ['AzSLD', 'Həkim olacam.', 'w:həkim _ w:olacaq'],
+    ['doğma', 'Həkim olmayacam.', 'w:mən w:həkim _ w:olmaq w:yox w:olacaq'],
+    ['doğma', 'Tanış olacağıq.', 'w:biz w:tanış olmaq w:olacaq'], ['doğma', 'Oldu.', 'w:olmaq'],
+    // -ib budağın ortasında feli bağlamadır (zaman işarəsi yox), sonda xəbərdir
+    ['doğma', 'Gəlib getdim.', 'w:mən w:gəlmək _ w:getmək w:olmaq'], ['doğma', 'O gəlib.', 'w:o _ w:gəlmək w:olmaq'],
   ]) {
     const got = show(lex[mode].segment(text));
     check(got === want, `E36 (${mode}): ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);

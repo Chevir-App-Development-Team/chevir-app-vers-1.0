@@ -2871,6 +2871,18 @@ test changes. All 12
 `verify_*` scripts and `ci_gates.mjs` pass with the same numbers as before; the translator page (dev server) shows
 SABAH GƏLMƏK OLACAQ, MƏN BU İŞ TAMAMLAMAQ OLMAQ, SİZ EŞİTMƏ MƏHDUDİYYƏTLİ VAR with no console errors.
 
-Left as they were (same code, not in the four): "həkim olacam" plays OLMAQ, not OLACAQ (a future of olmaq gets no tense
-sign); a non-final -ib converb still gets OLMAQ ("O gəlib sizə kömək edəcək" → O GƏLMƏK OLMAQ ...); entries with a
-person ending (GƏLƏCƏKSİNİZ) keep their own sign.
+Two more in the same code, fixed after the four:
+- **The future of olmaq plays OLACAQ** (both modes): "həkim olacam" was HƏKİM OLMAQ (the lemma fell back to the infinitive
+  and olmaq gets no tense sign), now HƏKİM OLACAQ, as AzSLD signs it ("burda olacaqsınızmı", 23 of 23 recordings
+  OLACAQ). A sign that is itself a future form stays (OLACAQ, AzSLD's OLACAĞIQ). In native mode a negative or a phrase
+  gets OLACAQ as its tense sign: "olmayacağam" → OLMAMAQ OLACAQ (was OLMAMAQ), "tanış olacağıq" → BİZ TANIŞ OLMAQ OLACAQ.
+  The past stays OLMAQ alone ("oldu").
+- **-ib in mid-clause is a converb**, so native mode adds no OLMAQ: "O gəlib sizə kömək edəcək" → O GƏLMƏK SİZ KÖMƏK ETMƏK
+  OLACAQ (was O GƏLMƏK OLMAQ ...), "bazara gedib çörək aldım" → ... GETMƏK ÇÖRƏK ALMAQ OLMAQ. AzSLD has no OLMAQ after
+  them ("çıxıb" 0 of 22, "yazıb-oxuya" 0 of 20, "tutub" 0 of 17 recordings). At a clause end -ib stays a predicate
+  ("vaxtı bitib." → BİTİB OLMAQ). It also removes a false OLMAQ after "kasıb" (read as kas- + -ıb). -ib entries (BİTİB,
+  İTİB) are signs of their own and are not switched.
+
+Native dev same-gloss F1 0.865 → 0.866 (back to its value before the four fixes), AzSLD style and test unchanged; all 12
+`verify_*` scripts and the gates pass, the translator page shows MƏN GƏLƏCƏK HƏKİM OLACAQ and O GƏLİB SİZ KÖMƏK ETMƏK
+OLACAQ. Still as before: entries with a person ending (GƏLƏCƏKSİNİZ) keep their own sign.
