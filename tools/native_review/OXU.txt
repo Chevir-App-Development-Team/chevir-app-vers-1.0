@@ -1,0 +1,24 @@
+Chevir · işarə dili daşıyıcısının rəyi
+=====================================
+
+1. Bu qovluqdakı index.html faylını iki kliklə açın (Chrome, Edge və ya Firefox). İnternet lazım deyil.
+2. Kodunuzu yazın (məsələn R1; adınızı yazmayın) və bir bölmə seçin.
+3. Videolara baxın, cavabı seçin. Bilmədiyiniz yerdə «Bilmirəm». İstədiyiniz vaxt dayana, sonra davam edə bilərsiniz:
+   cavablar bu kompüterdə, bu brauzerdə saxlanır.
+4. Sonda «CSV endir» düyməsini basın və endirilən faylı komandaya göndərin. Heç nə avtomatik göndərilmir.
+
+Klaviatura: 1–4 cavab, Enter və ya → növbəti, ← əvvəlki, Boşluq videonu yenidən göstərir.
+
+Videolar (Slovo, AzSLD, JestDili.az, avatar) yalnız bu rəy üçündür: başqa yerə yükləməyin, paylaşmayın.
+
+----------------------------------------------------------------------------------------------------------------
+For the team (English)
+
+Built by tools/build_native_review.py (E36 in ml/EXPERIMENTS.md). Hand the whole folder (or its zip) to the native
+AzSL user. The answers come back as one CSV (chevir_reyi_<release>_<code>.csv). Apply it in the repo:
+
+  D:/chevir/venv/Scripts/python -I tools/apply_native_review.py <answers.csv> --dry-run
+  D:/chevir/venv/Scripts/python -I tools/apply_native_review.py <answers.csv>
+  node tools/review_summary.mjs <answers.csv>          (V2 ratings)
+
+Then run every node tools/verify_*.mjs and node tools/ci_gates.mjs. Clips stay local: never commit this folder.

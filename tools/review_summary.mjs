@@ -27,7 +27,11 @@ function parse(text) {
   return body.filter((r) => r.length === head.length).map((r) => Object.fromEntries(head.map((h, k) => [h, r[k]])));
 }
 
-const rows = files.flatMap((f) => parse(fs.readFileSync(f, 'utf8')));
+// yerli rəy paketinin CSV-sində (tools/build_native_review.py, E36) başqa bölmələr də var: burada yalnız V2 sətirləri,
+// qalanlarını tools/apply_native_review.py tətbiq edir
+const all = files.flatMap((f) => parse(fs.readFileSync(f, 'utf8')));
+const rows = all.filter((r) => r.direction === 't2s' || r.direction === 's2t');
+if (rows.length < all.length) console.log(`${all.length - rows.length} başqa bölmə sətri keçildi (tools/apply_native_review.py)`);
 const num = (v) => (v === '' || v === undefined ? null : Number(v));
 const mean = (xs) => { const v = xs.filter((x) => x !== null); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : '-'; };
 const releases = [...new Set(rows.map((r) => r.release))];

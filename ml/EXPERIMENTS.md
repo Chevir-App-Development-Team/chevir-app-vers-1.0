@@ -2735,3 +2735,83 @@ optimistic: the Slovo-only model chose these classes on the same clips, though t
 pass; the app's word mode loads it ("Hazır · 802 söz"). The previous model is kept outside git
 (D:/chevir/backup/word_model_before_r4). Roadmap R4 target for phase 1 was 1,000 classes: 858 now; the next ones need
 the native review of the 55 Slovo glosses that match AzSLD labels and of the 106 unchecked ones.
+
+## E36 — A review package for a native AzSL user (no training)
+
+Many roadmap items wait on a native AzSL user's judgement: whether Slovo's RSL signs are AzSL's (D3, R4), the word
+forms of Words 500 (D5), the first V2 review, the open native rules (N9), synonyms (N8). They are now one local
+folder of short video questions that works offline, and one script turns the answers into data changes.
+
+**The package** (`tools/build_native_review.py` → `D:/chevir/native_review/` and `D:/chevir/native_review.zip`, 58 MB;
+outside git, no clip enters the repo). `index.html` + `data.js` + `review.js`, a plain script with no modules and no
+fetch, so the page opens by double click from `file://` in Chrome, Edge or Firefox, with no server and no install;
+the videos are in `clips/`. The reviewer gives a code, not a name; answers stay in the browser (localStorage, per
+release and code) and download as one CSV. Keyboard: 1–4 answers and moves on, Enter / → next, ← back, space
+replays. `OXU.txt`: instructions in Azerbaijani, the team's commands in English. Checked in headless Chrome from
+`file://`: every video decodes, the answers and the CSV are right, no console errors (two fixes on the way: a CSS
+`display` rule showed the hidden "which word?" field everywhere; focus left in that field swallowed the next key).
+
+| Section | Questions | From | Videos |
+|---|---|---|---|
+| Slovo classes already in the word model (flagged RSL) | 102 (101 labels) | `ml/slovo_new.csv`, rank ≤ 10 | Slovo ×2, JestDili.az |
+| Slovo map v2 | 168 | `ml/slovo_azsld.csv` | Slovo ×2, AzSLD ×2, JestDili.az |
+| D5 word forms | 23 | `ml/review/word_forms_review_w500.csv` (22 pairs + İŞSİZ / İŞLƏMƏK) | AzSLD ×2 per form, the sheet's example sentences |
+| N9 grammar rules | 13 | verb + YOX + tense (past, future), BİRLİKDƏ with görüşmək and razı olmaq, third person, and E22's rules for a second native user (dropped I person, OLACAQ after SABAH, ilə → BİRLİKDƏ, -malı → LAZIM or JestDili.az's MÜTLƏQ, mənim → MƏN), question faces, the negation head shake | avatar, its gloss line |
+| N8 synonyms | 13 | the 9 rows of `ml/text_alt.csv`, maşın → AVTOMOBİL, polysemy of almaq, bilmək, eşitmək | avatar; AzSLD, JestDili.az |
+| Multi-word signs: native or word by word (D5) | 21 | the word model's multi-word AzSLD labels with a Words 500 clip (21 of 33), e.g. ANADAN OLMAQ | AzSLD ×3 |
+| Slovo glosses matching AzSLD labels | 55 | E28's `ru_az.txt` matches (`D:/chevir/slovo/r4/matches.json`) | Slovo ×2, AzSLD ×2, JestDili.az |
+| Slovo new classes not checked | 105 | `ml/slovo_new.csv`, rank > 10 (E28's 106 counted the 208 JestDili.az matches; one has no row) | Slovo ×2, JestDili.az |
+| V2 | 50 | `public/rey/items.json` (release 2026-11-09 cc1612c): 13 interview, 12 AzSLD test, 10 set C (text → sign), 15 sign → text | avatar |
+
+550 questions, 1,599 clips and 73 avatar videos. Slovo's clips come from its zip, already cut to the sign (two people
+per gloss, at least 12 frames); AzSLD's from Words 500, which is the Sentences recordings cut at the annotated signs
+(E20; two participants per label); JestDili.az's from the local word videos (E28's `verify.json` clip for the new
+classes; JestDili.az's video addresses are not read, the package has no URL at all). All re-encoded to small H.264.
+The avatar videos (`tools/render_avatar_clips.mjs`) are the app's avatar in headless Chrome with a virtual clock:
+`performance.now` and `setTimeout` advance one frame at a time, so a video has the app's timing however slowly the PC
+renders (about 10 s per sentence on swiftshader); frames are piped to ffmpeg. V2's texts and recognized signs are
+those of `items.json`, the avatar's signing is this commit's. With 1–4 and autoplaying loops a Slovo question takes a
+few seconds: the two Slovo sections that change the installed model (270 questions) are about 25 minutes, the
+grammar, synonym and word-form sections (70) about 10.
+
+**Applying the answers** (`tools/apply_native_review.py <answers.csv> … [--dry-run]`; several reviewers' files at
+once, an item they disagree on is skipped and listed):
+
+| Section | yes | no | other (a word given) |
+|---|---|---|---|
+| Slovo map | `native = yes` (a new last column of `ml/slovo_azsld.csv`) | the row leaves the map | a word-model label: the row takes it; otherwise the row leaves (logged as a candidate) |
+| Slovo new classes | `native = yes`, `basis` + "native yes = rank 0", so notebook 04's `SLOVO_NEW_MAX_RANK` keeps it | the row leaves `ml/slovo_new.csv` | an AzSLD label: the row moves to the map; another word: the class is renamed to it |
+| 55 matches | a new map row (`native = yes`) | nothing | a word-model label: a new map row with it |
+| D5 | the sheet's answer column (bəli / xeyr / bilmirəm, reviewer code, comment) → `tools/same_sign/apply_review.py` → `ml/lemma_groups.csv` → `tools/build_sign_merge.py` → `sign_merge.json` | | |
+| Multi-word signs | the flag goes | flag `literal` in `ml/label_flags.csv`, the native sign in its note | |
+| N8 | `text_alt.csv` note "native yes"; a proposal is added | the row leaves `text_alt.csv` | |
+| N8 polysemy, N9 | logged and printed for the team (the rules are code: `words.js`, `gloss2text.js`) | | |
+| V2 | not applied: `node tools/review_summary.mjs <answers.csv>` (now keeps only the V2 rows of such a file) | | |
+
+After a `text_alt.csv` change only the affected avatar lexicon entries get new `alt` fields; JestDili.az's own
+alternates stay. Every applied answer goes to `ml/review/native_decisions.csv` (date, reviewer code, answer,
+correction, comment, what changed). `ml/label_flags.csv` (new): the 101 installed Slovo classes flagged `rsl`,
+recomputed from `slovo_new.csv` on every apply (all rows confirmed → no flag, no row left → `rsl-rejected`: the
+installed word model keeps the class until retrained), and ANADAN OLMAQ flagged `literal` (E21). Nothing reads the
+flags yet; they are for the next training and the app.
+
+**Test with made-up answers** (27 rows covering every branch, two reviewers disagreeing on one item, one V2 row),
+applied to the real files and then restored from a backup (git status identical before and after): map 168 → 170 rows,
+`slovo_new.csv` 207 → 204, flags rsl 97 / rsl-rejected 3 / literal 1, İŞSİZ split from İŞLƏMƏK in `lemma_groups.csv`
+and `sign_merge.json`, EDE joined ETMƏK, burda left `text_alt.csv` (and `burada.json`'s alt), maşın joined avtomobil;
+on that state `verify_sign_merge`, `verify_words` and every CI gate passed. After the restore all 12 `verify_*`
+scripts and the gates pass.
+
+**Found on the way**
+- `tools/same_sign/apply_review.py` renamed the KÖMƏK/YARDİM and KƏND/RAYON groups to KÖMƏK and KƏND when run again
+  on a sheet without synonym rows (a family name without its own row was not kept), which would have changed the
+  browser's merge names. Fixed: an existing family keeps its name, and a family name that is not a gloss gets no row;
+  on the unanswered sheet it now changes nothing. `--tag` sets the note's prefix.
+- `tools/build_avatar_words.py --alt-only` drops the alternates of the 80 JestDili.az entries from E27 (it removes every
+  entry's `alt` and sets only `text_alt.csv`'s). Not changed here; the apply script merges instead.
+- Text → sign, seen while writing the N9 and N8 questions: "Sabah gələcək" plays GƏLƏCƏK (the noun "future") + OLACAQ;
+  "Bu işi yerinə yetirdim" spells "yetirdim" (the idiom matches only some forms); "eşitmə məhdudiyyətiniz" is spelled
+  letter by letter although EŞİTMƏ MƏHDÜDİYYƏTLİ is a sign; MÜTLƏQ now has a JestDili.az sign (E21: no clip), so
+  -malı could use it (asked in N9).
+- After applying: map or new-class changes need the word model retrained (notebook 04 `SLOVO`, `SLOVO_NEW`) and the
+  sentence model (notebook 06's Slovo options, E29); D5 changes need both for merges the models were trained with.
