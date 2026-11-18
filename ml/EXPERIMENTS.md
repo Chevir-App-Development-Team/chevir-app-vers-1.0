@@ -2886,3 +2886,109 @@ Two more in the same code, fixed after the four:
 Native dev same-gloss F1 0.865 → 0.866 (back to its value before the four fixes), AzSLD style and test unchanged; all 12
 `verify_*` scripts and the gates pass, the translator page shows MƏN GƏLƏCƏK HƏKİM OLACAQ and O GƏLİB SİZ KÖMƏK ETMƏK
 OLACAQ. Still as before: entries with a person ending (GƏLƏCƏKSİNİZ) keep their own sign.
+
+## E29 — The sentence model and the 101 new signs from Slovo (R4)
+
+E28 gave the word model 101 new classes from Slovo (`ml/slovo_new.csv`, `SLOVO_NEW_MAX_RANK = 10`) and Slovo clips of
+the mapped words (`ml/slovo_azsld.csv`, map v2). The installed sentence model (`final_all_ctc500`) knew 701 words.
+
+**Notebook 06 with Slovo** (`SLOVO`, `SLOVO_NEW`, `SLOVO_NEW_MAX_RANK`, as in notebook 04): the new labels are appended
+(701 → 802 words; 804 labels with `<blank>` and `<unk>`). Slovo's clips of 252 labels (151 mapped words of map v2 and the
+101 new ones) become recordings labelled with their sign over the whole clip, 2 frames at each end ignored: 5,383 clips
+(17 too short or without hands), 251k frames (+10 % on the train signers' 2.63 M). A Slovo clip has no rest around the
+sign, so it is never a training sample on its own: it only enters spliced sentences (`extra.slovo_recordings`,
+`extra.add_pool`, `SeqBank.pool_from`; the epoch keeps its 758 steps). About 16 % of the frontal camera's splice units
+are then Slovo signs.
+
+A fix on the way: Slovo is filmed on upright phones (width/height 0.56), AzSLD at 4:3 (1.33), and a spliced sign kept
+its own image coordinates, so a Slovo sign inside an AzSLD sentence would have been squeezed 2.4 times sideways.
+`continuous._spliced` now converts x (and hand z) to the first sign's camera shape (`_reshaped`): a spliced Slovo sign
+keeps its body proportions (nose-to-shoulder height over shoulder width 0.58 in the sentence, 0.59 in its own clip).
+Signs of the same camera shape are untouched, so AzSLD-only splicing is unchanged. E27's `JESTDILI = True` run
+(JestDili.az 16:9 spliced into 4:3, stretched 1.33 times) had this distortion; its negative result is not clean.
+
+**JestDili.az sentence labels with the new vocabulary** (`tools/jestdili_sentence_glosses.mjs --labels <vocab.json>`; a
+lexicon word whose label is written differently, JestDili.az's I for İ as in TIMSAH, is found by its text). With the old
+labels the output is identical to E27's file; with the new ones only `<unk>` signs change, into new words: 17 in the
+254 training sentences (NİYƏ 3, NƏ 3, ZƏİF, ƏSƏBİ, TƏCİLİ 2 each, ...), 31 in all 500 (`<unk>` 308 → 277). The
+person's sentences rarely use the new words.
+
+**Fair test, v5 protocol** (train signers, held-out sentences out, epoch and decoding chosen on val unseen learnable,
+JestDili.az CTC on 254 sentences: `seq_splice_ctc`'s recipe; `e29_v5_slovo`, 90 minutes):
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | test side | JestDili.az held-out F1 / WER |
+|---|---|---|---|---|---|---|---|
+| `seq_splice_ctc` | **0.838** | **0.900** | 0.653 | 0.799 | 0.853 | **0.859** | **0.689** / 62.2 % |
+| + Slovo | 0.836 | 0.895 | **0.656** | **0.806** | **0.854** | 0.838 | 0.687 / **60.1 %** |
+
+Per epoch (default decoding) the Slovo run was behind on val to the end (recall 0.75 against 0.81 at the same precision
+0.93, last 10 epochs); the decoding chosen on val (smooth 5 instead of 3) brought it level. Best epoch 44 (baseline 60).
+AzSLD's new sentences are level or a little better, all test recordings −0.005, the side camera −0.021 (Slovo signs only
+enter frontal splices; the earlier epoch may count too). Of 7,380 detections on AzSLD's test recordings 8 are new
+labels. JestDili.az, the 246 held-out sentences: F1 difference 95 % interval [−0.019, +0.018], 61 sentences better,
+70 worse.
+
+**The installed recipe with half of JestDili.az held out** (`final_all_ctc_slovo`: `final_all_ctc` + Slovo, all signers,
+saved at epoch 59, the installed decoding; 64 minutes). The 246 held-out sentences:
+
+| | precision | recall (known words) | F1 | sign → text WER |
+|---|---|---|---|---|
+| installed recipe (`final_all_ctc`) | **0.627** | **0.782** | **0.696** | **59.8 %** |
+| + Slovo | 0.618 | 0.769 | 0.685 | 60.3 % |
+| + Slovo, the v5 run's decoding (smooth 5) | 0.622 | 0.773 | 0.689 | 60.4 % |
+
+Paired bootstrap: F1 difference [−0.030, +0.008] (P(better) 0.12; 58 sentences better, 65 worse); with the v5 run's
+decoding [−0.025, +0.011]. Over the new vocabulary (`compare_jestdili.mjs --labels`, recall then also counts the new
+words the old model cannot know) the same: 0.690 → 0.680, [−0.029, +0.008]. Every point estimate is a little lower, none
+clearly. AzSLD test (seen by both) F1 0.971 against 0.972, side 0.965 against 0.968.
+
+**The new words where they occur** (`score_jestdili.mjs --focus`): in the 246 held-out sentences their stems occur 19
+times (NƏ 4, BOŞ 3, ƏLA, DƏQİQ, TƏCİLİ 2 each, İLAN, ƏSƏBİ, AYI, CANAVAR, SATMAQ, HƏYAT 1 each). Recognized: once
+(TƏCİLİ) by `final_all_ctc_slovo`, twice (NƏ, TƏCİLİ) by the v5 run; shown where the text does not have them: 1 and 4
+times. KAĞIZ, RƏSM, XATIRLAMAQ and YAZ are not counted: their stem is another label's (see below).
+
+Did the sentence model learn the signs at all? On JestDili.az's isolated clips of the words, streamed and decoded like a
+sentence (`D:/chevir/eval/e29/isolated_new.py`, outside git):
+
+| JestDili.az isolated clips | label among the decoded signs | mean probability over the hands' frames, top-1 / top-5 |
+|---|---|---|
+| new words (103 clips), `final_all_ctc_slovo` | 0.505 | 0.485 / 0.864 |
+| old words (331), `final_all_ctc_slovo` | 0.498 | 0.459 / 0.686 |
+| old words (331), `final_all_ctc` | 0.520 | 0.480 / 0.677 |
+
+(As in E28, the new words' numbers are optimistic: the same clips chose those classes.) The sentence model learns the
+new signs about as well as AzSLD's words, and the old words lose about 2 points, as in the word model. The person's
+sentences contain the new words too rarely for that to show.
+
+**Decision: not installed.** Level within noise on AzSLD and in the fair test, but below the installed recipe in every
+JestDili.az number of the held-out test (not significantly), and the new words are recognized once in 19 in the
+person's sentences. `final_all_ctc500` stays; the 500-sentence version was not trained, and the stopped `v5_slovo` init
+run was not resumed (the GPU goes to the other sessions; the same idea gave nothing for words, E27). A sentence test of
+the new words needs sentences that use them (set C, the recording page); 19 occurrences cannot show a gain.
+
+Four new classes may be AzSLD signs under another label: their word is an AzSLD label in another form or spelling that
+`slovo_new.csv`'s exact-label filter missed: XATIRLAMAQ (вспомнить) and AzSLD's XATIRLADIM, YAZ (весна) and YAZDA, KAĞIZ
+(бумага) and KAGİZLAR, RƏSM (картина) and RƏSİM. They are in the installed word model too (E28); for the native review
+(session 8).
+
+**gloss2text for the new labels** (ready for a later install; nothing installed changes). A label that is not in
+AzSLD's sentences gets its part of speech from its name, and the analysis read some dictionary forms as inflected verbs:
+YEDDİ as ye-di ("ate"), DİMDİK, AĞIR, YAZ, so MƏN YEDDİ YAŞ → "Mən yeddim yaş". The labels of `ml/slovo_new.csv` are
+dictionary forms: an analysis as a finite verb is dropped for them (`train(..., lemmas)`, read by `build_gloss_text.mjs`
+and `eval_gloss_text.mjs`), leaving 8 verbs (ANLAMAQ, DİNLƏMƏK, EŞİTMƏK, QOYMAQ, SATMAQ, TİTRƏMƏK, UZANMAQ, XATIRLAMAQ;
+AXMAQ "foolish" stays a noun) and 93 nouns and adjectives. With the new vocabulary: "Mən yeddi yaşam" (as with digits:
+MƏN 6 YAŞ → "Mən 6 yaşam"), "Sən niyə gəlmirsən", "Mən dinləyirəm", "Mən əsəbiyəm", "O xəsisdir", "Mən eşitmirəm",
+"Təcili həkim lazımdır", "Sənin ümidin var". With the installed labels `gloss_text.json` rebuilds identically; gates and
+`verify_gloss_text`, `verify_continuous`, `verify_s2t` pass (s2t dev 42.0, test 44.1).
+
+Tools: `score_jestdili.mjs` takes a `vocab.json` for `--labels`, `--focus <labels.json>` (chosen labels where the text
+has them, and where it does not), `--g2t <gloss_text.json>`; `compare_jestdili.mjs --labels`. Runs in
+`D:/chevir/runs/e29_*`, scores in `D:/chevir/eval/e29_*` and `D:/chevir/eval/e29/` (the r4 label files in
+`D:/chevir/kaggle/jestdili_ctc_r4*`). Commands:
+
+    python ml/run_local.py 06 --input D:/chevir/kaggle --out D:/chevir/runs/e29_v5_slovo --workers 4 \
+      --set "EXCLUDE_HELDOUT = True" --set "TRAIN_ON_VAL = False" --set "JESTDILI_CTC = 'jestdili_sentence_glosses_r4.json'" \
+      --set "SLOVO = 'slovo_azsld.csv'" --set "SLOVO_NEW = 'slovo_new.csv'" --set "SLOVO_NEW_MAX_RANK = 10" \
+      --set "RUNS = {'seq_splice_ctc_slovo': dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, select='f1_unseen_learnable')}"
+    # final_all_ctc_slovo: the same Slovo and JESTDILI_CTC settings with TRAIN_ON_VAL = TRAIN_ON_ALL = True and
+    # dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, save_epoch=59, decode=<the installed decoding>)

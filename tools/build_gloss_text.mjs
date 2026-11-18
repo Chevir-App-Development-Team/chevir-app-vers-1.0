@@ -14,7 +14,9 @@ const merge = JSON.parse(fs.readFileSync(`${A}sign_merge.json`, 'utf8'));
 const text = Object.fromEntries(fs.readFileSync('ml/label_text.csv', 'utf8').trim().split(/\r?\n/).slice(1)
   .map((r) => r.split(',').slice(0, 2)));
 const labels = JSON.parse(fs.readFileSync(`${A}cont_model/manifest.json`, 'utf8')).labels.filter((l) => !l.startsWith('<'));
-const model = train(S, merge, labels, text);
+// Slovo-dan yeni işarələr (ml/slovo_new.csv) lüğət formasındadır, təsrifli fel deyil (E29)
+const lemmas = new Set(fs.readFileSync('ml/slovo_new.csv', 'utf8').trim().split(/\r?\n/).slice(1).map((r) => r.split(',')[1]));
+const model = train(S, merge, labels, text, lemmas);
 delete model.opts;                                  // yalnız öyrənmə üçün
 model.source = `AzSLD sentences (${S.length}) of cont_model/sentences.json; labels of cont_model/manifest.json; ml/label_text.csv`;
 const out = `${A}gloss_text.json`;

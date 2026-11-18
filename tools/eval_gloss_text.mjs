@@ -34,7 +34,9 @@ const labels = JSON.parse(fs.readFileSync('public/tercume/assets/cont_model/mani
 // çəki yalnız 1-ci bölmədə (dev-də seçmək üçün)
 const PSEUDO = opt('--pseudo', null), PWS = opt('--pw', '0.1').split(',').map(Number), PMAX = Number(opt('--pseudo-max', Infinity));
 const extra = PSEUDO ? fs.readFileSync(PSEUDO, 'utf8').trim().split(/\r?\n/).slice(0, PMAX).map((l) => JSON.parse(l)) : [];
-const prep = prepare([...S, ...extra], merge, labels, text);
+// Slovo-dan yeni işarələr (ml/slovo_new.csv) lüğət formasındadır, təsrifli fel deyil (E29)
+const lemmas = new Set(fs.readFileSync('ml/slovo_new.csv', 'utf8').trim().split(/\r?\n/).slice(1).map((r) => r.split(',')[1]));
+const prep = prepare([...S, ...extra], merge, labels, text, lemmas);
 const idx = S.map((s, i) => i);
 const devIdx = idx.filter((i) => !held.has(S[i].folder)), testIdx = idx.filter((i) => held.has(S[i].folder));
 const isPseudo = (i) => i >= S.length;

@@ -3,10 +3,14 @@
 // Modelin bilmədiyi işarə və işarəsi olmayan söz <unk> olur (AzSLD-nin naməlum işarəsi kimi).
 // Cümlənin yarısı (id-nin md5-i ilə) test üçün kənarda qalır: "holdout" siyahısı.
 //
-//   node tools/jestdili_sentence_glosses.mjs D:/chevir/landmarks/jestdili_sentences/manifest.csv <out.json> [--holdout 0.5]
+// --labels: modelin etiketləri (manifest.json və ya vocab.json), susmaya görə quraşdırılmış cümlə modeli; yeni etiketli
+// model öyrədiləndə (Slovo-dan yeni işarələr, E29) onun vocab.json-u. Lüğətdə etiketi başqa yazılan söz (JestDili.az
+// sözlərində İ → I: TIMSAH) mətni ilə modelin etiketinə tapılır.
+//
+//   node tools/jestdili_sentence_glosses.mjs D:/chevir/landmarks/jestdili_sentences/manifest.csv <out.json> [--holdout 0.5] [--labels vocab.json]
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import { WordLexicon } from '../src/tercume/words.js';
+import { WordLexicon, azLower } from '../src/tercume/words.js';
 
 const [src, dst] = process.argv.slice(2);
 const opt = (name, def) => { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : def; };
@@ -16,8 +20,17 @@ const WORDS = 'public/tercume/words';
 const index = JSON.parse(fs.readFileSync(`${WORDS}/index.json`, 'utf8'));
 const labelOf = new Map(index.words.map((w) => [w.id, JSON.parse(fs.readFileSync(`${WORDS}/${w.id}.json`, 'utf8')).label]));
 const merge = JSON.parse(fs.readFileSync('public/tercume/assets/sign_merge.json', 'utf8'));
-const known = new Set(JSON.parse(fs.readFileSync('public/tercume/assets/cont_model/manifest.json', 'utf8')).labels);
+const lab = JSON.parse(fs.readFileSync(opt('--labels', 'public/tercume/assets/cont_model/manifest.json'), 'utf8'));
+const known = new Set(Array.isArray(lab) ? lab : lab.labels);
 const canon = (g) => { const s = merge.spelling?.[g] ?? g; return merge.merge?.[s] ?? s; };
+const fix = Object.fromEntries(fs.readFileSync('ml/label_text.csv', 'utf8').trim().split(/\r?\n/).slice(1)
+  .map((r) => r.split(',').slice(0, 2)));
+const byText = new Map();
+for (const l of known) if (!l.startsWith('<')) { const t = azLower(fix[l] ?? l); if (!byText.has(t)) byText.set(t, l); }
+const labelFor = (entry) => {                          // modelin etiketi və ya null
+  const l = canon(labelOf.get(entry.id));
+  return known.has(l) ? l : byText.get(azLower(entry.text ?? '')) ?? null;
+};
 const lex = new WordLexicon(index, { native: false });
 
 // manifest.csv: id, ..., text, ... (mətndə vergül ola bilər: sadə CSV oxuyucusu)
@@ -44,8 +57,7 @@ for (const r of rows.slice(1)) {
   const seq = [];
   for (const seg of lex.segment(text)) {
     if (seg.kind === 'word') {
-      const l = canon(labelOf.get(seg.entry.id));
-      seq.push(known.has(l) ? l : '<unk>');            // işarəsi var, model bilmir: naməlum işarə
+      seq.push(labelFor(seg.entry) ?? '<unk>');        // işarəsi var, model bilmir: naməlum işarə
     } else if (seg.kind === 'text' && /\p{L}/u.test(seg.text)) {
       seq.push('<unk>');                               // işarəsi yoxdur: hərf-hərf və ya başqa işarə
     }

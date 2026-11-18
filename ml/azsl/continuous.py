@@ -202,6 +202,19 @@ def _shoulders(raw):
     return c, (w if w > 1e-3 else 0.3)
 
 
+def _reshaped(raw, f):
+    """Image x of another camera shape in this one's width units: x · (its width/height) / (this width/height),
+    so a spliced sign keeps its proportions (hand z follows x, as in the trackers)."""
+    out = dict(raw)
+    for k in ('hand', 'pose', 'face'):
+        v = raw[k].astype(np.float32).copy()
+        v[..., 0] *= f
+        if k == 'hand':
+            v[..., 2] *= f
+        out[k] = v
+    return out
+
+
 def _moved(raw, c, w, c0, w0):
     """Image coordinates of a unit moved and scaled so its shoulders sit where the first unit's do."""
     out = dict(raw)
@@ -272,9 +285,13 @@ class SeqDataset(torch.utils.data.Dataset):
             i, a, b, _ = units[j]
             raw, y, asp, _ = self.bank.get(i)
             raw = {k: v[a:b].astype(np.float32) for k, v in raw.items()}
+            if aspect is None:
+                aspect = asp
+            elif asp != aspect:          # another camera shape (Slovo: upright phones): x in the first unit's width
+                raw = _reshaped(raw, asp / aspect)
             c, w = _shoulders(raw)
             if ref is None:
-                ref, aspect = (c, w), asp
+                ref = (c, w)
             parts.append(_moved(raw, c, w, *ref))
             ys.append(y[a:b].copy())
         raw, y = parts[0], ys[0]
@@ -288,7 +305,8 @@ class SeqDataset(torch.utils.data.Dataset):
         return raw, y, aspect
 
     def __len__(self):
-        return len(self.bank)
+        # a bank's pool recordings (pool_from on: Slovo's isolated signs) are drawn only as spliced signs
+        return len(self.bank) if getattr(self.bank, 'pool_from', None) is None else self.bank.pool_from
 
     def __getitem__(self, i):
         raw, y, aspect, _ = self.bank.get(i)
@@ -629,13 +647,12 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs
     if cfg['workers'] > 0 and os.name == 'nt' and not getattr(tr, '_disk', None):
         tr.to_disk(os.path.join(out_dir, '_train_bank'))      # spawned workers share it memory-mapped
         log(f'train bank memory-mapped from {os.path.join(out_dir, "_train_bank")} for {cfg["workers"]} workers')
-    sampler = torch.utils.data.RandomSampler(tr, replacement=True, num_samples=len(tr) * cfg['repeats'])
-    dl = torch.utils.data.DataLoader(SeqDataset(tr, train=True, groups=groups, face=face, crop=tuple(cfg['crop']),
-                                                face_drop=cfg['face_drop'], splice=cfg['splice'],
-                                                splice_power=cfg['splice_power'], fps_aug=cfg['fps_aug'],
-                                                fps_min=cfg['fps_min'], spell=cfg['spell'],
-                                                short=short_classes(vocab_list), seqs=seqs, corpus=cfg['corpus']),
-                                     batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
+    ds = SeqDataset(tr, train=True, groups=groups, face=face, crop=tuple(cfg['crop']), face_drop=cfg['face_drop'],
+                    splice=cfg['splice'], splice_power=cfg['splice_power'], fps_aug=cfg['fps_aug'],
+                    fps_min=cfg['fps_min'], spell=cfg['spell'], short=short_classes(vocab_list), seqs=seqs,
+                    corpus=cfg['corpus'])
+    sampler = torch.utils.data.RandomSampler(ds, replacement=True, num_samples=len(ds) * cfg['repeats'])
+    dl = torch.utils.data.DataLoader(ds, batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
                                      collate_fn=collate, drop_last=True, persistent_workers=cfg['workers'] > 0,
                                      pin_memory=device.type == 'cuda')
     weak_it = None
@@ -665,7 +682,8 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs
     has_val = val is not None and len(val) > 0
     val_unseen = banks.get('val_unseen')
     log(f'{device} | {n_params / 1e6:.2f} M params | {len(FT.columns(groups))} features | {C} labels | '
-        f'{len(tr)} train recordings ({tr.n:,} frames, {len(lab):,} scored, blank {counts[0] / counts.sum():.1%}) | '
+        f'{len(ds)} train recordings' + (f' + {len(tr) - len(ds)} only spliced' if len(tr) > len(ds) else '') +
+        f' ({tr.n:,} frames, {len(lab):,} scored, blank {counts[0] / counts.sum():.1%}) | '
         f'{len(dl)} steps/epoch' + (f' | val {len(val)} recordings' if has_val else ' | no val'))
 
     history, best, best_ep, step_i = [], -1.0, 0, 0

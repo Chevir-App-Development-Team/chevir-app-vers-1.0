@@ -772,6 +772,10 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # v15 (GPU): the final model again (v6's recipe, v7's decoding) with the word forms that signers confirmed as
 # one sign (E15: lemma_groups.csv after the word-form review; OLACAQ, OLUR, EDİR and İŞLƏMİR are their own
 # signs again). Only the labels differ from final_splice.
+# E29 (this PC, ml/run_local.py): the 101 Slovo classes of the word model (SLOVO, SLOVO_NEW, SLOVO_NEW_MAX_RANK = 10)
+# with JestDili.az CTC (jestdili_sentence_glosses_r4.json), v5 protocol and the installed recipe with half of JestDili.az
+# held out; level on AzSLD, no gain on the new person: not installed (ml/EXPERIMENTS.md E29).
+#   'seq_splice_ctc_slovo': dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, select='f1_unseen_learnable'),
 FPS_CHECKS = ()
 RUNS = {
     'final_merged': dict(BASE, splice=0.5, save_epoch=59,
@@ -792,6 +796,12 @@ JESTDILI_CTC = None                            # file name among the inputs (too
 CORPUS = None                                  # file name among the inputs: sign sequences of text corpus sentences
                                                # (tools/corpus_sign_seqs.mjs, one per line, tab-separated) for runs
                                                # with corpus= (roadmap R1)
+SLOVO = None                                   # file name among the inputs (ml/slovo_azsld.csv): Slovo's clips of the signs
+                                               # mapped to a label join the splice pool (each clip is the sign; never a
+                                               # training sample on its own: no rest around it); RSL, a draft map (E27)
+SLOVO_NEW = None                               # file name among the inputs (ml/slovo_new.csv): Slovo signs with an
+                                               # Azerbaijani word the vocabulary lacks become NEW labels, appended (R4; needs SLOVO)
+SLOVO_NEW_MAX_RANK = None                      # keep only new labels whose JestDili.az clip the Slovo-only model ranked this high
 LABEL_FIX = __LABEL_FIX__
 DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
 DECODE_GRID['min_len_short'] = (6,)            # v7's choice for letters and digits
@@ -838,6 +848,15 @@ tags = tags[tags.has_landmarks & tags.split.notna() & tags.start.notna() & tags.
 tags['gloss'] = tags.gloss.map(merge)
 core = {merge(g) for g in wsplit.gloss.unique()}
 words = T.learnable_vocab(tags, core, VOCAB_MIN_TRAIN)
+new_rows = []
+if SLOVO_NEW:
+    import csv as _csv
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO_NEW), recursive=True))[0], encoding='utf-8') as f:
+        new_rows = [r for r in _csv.DictReader(f) if merge(r['azsld']) not in set(words)]
+    if SLOVO_NEW_MAX_RANK:     # basis "jestdili rank N": the Slovo-only model's rank of the label on the JestDili.az clip
+        new_rows = [r for r in new_rows if r['basis'].split()[-1].isdigit() and int(r['basis'].split()[-1]) <= SLOVO_NEW_MAX_RANK]
+    words = words + sorted({merge(r['azsld']) for r in new_rows})
+    print(f'R4: {len({merge(r["azsld"]) for r in new_rows})} new labels from Slovo ({len(new_rows)} Russian glosses)')
 vocab_list = [CT.BLANK] + words + [T.UNKNOWN]
 index = {g: i for i, g in enumerate(vocab_list)}
 exclude = T.ambiguous_oov(tags.gloss.unique(), set(words))
@@ -881,6 +900,15 @@ if JESTDILI:
     gloss_of = EX.jestdili_glosses(LandmarkStore(jd_dirs), words, LABEL_FIX, SPELLING, MERGE)
     banks['train'] = EX.merge_seq(banks['train'], EX.load_recordings(jd_dirs, gloss_of, index))
     print('train with JestDili.az:', len(banks['train']), 'recordings,', f"{banks['train'].n:,} frames")
+if SLOVO:
+    import csv as _csv
+    from azsl import extra as EX
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO), recursive=True))[0], encoding='utf-8') as f:
+        rename = {r['slovo']: merge(r['azsld']) for r in _csv.DictReader(f)}
+    rename.update({r['slovo']: merge(r['azsld']) for r in new_rows})
+    sl_dirs = find('slovo/manifest.csv')
+    banks['train'] = EX.add_pool(banks['train'], EX.slovo_recordings(sl_dirs, EX.slovo_glosses(sl_dirs, rename), index))
+    print('train with Slovo:', len(banks['train']), 'recordings,', f"{banks['train'].n:,} frames")
 banks['val_unseen'] = CT.subset(banks['val'], unseen)          # per-epoch score on sentences never trained on
 SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, learnable)}
 letters = {g for g in words if len(g) == 1}                 # fingerspelled letters and digits

@@ -111,6 +111,40 @@ def load_recordings(dirs, gloss_of, index, edge=2, log=print):
     return bank.done()
 
 
+def slovo_recordings(dirs, gloss_of, index, edge=2, log=print):
+    """Cümlə modeli: Slovo klipləri (bütöv klip işarənin özüdür, begin..end) → SeqBank, hər kadr işarənin etiketi,
+    hər ucun edge kadrı IGNORE. Yalnız spliced cümlələrə girir (add_pool): istirahəti yoxdur, tək nümunə olmur."""
+    from . import continuous as CT
+    store = LandmarkStore(dirs)
+    bank = CT.SeqBank()
+    skipped = 0
+    for item_id, g in gloss_of.items():
+        if g not in index:
+            continue
+        raw = FT.reduce(store.get(item_id, dtype=np.float16))
+        T = raw['hand'].shape[0]
+        if T < 8 or not np.isfinite(raw['hand'][:, :, 0, 0].astype(np.float32)).any():
+            skipped += 1
+            continue
+        y = np.full(T, index[g], np.int64)
+        y[:edge] = IGNORE
+        y[T - edge:] = IGNORE
+        aspect = float(store.index.at[item_id, 'width']) / float(store.index.at[item_id, 'height'])
+        bank.add(raw, y, aspect, f'slovo|{item_id}')
+    log(f'Slovo: {len(bank)} signs ({bank.n:,} frames) of {len({g for g in gloss_of.values() if g in index})} labels, '
+        f'{skipped} too short or without hands')
+    return bank.done()
+
+
+def add_pool(bank, pool):
+    """Təlim SeqBank-ı + yalnız spliced cümlələrdə işlənən yazılar (pool, sonda): pool_from = ilk pool yazısı."""
+    if not len(pool):
+        return bank
+    out = merge_seq(bank, pool)
+    out.pool_from = len(bank)
+    return out
+
+
 def merge_seq(a, b):
     """İki hazır SeqBank → bir (a-nın yazıları əvvəl)."""
     from . import continuous as CT

@@ -165,16 +165,17 @@ const inc = (m, k, n = 1) => { m[k] = (m[k] ?? 0) + n; };
 /**
  * Öyrənmə. pairs: [{glosses, text}] — işarələr tanıyıcının birləşmiş adlarındadır; merge: sign_merge.json
  * (işarənin digər adları tutuşdurma üçün); labels — cümlələrdə olmayan, ancaq tanınan işarələr də;
- * text — etiketin düzgün yazılışı (ml/label_text.csv).
+ * text — etiketin düzgün yazılışı (ml/label_text.csv); lemmas — lüğət formasında olan etiketlər (Slovo-dan yeni işarələr,
+ * ml/slovo_new.csv): adın təhlili təsrifli fel verirsə (YEDDİ → ye-di, DİMDİK → dim-dik) atılır, fel yalnız məsdərdir.
  */
-export const train = (pairs, merge, labels, text) => fit(prepare(pairs, merge, labels, text));
+export const train = (pairs, merge, labels, text, lemmas) => fit(prepare(pairs, merge, labels, text, lemmas));
 
 /**
  * Hər cümlənin tutuşdurulması və sözlərin əlamətləri (ağır hissə, bir dəfə) və hər işarənin öz adının
  * təhlili. Kök açarları yalnız işarələrin adlarından qurulur, mətndən yox: bir cümləni çıxarıb sayan
  * ölçmə (leave-one-out) düzgündür. text: etiketin düzgün yazılışı (ml/label_text.csv: OLMUSAM → olmuşam).
  */
-export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], text = {}) {
+export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], text = {}, lemmas = new Set()) {
   const members = new Map();
   const addM = (lab, g) => { if (!members.has(lab)) members.set(lab, new Set([lab])); members.get(lab).add(g); };
   const canon = (g) => { const s = merge.spelling?.[g] ?? g; return merge.merge?.[s] ?? s; };
@@ -191,7 +192,7 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
   const headKeys = new Map(labels.map((l) => [l, new Set(formsOf(l).map((g) => key(norm(azLower(g)).split(' ').at(-1))))]));
 
   const guess = {};
-  for (const l of labels) if (!spelled([l], 0) && !isNumber(l)) guess[l] = guessOf(l, headKeys.get(l), lem, textOf(l));
+  for (const l of labels) if (!spelled([l], 0) && !isNumber(l)) guess[l] = guessOf(l, headKeys.get(l), lem, textOf(l), lemmas.has(l));
   // xüsusi adlar böyük hərflə yazılır (label_text.csv: BAKI → Bakı, ABŞERON RAYON → Abşeron rayonu)
   for (const l of labels) {
     const t = text[l] ?? [...(members.get(l) ?? [])].map((g) => text[g]).find(Boolean);
@@ -314,13 +315,14 @@ function rootOf(label, surface, keys, lem) {
  * BİLMİR → bil, inkar; YAŞAMAQ → yaşa (məsdər lüğət formasıdır, əlaməti yoxdur). Çoxsözlü işarənin
  * son sözü dəyişir, qalanı `prefix`-dir (ANADAN OLMAQ → anadan + ol).
  */
-function guessOf(label, keys, lem, t = labelText(label)) {
+function guessOf(label, keys, lem, t = labelText(label), lemma = false) {
   const toks = t.split(' ');
   const head = toks.at(-1);
   const prefix = toks.slice(0, -1).join(' ');
   const base = { ...(prefix && { prefix }) };
   if (PRONOUNS.includes(head)) return { pos: 'noun', root: head, ...base };
-  const a = rootOf(label, head, keys, lem);
+  let a = rootOf(label, head, keys, lem);
+  if (lemma && a.pos === 'verb' && a.feats.tam !== 'inf') a = {};   // lüğət forması təsrifli fel deyil (YEDDİ ≠ ye-di)
   if (a.root) {
     const inherent = a.pos === 'verb' && a.feats.tam !== 'inf' ? { tam: a.feats.tam, neg: a.feats.neg } : null;
     return { pos: a.pos, root: a.root, ...base, ...(inherent && { inherent }) };

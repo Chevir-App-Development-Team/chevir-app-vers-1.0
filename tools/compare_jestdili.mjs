@@ -2,12 +2,18 @@
 // (2000 dəfə cümlələr yenidən seçilir), fərqin 95 % aralığı və neçə cümlənin yaxşılaşıb pisləşdiyi (E27).
 // Sayma tools/score_jestdili.mjs ilə eynidir.
 //
-//   node tools/compare_jestdili.mjs D:/chevir/eval/<A>/sentences.json D:/chevir/eval/<B>/sentences.json
+// --labels: modelin bildiyi sözlər (tutma bunlar üzrə), susmaya görə quraşdırılmış cümlə modeli; lüğəti böyüyən model
+// köhnə ilə müqayisə olunanda yeninin manifest.json / vocab.json-u (köhnə model yeni sözləri bilmədiyi üçün itirir).
+//
+//   node tools/compare_jestdili.mjs D:/chevir/eval/<A>/sentences.json D:/chevir/eval/<B>/sentences.json [--labels vocab.json]
 import fs from 'node:fs';
 import { Lemmatizer } from '../src/tercume/morph.js';
 import { azLower } from '../src/tercume/words.js';
-const [fa, fb] = process.argv.slice(2);
-const labels = JSON.parse(fs.readFileSync('public/tercume/assets/cont_model/manifest.json', 'utf8')).labels.filter((l) => !l.startsWith('<'));
+const args = process.argv.slice(2);
+const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
+const [fa, fb] = args.filter((a, i) => !a.startsWith('--') && !args[i - 1]?.startsWith('--'));
+const lab = JSON.parse(fs.readFileSync(opt('--labels', 'public/tercume/assets/cont_model/manifest.json'), 'utf8'));
+const labels = (Array.isArray(lab) ? lab : lab.labels).filter((l) => !l.startsWith('<'));
 const fix = Object.fromEntries(fs.readFileSync('ml/label_text.csv', 'utf8').trim().split(/\r?\n/).slice(1).map((r) => r.split(',').slice(0, 2)));
 const labelText = (l) => azLower(fix[l] ?? l);
 const lem = new Lemmatizer(labels.map(labelText).filter((t) => !t.includes(' ')));
