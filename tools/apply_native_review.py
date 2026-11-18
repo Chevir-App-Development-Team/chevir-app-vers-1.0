@@ -17,7 +17,7 @@ veribsə, bənd keçilir və siyahıda göstərilir (qərar komandanındır). B�
   literal              no → ml/label_flags.csv-də literal bayrağı (qeyddə doğma işarə); yes → bayraq çıxır
   n8                   ml/text_alt.csv: no → sətir çıxır, yes → qeyd "native yes"; təklif: yes → sətir əlavə olunur;
                        sonra avatar lüğətinin alt sahələri (public/tercume/words) text_alt.csv-yə uyğunlaşır
-                       (JestDili.az-ın öz alt-ları qalır; build_avatar_words.py --alt-only onları silərdi)
+                       (JestDili.az-ın öz alt-ları qalır; tools/text_alt.py, build_avatar_words.py --alt-only də belə)
   n9                   yalnız jurnal: qaydalar kodun içindədir (src/tercume/words.js, gloss2text.js), əl ilə dəyişilir
   v2                   keçilir: node tools/review_summary.mjs <cavablar.csv>
 
@@ -35,6 +35,9 @@ import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))      # -I ilə skriptin qovluğu yolda deyil
+from text_alt import alt_map, sync_alt                        # noqa: E402
 
 CODES = ('yes', 'no', 'other')
 SHEET_ANSWER = {'yes': 'bəli', 'no': 'xeyr', 'unsure': 'bilmirəm'}
@@ -306,37 +309,10 @@ def main():
                         '--tag', f'native review {today}'], check=True)
         subprocess.run([py, '-I', str(root / 'tools/build_sign_merge.py')], check=True)
 
-    # N8: avatar lüğətinin alt sahələri (yalnız text_alt.csv-dən gələnlər dəyişir)
-    def alt_map(rows):
-        m = defaultdict(list)
-        for r in rows:
-            if r['alt'] not in m[r['text']]:
-                m[r['text']].append(r['alt'])
-        return m
+    # N8: avatar lüğətinin alt sahələri (yalnız text_alt.csv-dən gələnlər dəyişir; tools/text_alt.py)
     before, after = alt_map(alt_before), alt_map(alt_rows)
     if before != after:
-        index_path = P['words'] / 'index.json'
-        index = json.loads(index_path.read_text(encoding='utf-8'))
-        changed = 0
-        for entry in index['words']:
-            t = entry['text']
-            if t not in before and t not in after:
-                continue
-            alt = [x for x in entry.get('alt', []) if x not in before.get(t, [])]
-            alt += [x for x in after.get(t, []) if x not in alt]
-            if alt == entry.get('alt', []):
-                continue
-            path = P['words'] / f"{entry['id']}.json"
-            data = json.loads(path.read_text(encoding='utf-8'))
-            for d in (entry, data):
-                d.pop('alt', None)
-                if alt:
-                    d['alt'] = alt
-            path.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-            changed += 1
-        if changed:
-            index_path.write_text(json.dumps(index, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-        missing = sorted(set(after) - {w['text'] for w in index['words']})
+        changed, missing = sync_alt(P['words'], after, before)
         print(f'avatar lüğəti: {changed} sözün alt sahəsi dəyişdi' + (f'; lüğətdə olmayan mətnlər: {missing}' if missing else ''))
     print(f'yazıldı; jurnal: {P["log"].relative_to(root)} (+{len(log)} sətir)')
 

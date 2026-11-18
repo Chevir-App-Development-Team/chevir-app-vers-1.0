@@ -115,6 +115,40 @@ for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarş
   check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
 
+// Əlavə mənbənin ifadəsi AzSLD sözlərinin qabağını kəsmir: təbrik edirəm → TƏBRİK EDİRƏM (JestDili.az-ın TƏBRİK ETMƏK yox)
+{
+  const guard = new WordLexicon({ sources: [{ prefix: 'jd-' }], words: [{ id: 'təbrik', text: 'təbrik' },
+    { id: 'edirəm', text: 'edirəm' }, jd('təbrik etmək')] }, { native: false });
+  for (const [text, want] of [['təbrik edirəm', 'w:təbrik _ w:edirəm'], ['təbrik etmək', 'w:təbrik etmək']]) {
+    const got = show(guard.segment(text));
+    check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+}
+
+// E36-da tapılanlar: gələcək (isim) ilə gələcək (fel) ayrılır; idiomun feli hər formada; ifadənin ad forması (text_alt.csv)
+{
+  const words = [...['sabah', 'gəlmək', 'gələcək', 'il', 'gözəl', 'olacaq', 'olmaq', 'mən', 'sən', 'o', 'siz', 'bu', 'iş',
+    'yox', 'var'].map((text) => ({ id: text, text })), { id: 'tamamlamaq', text: 'tamamlamaq', alt: ['yerinə yetirmək'] },
+  { id: 'eşitmə məhdudiyyətli', text: 'eşitmə məhdudiyyətli', alt: ['eşitmə məhdudiyyəti'] }];
+  const lex = { doğma: new WordLexicon({ words }), AzSLD: new WordLexicon({ words }, { native: false }) };
+  for (const [mode, text, want] of [
+    // budağın sonunda fel: felin işarəsi + zaman; başqa yerdə isim və ya feli sifət, zaman işarəsi yox
+    ['doğma', 'Sabah gələcək.', 'w:sabah _ w:gəlmək w:olacaq'], ['doğma', 'Sən gələcəksən?', 'w:sən _ w:gəlmək w:olacaq'],
+    ['doğma', 'Gələcək il gələcək.', 'w:gələcək _ w:il _ w:gəlmək w:olacaq'], ['doğma', 'O gələcək idi.', 'w:o _ w:gəlmək w:olacaq _ d:idi'],
+    ['doğma', 'Gələcək gözəl olacaq.', 'w:gələcək _ w:gözəl _ w:olacaq'], ['doğma', 'Gələcəkdə', 'w:gələcək'],
+    // AzSLD üslubu yazılışı saxlayır (AzSLD-nin annotasiyası: birisigün gələcək → GƏLƏCƏK)
+    ['AzSLD', 'Sabah gələcək.', 'w:sabah _ w:gələcək'],
+    ['doğma', 'Bu işi yerinə yetirdim', 'w:mən w:bu _ w:iş _ w:tamamlamaq w:olmaq'],
+    ['doğma', 'Yerinə yetirmədim.', 'w:mən w:tamamlamaq w:yox w:olmaq'], ['AzSLD', 'Bu işi yerinə yetirdim', 'w:bu _ w:iş _ w:tamamlamaq'],
+    ['AzSLD', 'yerinə yetirəcəyik', 'w:tamamlamaq'], ['AzSLD', 'yerinə yetir', 'w:tamamlamaq'],
+    ['doğma', 'Sizin eşitmə məhdudiyyətiniz var?', 'w:siz _ w:eşitmə məhdudiyyətli _ w:var'],
+    ['AzSLD', 'eşitmə məhdudiyyətim', 'w:eşitmə məhdudiyyətli'], ['AzSLD', 'eşitmə məhdudiyyətliyəm', 'w:eşitmə məhdudiyyətli'],
+  ]) {
+    const got = show(lex[mode].segment(text));
+    check(got === want, `E36 (${mode}): ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+}
+
 // Ədədlər danışıqdakı hissələrlə, hissələrin hamısının işarəsi varsa (N7): rəqəmin işarəsi, yoxsa adının (JestDili.az)
 const nums = new WordLexicon({ sources: [{ prefix: 'jd-' }], words: [
   ...['2', '3', '5', '30'].map((text) => ({ id: text, text })), ...['yeddi', 'doqquz', 'doxsan', 'yüz', 'min'].map(jd)] },
@@ -169,6 +203,11 @@ if (!existsSync(new URL('index.json', W))) {
   check(index.count === index.words.length && index.count > 100, `indeksdə ${index.count} söz`);
   check(new Set(index.words.map((w) => w.id)).size === index.count, 'söz id-ləri təkrarlanmır');
   check(show(lex.segment('Salam, ana!')) === 'w:salam _ w:ana', 'real lüğət: "Salam, ana!" → salam | ana');
+  // ml/text_alt.csv lüğətdədir; JestDili.az sözlərinin öz alt-ları qalıb (build_avatar_words.py --alt-only, E36)
+  const esitme = show(lex.segment('eşitmə məhdudiyyətiniz'));
+  check(esitme === 'w:eşitmə məhdudiyyətli', `real lüğət: "eşitmə məhdudiyyətiniz" → ${esitme}`);
+  const jdAlt = index.words.filter((w) => w.id.startsWith('jd-') && w.alt?.length).length;
+  check(!index.sources?.length || jdAlt > 0, `real lüğət: ${jdAlt} JestDili.az sözünün öz alt-ı var`);
 
   const bad = [];
   for (const e of index.words) {

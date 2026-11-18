@@ -2808,10 +2808,69 @@ scripts and the gates pass.
   browser's merge names. Fixed: an existing family keeps its name, and a family name that is not a gloss gets no row;
   on the unanswered sheet it now changes nothing. `--tag` sets the note's prefix.
 - `tools/build_avatar_words.py --alt-only` drops the alternates of the 80 JestDili.az entries from E27 (it removes every
-  entry's `alt` and sets only `text_alt.csv`'s). Not changed here; the apply script merges instead.
+  entry's `alt` and sets only `text_alt.csv`'s). Not changed here; the apply script merges instead. Fixed in "E36
+  follow-up" below.
 - Text → sign, seen while writing the N9 and N8 questions: "Sabah gələcək" plays GƏLƏCƏK (the noun "future") + OLACAQ;
   "Bu işi yerinə yetirdim" spells "yetirdim" (the idiom matches only some forms); "eşitmə məhdudiyyətiniz" is spelled
-  letter by letter although EŞİTMƏ MƏHDÜDİYYƏTLİ is a sign; MÜTLƏQ now has a JestDili.az sign (E21: no clip), so
+  letter by letter although EŞİTMƏ MƏHDÜDİYYƏTLİ is a sign (these three: "E36 follow-up" below); MÜTLƏQ now has a JestDili.az sign (E21: no clip), so
   -malı could use it (asked in N9).
 - After applying: map or new-class changes need the word model retrained (notebook 04 `SLOVO`, `SLOVO_NEW`) and the
   sentence model (notebook 06's Slovo options, E29); D5 changes need both for merges the models were trained with.
+
+## E36 follow-up — Four text → sign fixes found in E36 (no training)
+
+The four problems E36 listed under "Found on the way" (`src/tercume/words.js`, `morph.js`, `ml/text_alt.csv`,
+`tools/text_alt.py`; cases in `tools/verify_words.mjs`).
+
+**"Sabah gələcək" → SABAH GƏLMƏK OLACAQ** (was GƏLƏCƏK OLACAQ). The lexicon's GƏLƏCƏK is a bare third-person future
+form, which Azerbaijani also uses as a noun ("gələcəkdə") and a participle ("gələcək il"). In native mode a finite
+tensed form that lands on such an entry (bare -AcAK or -mIş of the same verb) now plays the verb's infinitive sign when the
+lexicon has it, and the tense sign follows as before; forms with a person ending are always verbs ("Sən gələcəksən" →
+SƏN GƏLMƏK OLACAQ). The bare form is a verb only at the end of a clause (sentence end, comma, end of text, or before idi,
+ki, mi, isə, amma, ...); elsewhere it is a noun or participle and gets no tense sign: "Gələcək il gələcək" → GƏLƏCƏK İL
+GƏLMƏK OLACAQ (was GƏLƏCƏK OLACAQ İL GƏLƏCƏK OLACAQ), "Gələcək gözəl olacaq" → GƏLƏCƏK GÖZƏL OLACAQ. OLACAQ itself
+stays. AzSLD style is unchanged on purpose: AzSLD's annotators wrote GƏLƏCƏK for this verb in all three sentences that
+have it (20 of 20, 18 of 20 and 20 of 21 recordings). On the AzSLD sentences the switch changes GƏLƏCƏK, GECİKƏCƏK and
+EDƏCƏK (→ GƏLMƏK, GECİKMƏK, ETMƏK; 6 sentences, all dev).
+
+**"Bu işi yerinə yetirdim" → (MƏN) BU İŞ TAMAMLAMAQ (OLMAQ)** (was "yetirdim" spelled). A phrase's last word was keyed by
+its shortest suffix-free stem, which cut "yetirdim" to "yet" (-ir read as present tense) but "yetirmək" only to "yetir".
+The stems of phrase-final infinitives in the lexicon are now known to the phrase key, so every form of "yerinə
+yetirmək" matches (yetirdim, yetirəcəyik, yetir, ...). In native mode the idiom's verb gets the tense sign and the
+dropped subject like any verb ("rəhmətə getdi" already did; "razı qaldıq" now too): 9 of the 20 AzSLD recordings of
+"yerinə yetirib" also sign OLMAQ after TAMAMLAMAQ. A negative phrase now gets YOX: "yerinə yetirmədim" was TAMAMLAMAQ alone (the negation was lost),
+now MƏN TAMAMLAMAQ YOX OLMAQ. Only in the AzSLD lexicon: with JestDili.az phrases matching every form, "təbrik edirəm"
+became TƏBRİK ETMƏK, "zəng edə bilərəm" ZƏNG ETMƏK BİLƏR and "cavab verməyib" CAVAB VERMƏK YOX, taking words from
+AzSLD's own signs (E24), and the test same-gloss F1 fell below both gates (AzSLD 0.890 → 0.882, native 0.853 → 0.846).
+A verify case guards it.
+
+**"eşitmə məhdudiyyətiniz" → EŞİTMƏ MƏHDUDİYYƏTLİ** (was EŞİTMƏ + spelled). A new `text_alt.csv` row, "eşitmə
+məhdudiyyəti", so the noun phrase in any form reaches the sign. AzSLD supports it: in "Eşitmə məhdudiyyəti olduğuna
+görə ..." 20 of 21 recordings sign EŞİTMƏ MƏHDUDİYYƏTLİ, in "Mənim eşitmə məhdudiyyətim ..." 7 of 22 (the rest EŞİTMƏ
+alone or EŞİTMƏ ƏLİL). The review package's N8 section asks only about the 9 earlier rows; this one is for the next
+native review.
+
+**`build_avatar_words.py --alt-only` keeps JestDili.az's alternates.** The merge is now one function,
+`tools/text_alt.py` `sync_alt`, used by `--alt-only` and `apply_native_review.py`: an AzSLD entry's `alt` comes only
+from `text_alt.csv` (the full build gives it nothing else), so it is replaced; an entry from an added source keeps its
+own alternates and gets the table's on top; the apply script passes the table before its changes, so a removed row
+also leaves a JestDili.az entry. `--alt-only` has no such record, so it cannot remove a removed row from a JestDili.az
+entry (no row targets one today). Only changed entries are rewritten. Tested on a copy of the lexicon: with the table
+unchanged, `index.json` stays byte-identical (the old code rewrote every entry and dropped the 80 JestDili.az
+alternates); removing a row, adding and removing one on a JestDili.az entry, and the new row all came out right. On the
+real lexicon the new row changed only `alt` in `index.json` and `esitme-mehdudiyyetli.json`.
+
+| `tools/eval_text_gloss.mjs`, same-gloss F1 | dev before | dev after | test before | test after |
+|---|---|---|---|---|
+| AzSLD style | 0.892 | 0.893 | 0.890 | 0.890 |
+| native rules | 0.866 | 0.865 | 0.853 | 0.853 |
+
+Words as signs on dev 97.7 → 97.8 % (letters 375 → 350, all from the new row). The native dev drop is the gələcək
+sentences (AzSLD's annotation keeps the written GƏLƏCƏK) and OLMAQ after "yerinə yetirib" and "razı qaldıq"; nothing on
+test changes. All 12
+`verify_*` scripts and `ci_gates.mjs` pass with the same numbers as before; the translator page (dev server) shows
+SABAH GƏLMƏK OLACAQ, MƏN BU İŞ TAMAMLAMAQ OLMAQ, SİZ EŞİTMƏ MƏHDUDİYYƏTLİ VAR with no console errors.
+
+Left as they were (same code, not in the four): "həkim olacam" plays OLMAQ, not OLACAQ (a future of olmaq gets no tense
+sign); a non-final -ib converb still gets OLMAQ ("O gəlib sizə kömək edəcək" → O GƏLMƏK OLMAQ ...); entries with a
+person ending (GƏLƏCƏKSİNİZ) keep their own sign.

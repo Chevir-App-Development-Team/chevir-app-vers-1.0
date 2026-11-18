@@ -206,9 +206,19 @@ export class Lemmatizer {
   /** predicates: xəbərin açarı -dIr-dan əvvəlki sözdür (ucuzdur → ucuz; mətn → işarə üçün). */
   constructor(words, { predicates = false } = {}) {
     this.verbs = new Set();
+    // İfadənin sonundakı məsdərin kökü (yerinə yetirmək → "yetir"): ifadənin son sözünün açarı onunla tapılır
+    // (phraseKey), fel lüğətdə tək söz kimi olmasa da
+    this.phraseVerbs = new Set();
     const plain = [], infinitives = new Map();
     for (const w of new Set(words)) {
-      if (w.includes(' ')) continue;
+      if (w.includes(' ')) {
+        const m = /^(.+?)(maq|mək)$/.exec(w.split(' ').at(-1));
+        if (m && m[1].length >= 2 && hasVowel(m[1])) {
+          const n = /^(.+?)(ma|mə)$/.exec(m[1]);
+          this.phraseVerbs.add(n && n[1].length >= 2 && hasVowel(n[1]) ? n[1] : m[1]);
+        }
+        continue;
+      }
       const m = /^(.+?)(maq|mək)$/.exec(w);
       if (m && m[1].length >= 2 && hasVowel(m[1])) {
         const n = /^(.+?)(ma|mə)$/.exec(m[1]);
@@ -273,12 +283,24 @@ export class Lemmatizer {
    * İfadənin sözü üçün açar ("xoşum gəlir" ~ "xoşu gəlmək"): felin açarı, yoxsa açarın (açar yoxdursa
    * sözün) şəkilçisiz ən qısa gövdəsi — ifadə bütöv uyğun gəlməlidir, ona görə təklikdə olduğundan
    * sərbəstdir. Eyni açarlı formalar eyni gövdəyə enir: həyat yoldaşım (lüğətdə "yoldaşım" var) ~ həyat
-   * yoldaşı, Abşeron rayon ~ Abşeron rayonu.
+   * yoldaşı, Abşeron rayon ~ Abşeron rayonu. `last` — ifadənin son sözü: ifadənin məsdərinin kökü də açardır
+   * (yerinə yetirdim ~ yerinə yetirmək; ən qısa gövdə "yetir"-i "yet"-ə endirərdi).
    */
-  phraseKey(word) {
+  phraseKey(word, last = false) {
     const k = this.key(word);
     if (k && this.verbs.has(k.replace(/-$/, ''))) return k;
+    const v = last && this.phraseVerb(word);
+    if (v) return v;
     return candidates(k ?? word).filter((c) => !c.neg).at(-1).stem;
+  }
+
+  /** İfadənin son felinin açarı (yetirdim → "yetir", yetirmədim → "yetir-"; lüğətdə "yerinə yetirmək"), yoxsa null. */
+  phraseVerb(word) {
+    for (const c of candidates(word)) {
+      const v = variants(c.stem, true).find((x) => this.phraseVerbs.has(x));
+      if (v) return keyOf(v, c.neg);
+    }
+    return null;
   }
 
   /**

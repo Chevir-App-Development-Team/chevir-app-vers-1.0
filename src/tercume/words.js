@@ -6,7 +6,7 @@
  * "bu gün" kimi ifadələr bütöv işarədir.
  */
 import { WORDS_BASE } from './paths.js';
-import { Lemmatizer, PRONOUN_OF, suffixOnly } from './morph.js';
+import { Lemmatizer, PRONOUN_OF, infinitive, suffixOnly } from './morph.js';
 import { paradigm } from './inflect.js';
 
 /** Azərbaycan qaydası ilə kiçik hərf: I → ı, İ → i (toLowerCase "İ"-ni "i̇" edir). */
@@ -71,6 +71,11 @@ export const PERSON = new Set(['mən', 'sən', 'o', 'biz', 'siz', 'onlar', 'ana'
   'şagird', 'qonşu', 'qonaq', 'həmkar', 'müdir', 'rəhbər', 'tərcüməçi']);
 const COMITATIVE = ['ylə', 'yla', 'lə', 'la'];
 const SENTENCE_END = /[.!?…]["'»”)]*$/;
+const PAUSE = /[,;:–—]["'»”)]*$/;
+// Felin 3-cü şəxsinin isim və feli sifət kimi də işlənən forması (gələcək: "gələcək il", "gələcəkdə"; keçmiş, itmiş):
+// cümlənin və ya budağın sonunda, ya da bu sözlərdən əvvəl xəbərdir (fel + zaman işarəsi), başqa yerdə addır
+const NOMINAL = new Set(['fut', 'perf']);
+const AFTER_PREDICATE = new Set(['idi', 'imiş', 'isə', 'ki', 'mi', 'mı', 'mu', 'mü', 'amma', 'ancaq', 'lakin', 'çünki', 'yoxsa']);
 
 /** Əlavə işarə (YOX, zaman, mübtəda, BİRLİKDƏ): mətndə öz sözü yoxdur, from/to aid olduğu sözündür. */
 export const isAdded = (seg) => seg.kind === 'word' && ['neg', 'tense', 'subject', 'with'].includes(seg.via);
@@ -113,9 +118,9 @@ export class WordLexicon {
     this.maxTokens = Math.max(1, ...this.entries.flatMap(
       (w) => [w.text, ...(w.alt ?? [])].map((t) => t.split(' ').length)));
     // Söz formaları (evdə → ev, bilmirəm → bilmir): açar kök + inkardır (morph.js).
-    // Köklər tək sözlü yazılışlardan çıxarılır; ifadənin sözləri ("ad günü") kök sayılmır.
-    // Xəbər sözü (ucuzdur) öz sifətinə də gedir: ucuz → UCUZDUR
-    this.lemma = new Lemmatizer([...this.byText.keys()].filter((t) => !t.includes(' ')), { predicates: true });
+    // Köklər tək sözlü yazılışlardan çıxarılır; ifadənin sözləri ("ad günü") kök sayılmır, yalnız ifadənin
+    // sonundakı məsdər ifadənin öz felidir (yerinə yetirmək). Xəbər sözü (ucuzdur) öz sifətinə də gedir: ucuz → UCUZDUR
+    this.lemma = new Lemmatizer([...this.byText.keys()], { predicates: true });
     this.byKey = new Map();
     for (const [t, w] of this.byText) {
       const k = this.#keys(t.split(' '));
@@ -126,13 +131,19 @@ export class WordLexicon {
 
   #keys(tokens) {
     if (tokens.length === 1) return this.lemma.key(tokens[0]);
-    return tokens.map((t) => this.lemma.phraseKey(t)).join(' ');
+    // ifadənin son felinin kökü (yerinə yetirdim ~ yerinə yetirmək) yalnız AzSLD lüğətində: əlavə mənbənin ifadəsi
+    // (təbrik etmək, zəng etmək) AzSLD-nin TƏBRİK EDİRƏM, ZƏNG EDƏ BİLMƏK sözlərinin qabağını kəsməsin (E24)
+    return tokens.map((t, k) => this.lemma.phraseKey(t, !this.added && k === tokens.length - 1)).join(' ');
   }
 
-  /** Felin forması {tam, pers, neg, root} (inflect.js paradiqması); fel deyilsə və ya forma tanınmırsa null. */
-  #verb(tok) {
-    const root = this.lemma.key(tok)?.replace(/-$/, '');
-    if (!root || !this.lemma.verbs.has(root)) return null;
+  /**
+   * Felin forması {tam, pers, neg, root} (inflect.js paradiqması); fel deyilsə və ya forma tanınmırsa null.
+   * `phrase` — ifadənin son sözü: felin kökü ifadənin məsdərindən də ola bilər (yerinə yetirdim → yetir).
+   */
+  #verb(tok, phrase = false) {
+    let root = this.lemma.key(tok)?.replace(/-$/, '');
+    if (!root || !this.lemma.verbs.has(root)) root = phrase ? this.lemma.phraseVerb(tok)?.replace(/-$/, '') : null;
+    if (!root) return null;
     if (!this.forms.has(root)) {
       const m = new Map();
       for (const p of paradigm(root, 'verb')) if (!m.has(p.form)) m.set(p.form, p.feats);
@@ -171,6 +182,20 @@ export class WordLexicon {
     if (!base || base.length < 2 || !this.#isPerson(entry)) return false;
     const own = azLower(entry.text);
     return (POSSESSIVE.get(base) ?? this.lemma.key(base) ?? base) === (this.lemma.key(own) ?? own);
+  }
+
+  /**
+   * Zamanlı fel formasına (v) tapılan söz həmin felin isim kimi də işlənən formasıdırsa (GƏLƏCƏK "future"): felin
+   * öz işarəsi (GƏLMƏK), zaman ayrıca işarədir (Sabah gələcək = SABAH GƏLMƏK OLACAQ). OLACAQ özü zaman işarəsidir.
+   * Yoxsa null.
+   */
+  #verbSign(v, entry) {
+    if (!FINITE.has(v.tam) || !TENSE_SIGN[v.tam] || v.root === 'ol') return null;
+    const e = (this.addedIds.has(entry.id) ? this.extra : this).#verb(azLower(entry.text));
+    if (!e || e.root !== v.root || e.neg || e.pers !== 3 || e.q || !NOMINAL.has(e.tam)) return null;
+    const t = infinitive(v.root);
+    const own = this.byText.get(t) ?? this.extra?.byText.get(t);
+    return own && own !== entry ? own : null;
   }
 
   /** Əlavə işarə (YOX, zaman, BİRLİKDƏ, mübtəda): mətndə öz sözü yoxdur, `at` — aid olduğu söz. */
@@ -227,9 +252,10 @@ export class WordLexicon {
       if (d) { k = d; via = 'derived'; }
     }
     let found = usable(k);
-    // İnkarlı felin öz işarəsi yoxdursa: felin işarəsi + inkar (neg), müsbət işarə tək qalmasın
+    // İnkarlı felin öz işarəsi yoxdursa: felin işarəsi + inkar (neg), müsbət işarə tək qalmasın; ifadədə də
+    // (yerinə yetirmədim → TAMAMLAMAQ YOX)
     let neg = false;
-    if (!found?.length && single && k?.endsWith('-')) {
+    if (!found?.length && (single || !this.added) && k?.endsWith('-')) {
       found = usable(k.slice(0, -1));
       neg = Boolean(found?.length);
     }
@@ -313,7 +339,14 @@ export class WordLexicon {
         items.push({ tok, from, to: from + tok.length, acronym: Boolean(tok) && isAcronym(raw), raw });
       }
       if (SENTENCE_END.test(p) && items.length) items.at(-1).end = true;
+      else if (PAUSE.test(p) && items.length) items.at(-1).pause = true;
     }
+    // Söz cümlənin və ya budağın sonundadır (durğu işarəsi, mətnin sonu, "idi", "mi" kimi sözdən əvvəl)
+    const clauseEnd = (k) => {
+      if (items[k].end || items[k].pause) return true;
+      const next = items.slice(k + 1).find((x) => x.tok !== null);
+      return !next || !next.tok || AFTER_PREDICATE.has(next.tok);
+    };
     const out = [];
     // Cümlə bitəndə: felin I–II şəxsi var, əvəzliyi yoxdursa, əvəzlik cümlənin əvvəlinə (doğma qayda)
     let start = 0, subject = null;
@@ -344,12 +377,19 @@ export class WordLexicon {
       }
       if (match) {
         const at = { from: it.from, to: items[match.last].to };
+        const toks = items.slice(i, match.last + 1).filter((x) => x.tok).map((x) => x.tok);
+        let v = this.native && (this.addedIds.has(match.entry.id) ? this.extra : this).#verb(toks.at(-1), toks.length > 1);
+        if (v) {
+          // gələcək: budağın sonunda fel (GƏLMƏK + OLACAQ), başqa yerdə isim və ya feli sifət (gələcək il: zaman işarəsi yox)
+          const bare = v.pers === 3 && !v.q && !v.neg && NOMINAL.has(v.tam);
+          const own = toks.length === 1 && (!bare || clauseEnd(match.last)) && this.#verbSign(v, match.entry);
+          if (own) match = { ...match, entry: own, via: 'lemma' };
+          else if (bare && !clauseEnd(match.last)) v = null;
+        }
         out.push({ kind: 'word', text: match.entry.text, entry: match.entry, via: match.via, ...at });
         const no = match.neg && this.byText.get('yox');
         if (no) out.push({ kind: 'word', text: no.text, entry: no, via: 'neg', ...at });
         if (this.native) {
-          const toks = items.slice(i, match.last + 1).filter((x) => x.tok).map((x) => x.tok);
-          const v = (this.addedIds.has(match.entry.id) ? this.extra : this).#verb(toks.at(-1));
           const t = v && TENSE_SIGN[v.tam];
           const mark = t && !(v.root === 'ol' && t !== 'lazım') && this.#sign(t, 'tense', at);
           if (mark) out.push(mark);
