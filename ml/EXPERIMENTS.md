@@ -2960,25 +2960,46 @@ sentence (`D:/chevir/eval/e29/isolated_new.py`, outside git):
 new signs about as well as AzSLD's words, and the old words lose about 2 points, as in the word model. The person's
 sentences contain the new words too rarely for that to show.
 
-**Decision: not installed.** Level within noise on AzSLD and in the fair test, but below the installed recipe in every
-JestDili.az number of the held-out test (not significantly), and the new words are recognized once in 19 in the
-person's sentences. `final_all_ctc500` stays; the 500-sentence version was not trained, and the stopped `v5_slovo` init
-run was not resumed (the GPU goes to the other sessions; the same idea gave nothing for words, E27). A sentence test of
-the new words needs sentences that use them (set C, the recording page); 19 occurrences cannot show a gain.
+**Decision on these numbers: not installed.** Level within noise on AzSLD and in the fair test, but below the installed
+recipe in every JestDili.az number of the held-out test (not significantly), and the new words are recognized once in 19
+in the person's sentences. The stopped `v5_slovo` init run was not resumed (the same idea gave nothing for words, E27). A
+sentence test of the new words needs sentences that use them (set C, the recording page); 19 occurrences cannot show a
+gain. The stem count is also strict: some detections of new labels in the held-out sentences are right in meaning but not
+counted, e.g. "Siz məni xatırladız" → SİZ MƏN ... XATIRLAMAQ (XATIRLAMAQ is left out of the count), "Mən bu gün çox
+əsəbiləşmişəm" → ... ÇOX ACIQLI, "Mənim anamın 47 yaşı var" → MƏN ANA 4 YEDDİ YAŞ VAR (the v5 run).
+
+**Installed afterwards (2026-11-19, the team's decision, for the vocabulary): `final_all_ctc500_slovo`**, the installed
+model's recipe (all signers, CTC on all 500 JestDili.az sentences with `jestdili_sentence_glosses_r4_all.json`, saved at
+epoch 59, the installed decoding) plus Slovo; 77 minutes. JestDili.az is training data now, so its held-out evidence is
+`final_all_ctc_slovo` above. AzSLD test (seen by both) F1 0.969 against 0.970 for `final_all_ctc500`, side 0.968
+against 0.967. The manifest has a `note` with the held-out numbers and Slovo's licence in `sources` (as the word
+model's). `ml/install_continuous.py --install`; `sentences.json` changes in one sentence (NƏ is a label now: "Əlilliyin
+təyin olunması üçün nə etmək lazımdır"); `gloss_text.json` rebuilt. The 12 `verify_*` scripts and the gates pass (s2t dev
+42.0, test 44.1, unchanged). The translator's sentence mode loads it (804 labels, no console errors); `/danis/?video=` on
+two JestDili.az sentence videos (training data for this model, so only a check of the path): "Təcili danışmaq lazımdır"
+(TƏCİLİ DANIŞMAQ LAZIM) and "Sən nə istəyirsən" (SƏN NƏ İSTƏMƏK). The live page's hint now says "~800 söz". The previous
+model, its reference and `gloss_text.json` are kept outside git (D:/chevir/backup/cont_model_before_r4).
+
+The first `gloss_text.json` rebuild with the new labels raised s2t test WER 44.1 → 44.5 (dev 42.0 → 42.1): the new
+labels' words entered the lemmatizer that reads every label and every text word, and changed old words (AYI: "bu ay" lost
+AY; YAZ: "Yazda" → "Yaz"; ON ALTI: "altında" → "altı"; KAĞIZ: "kağızlar" → "kağız"). The dictionary-form labels now
+get their own lemmatizer, used only for their keys and roots (`prepare`: `lem` from the other labels, `lemAll` for
+them); text for old labels is as before except the NƏ sentence ("Vermək üçün nə etmək lazımdır", one word closer to the
+reference). Cases in `tools/verify_gloss_text.mjs`.
 
 Four new classes may be AzSLD signs under another label: their word is an AzSLD label in another form or spelling that
 `slovo_new.csv`'s exact-label filter missed: XATIRLAMAQ (вспомнить) and AzSLD's XATIRLADIM, YAZ (весна) and YAZDA, KAĞIZ
 (бумага) and KAGİZLAR, RƏSM (картина) and RƏSİM. They are in the installed word model too (E28); for the native review
 (session 8).
 
-**gloss2text for the new labels** (ready for a later install; nothing installed changes). A label that is not in
+**gloss2text for the new labels** (written before the install above). A label that is not in
 AzSLD's sentences gets its part of speech from its name, and the analysis read some dictionary forms as inflected verbs:
 YEDDİ as ye-di ("ate"), DİMDİK, AĞIR, YAZ, so MƏN YEDDİ YAŞ → "Mən yeddim yaş". The labels of `ml/slovo_new.csv` are
 dictionary forms: an analysis as a finite verb is dropped for them (`train(..., lemmas)`, read by `build_gloss_text.mjs`
 and `eval_gloss_text.mjs`), leaving 8 verbs (ANLAMAQ, DİNLƏMƏK, EŞİTMƏK, QOYMAQ, SATMAQ, TİTRƏMƏK, UZANMAQ, XATIRLAMAQ;
 AXMAQ "foolish" stays a noun) and 93 nouns and adjectives. With the new vocabulary: "Mən yeddi yaşam" (as with digits:
 MƏN 6 YAŞ → "Mən 6 yaşam"), "Sən niyə gəlmirsən", "Mən dinləyirəm", "Mən əsəbiyəm", "O xəsisdir", "Mən eşitmirəm",
-"Təcili həkim lazımdır", "Sənin ümidin var". With the installed labels `gloss_text.json` rebuilds identically; gates and
+"Təcili həkim lazımdır", "Sənin ümidin var". With the old model's labels `gloss_text.json` rebuilds identically; gates and
 `verify_gloss_text`, `verify_continuous`, `verify_s2t` pass (s2t dev 42.0, test 44.1).
 
 Tools: `score_jestdili.mjs` takes a `vocab.json` for `--labels`, `--focus <labels.json>` (chosen labels where the text
@@ -2991,7 +3012,8 @@ has them, and where it does not), `--g2t <gloss_text.json>`; `compare_jestdili.m
       --set "SLOVO = 'slovo_azsld.csv'" --set "SLOVO_NEW = 'slovo_new.csv'" --set "SLOVO_NEW_MAX_RANK = 10" \
       --set "RUNS = {'seq_splice_ctc_slovo': dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, select='f1_unseen_learnable')}"
     # final_all_ctc_slovo: the same Slovo and JESTDILI_CTC settings with TRAIN_ON_VAL = TRAIN_ON_ALL = True and
-    # dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, save_epoch=59, decode=<the installed decoding>)
+    # dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, save_epoch=59, decode=<the installed decoding>);
+    # final_all_ctc500_slovo (installed): the same with JESTDILI_CTC = 'jestdili_sentence_glosses_r4_all.json'
 
 ## E35 — The live page with a real camera, speed (R5, A5; no training)
 

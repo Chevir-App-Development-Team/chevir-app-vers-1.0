@@ -774,7 +774,8 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # signs again). Only the labels differ from final_splice.
 # E29 (this PC, ml/run_local.py): the 101 Slovo classes of the word model (SLOVO, SLOVO_NEW, SLOVO_NEW_MAX_RANK = 10)
 # with JestDili.az CTC (jestdili_sentence_glosses_r4.json), v5 protocol and the installed recipe with half of JestDili.az
-# held out; level on AzSLD, no gain on the new person: not installed (ml/EXPERIMENTS.md E29).
+# held out; level on AzSLD, no gain on the new person (E29). Installed on the team's decision:
+#   'final_all_ctc500_slovo' = final_all_ctc500's recipe + these settings (jestdili_sentence_glosses_r4_all.json).
 #   'seq_splice_ctc_slovo': dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, select='f1_unseen_learnable'),
 FPS_CHECKS = ()
 RUNS = {

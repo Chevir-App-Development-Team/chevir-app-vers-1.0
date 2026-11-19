@@ -185,14 +185,20 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
   const textOf = (l) => azLower(text[l] ?? labelText(l));
   const formsOf = (lab) => [...(members.get(lab) ?? [lab])].flatMap((g) => g.split('/'));
   const labels = [...new Set([...pairs.flatMap((p) => p.glosses), ...extra])];
-  const lem = new Lemmatizer([...new Set(labels.flatMap(formsOf).flatMap((g) => norm(azLower(g)).split(' ')))]);
-  const key = (w) => { const n = norm(w); return lem.key(n) ?? n; };
+  // lüğət formasında olan etiketlərin sözləri (AYI, ON ALTI, YAZ) başqa işarələrin təhlilini dəyişməsin (bu ay → ayı,
+  // altında → altı, yazda → yaz): onlar yalnız öz açarları və kökləri üçün ayrıca lemmatizer-ə girir (E29)
+  const wordsOf = (ls) => [...new Set(ls.flatMap(formsOf).flatMap((g) => norm(azLower(g)).split(' ')))];
+  const lem = new Lemmatizer(wordsOf(labels.filter((l) => !lemmas.has(l))));
+  const lemAll = labels.some((l) => lemmas.has(l)) ? new Lemmatizer(wordsOf(labels)) : lem;
+  const keyBy = (lz) => (w) => { const n = norm(w); return lz.key(n) ?? n; };
+  const key = keyBy(lem), keyAll = keyBy(lemAll);
+  const keyOf = (l) => (lemmas.has(l) ? keyAll : key), lemOf = (l) => (lemmas.has(l) ? lemAll : lem);
   // açarlar: işarənin bütün sözləri (tutuşdurma) və son sözü (çoxsözlü işarədə dəyişən söz odur)
-  const keysOf = new Map(labels.map((l) => [l, new Set(formsOf(l).flatMap((g) => norm(azLower(g)).split(' ').map(key)))]));
-  const headKeys = new Map(labels.map((l) => [l, new Set(formsOf(l).map((g) => key(norm(azLower(g)).split(' ').at(-1))))]));
+  const keysOf = new Map(labels.map((l) => [l, new Set(formsOf(l).flatMap((g) => norm(azLower(g)).split(' ').map(keyOf(l))))]));
+  const headKeys = new Map(labels.map((l) => [l, new Set(formsOf(l).map((g) => keyOf(l)(norm(azLower(g)).split(' ').at(-1))))]));
 
   const guess = {};
-  for (const l of labels) if (!spelled([l], 0) && !isNumber(l)) guess[l] = guessOf(l, headKeys.get(l), lem, textOf(l), lemmas.has(l));
+  for (const l of labels) if (!spelled([l], 0) && !isNumber(l)) guess[l] = guessOf(l, headKeys.get(l), lemOf(l), textOf(l), lemmas.has(l));
   // xüsusi adlar böyük hərflə yazılır (label_text.csv: BAKI → Bakı, ABŞERON RAYON → Abşeron rayonu)
   for (const l of labels) {
     const t = text[l] ?? [...(members.get(l) ?? [])].map((g) => text[g]).find(Boolean);
@@ -204,13 +210,13 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
     const ws = textWords(p.text);
     // rəqəm mətndə şəkilçi ilə yazılır: 6-dan, 2-ci
     const at = align(p.glosses, ws, (l, w) => (isNumber(l) ? w === l || w.startsWith(`${l}-`)
-      : keysOf.get(l)?.has(key(w)) || near(fold(w), fold(textOf(l)))));
+      : keysOf.get(l)?.has(keyOf(l)(w)) || near(fold(w), fold(textOf(l)))));
     const info = p.glosses.map((l, i) => {
       const surface = at[i] === null ? '' : ws[at[i]];
       if (spelled(p.glosses, i)) return { surface: null };           // hərflər işarənin sözü deyil
       if (!surface || isNumber(l)) return { surface };
-      if (!headKeys.get(l).has(key(surface))) return { surface };     // çoxsözlü işarənin başqa sözü
-      return { surface, ...rootOf(l, surface, headKeys.get(l), lem) };
+      if (!headKeys.get(l).has(keyOf(l)(surface))) return { surface };     // çoxsözlü işarənin başqa sözü
+      return { surface, ...rootOf(l, surface, headKeys.get(l), lemOf(l)) };
     });
     return { glosses: p.glosses, words: ws, at, info, w: p.w ?? 1 };
   });

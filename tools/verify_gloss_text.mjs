@@ -115,6 +115,18 @@ const ords = [1979, 2018, 1990, 2000, 1940, 1800, 30].map(ordinal).join(' ');
 check(ords === '1979-cu 2018-ci 1990-cı 2000-ci 1940-cı 1800-cü 30-cu', `sıra sayı: ${ords}`);
 const birlikde = G.generate('MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ'.split(' ')).text;
 check(/anamla birlikdə/.test(birlikde) && /getdim$/.test(birlikde), `doğma: MƏN ANA BİRLİKDƏ BAZAR GETMƏK OLMAQ → ${birlikde}`);
+// Slovo-dan yeni işarələr (E29, ml/slovo_new.csv): lüğət forması təsrifli fel kimi oxunmur (YEDDİ ≠ ye-di), sözləri
+// köhnə işarələrin təhlilini dəyişmir (AYI ≠ bu ay, YAZ ≠ yazda)
+if (model.guess.YEDDİ) {
+  check(model.guess.YEDDİ.pos === 'noun' && model.guess.AYI?.root === 'ayı' && model.guess.DİNLƏMƏK?.pos === 'verb',
+    `yeni işarələr: YEDDİ ${model.guess.YEDDİ.pos}, AYI ${model.guess.AYI?.root}, DİNLƏMƏK ${model.guess.DİNLƏMƏK?.pos}`);
+  for (const [labels, want] of [['SƏN NİYƏ GƏLMƏK YOX', 'Sən niyə gəlmirsən'], ['MƏN EŞİTMƏK YOX', 'Mən eşitmirəm'],
+    ['TƏCİLİ HƏKİM LAZIM', 'Təcili həkim lazımdır'], ['MƏN ƏSƏBİ', 'Mən əsəbiyəm'],
+    ['MƏN BU AY PENSİYA ALMAMIŞAM', 'Mən bu ay pensiya almamışam'], ['YAZDA HAVA GÖZƏL OLUR', 'Yazda hava gözəl olur']]) {
+    const got = G.generate(labels.split(' ')).text;
+    check(got === want, `yeni işarələr: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+}
 
 // 4. morph.js ↔ inflect.js: lüğətin köklərindən qurulan formalar (sualsız) təhlildə öz kökünə qayıdır.
 // Qalanı əsasən omoqraflardır (adam: ad-ım / adam, bağla: bağ-a / bağla); kökün özü (əmr: al, bax) lüğət
