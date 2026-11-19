@@ -568,6 +568,7 @@ function renderAboutLetters() {
     `<tr><td>${name}</td><td class="n">${test[k].n}</td><td class="n">${pct(test[k].top1)}</td>`
     + `<td class="n">${pct(test[k].macro_f1)}</td><td class="n">${pct(old[k]?.top1)}</td></tr>`).join('');
   const per = Object.entries(m.test_per_letter ?? {}).sort((a, b) => a[0].localeCompare(b[0], 'az'));
+  const jd = m.jestdili?.runs?.[m.run];
   const bars = per.length ? `<h3>Hərf üzrə test (görmədiyi insanlar)</h3><div class="bars">${per.map(([ch, r]) =>
     `<div><span>${escapeHtml(ch)}</span><u><i style="width:${(r.recall * 100).toFixed(1)}%"></i></u>`
     + `<em>${(r.recall * 100).toFixed(0)}%</em></div>`).join('')}</div>` : '';
@@ -593,6 +594,13 @@ function renderAboutLetters() {
     </table>
     <div class="note">Köhnə model (20 kadrın xam əl koordinatları, 4 qatlı şəbəkə) eyni test nümunələrində
     ölçülüb. Fingerspelling şəkilləri ona təlimdə tanış ola bilər - həmin sətirdə onun nəticəsi optimistdir.</div>
+    ${m.metrics_from ? `<div class="note">Quraşdırılan model (${escapeHtml(m.run)}) eyni reseptlə AzSLD-nin bütün
+    iştirakçılarında öyrədilib, ona görə öz testi yoxdur: cədvəldəki rəqəmlər test iştirakçılarını görməyən
+    ${escapeHtml(m.metrics_from)} modelinindir.</div>` : ''}
+    ${jd ? `<h3>Başqa insan: JestDili.az əlifbası</h3>
+    <p>Hər hərfə bir şəkil (AzSLD-də olmayan insan): statik hərflərin <b>${jd.static_n}</b>-dən
+    <b>${Math.round(jd.static_top1 * jd.static_n)}</b>-i düzgün (${pct(jd.static_top1)}), ilk 3-də ${pct(jd.top3)}
+    (32 hərf). Hərəkətli hərflərin (${jd.moving_n}) şəkli hərəkəti göstərmir, model onları hərəkətdən tanıyır.</p>` : ''}
     ${bars}
 
     <h3>Hərf nə vaxt yazılır</h3>

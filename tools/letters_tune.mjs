@@ -5,6 +5,8 @@
 //   node tools/letters_tune.mjs <model qovluğu> <spelled qovluğu> grid          → bütün şəbəkə, ən yaxşıları
 //   node tools/letters_tune.mjs <model qovluğu> <spelled qovluğu> '{"window":16,...}'  → bir şərt dəsti
 //   node tools/letters_tune.mjs old <spelled qovluğu> '{}'   → köhnə model (model.json + model.bin), öz şərtləri ilə
+// Hərfsiz videolar (letters: [], ml/eval_letters_photos.py export-sentences): səhv əvəzinə dəqiqədə yazılan yalan
+// hərf. Girişdə `fps` varsa kadrlar 30 fps-ə gətirilir (brauzerin sürəti); LETTERS_SPEEDS=1 yalnız 1× işlədir.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { LetterModel } from '../src/tercume/letters.js';
@@ -12,7 +14,7 @@ import { FingerspellModel } from '../src/tercume/model.js';
 import { DEFAULT_GATE, LETTER_GATE, SignToText } from '../src/tercume/s2t.js';
 
 const [modelDir, spelledDir, mode = 'grid'] = process.argv.slice(2);
-const SPEEDS = [1, 2.5];
+const SPEEDS = (process.env.LETTERS_SPEEDS ?? '1,2.5').split(',').map(Number);
 
 function npy(path) {
   const b = readFileSync(path);
@@ -31,7 +33,7 @@ function npy(path) {
   return { shape: n, data: new Float32Array(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)) };
 }
 
-/** Kadrlar (T × 126) → `speed` dəfə yavaş (xətti; NaN qonşuya keçir). */
+/** Kadrlar (T × 126) → `speed` dəfə yavaş (xətti; NaN qonşuya keçir; speed < 1 seyrəldir). */
 function slow(a, T, speed) {
   if (speed === 1) return { a, T };
   const T2 = Math.round(T * speed), out = new Float32Array(T2 * 126);
@@ -69,7 +71,8 @@ async function prepared(k, speed, window) {
   const key = `${k}|${speed}|${window}`;
   if (cache.has(key)) return cache.get(key);
   const w = words[k];
-  const h = slow(npy(`${spelledDir}/${k}_hand.npy`).data, w.T, speed), wd = slow(npy(`${spelledDir}/${k}_world.npy`).data, w.T, speed);
+  const sp = speed * (w.fps ? 30 / w.fps : 1);
+  const h = slow(npy(`${spelledDir}/${k}_hand.npy`).data, w.T, sp), wd = slow(npy(`${spelledDir}/${k}_world.npy`).data, w.T, sp);
   const frames = [];
   for (let t = 0; t < h.T; t++) {
     frames.push({ hand: h.a.slice(t * 126, (t + 1) * 126), hand_world: wd.a.slice(t * 126, (t + 1) * 126),
@@ -95,7 +98,7 @@ async function prepared(k, speed, window) {
 async function run(gate) {
   const res = {};
   for (const speed of SPEEDS) {
-    let edits = 0, total = 0, typedN = 0;
+    let edits = 0, total = 0, typedN = 0, nFrames = 0, withTyped = 0;
     for (let k = 0; k < words.length; k++) {
       const { frames, probs } = await prepared(k, speed, gate.window);
       let cur = 0;
@@ -113,14 +116,18 @@ async function run(gate) {
       }
       const want = words[k].letters.map((x) => x[2]);
       edits += lev(typed, want); total += want.length; typedN += typed.length;
+      nFrames += frames.length; withTyped += typed.length > 0;
     }
-    res[speed] = { ler: edits / total, typed: typedN / total };
+    res[speed] = total ? { ler: edits / total, typed: typedN / total }
+      : { ler: 0, perMin: typedN / (nFrames / 30 / 60), typedN, minutes: nFrames / 30 / 60, withTyped };
   }
   res.mean = SPEEDS.reduce((s, sp) => s + res[sp].ler, 0) / SPEEDS.length;
   return res;
 }
 
-const fmt = (g, r) => `${JSON.stringify(g)} → ${SPEEDS.map((s) => `${s}×: səhv ${r[s].ler.toFixed(3)} (yazılan/hərf ${r[s].typed.toFixed(2)})`).join(' | ')} | orta ${r.mean.toFixed(3)}`;
+const fmt = (g, r) => `${JSON.stringify(g)} → ${SPEEDS.map((s) => (r[s].perMin !== undefined
+  ? `${s}×: hərfsiz videolarda ${r[s].typedN} yalan hərf / ${r[s].minutes.toFixed(1)} dəq = ${r[s].perMin.toFixed(2)}/dəq, ${r[s].withTyped}/${words.length} videoda`
+  : `${s}×: səhv ${r[s].ler.toFixed(3)} (yazılan/hərf ${r[s].typed.toFixed(2)})`)).join(' | ')} | orta ${r.mean.toFixed(3)}`;
 console.log(`${model.manifest.run}: ${words.length} söz, ${words.reduce((s, w) => s + w.letters.length, 0)} hərf`);
 if (mode === 'grid') {
   const rows = [];
