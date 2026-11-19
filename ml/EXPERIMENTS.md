@@ -2681,6 +2681,18 @@ every bone in the same rest position 0.0 mm apart, same 18 expressions and 13 mo
 `commercialUsage: personalNonProfit`, `modification: prohibited`; the README says the team's own model may be
 redistributed and used commercially, so the metadata should be updated by its author.
 
+**Avatar file, 2026-11-20** (from the team, "final 99, optimized"): the metadata now says `allowRedistribution: true`;
+`commercialUsage: personalNonProfit`, `modification: prohibited` and `creditNotation: required` are unchanged, so the
+README now states these terms instead of commercial use. Same 54 bones at the same rest positions (0.0 mm), same 18
+expressions and morph targets, same 11 textures (a little smaller); the meshes are thinned: 24,914 vertices instead
+of 31,005 (body 3,468 → 2,546, hair 9,219 → 5,751, shirt 4,008 → 3,051, head 3,159 → 2,717), 2.6 MB instead of 3.1 MB.
+The body and hand collision shapes are fitted from mesh vertices, so `tools/measure_hands.mjs --avatar <file>` (new
+option: the file is served in place of `avatar.vrm`, nothing installed) on the same 500 words, same code: hands
+entering each other 26 → 30 words (worst −2.6 → −2.7 cm), palm in body 238 → 241, arm in body 328 → 327, wrist over
+the limit 389 → 392, over the hard ceiling 83 → 87, placement p90 4.1 cm both; the 32 words that moved by more than
+3 mm went both ways. Contact sheets (`tools/avatar_sheet.mjs --avatar`) look the same. Installed; the previous file is
+kept outside git (D:/chevir/backup/avatar_before_2026-11-20).
+
 **The raised elbow** (team feedback: "the avatar putting the right hand up looks weird most of the time"). Headless
 contact sheets (`tools/avatar_sheet.mjs`) showed it: in SABAH, SƏN, NƏ the right upper arm went out sideways almost
 to shoulder height while the hand worked at the chin or chest. Measured over 300 words (13,352 arm frames,

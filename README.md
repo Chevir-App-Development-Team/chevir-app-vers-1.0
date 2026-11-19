@@ -232,7 +232,10 @@ təlim datası ola bilər — rəqəmlər **optimistdir**, kənarlaşdırılmı�
 ## Avatar
 
 İki avatar var: `avatar.vrm` (standart) və `avatarfem.vrm` (qadın) — komandanın öz VRM 1.0
-modelləri, lisenziyası yenidən paylaşmağa və kommersiya istifadəsinə icazə verir. VRoid-in
+modelləri, [VRM Public License 1.0](https://vrm.dev/licenses/1.0/) ilə (şərtlər hər faylın öz meta-məlumatındadır).
+`avatar.vrm` (© Chevir Team): yenidən paylaşmaq olar, müəllifi göstərmək lazımdır, istifadə şəxsi və
+qeyri-kommersiya, faylın özünü dəyişdirmək olmaz. `avatarfem.vrm`: yenidən paylaşmağa, kommersiya istifadəsinə və
+dəyişdirməyə icazə verir. VRoid-in
 `AvatarSample_*` nümunələri isə yenidən paylaşmağı qadağan edir — onlar repo-ya əlavə
 olunmamalıdır (`.gitignore`-dadır).
 

@@ -8,6 +8,7 @@
  *   node tools/measure_hands.mjs --out hands.json     # tam hesabat faylda
  *   node tools/measure_hands.mjs --words ad-gunu,agirdir --frames
  *   node tools/measure_hands.mjs --no-guard           # oynatma qoruyucusu olmadan (yalnız həll)
+ *   node tools/measure_hands.mjs --avatar yeni.vrm    # başqa VRM faylı, quraşdırmadan (avatar.vrm sorğusu ona gedir)
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'vite';
@@ -21,9 +22,11 @@ const opt = (name) => {
 const ids = opt('--words')?.split(',') ?? null;
 const out = opt('--out');
 const top = Number(opt('--top') ?? 25);
+const avatarFile = opt('--avatar');
 
 const server = await createServer({ root: new URL('..', import.meta.url).pathname.replace(/^\/(\w:)/, '$1'),
-                                    server: { port: 0 }, logLevel: 'error' });
+                                    // hmr / watch yox: başqa sessiya repoda fayl dəyişəndə səhifə ölçmənin ortasında yenilənmir
+                                    server: { port: 0, hmr: false, watch: null }, logLevel: 'error' });
 await server.listen();
 const url = server.resolvedUrls.local[0];
 const browser = await puppeteer.launch({
@@ -40,6 +43,10 @@ try {
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     const path = new URL(req.url()).pathname;
+    if (avatarFile && path.endsWith('/tercume/assets/avatar.vrm')) {
+      req.respond({ status: 200, contentType: 'application/octet-stream', body: readFileSync(avatarFile) });
+      return;
+    }
     if (!path.endsWith('.bin')) { req.continue(); return; }
     req.respond({ status: 200, contentType: 'application/octet-stream',
                   body: readFileSync(new URL(`../public${path}`, import.meta.url)) });
@@ -48,6 +55,11 @@ try {
   await page.waitForFunction(() => window.__chevir?.lexicon, { timeout: 120000 });
   await page.click('.tab[data-tab="t2s"]');
   await page.waitForFunction(() => window.__chevir?.avatar?.vrm, { timeout: 180000 });
+  console.log('Avatar:', await page.evaluate(() => {   // hansı fayl ölçülür: vertex sayı faylları ayırır
+    let n = 0;
+    window.__chevir.avatar.vrm.scene.traverse((m) => { if (m.isSkinnedMesh) n += m.geometry.attributes.position.count; });
+    return `${n} vertex`;
+  }));
   const rep = await page.evaluate(async (ids, keep, guard) => {
     const m = await import('/tools/measure_hands.js');
     return m.measureWords(window.__chevir, { ids, keepFrames: keep, guard });

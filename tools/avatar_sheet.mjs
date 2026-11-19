@@ -4,6 +4,7 @@
 // Cümlə (E34): hər sətir bir oynatma variantı (TextToSign.opts), sütunlar hər --every kadrdan (30 fps) bir şəkil —
 // işarələr arası keçidlərə baxmaq üçün (tools/backtranslate.js-in virtual saatı ilə, tətbiqin oynatması):
 //   node tools/avatar_sheet.mjs --text "Mən Bakıda yaşayıram" --variants '[{},{"timing":"natural"}]' --every 3 --out s.jpg
+// --avatar yeni.vrm: başqa VRM faylı, quraşdırmadan (avatar.vrm sorğusu ona gedir)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'vite';
 import puppeteer from 'puppeteer';
@@ -12,6 +13,7 @@ const opt = (n, d = null) => { const i = args.indexOf(n); return i >= 0 ? args[i
 const ids = opt('--words', '').split(',').filter(Boolean);
 const fracs = opt('--fracs', '0.15,0.4,0.65,0.9').split(',').map(Number);
 const out = opt('--out', 'D:/chevir/eval/sheet.jpg');
+const avatarFile = opt('--avatar');
 const server = await createServer({ root: new URL('..', import.meta.url).pathname.replace(/^\/(\w:)/, '$1'), server: { port: 0, hmr: false, watch: null }, logLevel: 'error' });
 await server.listen();
 const url = server.resolvedUrls.local[0];
@@ -23,6 +25,9 @@ try {
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     const path = new URL(req.url()).pathname;
+    if (avatarFile && path.endsWith('/tercume/assets/avatar.vrm')) {
+      req.respond({ status: 200, contentType: 'application/octet-stream', body: readFileSync(avatarFile) }); return;
+    }
     if (!path.endsWith('.bin')) { req.continue(); return; }
     req.respond({ status: 200, contentType: 'application/octet-stream', body: readFileSync(new URL(`../public${path}`, import.meta.url)) });
   });
