@@ -631,10 +631,28 @@ export class GlossToText {
   }
 
   /**
+   * Üz kanalı (E31, nonmanual.js marks()): bəli/xeyr sualında (mi verilibsə) son xəbər -mı alır (varmı,
+   * bilərsinizmi); üz inkar deyirsə və cümlədə inkar işarəsi (YOX, DEYİL, BİLMİR, İSTƏMİR, GÖRMƏMƏK...)
+   * yoxdursa son fel inkardadır.
+   */
+  #nonmanual(items, { question, neg, mi }) {
+    const content = items.filter((it) => it.via !== 'drop');
+    const pred = content.at(-1)?.via === 'gen' ? content.at(-1) : null;
+    const manualNeg = items.some((it) => it.f?.neg || it.negMark !== undefined
+      || (it.labels.length === 1 && /^(yox|deyil)$|m[ıiuü]r$|m[aə]m[aə][kq]$/.test(labelText(it.labels[0]))
+        && !/^təmir/.test(labelText(it.labels[0]))));
+    const verb = [...content].reverse().find((it) => it.via === 'gen' && it.lx?.pos === 'verb');
+    if (neg && !manualNeg && verb) verb.f = { ...verb.f, neg: true, tam: FINITE.has(verb.f.tam) ? verb.f.tam : 'pres' };
+    if (question === 'yn' && mi && pred && !pred.f.q) pred.f = { ...pred.f, q: true };
+  }
+
+  /**
    * İşarələr → {text, words: [{labels, word, via}]}. via: 'gen' — kök + əlamətlər, 'form' — işarənin
    * öyrənilmiş sözü (rəqəm), 'letters' — hərflər bir sözdür, 'drop' — mətndə sözü olmayan işarə.
+   * nonmanual (E31, üz kanalı; verilməyibsə heç nə dəyişmir): { question: 'wh' | 'yn' | null, neg, mi } —
+   * sual → sonda "?", 'yn' və mi → -mı, neg → inkar (#nonmanual).
    */
-  generate(labels) {
+  generate(labels, { nonmanual = null } = {}) {
     const items = [];
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
@@ -729,6 +747,7 @@ export class GlossToText {
       if (pr && !person(owned)) pr.f = {};
       else if (!pr && !items.some((it) => it.lx && SUBJECT[it.lx.root]) && !person(items.find((it) => it.lx))) modal.pers = 1;
     }
+    if (nonmanual) this.#nonmanual(items, nonmanual);
     const at = items.findIndex((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case);
     const subj = at >= 0 ? SUBJECT[items[at].lx.root] : 3;
     for (const it of items) {
@@ -754,7 +773,8 @@ export class GlossToText {
       it.word = w[0].toLocaleUpperCase('az') + w.slice(1);
     });
     const words = items.map(({ labels: ls, word, via }) => ({ labels: ls, word, via }));
-    const text = words.map((w) => w.word).filter(Boolean).join(' ');
+    let text = words.map((w) => w.word).filter(Boolean).join(' ');
+    if (text && nonmanual?.question) text += '?';
     return { text: text ? text[0].toLocaleUpperCase('az') + text.slice(1) : '', words };
   }
 }

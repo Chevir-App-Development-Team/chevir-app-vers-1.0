@@ -3152,3 +3152,118 @@ starts fresh.
 Not done here: a real phone; a native signer at the camera (the accuracy part of this test needs one). Seen but
 left to the sessions that own it: MƏN VAXT without YOX became "Mən vaxtam" (`gloss2text`, session 5); the tester's
 YOX was often read as UŞAQ, AC, EV, BOĞAZ or ƏL, and SU came from hands held still (the model, sessions 1 and 4).
+
+## E31 — The face channel: questions and negation from the face (R3)
+
+The sign recognizers read hands, body and face points, but nothing says whether a sentence is a question or
+negated: the installed sentence model works without the face, and `gloss2text` never writes "?". R3 asks for a
+sentence-level detector from the face relative to the person's own neutral face plus head pose. Target (phase 1):
+question detection ≥ 0.80 on AzSLD's test signers, measured on JestDili.az too; if it holds, "?", "-mı" and negation
+in `gloss2text`, behind a switch.
+
+**Data and weak labels.** AzSLD's front camera (Cam2), all 10,104 sentence recordings, AzSLD's signer split (train
+7,075 / val 1,545 / test 1,484; 27 / 7 / 5 signers). The side camera has no face (face rate 0) and is not used. Labels
+from the sentence text (`ml/azsl/nonmanual.py weak_labels`, per sentence in `ml/nonmanual_labels.csv`): question =
+"?" in the text (112 of 492 sentences, 2,273 recordings), `wh` if it has a question word, else `yn` (58 wh, 54 yes/no
+sentences); 2 sentences without "?" that read as questions (441, 444) are left out. Negation = a negative word or
+verb form in the text, or YOX / DEYİL / a negative verb in the glosses (55 sentences). JestDili.az's 500 sentence
+texts have no "?" at all, so its labels are the rules plus a hand check of every second-person and question-word
+sentence (kept outside the repo, `D:/chevir/eval/nonmanual/jestdili_labels.csv`): 94 questions (45 yes/no, 49 wh),
+7 left undecided ("Sən ət yemirsən" can be either), 60 negated. JestDili.az's face is visible in 74 % of its clips
+(103 clips have none); a clip with the face in < 50 % of its signing frames gets no face decision.
+
+**Features** (`ml/azsl/nonmanual.py`, 30 fps; JestDili.az's 50 fps resampled). Per frame, from the recognition
+contract's face points (x, y), blendshapes and pose: 8 head values (roll from the eye line; yaw and pitch from the
+nose tip against the eyes, cheeks and chin; head position and size against the shoulders), brow heights over each
+eye (inner, middle, outer), eye and mouth opening, mouth width and corners (all in the head's own axes, in
+inter-eye units), plus the 51 blendshapes: 70 values. Neutral face: the median of the frames with the hands down (no
+hand, or the wrist more than a shoulder width below the shoulders), else the clip's median; subtracted from every
+frame. Sentence vector (427 values): over the frames from the first raised hand to the last, mean, std, max, min, mean
+of the last and of the first third, mean head speed and direction changes (yaw, pitch, roll), face rate.
+
+**What carries the signal** (train signers, relative to the neutral face): yes/no questions end with the head
+lowered and forward (pitch +0.07 against +0.03 for statements in the last third, the head ~0.03 shoulder widths
+lower) and without the frown statements show at their end (browDown +0.00 against +0.03); the brow raise known from
+other sign languages (browInnerUp) hardly differs. Wh questions lie between the two.
+
+**Models tried** (logistic regression unless said; AUC for question vs statement; choices on val):
+
+| | AzSLD test AUC | JestDili.az AUC |
+|---|---|---|
+| all questions, no neutral / the signer's neutral (all their recordings) | 0.78 / 0.78 | 0.75-0.77 / 0.76-0.80 |
+| all questions, neutral = hands-down frames / clip median | 0.78 / 0.79 | 0.81-0.84 / 0.81-0.86 |
+| feature groups (clip neutral): head / upper face / mouth / head + upper / all | 0.76 / 0.75 / 0.76 / 0.77 / 0.79 | 0.73 / 0.80 / 0.72 / 0.84 / 0.84 |
+| 3 classes (statement, yes/no, wh): softmax / MLP / temporal CNN on frames | 0.79 / 0.79 / 0.68 | 0.86 / 0.81 / 0.74 |
+| by type (softmax): yes/no vs statement, wh vs statement | 0.91, 0.70 | 0.81, 0.89 |
+| **trained on yes/no questions vs statements only** | **yes/no 0.91** | **yes/no 0.92** |
+
+The face tells yes/no questions well, on new people too; wh questions much less (on AzSLD). Wh questions carry a
+manual question sign (NƏ, HARA, HANSI, NECƏ, NEÇƏ, KİM, NİYƏ, NƏ VAXT…) that the sentence model recognizes. So the
+detector is: **a question sign among the recognized signs, or the face's yes/no score ≥ t**.
+
+**Final model** (`ml/nonmanual.py fit`, `public/tercume/assets/nonmanual.json`, 11 KB): two logistic heads on the 427
+values, trained on AzSLD's train signers: yn (λ 0.03; threshold 0.725, chosen on val for the detector's F1 with the
+question sign taken from val's annotation) and neg (λ 0.1; threshold 0.51 on val).
+
+| Question detection | AzSLD test signers (1,476 recordings, 338 questions) | JestDili.az held-out sentences (240, 43 questions) |
+|---|---|---|
+| face only (all questions), F1 / AUC | 0.465 / 0.736 | 0.424 / 0.819 (all 366 clips with a face) |
+| face, yes/no vs statements, F1 / AUC | 0.640 / 0.909 | 0.500 / 0.919 (all 366) |
+| recognized question sign only, F1 (P / R) | 0.618 (0.95 / 0.46) | 0.533 (0.94 / 0.37) |
+| **sign or face, F1 (P / R)** | **0.769** (0.755 / 0.784), balanced accuracy 0.854 | 0.523 (0.773 / 0.395) |
+| sign or face: statements marked as questions | 7.6 % | 2.5 % |
+| sign from the annotation (a perfect recognizer) or face, F1 (P / R) | 0.811 (0.776 / 0.849) | — |
+| AzSLD test recordings of the 49 held-out sentences (165, 13 questions) | sign 0.353 → sign or face 0.552 | |
+
+Recognized signs: AzSLD test from `v5_ctc` (trained without the test signers), JestDili.az from `final_ctc_hold`
+(trained without those 246 sentences). On AzSLD the face adds 0.15 F1 (yes/no recall 0.73, wh 0.83). On JestDili.az
+it adds nothing at this threshold: the yes/no ranking is as good as on AzSLD (AUC 0.92), but the threshold set on
+AzSLD's signers is too high for these signers (yes/no recall 0.42); the 173 held-out clips with a face go 0.585 →
+0.565.
+
+Negation from the face (head shake): AUC 0.78 on AzSLD test (F1 0.43), 0.76 on JestDili.az (F1 0.28). Head features
+alone reach 0.82 on AzSLD but 0.66-0.68 on JestDili.az. AzSLD's negated sentences almost always have a manual
+negation (YOX, DEYİL, BİLMİR…), which `gloss2text` already reads.
+
+**In the text** (`tools/eval_nonmanual_text.mjs`: annotated glosses → `gloss2text`, WER without punctuation):
+
+| | oracle labels: dev / test WER | face model per recording (3,019 val + test-signer recordings): dev / test WER |
+|---|---|---|
+| no face channel | 41.95 / 44.10 | 40.71 / 39.92 |
+| "?" only | 41.95 / 44.10 ("?" always right) | 40.71 / 39.92 ("?" P 0.82, R 0.76) |
+| "?" + "-mı" on yes/no questions | 41.67 / 43.23 | 41.04 / 39.92 |
+| negation (only when there is no manual negation) | 41.95 / 44.10 (never fires) | 41.56 / 40.94 |
+
+With perfect labels "-mı" helps a little (AzSLD writes it in ~60 % of its yes/no questions); with the model it costs
+0.3 points on dev. With perfect labels face negation never fires (every negated AzSLD sentence already has a
+manual negation sign); with the model it only adds errors (+0.9 dev, +1.0 test).
+
+**Browser.** `src/tercume/nonmanual.js` ports the features, the neutral face, the sentence vector and the heads
+(`predict`), plus `marks()` (question sign or face → `{question: 'wh' | 'yn' | null, neg}`) and a `NonManualTracker`
+for the live stream (frames in, a sentence's probabilities out). `gloss2text.generate(labels, { nonmanual })` takes
+`{question, neg, mi}`: a question gets "?", `mi` adds "-mı" to a yes/no question, `neg` makes the last verb negative
+when there is no manual negation. Without the option nothing changes (gates: s2t dev 42.0, test 44.1, as before).
+`tools/verify_nonmanual.mjs` with `ml/fixtures/nonmanual_v1` (7 synthetic clips: face shape and blendshape levels are
+averages over many AzSLD train frames, no real person; head shake, nod, 16:9, face gaps, hands up throughout, no
+face, a 50 fps camera): JS = Python to 1e-7 in the frame values, the neutral face, the sentence vector and the
+probabilities; and 7 `gloss2text` cases (no option: the same text; "?", "-mı", negation; a manual negation is left
+alone). 40 real clips (20 AzSLD test, 20 JestDili.az; not committed) agree to 1.1e-7. All 13 `verify_*`
+scripts and `ci_gates` pass.
+
+**Decision: not turned on.** The target (≥ 0.80) is not met by what the app would see: F1 0.769 on AzSLD's test
+signers with recognized signs (0.811 only with a perfect recognizer) and 0.52-0.57 on JestDili.az, where one fixed
+threshold does not fit new signers. A wrong "?" or "-mı" on 7.6 % of statements, or wrong negation, would be visible
+errors, and "-mı" and negation do not lower WER with the model. So the model, the port and the `gloss2text` option
+are in, but the translator and `/danis/` do not call them (no switch is wired into `s2s.js`; `NonManualTracker` is
+ready for it). What would change the decision: a threshold that adapts to the person (the yes/no ranking already
+transfers, AUC 0.91-0.92), set C's face labels from native signers (V1) instead of text-derived ones, and a native
+user's check of whether AzSL marks yes/no questions with the head as found here. A smaller step, independent of the
+face: "?" whenever a question sign is recognized (precision 0.95 on AzSLD test, 0.94 on JestDili.az; recall 0.46 /
+0.37), a punctuation-only change to decide with session 4, which owns `s2s.js`.
+
+Files: `ml/azsl/nonmanual.py` (features, labels), `ml/nonmanual.py` (`cache`, `train` grid, `fit`, `fixture`),
+`ml/nonmanual_labels.csv`, `public/tercume/assets/nonmanual.json`, `src/tercume/nonmanual.js`,
+`src/tercume/gloss2text.js` (`#nonmanual`, `generate(labels, { nonmanual })`), `tools/verify_nonmanual.mjs`,
+`tools/eval_nonmanual_text.mjs`, `ml/fixtures/nonmanual_v1.{json,bin}`. Local only: `D:/chevir/eval/nonmanual/`
+(frame cache, JestDili.az labels, `final/report.json`, per-recording scores), exploration scripts in
+`D:/chevir/scripts/e31/`. No long GPU job: the logistic heads fit on the CPU in seconds; the temporal CNN ran ~2 min.
