@@ -4,15 +4,18 @@
  *
  * Axın: kamera kadrı → landmark-lar → 30 fps-ə gətirmə (model 30 fps-də öyrədilib) → son `window` kadr
  * hər `stride` yeni kadrda modelə → bərkimiş kadrların ehtimalları → SentenceStream → yeni sözlər.
+ * İşarə dil modeli (sign_lm.json, E32) hər sözü əvvəlki sözlərə görə seçir; cümlə bağlananda 2–3 alternativ mətn
+ * payları ilə gəlir (onSentence alternatives, correct.js onları göstərir və düzəlişi cihazda saxlayır).
  * Qaydalar ml/azsl/continuous.py ilə eynidir (tools/verify_continuous.mjs). Video cihazdan çıxmır.
  */
 import { createLandmarkers, detectFrame, LandmarkClip } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
-import { CONT_MODEL_BASE, GLOSS_TEXT_URL, SIGN_MERGE_URL } from './paths.js';
+import { CONT_MODEL_BASE, GLOSS_TEXT_URL, SIGN_LM_URL, SIGN_MERGE_URL } from './paths.js';
 import { GlossToText } from './gloss2text.js';
 import { FRAME_GAP_MS, MIN_HANDS, PENDING_RULE, SENTENCE_GAP, showPending } from './live.js';
 import {
-  CONTINUOUS_VERSION, DECODE, nearestSentence, Resampler, SentenceStream, shortClasses, STREAM, WindowStream,
+  CONTINUOUS_VERSION, DECODE, LM_DECODE, nearestSentence, Resampler, SentenceStream, shortClasses, SignLM, STREAM,
+  WindowStream,
 } from './continuous.js';
 
 export class SignToSentence {
@@ -21,8 +24,10 @@ export class SignToSentence {
    * @param {HTMLVideoElement} o.video
    * @param {(e: {frame, aspect, fileProgress?}) => void} [o.onFrame] hər emal olunmuş kamera kadrı
    * @param {(e: {words, added, sentence, text, ms}) => void} [o.onWords] yeni yekun sözlər (cari cümlə)
-   * @param {(e: {words, match, text}) => void} [o.onSentence] cümlə bağlandı; match — işarələri çox yaxın olan AzSLD
-   *   cümləsi (textOf), text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
+   * @param {(e: {words, match, text, alternatives}) => void} [o.onSentence] cümlə bağlandı; match — işarələri çox yaxın
+   *   olan AzSLD cümləsi (textOf), text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js);
+   *   alternatives (dil modeli ilə) — [{labels, text, match, conf}], birincisi cümlənin özüdür, conf — variantlar
+   *   arasında payı (eyni mətnli variantlar birləşir)
    * @param {(e: {words, pending, text, match}) => void} [o.onLive] hər pəncərədə (~0.27 s), dəyişəndə: yekun sözlər,
    *   hələ yekun olmayan sözlər (işarə göstərilən anda, sonra dəyişə bilər; live.js PENDING_RULE-a görə) və
    *   hamısından qurulan mətn
@@ -30,11 +35,12 @@ export class SignToSentence {
    *   bağlanmasına qədər keçən hissə (0…1), yoxsa 0
    * @param {(e: object) => void} [o.onTrace] ölçmə (/danis/?debug=1): hər sözün boz/ağ anı, yalançı boz sözlər
    * @param {(e: {stage, message}) => void} [o.onStatus]
+   * @param {boolean} [o.useLM] işarə dil modeli (E32); false — əvvəlki deşifrə (decode), alternativ yoxdur
    */
   constructor({ video, onFrame, onWords, onSentence, onLive, onPause, onStatus, onTrace, base = CONT_MODEL_BASE,
-    pendingRule = PENDING_RULE, sentenceGap = SENTENCE_GAP, minHands = MIN_HANDS } = {}) {
+    pendingRule = PENDING_RULE, sentenceGap = SENTENCE_GAP, minHands = MIN_HANDS, useLM = true } = {}) {
     Object.assign(this, { video, onFrame, onWords, onSentence, onLive, onPause, onStatus, onTrace, base, pendingRule,
-      sentenceGap, minHands });
+      sentenceGap, minHands, useLM });
     this.words = [];
     this.sentences = [];
     this.known = [];
@@ -67,6 +73,17 @@ export class SignToSentence {
       const r = await fetch(GLOSS_TEXT_URL);
       if (r.ok) this.g2t = new GlossToText(await r.json());
     } catch { /* model olmasa işarələrin adları göstərilir */ }
+    this.lm = null;
+    if (this.useLM) {
+      try {                                   // işarə dil modeli: sözlər qonşularına görə, cümlənin alternativləri (E32)
+        const r = await fetch(SIGN_LM_URL);
+        if (r.ok) {
+          const d = await r.json();
+          this.lm = new SignLM(d, this.rec.labels);
+          this.lp = { ...LM_DECODE, ...d.decode };
+        }
+      } catch { /* dil modeli olmasa decode() */ }
+    }
     this.onStatus?.({ stage: 'landmarker', message: `MediaPipe yüklənir (əllər, bədən${this.face ? ', üz' : ''})…` });
     this.lms = await createLandmarkers({ face: this.face });
     this.#reset();
@@ -154,7 +171,7 @@ export class SignToSentence {
     this.clip = new LandmarkClip(this.p.window + 32);
     this.ws = new WindowStream(this.p);
     this.ss = new SentenceStream({ C: this.rec.labels.length, decode: this.dp, unknown: this.unk,
-      short: shortClasses(this.rec.labels), sentenceGap: this.sentenceGap });
+      short: shortClasses(this.rec.labels), sentenceGap: this.sentenceGap, lm: this.lm, lp: this.lp });
     this.resampler = new Resampler(30);
     this.busy = Promise.resolve();
     this._lastVideoTime = -1;
@@ -234,8 +251,8 @@ export class SignToSentence {
           this.#live(this.#shown(pending.map((s, i) => ({ label: this.rec.labels[s.c], p: s.p, pending: true,
             pos: n + i, fa: s.a + pb, fb: s.b + pb, hands: this.#handsIn(s.a + pb, s.b + pb) }))));
         }
-        // cümlə bağlanmağa nə qədər qalıb: son yekun sözdən bəri bərkimiş kadrlar / sentenceGap (SentenceStream ilə eyni)
-        const quiet = n && !pending.length ? (this.ss.rows.length - this.ss.lastEnd) / this.sentenceGap : 0;
+        // cümlə bağlanmağa nə qədər qalıb: son yekun sözdən (quietFrom) bəri bərkimiş kadrlar / sentenceGap (SentenceStream ilə eyni)
+        const quiet = n && !pending.length ? (this.ss.rows.length - this.ss.quietFrom) / this.sentenceGap : 0;
         this.onPause?.({ progress: Math.min(1, Math.max(0, quiet)) });
       }
     }).catch((err) => {
@@ -261,7 +278,7 @@ export class SignToSentence {
   }
 
   /** base: cümlə sətirlərinin mütləq kadr nömrəsi (fa/fb — kadrın mütləq nömrəsi, ölçmə üçün) */
-  #emit({ added, sentenceEnded }, ms, base = 0) {
+  #emit({ added, sentenceEnded, alternatives }, ms, base = 0) {
     const labels = this.rec.labels;
     const all = added.map((s) => ({ label: labels[s.c], p: s.p, a: s.a, b: s.b, fa: s.a + base, fb: s.b + base,
       hands: this.#handsIn(s.a + base, s.b + base) }));
@@ -275,11 +292,30 @@ export class SignToSentence {
     const { text, match } = this.textOf(this.words.map((x) => x.label));
     if (fresh.length) this.onWords?.({ words: this.words, added: fresh, sentence: match, text, ms });
     if (sentenceEnded && this.words.length) {
-      this.sentences.push({ words: this.words, match, text });
-      this.onSentence?.({ words: this.words, match, text });
+      const alts = alternatives ? this.#alternatives(alternatives, base) : null;
+      this.sentences.push({ words: this.words, match, text, alternatives: alts });
+      this.onSentence?.({ words: this.words, match, text, alternatives: alts });
       if (this.onTrace) this.#traceSentence(text);
       this.words = [];
     }
+  }
+
+  /**
+   * SentenceStream-in alternativləri → mətnlər: hər variantın sözləri yekun sözlər kimi süzülür (əl az olan söz
+   * göstərilmir), mətn textOf ilə; eyni mətnli variantların payı birləşir. Birincisi cümlənin özüdür.
+   */
+  #alternatives(list, base) {
+    const out = [];
+    for (const x of list) {
+      const labels = x.words.filter((w) => this.#handsIn(w.a + base, w.b + base) >= this.minHands)
+        .map((w) => this.rec.labels[w.c]);
+      if (!labels.length) continue;
+      const { text, match } = this.textOf(labels);
+      const same = out.find((o) => o.text === text);
+      if (same) same.conf += x.conf;
+      else out.push({ labels, text, match, conf: x.conf });
+    }
+    return out;
   }
 
   /** [fa, fb) kadrlarının neçə hissəsində ən azı bir əl var (frameHands, son 4096 kadr). */

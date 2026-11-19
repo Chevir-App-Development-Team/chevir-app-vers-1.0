@@ -162,6 +162,7 @@ def continuous_cases():
         exp = [[a, b, c, pm] for a, b, c, pm in CT.decode(P.astype(np.float32), p, unknown, set(short))]
         dec.append({'T': T, 'C': C, 'params': dict(p), 'unknown': unknown, 'short': short, 'probs': put(P),
                     'expected': exp})
+    lm_cases = continuous_lm_cases(put)
     feats = []
     for T, aspect in ((96, 16 / 9), (150, 4 / 3)):
         raw = synthetic(T, rng)
@@ -173,7 +174,78 @@ def continuous_cases():
         entry['expected'] = put(FT.preprocess(raw, aspect, entry['groups'], False, max_len=None))
         feats.append(entry)
     return {'continuous_version': CT.CONTINUOUS_VERSION, 'stream': stream, 'decode': dec, 'features': feats,
-            'tolerance': 1e-5}, np.concatenate(blobs).astype('<f4')
+            'lm': lm_cases, 'tolerance': 1e-5}, np.concatenate(blobs).astype('<f4')
+
+
+def continuous_lm_cases(put):
+    """v3 (E32): decode_lm / nbest / alternatives with a small synthetic sign LM (orders 2 and 3, one label the LM
+    does not know, fingerspelled letters as '<L>'), on frame probabilities where a second label competes."""
+    from azsl import continuous as CT
+    rng = np.random.default_rng(20261119)          # its own generator: the v2 cases above stay as they were
+    labels = ['<blank>', 'MƏN', 'SƏN', 'EV', 'GETMƏK', 'İŞ', 'A', 'B', 'O', '5', 'YENİ', '<unk>']
+    tokens = ['<s>', '</s>', 'MƏN', 'SƏN', 'EV', 'GETMƏK', 'İŞ', '<L>', 'O', '5']      # YENİ: not in the LM
+    r4 = lambda x: float(np.round(x, 4))                                                 # noqa: E731
+
+    def lm(order):
+        d = {'version': 1, 'order': order, 'tokens': tokens, 'letter': '<L>',
+             'p1': [-99.0] + [r4(-rng.uniform(1, 5)) for _ in tokens[1:]]}
+        for n in range(2, order + 1):
+            p, b = {}, {}
+            hists = [()]
+            for _ in range(n - 1):
+                hists = [h + (w,) for h in hists for w in range(len(tokens)) if w != 1]
+            for h in hists:
+                if rng.random() < 0.6:
+                    ws = sorted(rng.choice(np.arange(1, len(tokens)), size=int(rng.integers(1, 5)), replace=False).tolist())
+                    key = ' '.join(map(str, h))
+                    p[key] = [x for w in ws for x in (int(w), r4(-rng.uniform(0.2, 3)))]
+                    b[key] = r4(-rng.uniform(0.1, 2))
+            d[f'p{n}'], d[f'b{n - 1}'] = p, b
+        return d
+
+    lms = {2: lm(2), 3: lm(3)}
+    settings = [
+        (2, dict(smooth=3, min_p=0.3, min_len=10, gap=2, min_len_short=6),
+         dict(CT.LM_DECODE, alpha=0.3, beta=1.0, norm=0.0, temp=0.4)),
+        (3, dict(smooth=1, min_p=0.4, min_len=6, gap=2),
+         dict(CT.LM_DECODE, alpha=0.5, beta=0.5, norm=0.5, top=2, floor=0.1, beam=4, nbest=3, temp=1.0)),
+        (2, dict(smooth=5, min_p=0.3, min_len=8, gap=3, min_len_short=4),
+         dict(CT.LM_DECODE, alpha=1.0, beta=2.0, norm=1.0, top=3, floor=0.02, beam=16, nbest=5, temp=0.5)),
+        (None, dict(smooth=3, min_p=0.3, min_len=10, gap=2, min_len_short=6), dict(CT.LM_DECODE)),
+    ]
+    cases = []
+    for order, p, lp in settings:
+        T, C = 240, len(labels)
+        lab, alt = np.zeros(T, int), np.zeros(T, int)
+        t = int(rng.integers(3, 12))
+        while t < T - 5:
+            L = int(rng.integers(4, 30))
+            lab[t:t + L] = rng.integers(1, C)
+            alt[t:t + L] = rng.integers(1, C)
+            t += L + int(rng.integers(0, 10))
+        logits = rng.normal(0, 1.0, (T, C))
+        logits[np.arange(T), lab] += rng.uniform(2.0, 4.5, T)
+        logits[np.arange(T), alt] += np.where(lab > 0, rng.uniform(0.5, 3.5, T), 0.0)
+        P = (np.exp(logits) / np.exp(logits).sum(1, keepdims=True)).astype(np.float32)
+        unknown, short = C - 1, sorted(CT.short_classes(labels))
+        model = CT.SignLM(lms[order], labels) if order else None
+        w4 = lambda ws: [[a, b, c, q] for a, b, c, q in ws]                               # noqa: E731
+        alts = CT.alternatives(P, p, model, lp, unknown, set(short))
+        cases.append({'T': T, 'C': C, 'labels': labels, 'lm': order, 'params': dict(p), 'lm_params': dict(lp),
+                      'unknown': unknown, 'short': short, 'probs': put(P),
+                      'segments': [[a, b, [[j, q] for j, q in cs]] for a, b, cs in
+                                   CT.lm_segments(P, p, unknown, set(short), lp['top'], lp['floor'])],
+                      'decode_lm': w4(CT.decode_lm(P, p, model, lp, unknown, set(short))),
+                      'nbest': [[s, w4(w)] for s, w in CT.nbest(P, p, model, lp, unknown, set(short))],
+                      'alternatives': [[s, w4(w)] for s, w in alts],
+                      'confidences': CT.confidences([s for s, _ in alts], lp['temp'])})
+    # ln P(w | h) of every history the order-3 model can see
+    m3 = CT.SignLM(lms[3], labels)
+    logp = [[[h0, h1], w, m3.logp((h0, h1), w)] for h0 in range(len(tokens)) for h1 in range(len(tokens))
+            for w in range(1, len(tokens)) if h1 != 0 or h0 == 0]
+    tok = [labels.index(g) for g in labels]
+    return {'models': {str(k): v for k, v in lms.items()}, 'cases': cases, 'logp3': logp,
+            'tokens_of_labels': [m3.tok[i] for i in tok]}
 
 
 def _jsonable(p):

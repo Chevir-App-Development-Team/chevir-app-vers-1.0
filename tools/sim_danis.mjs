@@ -2,7 +2,8 @@
 // (WindowStream, recognizer.frameProbs, SentenceStream.add/peek) — boz (hələ yekun olmayan) sözlərin nə qədər tez
 // göründüyü, neçəsinin yalançı olduğu (boz görünüb yekun olmayan), göstərmə qaydalarının müqayisəsi və cümlə
 // fasiləsinin (sentenceGap) cümləni ortadan bölüb-bölmədiyi. Kadr sayı 30 fps-dədir.
-//   node tools/sim_danis.mjs D:/chevir/eval/danis_sim/jestdili [--limit N] [--out nəticə.json]
+//   node tools/sim_danis.mjs D:/chevir/eval/danis_sim/jestdili [--limit N] [--out nəticə.json] [--lm]
+// --lm: işarə dil modeli ilə (sign_lm.json, E32), brauzerdəki kimi
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import { LocalRecognizer } from '../src/tercume/recognizer.js';
@@ -25,6 +26,8 @@ const m = rec.manifest, C = rec.labels.length;
 const sp = { ...CT.STREAM, ...m.stream }, dp = { ...CT.DECODE, ...m.decode }, face = !m.works_without_face;
 const unk = m.unknown_label ? rec.labels.indexOf(m.unknown_label) : -1;
 const unknown = unk >= 0 ? unk : null, short = CT.shortClasses(rec.labels);
+const lmJson = args.includes('--lm') ? JSON.parse(readFileSync(new URL('public/tercume/assets/sign_lm.json', root), 'utf8')) : null;
+const lm = lmJson ? new CT.SignLM(lmJson, rec.labels) : null, lp = { ...CT.LM_DECODE, ...lmJson?.decode };
 
 const meta = JSON.parse(readFileSync(`${base}.json`, 'utf8'));
 const buf = readFileSync(`${base}.bin`);
@@ -41,7 +44,7 @@ for (const [ci, clip] of clips.entries()) {
     for (const k of FIELDS) r[k] = all.subarray(clip[k].offset + a * clip[k].per, clip[k].offset + b * clip[k].per);
     return r;
   };
-  const mk = (sentenceGap) => new CT.SentenceStream({ C, decode: dp, unknown, short, sentenceGap });
+  const mk = (sentenceGap) => new CT.SentenceStream({ C, decode: dp, unknown, short, sentenceGap, lm, lp });
   const ss = mk(1e9);
   const gs = GAPS.map((G) => ({ G, ss: mk(G), words: 0, ends: [] }));
   const finals = [], windows = [];

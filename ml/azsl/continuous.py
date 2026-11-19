@@ -10,7 +10,9 @@ The model is the isolated-sign network with a label per frame instead of one per
 random windows of 48–160 frames. In the browser it runs on the last `window` frames every `stride` new
 frames, and a frame's probabilities are fixed once it is `lookahead` frames from the window's right edge
 (stream_windows / stream_probs: the browser twin does exactly this). decode() turns frame probabilities
-into words; its settings are chosen on val sentences (notebook 06).
+into words; its settings are chosen on val sentences (notebook 06). decode_lm() adds a sign-sequence language model
+(the corpus of E18 as sign n-grams): each word is chosen given the words before it, left to right as the stream
+fixes them; nbest() / alternatives() give the sentence's alternatives (E32).
 """
 import csv
 import json
@@ -28,8 +30,9 @@ from . import segment_eval as SE
 from . import train as TR
 from .store import LandmarkStore
 
-CONTINUOUS_VERSION = 2    # streaming schedule + decode(); continuous.js and ml/fixtures/continuous_v<N> follow it
+CONTINUOUS_VERSION = 3    # streaming schedule + decode(); continuous.js and ml/fixtures/continuous_v<N> follow it
                           # v2: decode's optional min_len_short for single-character labels (fingerspelled letters)
+                          # v3: decode_lm / nbest / alternatives with the sign LM (SignLM, sign_lm.json; E32)
 BLANK = '<blank>'
 IGNORE = -100
 STREAM = dict(window=96, stride=8, lookahead=24)        # browser: 3.2 s of context, a word 0.8 s after it ends
@@ -495,6 +498,184 @@ def decode(P, p=DECODE, unknown=None, short=()):
         if b - a >= need and pm >= p['min_p'] and c != unknown:
             out.append((a, b, c, pm))
     return out
+
+
+# ---------------------------------------------------------------- decoding with a sign language model (v3, E32)
+
+LM_DECODE = dict(alpha=0.0, beta=0.0, norm=0.0, top=4, floor=0.05, beam=8, nbest=3, temp=1.0)
+# alpha: weight of the sign LM's ln-probability; beta: a bonus per word (the LM costs every word); norm: how much
+# of the word's own unigram is taken back (1 = pointwise mutual information: a rare word is not punished for being
+# rare, only for not fitting its neighbours); top / floor: a segment's candidate labels (the `top` most probable,
+# mean probability >= floor); beam / nbest: the sentence's alternatives; temp: the temperature of their shares
+# (confidences). The settings chosen in E32 are in sign_lm.json ('decode'). alpha = beta = 0 is decode().
+
+
+def lm_token(label):
+    """The sign LM's token (tools/build_sign_lm.mjs): a fingerspelled letter (a one-letter label other than the
+    pronoun O) and the dot are one class '<L>' (the frames say which letter); every other label is itself."""
+    return '<L>' if (len(label) == 1 and label.isalpha() and label != 'O') or label == '.' else label
+
+
+class SignLM:
+    """Sign n-gram model (interpolated Kneser-Ney in backoff form, public/tercume/assets/sign_lm.json); the
+    browser's twin is continuous.js SignLM: the same numbers, added in the same order."""
+
+    def __init__(self, d, labels):
+        self.order = int(d['order'])
+        tid = {t: i for i, t in enumerate(d['tokens'])}
+        self.bos, self.eos, self.V = tid['<s>'], tid['</s>'], len(d['tokens']) - 1
+        self.p1 = [float(x) for x in d['p1']]
+        key = lambda h: tuple(int(x) for x in h.split(' ')) if h else ()      # noqa: E731
+        self.p = {n: {key(h): {int(v[i]): float(v[i + 1]) for i in range(0, len(v), 2)} for h, v in d.get(f'p{n}', {}).items()}
+                  for n in range(2, self.order + 1)}
+        self.b = {n: {key(h): float(v) for h, v in d.get(f'b{n}', {}).items()} for n in range(1, self.order)}
+        self.tok = [tid.get(lm_token(g)) if not g.startswith('<') else None for g in labels]   # label index → token
+
+    def start(self):
+        return (self.bos,) * (self.order - 1)
+
+    def logp(self, h, w):
+        """ln P(w | h), h = the last order − 1 tokens: the stored n-gram, else the context's backoff + lower order."""
+        n = len(h) + 1
+        if n == 1:
+            return self.p1[w]
+        e = self.p[n].get(h)
+        if e is not None and w in e:
+            return e[w]
+        return self.b[n - 1].get(h, 0.0) + self.logp(h[1:], w)
+
+    def score(self, h, w, norm):
+        """The LM's word score: ln P(w | h) − norm · ln P(w); a label the LM does not know: ln(1 / V)."""
+        if w is None:
+            return -math.log(self.V) * (1.0 - norm)
+        return self.logp(h, w) - norm * self.p1[w]
+
+    def push(self, h, w):
+        """The history after w (a label the LM does not know leaves it as it was)."""
+        return h if w is None or self.order == 1 else (h + (w,))[1:]
+
+
+def lm_segments(P, p=DECODE, unknown=None, short=(), top=4, floor=0.05):
+    """decode()'s runs before its probability threshold → [(a, b, [(label, mean probability), ...])]: runs of a
+    label after smoothing, joined across `gap`, long enough (min_len / min_len_short), not UNKNOWN; candidates are
+    the `top` labels (not BLANK, not UNKNOWN) with the highest mean probability over the run's frames, if >= floor
+    (the run's own label always), most probable first, ties by label index."""
+    Ps = smooth(P, int(p['smooth']))
+    lab = Ps.argmax(1)
+    runs, t, T = [], 0, len(lab)
+    while t < T:
+        u = t
+        while u < T and lab[u] == lab[t]:
+            u += 1
+        if lab[t] != 0:
+            runs.append([t, u, int(lab[t])])
+        t = u
+    joined = []
+    for r in runs:
+        if joined and joined[-1][2] == r[2] and r[0] - joined[-1][1] <= p['gap']:
+            joined[-1][1] = r[1]
+        else:
+            joined.append(r)
+    out = []
+    for a, b, c in joined:
+        need = p['min_len_short'] if c in short and 'min_len_short' in p else p['min_len']
+        if b - a < need or c == unknown:
+            continue
+        q = Ps[a:b].sum(0) / (b - a)              # frame by frame, as the browser adds them
+        order = sorted((j for j in range(1, len(q)) if j != unknown and (q[j] >= floor or j == c)),
+                       key=lambda j: (-q[j], j))[:top]
+        if c not in order:
+            order = order[:top - 1] + [c]
+        out.append((a, b, [(j, float(q[j])) for j in order]))
+    return out
+
+
+def _word_score(lm, lp, h, j, q):
+    """A candidate's score: ln(mean probability) + alpha · LM score + beta."""
+    return math.log(q) + (lp['alpha'] * lm.score(h, lm.tok[j], lp['norm']) if lm else 0.0) + lp['beta']
+
+
+def _end_score(lm, lp, h):
+    return lp['alpha'] * lm.score(h, lm.eos, lp['norm']) if lm else 0.0
+
+
+def _left_to_right(segs, p, lm, lp):
+    """Each segment's word given the words chosen before → (words, the path's score with the sentence end)."""
+    skip = math.log(p['min_p'])
+    h = lm.start() if lm else ()
+    out, total = [], 0.0
+    for a, b, cands in segs:
+        best, best_s = None, skip
+        for j, q in cands:
+            s = _word_score(lm, lp, h, j, q)
+            if s > best_s or (best is None and s == best_s):
+                best, best_s = (j, q), s
+        total += best_s
+        if best:
+            out.append((a, b, best[0], best[1]))
+            if lm:
+                h = lm.push(h, lm.tok[best[0]])
+    return out, total + _end_score(lm, lp, h)
+
+
+def _hyp_key(x):
+    return (-x[0], [w[2] for w in x[1]], [w[0] for w in x[1]])
+
+
+def _beam(segs, p, lm, lp):
+    """Beam search over the segments → distinct word sequences [(score, words)], best first."""
+    skip = math.log(p['min_p'])
+    beams = [(0.0, (), lm.start() if lm else ())]
+    for a, b, cands in segs:
+        grown = []
+        for s0, words, h in beams:
+            grown.append((s0 + skip, words, h))
+            for j, q in cands:
+                grown.append((s0 + _word_score(lm, lp, h, j, q), words + ((a, b, j, q),), lm.push(h, lm.tok[j]) if lm else h))
+        grown.sort(key=_hyp_key)
+        beams = grown[:lp['beam']]
+    final = sorted(((s0 + _end_score(lm, lp, h), words) for s0, words, h in beams), key=_hyp_key)
+    out, seen = [], set()
+    for s, words in final:
+        k = tuple(w[2] for w in words)
+        if k not in seen:
+            seen.add(k)
+            out.append((s, list(words)))
+    return out
+
+
+def decode_lm(P, p=DECODE, lm=None, lp=LM_DECODE, unknown=None, short=()):
+    """decode() with the sign LM, left to right (as the browser fixes words while the sentence is signed): each
+    segment's word is the candidate with the best ln(mean probability) + alpha · LM score + beta given the words
+    chosen before, or none if no candidate beats ln(min_p). → [(a, b, label, mean probability)], like decode().
+    Without an LM (or alpha = beta = 0) this is decode() (but where a joined run's mean favours another label)."""
+    return _left_to_right(lm_segments(P, p, unknown, short, lp['top'], lp['floor']), p, lm, lp)[0]
+
+
+def nbest(P, p=DECODE, lm=None, lp=LM_DECODE, unknown=None, short=()):
+    """Beam search over the same segments and scores as decode_lm, the end of the sentence scored by the LM too
+    → up to lp['nbest'] distinct word sequences, best first: [(score, [(a, b, label, mean probability), ...])].
+    Ties: the lower label sequence first, then the earlier starts."""
+    return _beam(lm_segments(P, p, unknown, short, lp['top'], lp['floor']), p, lm, lp)[:lp['nbest']]
+
+
+def alternatives(P, p=DECODE, lm=None, lp=LM_DECODE, unknown=None, short=()):
+    """The sentence's alternatives (N4): decode_lm's words first (what the stream fixed while it was signed), then
+    the beam's best other word sequences → up to lp['nbest'] [(score, words)], scored as in nbest."""
+    segs = lm_segments(P, p, unknown, short, lp['top'], lp['floor'])
+    words, total = _left_to_right(segs, p, lm, lp)
+    main = [w[2] for w in words]
+    return ([(total, words)] + [x for x in _beam(segs, p, lm, lp) if [w[2] for w in x[1]] != main])[:lp['nbest']]
+
+
+def confidences(scores, temp=1.0):
+    """Alternatives' scores → shares that sum to 1 (softmax over the alternatives shown)."""
+    if not scores:
+        return []
+    m = max(scores)
+    e = [math.exp((s - m) / temp) for s in scores]
+    z = sum(e)
+    return [x / z for x in e]
 
 
 @torch.no_grad()

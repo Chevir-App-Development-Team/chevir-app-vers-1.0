@@ -3380,3 +3380,142 @@ Files: `src/tercume/spelled.js` (new), `src/tercume/gloss2text.js` (`runEnd`, `s
 `tools/letters_tune.mjs`, `src/tercume/app.js`, `public/tercume/assets/letter_model/`,
 `ml/fixtures/letters_model_ref.json`. Local only: `D:/chevir/jestdili_alphabet`, `D:/chevir/eval/letters_jestdili`
 (landmarks, scores, false letters), `D:/chevir/eval/r6`. No GPU used.
+
+## E32 — Decoding with a sign language model, alternatives and correction (N3, N4; no training)
+
+The sentence model's `decode()` takes each run of a label as a word if its mean probability passes `min_p`, one run at a
+time. N3 adds a sign-sequence language model, so a word is chosen given the words before it; N4 shows the sentence's 2–3
+alternatives with their share and lets the person pick one or type the right text, kept on the device.
+
+**The sign LM** (`tools/build_sign_lm.mjs` → `public/tercume/assets/sign_lm.json`, 347 KB, 140 KB gzipped): the E18 corpus
+pseudo-glosses (`pseudo_gloss.jsonl` + `pseudo_dialog.jsonl`, 75,830 pairs) mapped to the sentence model's labels
+(`sign_merge.json`), signs the model does not know dropped (the recognizer drops `<unk>` too), fingerspelled letters one
+class `<L>` (the frames say which letter): 61,196 distinct sequences, 852,744 signs, 780 tokens. Interpolated
+Kneser-Ney, the lowest order mixed with 5 % uniform (a label the corpus never shows, like most Slovo labels, keeps a
+probability), stored ARPA-like (ln-probability of seen n-grams, backoff of contexts), so Python and the browser look up
+the same numbers. Bigram (28,044 entries); a trigram (count ≥ 2, 1.5 MB) was not better on val. AzSLD's sentences are
+not in it: with them (×3 or ×10, the 49 held-out sentences left out) val and test rose only on the sentences in the LM,
+not on unseen ones (val unseen learnable F1 0.848 → 0.846), and the evaluation stays clean.
+
+**The decoder** (`continuous.py` `lm_segments` / `decode_lm` / `nbest` / `alternatives`, `continuous.js` twins,
+`CONTINUOUS_VERSION` 3). Segments are `decode()`'s runs before the probability threshold (smoothing, joining across
+`gap`, `min_len` / `min_len_short`, `<unk>` runs dropped); each has candidates, the 4 labels with the highest mean
+probability over its frames (≥ 0.05). A candidate scores ln(mean probability) + α · ln P_LM(label | previous words) + β;
+no word scores ln(`min_p`), so α = β = 0 is `decode()`. `decode_lm` chooses left to right given the words already chosen:
+exactly what the browser's `SentenceStream` fixes while the sentence is signed (a fixed word never changes), and what
+`peek()` shows. `nbest` is a beam search (8) over the same segments with the end of the sentence scored;
+`alternatives` = `decode_lm`'s sentence first, then the beam's best other sequences (3 in all), `confidences` their
+softmax shares (temperature 0.4). `SentenceStream({ lm, lp })` returns `alternatives` (with `conf`) when a sentence closes.
+The settings live in `sign_lm.json` (`decode`), so the browser reads them with the LM.
+
+**Measured on the models' own streaming probabilities**, saved once (`ml/dump_cont_probs.py`: the browser's schedule,
+window 96 / stride 8 / lookahead 24; float16) for `e29_v5_slovo` (the installed recipe's fair twin: test signers and
+held-out sentences unseen; AzSLD val 1,545 and test 1,484 recordings), `cont_v15/final_merged` (the recognizer
+`eval_gloss_text.mjs` uses by default; test 1,484) and `final_all_ctc_slovo` (the 246 held-out JestDili.az sentences).
+The saved probabilities reproduce the runs' scores (val F1 0.8842 / WER 15.86 %, test 0.895 / 13.91 % for
+`e29_v5_slovo`). Settings chosen on val as the v5 models are (`f1_unseen_learnable` on val's held-out sentences, val F1
+not below `decode()`), over bigram / trigram × norm {0, 0.5, 1} (norm 1 = the word's unigram taken back) × α {0.05 … 0.3}
+× β {0 … 1.5}: **bigram, α 0.1, β 0.5, norm 0**. On all val recordings the best F1 wanted a smaller α (0.075); on unseen
+sentences and on the new person a larger one: the LM matters where the recognizer is unsure.
+
+| AzSLD, `e29_v5_slovo`, word F1 / WER | val | val unseen sentences, learnable words | test | test unseen sentences, learnable words |
+|---|---|---|---|---|
+| `decode()` (installed) | 0.884 / 15.9 % | 0.836 / 21.8 % | 0.895 / 13.9 % | 0.806 / 25.6 % |
+| + sign LM, left to right (shipped) | 0.887 / 15.8 % | 0.848 / 20.8 % | 0.899 / 14.0 % | **0.822 / 24.0 %** |
+| + sign LM, beam's best | 0.889 / 15.5 % | 0.850 / 19.9 % | 0.900 / 13.7 % | 0.826 / 23.6 % |
+
+**JestDili.az, the 246 held-out sentences** (a new person and camera; `final_all_ctc_slovo`, the installed decoding;
+`score_jestdili.mjs`, `compare_jestdili.mjs`):
+
+| | precision | recall (known words) | F1 | sign → text WER |
+|---|---|---|---|---|
+| `decode()` | 0.618 | 0.755 | 0.680 | 60.3 % |
+| + sign LM, left to right (shipped) | **0.659** | 0.754 | **0.703** | **57.5 %** |
+| + sign LM, beam's best | 0.652 | 0.752 | 0.698 | 58.3 % |
+
+Paired bootstrap, left to right against `decode()`: F1 difference 95 % interval **[+0.014, +0.032]**, P(better) 1.000,
+56 sentences better, 9 worse. The beam's best is not better than left to right here ([−0.012, +0.002]) and only slightly
+better on AzSLD, so the shipped sentence is the left-to-right one: it is what the person saw while signing, and it does
+not change when the sentence closes. (E29's 0.685 for this model was scored before the labels' text changed; its own
+`sentences.json` scores 0.680 with today's scorer, the same as the greedy decode here.)
+
+**Sign → text on AzSLD's recognized new sentences** (the N3 target; `tools/eval_nbest_text.mjs`: every test recording,
+also the ones where nothing is recognized, gloss2text learned without the sentence, as section 2 of
+`eval_gloss_text.mjs`):
+
+| text WER, new sentence | `decode()` | + sign LM (shipped) | the best of the 3 alternatives | annotated glosses (no recognition errors) |
+|---|---|---|---|---|
+| `cont_v15/final_merged` (the eval's default) | 46.3 % | 46.2 % | 43.1 % | 41.3 % |
+| `e29_v5_slovo` | 49.0 % | 48.8 % (beam's best 48.4 %) | 45.0 % | 41.3 % |
+
+**The target (−5 points) is not reached and cannot be reached by decoding:** with perfect recognition the same
+recordings give 41.3 %, 5.0 points below `cont_v15`'s 46.3 %; the rest of the error is gloss2text's word forms (session
+5, N2). The LM recovers 0.1–0.2 points of that recognition share on AzSLD, whose recognizer already knows these signers'
+sentences well; on the new person it recovers 2.8 points (60.3 → 57.5 %). The alternatives are worth more: a person
+picking the best of the three would be at 43.1 % (−3.2 points); on val the sign sequence is exactly right in the first
+alternative 57.3 % of the time and among the three 66.0 %.
+
+**Word-level rerank** (the N-best sign sequences → gloss2text → a word bigram of the HPLT corpus, 8.3 M tokens, the 10
+AzSLD sentences in it left out; `eval_nbest_text.mjs --wordlm`): it does not help. Alone it prefers short texts (γ 0.05:
+46.3 → 50.6 %); with a per-word bonus the best setting, chosen on test itself, gives 46.3 → 46.1 % (`cont_v15`) and
+48.4 → 48.3 % (`e29_v5_slovo`). A sentence's alternatives differ in which signs they keep, and each text is fluent,
+because gloss2text makes each one grammatical. Not shipped (it would also need a word LM of several MB).
+
+**Confidence.** The shares are a softmax over the shown alternatives' scores; the temperature 0.4 was chosen on val so
+that the first alternative's share matches how often it is exactly right (expected calibration error 0.099; temperature
+1 gives 0.168, mostly 40–50 % shares for sentences right 55–80 % of the time).
+
+**Python ↔ browser.** `ml/make_fixture.py` writes `ml/fixtures/continuous_v3` (v2's cases unchanged + 4 cases with a
+synthetic bigram / trigram LM, a label the LM does not know and letters: segments, `decode_lm`, `nbest`, `alternatives`,
+shares, and ln P(w | h) for every order-3 history); `tools/verify_continuous.mjs` checks them to 1e-9 and runs the LM
+`SentenceStream` window by window (its words = `decode_lm`, `peek()` = the rest, the alternatives when it closes =
+Python's). On real data: JS `decodeLM` with the shipped LM gives the same signs as Python for all 246 held-out JestDili.az
+sentences, 1.0 ms per sentence in Node. `cont_model_ref.json` now points at fixture v3 (the features part is identical).
+
+**The live page** (`tools/sim_danis.mjs --lm`: JestDili.az's 500 sentence recordings through the browser's path with the
+installed model; they are its CTC training data, so this measures display, not accuracy). The first run showed that the
+LM, by leaving out weak words, lengthens the pauses between shown words, and 3.0 % of sentences were split at the
+60-frame gap (2.4 % without the LM with today's model; E35's 0.6 % was the model before E29's install). The stream now
+counts the pause from the last segment `decode()` would have shown, a word the LM left out included; the words themselves
+are unchanged. Then:
+
+| replay, installed model | final words | false grey words per minute (browser rule) | grey: frames from the sign's start (median / p90) | white: frames after its end (median) | sentences split at gap 60 |
+|---|---|---|---|---|---|
+| `decode()` | 1,916 | 3.6 | 22 / 33 | 31 | 12 (2.4 %) |
+| + sign LM | 1,800 | 3.3 | 21 / 33 | 31 | 9 (1.8 %) |
+
+**In the app (N4).** `s2s.js` loads `sign_lm.json` (`useLM`, `/danis/?nolm=1` for a comparison), passes it to the
+`SentenceStream`, and when a sentence closes gives `onSentence` its `alternatives`: each variant's words filtered by the
+hands rule like the shown words (`MIN_HANDS`), its text by `textOf` (nearest AzSLD sentence, else gloss2text), variants
+with the same text merged. The pause bar uses the stream's `quietFrom`. `src/tercume/correct.js` (+ `correct.css`)
+renders a sentence with its share and the other variants as buttons, and "Düzəlt" (type the text); a tap or an edit
+replaces the sentence and is saved in `localStorage` (`chevir.duzelisler.v1`: shown and chosen text, sign names, shares,
+page; no video, no landmarks; the last 1,000). A bar under the conversation shows how many corrections are on the
+device, "Yüklə (JSON)" downloads them only when pressed, "Sil" deletes them. Used by `/danis/` (the conversation) and
+the translator's sentence mode (its history); the page's hint says where corrections are kept. `/danis/?video=` on three
+clips glued from JestDili.az's single-word videos (a check of the path, not of accuracy: the words were not signed as
+one sentence): BU GÜN HAVA SOYUQ → "İndi hava soyuqdur" 52 %, alternatives "Hava soyuqdur" 30 % and "Bu gün hava
+soyuqdur" 18 % (the right one); MƏNİM QARDAŞ MƏKTƏB GETMƏK → "Mən edirəm qardaş" 39 %, "Mən edirəm" 38 %, "Mənim
+qardaşım" 23 %. A tap on an alternative and an edit were saved, the export file was built (not downloaded), then the
+test entries were deleted. The translator's sentence mode loads (802 words) with the bar. No console errors.
+
+**Checks.** The 13 committed `node tools/verify_*.mjs` (and session 5's uncommitted `verify_formtag.mjs`), `node tools/ci_gates.mjs` (s2t dev 41.9, test 42.8: gloss2text is unchanged)
+and `python ml/make_fixture.py --check` pass; `npm run build` passes.
+
+Files: `tools/build_sign_lm.mjs`, `public/tercume/assets/sign_lm.json`, `ml/azsl/continuous.py`, `src/tercume/continuous.js`,
+`ml/make_fixture.py`, `ml/fixtures/continuous_v3.{json,bin}` (v2 removed; `bench_cont_model.mjs`, `verify_sign_merge.mjs`
+read v3), `ml/fixtures/cont_model_ref.json`, `tools/verify_continuous.mjs`, `ml/dump_cont_probs.py`,
+`tools/eval_nbest_text.mjs`, `src/tercume/s2s.js`, `src/tercume/paths.js`, `src/tercume/correct.{js,css}`,
+`src/danis/main.js`, `danis/index.html`, `src/tercume/app.js`, `tercume/index.html`, `tools/sim_danis.mjs` (`--lm`).
+`gloss2text.js` is unchanged. Local only: `D:/chevir/eval/e32/` (probabilities, LM variants, grids, detections, N-best
+lists, JestDili.az scores, replays), scripts `D:/chevir/scripts/e32/`, test videos in `scratch/e32/` (git-ignored). The
+GPU was used only to save the probabilities (about 10 minutes). Commands:
+
+    D:/chevir/venv/Scripts/python ml/dump_cont_probs.py --ckpt D:/chevir/runs/e29_v5_slovo/cont/seq_splice_ctc_slovo/best.pt \
+      --input D:/chevir/kaggle --splits val,test --out D:/chevir/eval/e32/probs_v5slovo
+    D:/chevir/venv/Scripts/python ml/dump_cont_probs.py --ckpt D:/chevir/runs/e29_final_ctc_slovo/cont/final_all_ctc_slovo/best.pt \
+      --jestdili D:/chevir/landmarks --sentences D:/chevir/kaggle/jestdili_ctc_r4/jestdili_sentence_glosses_r4.json \
+      --out D:/chevir/eval/e32/probs_jd_hold
+    node tools/build_sign_lm.mjs                      # sign_lm.json (bigram, the corpus only)
+    node tools/eval_nbest_text.mjs --nbest <alternatives.jsonl> --k 3 [--wordlm data/corpus/hplt_sentences.txt --gamma 0.02 --mu 8]
+    node tools/sim_danis.mjs D:/chevir/eval/danis_sim/jestdili --lm

@@ -5,7 +5,9 @@
  * deyil, SentenceStream.peek) görünür, ~1 s sonra təsdiqlənib ağ olur; mətn hər dəfə bütün sözlərdən qurulur
  * (gloss2text.js). Bir pəncərəlik yalançı boz sözlər göstərilmir (live.js PENDING_RULE). Sözlər arasında əlləri
  * endirmək lazım deyil; son işarədən ~3 s sonra cümlə söhbətə keçir (live.js SENTENCE_GAP), altyazının altındakı
- * xətt bunu göstərir. Video və nöqtələr cihazda qalır. ?debug=1 — ölçmə (E35).
+ * xətt bunu göstərir. Söhbətdəki hər cümlənin altında 2–3 başqa variant (işarə dil modelinin alternativləri, E32): bir
+ * toxunuşla seçilir və ya "Düzəlt" ilə yazılır; düzəliş yalnız bu cihazda saxlanılır, faylı insan özü yükləyir
+ * (correct.js). Video və nöqtələr cihazda qalır. ?debug=1 — ölçmə (E35); ?nolm=1 — dil modelsiz deşifrə (müqayisə).
  */
 import '../styles/base.css'
 import '../styles/sections/navbar.css'
@@ -15,6 +17,7 @@ import './danis.css'
 import { navbarMarkup, initScrollShadow } from '../sections/navbar.js'
 import { SignToSentence } from '../tercume/s2s.js'
 import { HAND_CONNECTIONS } from '../tercume/hands.js'
+import { mountCorrectionsBar, renderSentence, sentenceEntry } from '../tercume/correct.js'
 
 document.querySelector('#site-nav').outerHTML = navbarMarkup({ page: 'tercume' })
 initScrollShadow(document.querySelector('[data-navbar]'))
@@ -67,8 +70,10 @@ const s2s = new SignToSentence({
   onLive: ({ words, pending, text }) => renderLive(words, pending, text),
   onPause: ({ progress }) => { $('#closing').style.transform = `scaleX(${progress})` },
   onTrace: debug ? onTrace : undefined,
-  onSentence: ({ words, text }) => {
-    history.push({ text: text || words.map((w) => w.label).join(' '), signs: words.map((w) => w.label) })
+  useLM: !params.has('nolm'),
+  onSentence: ({ words, text, alternatives }) => {
+    history.push(sentenceEntry({ words, text, alternatives }))
+    if (debug && alternatives) log(`alternativlər: ${alternatives.map((a) => `"${a.text}" ${Math.round(100 * a.conf)} %`).join(' · ')}`)
     renderHistory()
     renderLive([], [], '')
     $('#closing').style.transform = 'scaleX(0)'
@@ -122,10 +127,16 @@ function renderLive(words, pending, text) {
 function renderHistory() {
   $('#count').textContent = String(history.length)
   $('#btn-copy').disabled = !history.length && !live.words.length
-  $('#history').innerHTML = history.length
-    ? history.slice().reverse().map((h) => `<li><span class="t">${esc(h.text)}</span>`
-      + `<span class="g">${esc(h.signs.join(' '))}</span></li>`).join('')
-    : '<li class="muted">Hələ cümlə yoxdur</li>'
+  const list = $('#history')
+  if (!history.length) {
+    list.innerHTML = '<li class="muted">Hələ cümlə yoxdur</li>'
+    return
+  }
+  // hər cümlə: mətn, payı, işarələr və başqa variantlar (toxunanda seçilir, düzəliş cihazda saxlanılır)
+  list.replaceChildren(...history.slice().reverse().map((h) => renderSentence(document.createElement('li'), h, {
+    page: 'danis',
+    onChange: (e) => { if (debug) log(`düzəliş: "${e.text}"`) },
+  })))
 }
 
 /** landmarks.js kadrının əl slotu → 21 nöqtə, əl yoxdursa null. */
@@ -191,6 +202,7 @@ $('#btn-copy').addEventListener('click', () => {
   if (!navigator.clipboard) return say('Köçürmək olmadı', 'error')
   navigator.clipboard.writeText(lines.join('\n')).then(() => say('Köçürüldü', back[1]), () => say('Köçürmək olmadı', 'error'))
 })
+mountCorrectionsBar($('#corrections'))
 $('#show-signs').addEventListener('change', (e) => document.body.classList.toggle('hide-signs', !e.target.checked))
 
 // ?video=<ünvan>: kamerasız sınaq və nümayiş, video kadr-kadr eyni yoldan keçir
