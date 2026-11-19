@@ -16,9 +16,10 @@
  * Model JSON-dur (tools/build_gloss_text.mjs → public/tercume/assets/gloss_text.json), brauzerdə
  * öyrənmə lazım deyil. Ölçmə: tools/eval_gloss_text.mjs.
  */
-import { Lemmatizer, candidates, variants } from './morph.js';
+import { Lemmatizer, candidates, variants, infinitive } from './morph.js';
 import { analyze, realize, PRONOUNS } from './inflect.js';
 import { azLower, PERSON } from './words.js';
+import { alignRuns, spell, withCase, NAME_HEAD } from './spelled.js';
 
 export const textWords = (t) => azLower(t).replace(/[.,!?;"()«»“”]+/g, ' ').split(/\s+/).filter(Boolean);
 // Annotasiyada İ çox vaxt ı yerinə yazılıb (ALİNMİR): tutuşdurmada ı = i
@@ -51,6 +52,12 @@ const spelled = (labels, i) => isLetter(labels[i])
   && (!PRONOUNS.includes(labelText(labels[i])) || isLetter(labels[i - 1] ?? '') || isLetter(labels[i + 1] ?? ''));
 const isNumber = (l) => /^\d+$/.test(l);
 const labelText = (l) => azLower(l.split('/')[0]);
+// Hərf ardıcıllığının sonu (R6): hərflər, iki hərfin arasındakı nöqtə də (J E S T D İ L İ . A Z)
+function runEnd(labels, i) {
+  let j = i;
+  while (j < labels.length && (spelled(labels, j) || (labels[j] === '.' && j > i && spelled(labels, j + 1)))) j++;
+  return j;
+}
 
 /** İşarənin sinfi (qonşu kimi): əvəzlik öz şəxsi ilə, fel, ad, sual sözü, rəqəm, hərf. */
 function classOf(label, lex) {
@@ -218,7 +225,13 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
       if (!headKeys.get(l).has(keyOf(l)(surface))) return { surface };     // çoxsözlü işarənin başqa sözü
       return { surface, ...rootOf(l, surface, headKeys.get(l), lemOf(l)) };
     });
-    return { glosses: p.glosses, words: ws, at, info, w: p.w ?? 1 };
+    // hərflə yığılan sözlər mətndə necə yazılıb (DOST, Messinin, manat; spelled.js)
+    const runs = [];
+    for (let i = 0; i < p.glosses.length; i++) {
+      const j = runEnd(p.glosses, i);
+      if (j > i) { runs.push(azLower(p.glosses.slice(i, j).join(''))); i = j - 1; }
+    }
+    return { glosses: p.glosses, words: ws, at, info, w: p.w ?? 1, spelled: runs.length ? alignRuns(runs, p.text) : [] };
   });
   return { sentences, guess };
 }
@@ -233,10 +246,18 @@ const scaled = (t, a) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k
  * model.opts — işarənin kök və növ sayları (prior üçün); brauzerin modelinə yazılmır.
  */
 export function fit({ sentences, guess }, keep = () => true, prior = null, alpha = 1) {
-  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, opts: {}, guess };
+  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, opts: {}, guess, spelled: {} };
   if (prior) for (const t of TABLES) model[t] = scaled(prior[t], alpha);
   const used = sentences.filter((_, i) => keep(i));
   const opts = model.opts;
+  // hərflə yığılan sözlərin yazılışı (R6): {hərflər: {n, forms: {yazılış: say}}}
+  for (const { spelled: runs, w } of used) {
+    for (const { run, surface } of runs ?? []) {
+      const e = (model.spelled[norm(run)] ??= { n: 0, forms: {} });
+      e.n += w;
+      if (surface) inc(e.forms, surface, w);
+    }
+  }
   for (const { glosses, info, w } of used) {
     glosses.forEach((l, i) => {
       if (info[i].surface === null) return;
@@ -353,11 +374,94 @@ function subjectOf(glosses, nominative = () => true) {
 export class GlossToText {
   /** native: doğma işarələrin qrammatikası (#native: YOX, OLMAQ, OLACAQ, LAZIM, BİRLİKDƏ); false — yalnız sayılar. */
   /** drop: işarə mətndə sözsüz qalır, AzSLD-də ən azı `min` dəfə görünüb `ratio`-dan çox sözsüz olubsa (E26). */
-  constructor(model, { weights = WEIGHTS, native = true, drop = DROP } = {}) {
-    this.m = model; this.w = weights; this.native = native; this.drop = drop;
+  /** names: hərflə yığılan söz ad / qısaltma / söz kimi yazılır (R6, E30, spelled.js); false — kiçik hərflərlə bir söz. */
+  constructor(model, { weights = WEIGHTS, native = true, drop = DROP, names = true } = {}) {
+    this.m = model; this.w = weights; this.native = native; this.drop = drop; this.names = names;
   }
 
   #lexOf = (l) => this.m.lex[l] ?? this.m.guess[l];
+
+  /**
+   * Hərflə yığılan söz (R6, spelled.js) modelə tanışdırmı: AzSLD mətnindəki sözlər və işarələrin kökləri (manat,
+   * may) — tanış söz ad deyil, kiçik hərflə yazılır. Xüsusi adlar (BAKI → Bakı, yer adları) ayrıca: onlar addır.
+   */
+  #words = null;
+  #wordSets() {
+    if (this.#words) return this.#words;
+    const known = new Set(), proper = new Set(), spelling = new Map();     // ı = i ilə açar → lüğətdəki yazılış
+    const add = (set, w) => { const n = norm(w); set.add(n); if (!spelling.has(n) || w.includes('ı')) spelling.set(n, w); };
+    const isProper = (l) => this.#lexOf(l)?.proper?.some(Boolean);
+    for (const p of PLACE_NAMES) add(proper, p);
+    for (const [l, f] of Object.entries(this.m.forms ?? {})) {
+      for (const s of Object.keys(f)) for (const t of s.split(' ')) if (t) add(isProper(l) ? proper : known, t);
+    }
+    for (const [l, x] of [...Object.entries(this.m.guess ?? {}), ...Object.entries(this.m.lex ?? {})]) {
+      if (x?.root) add(isProper(l) ? proper : known, x.root);
+    }
+    // korpusun ümumi sözlərinin kökləri (tools/build_common_words.mjs → ml/common_words.txt)
+    for (const w of (this.m.common ?? '').split(/\r?\n/)) if (w) add(known, w);
+    for (const p of proper) known.delete(p);
+    this.#words = { known, proper, spelling };
+    return this.#words;
+  }
+
+  #stemIn = (set, w) => {
+    const n = norm(w);
+    return candidates(n).find((c) => !c.neg && set.has(c.stem) && (c.stem === n || c.stem.length >= 3));
+  };
+
+  /** Lüğətdəki yazılış (B A K İ Y A → bakıya): kök lüğətdən, şəkilçinin i-si kökün ahənginə görə. */
+  #restore(w) {
+    const { known, proper, spelling } = this.#wordSets();
+    const c = this.#stemIn(proper, w) ?? this.#stemIn(known, w);
+    if (!c) return w;
+    const stem = spelling.get(c.stem) ?? c.stem;
+    let out = stem, back = /[aıou][^aıoueəiöü]*$/.test(stem);
+    for (const ch of w.slice(c.stem.length)) {
+      out += ch === 'i' && back ? 'ı' : ch;
+      if ('aıoueəiöü'.includes(ch)) back = 'aıou'.includes(ch === 'i' && back ? 'ı' : ch);
+    }
+    return out;
+  }
+
+  /** Hərflərdən sonrakı fel halı istəyirsə (GETMƏK → -a, YAŞAMAQ → -da, MÜRACİƏT ETMƏK → -a, SEVMƏK → -ı). */
+  #governed(labels, j) {
+    const t = labels[j] && labelText(labels[j]);
+    if (!t) return null;
+    const lx = this.#lexOf(labels[j]);
+    const inf = lx?.pos === 'verb' && lx.root ? infinitive(lx.root) : null;
+    const light = LIGHT.has(t) && labels[j + 1] && /^e[td]/.test(labelText(labels[j + 1])) ? `${t} etmək` : null;
+    for (const v of [light, t, inf]) {
+      const c = v && (PLACE_CASE.get(v) ?? CASE_OF.get(v));
+      if (c) return c;
+    }
+    return null;
+  }
+
+  /**
+   * Hərf ardıcıllığı labels[i, j) → bir-iki söz (spelled.js): öyrənilmiş yazılış, qısaltma, ad və ya söz; ad və
+   * qısaltma ardınca gələn felin halını alır (TSEK-ə gedirəm), cümlənin əvvəlində deyilsə (orada mübtədadır).
+   */
+  #spelledItems(labels, i, j) {
+    // tək hərf (çox vaxt tanıma səhvi) olduğu kimi qalır
+    if (j - i === 1 || !this.names) return [{ labels: labels.slice(i, j), word: azLower(labels.slice(i, j).join('')), via: 'letters' }];
+    const { known, proper } = this.#wordSets();
+    const next = labels[j] ? labelText(labels[j]) : '';
+    const parts = spell(azLower(labels.slice(i, j).join('')), { table: this.m.spelled ?? {},
+      known: (w) => !!this.#stemIn(known, w), proper: (w) => !!this.#stemIn(proper, w), restore: (w) => this.#restore(w),
+      headNext: NAME_HEAD.has(next) });
+    const last = parts.at(-1);
+    // O + III şəxsin mənsubiyyəti (O N Ə V Ə S İ N İ N → onun nəvəsinin)
+    if (parts[0].kind === 'pronoun' && /s[ıiuü](n[ıiuü]n?|n[aə]|nd[aə]n?)?$/.test(azLower(last.word))) parts[0].word = 'onun';
+    const c = i > 0 && (last.kind === 'name' || last.kind === 'acronym') ? this.#governed(labels, j) : null;
+    if (c) last.word = withCase(last.word, last.kind, c);
+    let at = i;
+    return parts.map((p) => {
+      const ls = labels.slice(at, at + p.len);
+      at += p.len;
+      return { labels: ls, word: p.word, via: 'letters', kind: p.kind };
+    });
+  }
 
   #best(table) {
     let best = null, n = 0;
@@ -656,10 +760,10 @@ export class GlossToText {
     const items = [];
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
-      let j = i;
-      while (j < labels.length && spelled(labels, j)) j++;
-      if (j > i) {                                         // D O S T → dost (tək "O" isə əvəzlikdir)
-        items.push({ labels: labels.slice(i, j), word: azLower(labels.slice(i, j).join('')), via: 'letters' });
+      let j = this.names ? runEnd(labels, i) : i;
+      while (!this.names && j < labels.length && spelled(labels, j)) j++;
+      if (j > i) {                                         // D O S T → DOST, M E S S İ N İ N → Messinin (tək "O" isə əvəzlikdir)
+        items.push(...this.#spelledItems(labels, i, j));
         i = j - 1;
         continue;
       }

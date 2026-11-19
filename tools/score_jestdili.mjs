@@ -9,7 +9,8 @@
 // dəfə göstərildilər.
 //
 //   node tools/score_jestdili.mjs D:/chevir/eval/<ad>/sentences.json [--labels public/tercume/assets/cont_model/manifest.json]
-//       [--show 10] [--focus new.json] [--g2t gloss_text.json]
+//       [--show 10] [--focus new.json] [--g2t gloss_text.json] [--no-names]
+// --no-names: hərflə yığılan söz R6-dan (E30) əvvəlki kimi kiçik hərflərlə bir söz (müqayisə üçün)
 import fs from 'node:fs';
 import { Lemmatizer } from '../src/tercume/morph.js';
 import { azLower } from '../src/tercume/words.js';
@@ -52,7 +53,8 @@ for (const it of items) {
 // işarələrdən mətn (brauzerdəki gloss2text, doğma qaydalarla) və mətnin söz xətası (WER), AzSLD-dəki kimi
 const DROP_OPT = opt('--drop', null);
 const g2t = new GlossToText(JSON.parse(fs.readFileSync(opt('--g2t', 'public/tercume/assets/gloss_text.json'), 'utf8')),
-  DROP_OPT ? { drop: { min: Number(DROP_OPT.split(',')[0]), ratio: Number(DROP_OPT.split(',')[1]) } } : {});
+  { ...(DROP_OPT && { drop: { min: Number(DROP_OPT.split(',')[0]), ratio: Number(DROP_OPT.split(',')[1]) } }),
+    names: !args.includes('--no-names') });
 let werE = 0, werN = 0;
 items.forEach((it, k) => {
   const hyp = it.signs.length ? g2t.generate(it.signs).text : '';

@@ -48,7 +48,11 @@ let weights;
 // --drop min,ratio: sözsüz işarənin həddi (gloss2text DROP)
 const DROP_OPT = opt('--drop', null);
 const drop = DROP_OPT ? { min: Number(DROP_OPT.split(',')[0]), ratio: Number(DROP_OPT.split(',')[1]) } : undefined;
-const model = (keep) => new GlossToText(fit(prep, (i) => !isPseudo(i) && keep(i), prior, PW), { weights, drop });
+// --no-names: hərflə yığılan söz əvvəlki kimi kiçik hərflərlə bir söz (R6-dan əvvəl; müqayisə üçün)
+const names = !args.includes('--no-names');
+// hərflə yığılan sözlər üçün korpusun ümumi sözləri (R6, E30; AzSLD-dən asılı deyil: leave-one-out-u pozmur)
+const COMMON = fs.readFileSync('ml/common_words.txt', 'utf8').trim().split(/\r?\n/).join('\n');
+const model = (keep) => new GlossToText({ ...fit(prep, (i) => !isPseudo(i) && keep(i), prior, PW), common: COMMON }, { weights, drop, names });
 const fitWithout = (skip) => model((i) => isDev(i) && i !== skip);
 const devModel = () => model(isDev);
 let all = null;
@@ -80,6 +84,32 @@ function chrf(items, N = 6, beta = 2) {
 }
 const score = (items) => `${wer(items)} / ${chrf(items)}`;
 
+// R6 (E30): hərflə yığılan sözü olan cümlələr (annotasiyada ən azı iki ardıcıl hərf), WER kiçik hərflə və böyük
+// hərfi də sayan; "hərflə yığılan söz düz" — gloss2text-in hərflərdən qurduğu söz mətndə eynilə (böyük hərfi ilə) var
+const isLetterLabel = (l) => [...l].length === 1 && /\p{L}/u.test(l);
+const hasRun = (g) => g.some((l, k) => isLetterLabel(l) && isLetterLabel(g[k + 1] ?? ''));
+// nöqtə sözün içində qalır (Jestdili.az), sonunda atılır
+const casedWords = (t) => t.replace(/[,!?;"()«»“”]+/g, ' ').split(/\s+/).map((w) => w.replace(/\.+$/, '')).filter(Boolean);
+function casedWer(items) {
+  let e = 0, n = 0;
+  for (const { hyp, ref } of items) { const r = casedWords(ref); e += levenshtein(casedWords(hyp), r); n += r.length; }
+  return `${(100 * e / n).toFixed(1).padStart(5)} %`;
+}
+function spelledRight(items) {
+  let ok = 0, n = 0;
+  for (const { words, ref } of items) {
+    const r = casedWords(ref), first = r[0] ? r[0][0].toLocaleLowerCase('az') + r[0].slice(1) : '';
+    for (const w of words.filter((x) => x.via === 'letters' && x.labels.length > 1)) {
+      n++;
+      if (w.word.split(' ').every((t) => r.includes(t) || t === first || t[0].toLocaleUpperCase('az') + t.slice(1) === r[0])) ok++;
+      else if (args.includes('--show-spelled')) console.log(`    ${w.labels.join(' ')} → ${w.word}  |  ${ref}`);
+    }
+  }
+  return `${ok} / ${n}`;
+}
+const r6line = (name, set) => console.log(`  ${name.padEnd(13)} ${String(set.length).padStart(4)} sentences | WER ${wer(set)}`
+  + ` | WER with capitals ${casedWer(set)}${set[0]?.words ? ` | spelled words right ${spelledRight(set)}` : ''}`);
+
 // --tune: kontekstlərin çəkiləri dev cümlələrində (leave-one-out) seçilir, test cümlələrinə baxılmır
 if (args.includes('--tune')) {
   const { WEIGHTS } = await import('../src/tercume/gloss2text.js');
@@ -101,9 +131,9 @@ let gold;
 for (const pw of PWS) {
   PW = pw;
   gold = { dev: [], test: [] };
-  for (const i of devIdx) gold.dev.push({ s: S[i], hyp: fitWithout(i).generate(S[i].glosses).text, raw: raw(S[i].glosses), ref: S[i].text });
+  for (const i of devIdx) { const o = fitWithout(i).generate(S[i].glosses); gold.dev.push({ s: S[i], hyp: o.text, words: o.words, raw: raw(S[i].glosses), ref: S[i].text }); }
   const dm = devModel();
-  for (const i of testIdx) gold.test.push({ s: S[i], hyp: dm.generate(S[i].glosses).text, raw: raw(S[i].glosses), ref: S[i].text });
+  for (const i of testIdx) { const o = dm.generate(S[i].glosses); gold.test.push({ s: S[i], hyp: o.text, words: o.words, raw: raw(S[i].glosses), ref: S[i].text }); }
   if (PSEUDO) console.log(`  pseudo weight ${pw}`);
   for (const name of ['dev', 'test']) {
     const set = gold[name];
@@ -115,6 +145,9 @@ if (PWS.length > 1) process.exit(0);
 // --dump <file>: dev və test cümlələrinin mətnləri (qaydaların müqayisəsi üçün)
 if (opt('--dump', null)) fs.writeFileSync(opt('--dump', null), JSON.stringify(Object.fromEntries(['dev', 'test'].map((n) => [n,
   gold[n].map((x) => ({ glosses: x.s.glosses.join(' '), hyp: x.hyp, ref: x.ref }))])), null, 0));
+console.log(`  sentences with spelled words (R6${names ? '' : ', off: --no-names'}):`);
+r6line('spelled dev', gold.dev.filter((x) => hasRun(x.s.glosses)));
+r6line('spelled test', gold.test.filter((x) => hasRun(x.s.glosses)));
 if (SHOW) {
   console.log(`\n  test examples:`);
   for (const x of gold.test.slice(0, SHOW)) console.log(`    ${x.s.glosses.join(' ')}\n      → ${x.hyp}\n      = ${x.ref}`);
@@ -155,6 +188,7 @@ if (fs.existsSync(DET)) {
   const line = (name, set, cols) => console.log(`  ${name.padEnd(13)} ` + cols.map(([c, k]) => `${c} ${score(set.map((x) => ({ hyp: x[k], ref: x.ref })))}`).join(' | '));
   line('new sentence', unseen, [['gloss string', 'raw'], ['nearest AzSLD sentence', 'retr'], ['gloss2text', 'g2t'], ['nearest, else gloss2text', 'both']]);
   line('known sentence', known, [['gloss string', 'raw'], ['nearest AzSLD sentence', 'retr'], ['nearest, else gloss2text', 'both']]);
+  r6line('spelled new', unseen.filter((x) => hasRun(S[x.i].glosses)).map((x) => ({ ref: x.ref, hyp: x.g2t })));
   // --sweep: AzSLD cümləsinin götürülmə həddi (nearestSentence maxDist) — yeni və məlum cümlə arasında seçim
   if (args.includes('--sweep')) {
     for (const t of [0, 0.1, 0.15, 0.2, 0.25, 0.34]) {

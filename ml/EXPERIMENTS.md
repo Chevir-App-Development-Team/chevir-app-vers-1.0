@@ -3267,3 +3267,116 @@ Files: `ml/azsl/nonmanual.py` (features, labels), `ml/nonmanual.py` (`cache`, `t
 `tools/eval_nonmanual_text.mjs`, `ml/fixtures/nonmanual_v1.{json,bin}`. Local only: `D:/chevir/eval/nonmanual/`
 (frame cache, JestDili.az labels, `final/report.json`, per-recording scores), exploration scripts in
 `D:/chevir/scripts/e31/`. No long GPU job: the logistic heads fit on the CPU in seconds; the temporal CNN ran ~2 min.
+
+## E30 — Fingerspelling: the letters model on all signers, names spelled inside sentences (R6)
+
+Two parts: the letters model trained on every AzSLD signer (`final_hand_all`, E27) waited for a test on someone
+outside AzSLD; and in sentence mode a run of recognized letters became one lowercase word, so names and
+abbreviations came out as "dost", "messinin", "tsek".
+
+### Letters model: JestDili.az's alphabet as the new-person test
+
+**Data.** JestDili.az's alphabet list (`data/jestdili/alphabets.json`, 32 letters) links two photos per letter. The 32
+cover photos downloaded (2.0 MB, 1080 × 1080, a hand on white with the letter printed; a moving letter is drawn as two
+hands and an arrow); all 32 second photos (`image1Url`) answer 404, the stored list is older than the server (a fresh
+list needs the API address; the user chose to go on with 32). `tools/fetch_jestdili.py --alphabet DIR` downloads them
+from the stored list without the API; the photos stay outside the repo (`D:/chevir/jestdili_alphabet`).
+
+**Method** (`ml/eval_letters_photos.py`, run with `-I`): landmarks with the same MediaPipe hand model in IMAGE mode as
+AzSLD's own photos (`landmarks.Extractor.image`; all 32 photos have a hand, 3 two-hand drawings of moving letters
+have two), each photo a still clip of 24 frames as in `letters.load_photos`, then `letters.preprocess`. Scores among
+the 32 letters. With so few photos, two finer paired measures: the probability given to the right letter, and
+"jittered" = the share right over 30 copies of each photo through the training augmentation (mirror, rotation,
+scale, shear, point noise, a hand missing for a stretch; the same copies for every model), compared with a paired
+bootstrap over photos (10,000 resamples).
+
+| Model | top-1 (32) | top-3 | static letters (24) | moving (8) | mirrored top-1 | jittered top-1 | p(right letter) |
+|---|---|---|---|---|---|---|---|
+| v2 `hand` (train signers only, E8) | 0.531 | 0.688 | 17 | 0 | 0.531 | 0.552 | 0.495 |
+| `final_hand` (installed until now, train + val) | 0.594 | 0.719 | 19 | 0 | 0.562 | 0.569 | 0.516 |
+| **`final_hand_all`** (all signers) | 0.594 | **0.781** | 19 | 0 | **0.625** | **0.622** | **0.541** |
+
+- `final_hand_all` − `final_hand`: photos only one of them gets right 1 / 1 (as is), 3 / 1 (mirrored); jittered
+  +0.053 [−0.028, +0.144]; p(right) +0.025 [−0.035, +0.099] as is, +0.066 [−0.017, +0.165] mirrored. Level on the
+  main score, ahead on every finer one, none of it significant on 32 photos. More signers, better on the new person,
+  in order: v2 < `final_hand` < `final_hand_all` (all − v2 on static letters, jittered: +0.097 [+0.003, +0.215]).
+- The 8 moving letters (ç d g k ö ü y z) are 0 for every model: a still photo has no movement, and the model reads
+  them by their movement (clips 0.93 in E8). A limit of the test, not of the model.
+- **False letters on another person's signing:** JestDili.az's 500 sentence videos (29.7 min, no spelling expected,
+  resampled to 30 fps) through the letter mode's own browser path and rules (`tools/letters_tune.mjs` with
+  `letters: []`, `LETTERS_SPEEDS=1`; `ml/eval_letters_photos.py export-sentences`): `final_hand` types 31 letters in
+  26 videos (1.04 per minute), `final_hand_all` 26 in 23 (0.88 per minute).
+
+**Installed (commit 690932e):** at least level on the new person (the shared install rule) and ahead on every finer
+measure. AzSLD's test cannot score it (it trained on those signers); the held-out run of the same recipe is
+`final_hand` (test top-1 0.933, E8). The previous model is in `D:/chevir/backup/letter_model_before_all`.
+`ml/install_letters.py --recipe-of ml/results/letters2/final_hand --jestdili <scores.json>` puts `final_hand`'s
+held-out metrics into the manifest (`metrics_from`) and the photo result (`jestdili`); the model page says whose
+numbers the table shows and adds the photo line (`app.js renderAboutLetters`). `verify_letters.mjs`, all 13
+`verify_*` and the gates pass; `/tercume/` loads it (33 labels) and its model page shows the note (dev server).
+
+### R6: a spelled name inside a sentence becomes one name in the text
+
+**Before.** The sentence model finds letters (E7). `gloss2text` joined a run (D O S T → "dost"), capitalized only
+after AD (E27: "Mənim adım Samirdir"). The translator's sentence mode and `/danis/` write their text line with
+`generate()` (`s2s.js textOf`, when no AzSLD sentence is near), so a change there reaches both pages; their sign row
+keeps one chip per letter, as it shows signs. AzSLD has 27 of 492 sentences with a spelled run (≥ 2 letters), 4 of
+them held-out test sentences: names (Sahil, Asif Məhərrəmov, Messinin, Qəbələyə, Dolu, Abşeron), abbreviations (DOST
+in 9 sentences, TSEK, ÜDSY, DSMF, ADA), common words with no sign (manat, may, iyun, ədəbiyyat, onlayn, icbari,
+ofisiniz, nəvəsinin) and Jestdili.az.
+
+**Rules** (`src/tercume/spelled.js`, used by `gloss2text.generate`; `names: false` gives the old behaviour):
+1. The spelling AzSLD's text uses for these letters, learned in `fit` per kept sentence (`model.spelled`, so the
+   leave-one-out measure stays fair): DOST, Messinin, ofisiniz. A sentence's first word counts only if all capitals.
+2. Two familiar parts, one of them learned: A B Ş E R O N D O S T → "Abşeron DOST". A leading O whose rest is a word
+   is the pronoun: O N Ə V Ə S İ N İ N → "Onun nəvəsinin" (genitive before a third-person possessive).
+3. Letters never seen, one letter away from a spelling learned at least twice: D S T → DOST.
+4. Otherwise: a place or proper name (PLACE_NAMES, AzSLD's capitalized signs) is a name; short and unreadable (no
+   vowel, three consonants together, two at the start: DSMF, ÜDSY, TSEK) is an abbreviation in capitals; a common
+   word stays lowercase; anything else is a name with a capital. Followed by a word that takes a name (METRO, FİLM,
+   UNİVERSİTET, KÜÇƏ, MƏRKƏZ...), a common word is a name too: "Sahil metroya", "Dolu filminə".
+   Common words: the model's own words plus `ml/common_words.txt` (`tools/build_common_words.mjs`): HPLT 2.0's
+   927,034 sentences (CC0, already used for the pseudo-glosses), words written lowercase after the first word at
+   least 10 times and not more often capitalized, with a vowel, reduced to their shortest attested stem: 13,701
+   stems, 133 KB. They ride in `gloss_text.json` as `common` (294 → 434 KB).
+5. Case from the next sign when it governs one (the existing tables: GETMƏK → dative, YAŞAMAQ → locative, MÜRACİƏT
+   ETMƏK → dative, SEVMƏK → accusative), not for the sentence's first word (the subject: "Samir gəldi") and not
+   when the letters already end in that suffix (Qəbələyə). Names take it directly (Messini, Bakıya, İraqa: no
+   k / q softening), abbreviations after a hyphen by how they are read: as a word if readable (TSEK-ə, DOST-a),
+   else by the last letter's name (DSMF-ə, BMT-yə, ÜDSY-yə).
+
+Also: the sentence model has no I, so a known word gets its ı back (B A K İ Y A → "Bakıya"); a dot between letters
+joins (J E S T D İ L İ . A Z → "Jestdili.az"); a lone letter stays as it was (usually a recognition slip).
+
+**Results** (`tools/eval_gloss_text.mjs`, new lines "spelled ..."; `--no-names` for before; "with capitals" = WER on
+case-sensitive words; "spelled words right" = the word built from letters appears exactly in the text):
+
+| AzSLD | before | R6 |
+|---|---|---|
+| annotated glosses, dev, 23 sentences with spelled words: WER / with capitals / spelled words right | 41.7 / 54.3 / 8 of 24 | **41.0 / 43.5 / 21 of 23** |
+| annotated glosses, test, 4 sentences | 50.0 / 61.5 / 0 of 4 | **38.5 / 46.2 / 4 of 5** |
+| recognized glosses (`detections_test.csv`), 96 test recordings of those sentences, as new sentences | 49.8 / 60.3 | **47.5 / 50.7** |
+| all sentences: dev 443 / test 49 / recognized new 1,484 (WER) | 42.0 / 44.1 / 46.5 | 41.9 / **42.8** / 46.3 |
+
+- What is still wrong: "Asif Məhərrəmov" comes out "Asifməhərrəmov" (no list of first names to split a name from a
+  surname); ADA, seen in no other sentence, becomes "Ada" (a common word before UNİVERSİTET); "DSMF-ə" where the
+  text puts "(DSMF)" after "Fonduna". Recognition slips stay slips with a capital ("Mesi", "MNT"); a letter recognized
+  twice (H H E Y D Ə R) is kept, as real names have double letters (Messi, ədəbiyyat).
+- JestDili.az, the 246 held-out sentences (the E29 hold-out run's outputs, `tools/score_jestdili.mjs`, new
+  `--no-names`): WER 60.3 % before and after; 5 outputs have spelled runs (ADA now right; Samir and Arzu were already
+  right after AD; Sadıqov and Heydər were misrecognized).
+- Gates tightened as `ml/gates.json` asks (current + 1 point): s2t dev 42.9, test 43.8. E31's text table
+  (`tools/eval_nonmanual_text.mjs`) was measured before R6; rerun, its baselines move with these numbers.
+- `tools/verify_gloss_text.mjs`: 23 new checks (the browser's model: TSEK-ə, Messini, Qubada, Bakıya, BMT-yə, DSMF-ə,
+  ÜDSY-yə, Abşeron DOST, D S T → DOST, Jestdili.az, manat, kitab, Sahil metroya, Dolu filminə, ADA, Onun nəvəsinin,
+  Leylanı, Qəbələyə, Samir gəldi, a lone letter, `names: false`; the learned spelling; the case suffixes). All 13
+  `verify_*` and the gates pass. Checked in the browser (dev server, the app's `gloss_text.json`): the same sentences.
+
+Files: `src/tercume/spelled.js` (new), `src/tercume/gloss2text.js` (`runEnd`, `spelled` in `prepare` / `fit`,
+`#spelledItems`, `names` option), `tools/build_common_words.mjs` + `ml/common_words.txt` (new),
+`tools/build_gloss_text.mjs`, `public/tercume/assets/gloss_text.json` (rebuilt: earlier tables unchanged, plus
+`spelled` and `common`), `tools/eval_gloss_text.mjs`, `tools/score_jestdili.mjs`, `tools/verify_gloss_text.mjs`,
+`ml/gates.json`; part 1: `ml/eval_letters_photos.py`, `ml/install_letters.py`, `tools/fetch_jestdili.py`,
+`tools/letters_tune.mjs`, `src/tercume/app.js`, `public/tercume/assets/letter_model/`,
+`ml/fixtures/letters_model_ref.json`. Local only: `D:/chevir/jestdili_alphabet`, `D:/chevir/eval/letters_jestdili`
+(landmarks, scores, false letters), `D:/chevir/eval/r6`. No GPU used.

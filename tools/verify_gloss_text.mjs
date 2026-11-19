@@ -110,6 +110,39 @@ for (const [labels, want] of [['O ƏVVƏL XƏSTƏXANA İŞLƏMƏK', 'O əvvəl x
   const got = G.generate(labels.split(' ').map((l) => l.replaceAll('+', ' '))).text;   // + : çoxsözlü işarə
   check(got === want, `zaman/xəbər/yer/say: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
+// Hərflə yığılan sözlər (R6, E30, spelled.js): öyrənilmiş yazılış (DOST, TSEK, ADA), qısaltma və ona defislə hal
+// (oxunuşa görə: BMT-yə, DSMF-ə), ad və ona hal (Messini, Qubada, I hərfi bərpa: Bakıya), ümumi söz kiçik hərflə
+// (manat, kitab), ardınca METRO / FİLM gələndə ümumi söz də ad (Sahil, Dolu), iki tanış hissə (Abşeron DOST),
+// O + mənsubiyyət (onun nəvəsinin), bir hərf səhvi öyrənilmiş sözə (D S T → DOST), hərflər arasında nöqtə, tək hərf
+// dəyişmir, cümlənin əvvəlindəki ad mübtədadır (hal almır)
+if (model.spelled && model.common) {
+  for (const [labels, want] of [['MƏN POLİKLİNİKA T S E K GETMƏK', 'Mən poliklinikaya TSEK-ə getmişəm'],
+    ['MƏN M E S S İ SEVMƏK', 'Mən Messini sevirəm'], ['MƏN Q U B A YAŞAMAQ', 'Mən Qubada yaşayıram'],
+    ['MƏN B A K İ GETMƏK', 'Mən Bakıya getmişəm'], ['MƏN B M T MÜRACİƏT ETMƏK', 'Mən BMT-yə müraciət etmişəm'],
+    ['MƏN D S M F MÜRACİƏT ETMƏK', 'Mən DSMF-ə müraciət etmişəm'], ['MƏN Ü D S Y MÜRACİƏT ETMƏK', 'Mən ÜDSY-yə müraciət etmişəm'],
+    ['A B Ş E R O N D O S T MƏRKƏZ MÜRACİƏT ETMƏK', 'Abşeron DOST mərkəzinə müraciət edib'],
+    ['D S T MƏRKƏZ VAR', 'DOST mərkəzləri var'], ['J E S T D İ L İ . A Z ÇOX FAYDALIDIR', 'Jestdili.az çox faydalıdır'],
+    ['BU QİYMƏT 10 M A N A T', 'Bu qiyməti 10 manat'], ['MƏN K İ T A B ALMAQ', 'Mən kitab almışam'],
+    ['MƏN S A H İ L METRO GETMƏK', 'Mən Sahil metroya gedirəm'],
+    ['MƏN D O L U FİLM BİLET ALMAQ İSTƏMƏK', 'Mən Dolu filminə bilet almaq istəyirəm'],
+    ['MƏN A D A UNİVERSİTET OXUMAQ', 'Mən ADA universitetdə oxuyuram'],
+    ['O N Ə V Ə S İ N İ N 6 YAŞ VAR', 'Onun nəvəsinin 6 yaşı var'], ['MƏN L E Y L A SEVMƏK', 'Mən Leylanı sevirəm'],
+    ['MƏN Q Ə B Ə L Ə Y Ə GETMƏK', 'Mən Qəbələyə getmişəm'], ['S A M İ R GƏLMƏK', 'Samir gəldi'],
+    ['MƏN İNDİ A', 'Mən indi a']]) {
+    const got = G.generate(labels.split(' ')).text;
+    check(got === want, `hərflə: ${labels} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+  const off = new GlossToText(model, { names: false }).generate('D O S T MƏRKƏZ VAR'.split(' ')).text;
+  check(off === 'Dost mərkəzləri var', `hərflə, names: false (R6-dan əvvəlki kimi): D O S T MƏRKƏZ VAR → ${off}`);
+  const { alignRuns, withCase } = await import('../src/tercume/spelled.js');
+  const al = alignRuns(['tsek', 'messinin', 'abşerondost', 'manat', 'sahil'],
+    'Sahil yanında (TSEK-ə) getdim, Messinin fanatıyam, Abşeron DOST Mərkəzi 10 manat').map((x) => x.surface);
+  check(JSON.stringify(al) === JSON.stringify(['TSEK', 'Messinin', 'Abşeron DOST', 'manat', null]),
+    `hərflə, öyrənmə (mətndəki yazılış; cümlənin ilk sözünün böyük hərfi sayılmır): ${JSON.stringify(al)}`);
+  const cs = [withCase('DOST', 'acronym', 'dat'), withCase('ÜDSY', 'acronym', 'loc'), withCase('İraq', 'name', 'dat'),
+    withCase('Messini', 'name', 'acc'), withCase('manat', 'word', 'dat')].join(' ');
+  check(cs === 'DOST-a ÜDSY-də İraqa Messini manat', `hərflə, hal: ${cs}`);
+}
 const { ordinal } = await import('../src/tercume/gloss2text.js');
 const ords = [1979, 2018, 1990, 2000, 1940, 1800, 30].map(ordinal).join(' ');
 check(ords === '1979-cu 2018-ci 1990-cı 2000-ci 1940-cı 1800-cü 30-cu', `sıra sayı: ${ords}`);
