@@ -10,6 +10,7 @@ import { createLandmarkers, detectFrame, LandmarkClip } from './landmarks.js';
 import { LocalRecognizer } from './recognizer.js';
 import { CONT_MODEL_BASE, GLOSS_TEXT_URL, SIGN_MERGE_URL } from './paths.js';
 import { GlossToText } from './gloss2text.js';
+import { FRAME_GAP_MS, MIN_HANDS, PENDING_RULE, SENTENCE_GAP, showPending } from './live.js';
 import {
   CONTINUOUS_VERSION, DECODE, nearestSentence, Resampler, SentenceStream, shortClasses, STREAM, WindowStream,
 } from './continuous.js';
@@ -23,15 +24,25 @@ export class SignToSentence {
    * @param {(e: {words, match, text}) => void} [o.onSentence] cümlə bağlandı; match — işarələri çox yaxın olan AzSLD
    *   cümləsi (textOf), text — cümlənin mətni: match-in mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
    * @param {(e: {words, pending, text, match}) => void} [o.onLive] hər pəncərədə (~0.27 s), dəyişəndə: yekun sözlər,
-   *   hələ yekun olmayan sözlər (işarə göstərilən anda, sonra dəyişə bilər) və hamısından qurulan mətn
+   *   hələ yekun olmayan sözlər (işarə göstərilən anda, sonra dəyişə bilər; live.js PENDING_RULE-a görə) və
+   *   hamısından qurulan mətn
+   * @param {(e: {progress}) => void} [o.onPause] hər pəncərədə: cümlədə yekun söz var və yeni işarə yoxdursa, cümlənin
+   *   bağlanmasına qədər keçən hissə (0…1), yoxsa 0
+   * @param {(e: object) => void} [o.onTrace] ölçmə (/danis/?debug=1): hər sözün boz/ağ anı, yalançı boz sözlər
    * @param {(e: {stage, message}) => void} [o.onStatus]
    */
-  constructor({ video, onFrame, onWords, onSentence, onLive, onStatus, base = CONT_MODEL_BASE } = {}) {
-    Object.assign(this, { video, onFrame, onWords, onSentence, onLive, onStatus, base });
+  constructor({ video, onFrame, onWords, onSentence, onLive, onPause, onStatus, onTrace, base = CONT_MODEL_BASE,
+    pendingRule = PENDING_RULE, sentenceGap = SENTENCE_GAP, minHands = MIN_HANDS } = {}) {
+    Object.assign(this, { video, onFrame, onWords, onSentence, onLive, onPause, onStatus, onTrace, base, pendingRule,
+      sentenceGap, minHands });
     this.words = [];
     this.sentences = [];
     this.known = [];
     this.lastTs = 0;
+    // ölçmə (onTrace verilibsə): kamera kadrları, MediaPipe və model vaxtı, hər sözün boz/ağ anı
+    this.stats = { camFrames: 0, lmMs: 0, modelMs: 0, lagMs: 0 };
+    this.frameTs = new Float64Array(4096);   // 30 fps kadrının (mütləq nömrə % 4096) gəldiyi an
+    this.frameHands = new Uint8Array(4096);  // o kadrda neçə əl var
   }
 
   async init() {
@@ -73,6 +84,10 @@ export class SignToSentence {
     await this.video.play();
     this.#reset();
     this.running = true;
+    if (!this._visBound) {                   // səhifə gizlənəndə (başqa pəncərə, nişan) kadr gəlmir: açıq cümlə bağlanır
+      document.addEventListener('visibilitychange', () => { if (document.hidden) this.#closeSentence(); });
+      this._visBound = true;
+    }
     this.onStatus?.({ stage: 'running', message: 'Kamera işləyir · cümləni fasiləsiz göstər, sonda əlləri endir' });
     this.#tick();
   }
@@ -129,6 +144,8 @@ export class SignToSentence {
     this.sentences = [];
     this.#reset();
     this._liveKey = null;
+    this._grey = [];
+    this._seen = null;
     this.onWords?.({ words: [], added: [], sentence: null, ms: 0 });
     this.onLive?.({ words: [], pending: [], text: '', match: null });
   }
@@ -137,29 +154,53 @@ export class SignToSentence {
     this.clip = new LandmarkClip(this.p.window + 32);
     this.ws = new WindowStream(this.p);
     this.ss = new SentenceStream({ C: this.rec.labels.length, decode: this.dp, unknown: this.unk,
-      short: shortClasses(this.rec.labels) });
+      short: shortClasses(this.rec.labels), sentenceGap: this.sentenceGap });
     this.resampler = new Resampler(30);
     this.busy = Promise.resolve();
     this._lastVideoTime = -1;
+    this._gen = (this._gen ?? 0) + 1;         // Təmizlə-dən əvvəl növbəyə düşmüş pəncərə yeni axına qarışmasın
   }
 
   #tick = () => {
     if (!this.running || this._file) return;
     this._raf = requestAnimationFrame(this.#tick);
     const v = this.video;
-    if (v.readyState < 2 || v.currentTime === this._lastVideoTime) return;
+    if (this._closing || v.readyState < 2 || v.currentTime === this._lastVideoTime) return;
     this._lastVideoTime = v.currentTime;
-    this.#process(v, performance.now(), { resample: true });
+    const now = performance.now();
+    // FRAME_GAP_MS-dən uzun kadr gəlmədi (pəncərə örtülüb, kamera dayanıb): əvvəlki cümlə yenisinə qarışmasın
+    if (this._lastFrameAt && now - this._lastFrameAt > FRAME_GAP_MS) {
+      this.#closeSentence();
+      return;
+    }
+    this._lastFrameAt = now;
+    this.#process(v, now, { resample: true });
   };
+
+  /** Açıq cümlə indi bağlanır (axının sonu kimi: gözləyən sözlər yekun olur), axın təzədən başlayır. */
+  #closeSentence() {
+    if (!this.running || this._file || this._closing) return;
+    this._closing = true;
+    this.#end().then(() => {
+      this.#reset();
+      this._lastFrameAt = 0;
+    }).finally(() => { this._closing = false; });
+  }
 
   #process(v, ts, { resample, ...extra }) {
     this.aspect = v.videoWidth / v.videoHeight;
     ts = Math.max(Math.round(ts), this.lastTs + 1);
     this.lastTs = ts;
+    const t0 = performance.now();
     const frame = detectFrame(this.lms, v, ts);
+    const st = this.stats;
+    st.camFrames++;
+    st.lmMs += ((performance.now() - t0) - st.lmMs) * 0.1;          // hərəkətli orta
     for (const f of resample ? this.resampler.push(frame, ts) : [frame]) {
       this.clip.push(f);
       const w = this.ws.push();
+      this.frameTs[(this.ws.n - 1) & 4095] = t0;
+      this.frameHands[(this.ws.n - 1) & 4095] = Number.isFinite(f.hand[0]) + Number.isFinite(f.hand[63]);
       if (w) this.#run(w);
     }
     this.onFrame?.({ frame, aspect: this.aspect, ...extra });
@@ -169,17 +210,33 @@ export class SignToSentence {
   #run(w, flush = false) {
     const first = this.ws.n - this.clip.length;         // buferin ilk kadrının mütləq nömrəsi
     const raw = this.clip.toRaw(w.a - first, w.b - first);
-    const aspect = this.aspect, C = this.rec.labels.length;
+    const aspect = this.aspect, C = this.rec.labels.length, gen = this._gen;
     this.busy = this.busy.then(async () => {
+      if (gen !== this._gen) return;
       const t0 = performance.now();
       const { probs } = await this.rec.frameProbs(raw, aspect, { face: this.face });
+      if (gen !== this._gen) return;
+      const st = this.stats, now = performance.now();
+      st.modelMs += ((now - t0) - st.modelMs) * 0.1;
+      st.lagMs += ((now - this.frameTs[(w.b - 1) & 4095]) - st.lagMs) * 0.1;   // pəncərənin son kadrından nəticəyə
       const k = w.to - w.from;
+      const base = w.from - this.ss.rows.length;            // seqment kadrları (cümlənin sətirləri) → mütləq nömrə
       const res = this.ss.add(probs.subarray((w.from - w.a) * C, (w.to - w.a) * C), k);
-      this.#emit(res, performance.now() - t0);
-      if (flush) this.#emit(this.ss.flush(), 0);
-      if (this.onLive) {                       // hələ bərkiməmiş kadrlardakı sözlər: dərhal, boz
+      this.#emit(res, now - t0, base);
+      if (flush) {
+        const fb = w.to - this.ss.rows.length;
+        this.#emit(this.ss.flush(), 0, fb);
+      }
+      if (this.onLive || this.onPause) {       // hələ bərkiməmiş kadrlardakı sözlər: dərhal, boz
         const pending = flush ? [] : this.ss.peek(probs.subarray((w.to - w.a) * C, (w.b - w.a) * C), w.b - w.to);
-        this.#live(pending.map((s) => ({ label: this.rec.labels[s.c], p: s.p, pending: true })));
+        const pb = w.to - this.ss.rows.length, n = this.words.length;
+        if (this.onLive) {
+          this.#live(this.#shown(pending.map((s, i) => ({ label: this.rec.labels[s.c], p: s.p, pending: true,
+            pos: n + i, fa: s.a + pb, fb: s.b + pb, hands: this.#handsIn(s.a + pb, s.b + pb) }))));
+        }
+        // cümlə bağlanmağa nə qədər qalıb: son yekun sözdən bəri bərkimiş kadrlar / sentenceGap (SentenceStream ilə eyni)
+        const quiet = n && !pending.length ? (this.ss.rows.length - this.ss.lastEnd) / this.sentenceGap : 0;
+        this.onPause?.({ progress: Math.min(1, Math.max(0, quiet)) });
       }
     }).catch((err) => {
       console.error(err);
@@ -188,17 +245,87 @@ export class SignToSentence {
     return this.busy;
   }
 
-  #emit({ added, sentenceEnded }, ms) {
+  /**
+   * Boz göstərilən sözlər (live.js showPending): eyni yerdə (pos, cümlədəki sıra) eyni söz neçə ardıcıl pəncərədə
+   * gəlib. Bir pəncərəlik yalançı sözlər (~0.27 s görünüb yox olan) belə süzülür (E35, tools/sim_danis.mjs).
+   */
+  #shown(pending) {
+    const prev = this._seen ?? new Map(), seen = new Map();
+    const out = pending.filter((w) => {
+      const key = `${w.pos}:${w.label}`, count = (prev.get(key) ?? 0) + 1;
+      seen.set(key, count);
+      return w.hands >= this.minHands && showPending({ p: w.p, len: w.fb - w.fa }, count, this.pendingRule);
+    });
+    this._seen = seen;
+    return out;
+  }
+
+  /** base: cümlə sətirlərinin mütləq kadr nömrəsi (fa/fb — kadrın mütləq nömrəsi, ölçmə üçün) */
+  #emit({ added, sentenceEnded }, ms, base = 0) {
     const labels = this.rec.labels;
-    const fresh = added.map((s) => ({ label: labels[s.c], p: s.p, a: s.a, b: s.b }));
+    const all = added.map((s) => ({ label: labels[s.c], p: s.p, a: s.a, b: s.b, fa: s.a + base, fb: s.b + base,
+      hands: this.#handsIn(s.a + base, s.b + base) }));
+    // kadrlarında demək olar əl olmayan söz (əllər kadrdan kənarda, yalnız qollar tərpənir): göstərilmir (live.js)
+    const fresh = all.filter((w) => w.hands >= this.minHands);
+    if (this.onTrace) {
+      for (const w of all) if (w.hands < this.minHands) this.onTrace({ kind: 'nohands', label: w.label, p: w.p, hands: w.hands });
+      this.#traceFinal(fresh);
+    }
     this.words.push(...fresh);
     const { text, match } = this.textOf(this.words.map((x) => x.label));
     if (fresh.length) this.onWords?.({ words: this.words, added: fresh, sentence: match, text, ms });
     if (sentenceEnded && this.words.length) {
       this.sentences.push({ words: this.words, match, text });
       this.onSentence?.({ words: this.words, match, text });
+      if (this.onTrace) this.#traceSentence(text);
       this.words = [];
     }
+  }
+
+  /** [fa, fb) kadrlarının neçə hissəsində ən azı bir əl var (frameHands, son 4096 kadr). */
+  #handsIn(fa, fb) {
+    let h = 0;
+    for (let f = fa; f < fb; f++) h += this.frameHands[f & 4095] > 0;
+    return h / Math.max(1, fb - fa);
+  }
+
+  /**
+   * Ölçmə: hər söz üçün işarənin kadrlarının gəldiyi an (fa, fb), boz göründüyü və ağ olduğu an; boz görünüb
+   * yekun olmayan sözlər (dropped). Vaxtlar performance.now() ilə, ms.
+   */
+  #traceFinal(fresh) {
+    const now = performance.now(), t = (f) => this.frameTs[f & 4095];
+    fresh.forEach((w, i) => {
+      const idx = this.words.length + i, g = this._grey?.[idx];
+      const grey = g && g.label === w.label ? g.t : null;
+      this.onTrace({ kind: 'word', label: w.label, p: w.p, fa: w.fa, fb: w.fb, len: w.fb - w.fa,
+        hands: w.hands, tStart: t(w.fa), tEnd: t(w.fb - 1), grey, white: now,
+        sentence: this.sentences.length });
+    });
+  }
+
+  #traceGrey(pending) {
+    const now = performance.now(), n = this.words.length;
+    this._grey ??= [];
+    // əvvəl boz görünüb indi nə yekun, nə boz olan sözlər: yalançı göstəriş
+    for (const [idx, g] of this._grey.entries()) {
+      if (!g || g.done) continue;
+      const fin = idx < n ? this.words[idx] : null, pen = pending.find((p) => p.pos === idx);
+      if (fin?.label === g.label) { g.done = true; continue; }     // yekun oldu
+      if (pen?.label === g.label) continue;                        // hələ boz
+      g.done = true;
+      this.onTrace({ kind: 'dropped', label: g.label, grey: g.t, gone: now, fa: g.fa, fb: g.fb, sentence: this.sentences.length });
+    }
+    for (const p of pending) {
+      const g = this._grey[p.pos];
+      if (!g || g.label !== p.label || g.done) this._grey[p.pos] = { label: p.label, t: now, fa: p.fa, fb: p.fb };
+    }
+  }
+
+  #traceSentence(text) {
+    this.onTrace({ kind: 'sentence', text, words: this.words.map((w) => w.label), t: performance.now(),
+      sentence: this.sentences.length - 1 });
+    this._grey = [];
   }
 
   /**
@@ -217,13 +344,17 @@ export class SignToSentence {
     const key = all.map((w) => w.label + (w.pending ? '?' : '')).join(' ');
     if (key === this._liveKey) return;       // dəyişməyibsə yenidən çəkmə
     this._liveKey = key;
+    if (this.onTrace) this.#traceGrey(pending);
     this.onLive?.({ words: this.words, pending, ...this.textOf(all.map((w) => w.label)) });
   }
 
   async #end() {
     const w = this.ws.flush();
     if (w) await this.#run(w, true);
-    else this.#emit(this.ss.flush(), 0);
+    else {
+      const base = this.ws.n - this.ss.rows.length;      // bütün kadrlar bərkiyib
+      this.#emit(this.ss.flush(), 0, base);
+    }
     await this.busy;
   }
 }

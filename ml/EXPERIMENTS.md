@@ -2992,3 +2992,141 @@ has them, and where it does not), `--g2t <gloss_text.json>`; `compare_jestdili.m
       --set "RUNS = {'seq_splice_ctc_slovo': dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, select='f1_unseen_learnable')}"
     # final_all_ctc_slovo: the same Slovo and JESTDILI_CTC settings with TRAIN_ON_VAL = TRAIN_ON_ALL = True and
     # dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, save_epoch=59, decode=<the installed decoding>)
+
+## E35 — The live page with a real camera, speed (R5, A5; no training)
+
+`/danis/` (E28) had only seen videos through `?video=`. This time it ran with the laptop's webcam (1280×720) in
+the user's Chrome, with the user signing. The tester is not a signer: they copied JestDili.az clips, so how many words
+come out right says little about the model (YOX in particular was often missed or read as another word). The
+timings, the false words and the page's behaviour do not depend on who signs.
+
+**How it was measured.** Claude in Chrome was not connected, so the page measures itself: `/danis/?debug=1` shows
+fps, MediaPipe and model time over the video and, for every word, logs when its frames arrived (start and end of
+the segment), when it turned grey and when white; grey words that disappeared without becoming final ("false grey"),
+hints and hand visibility. In the dev server the lines are also posted to `/__danis` and printed in the server's
+console (`vite.config.js`, dev only; the production bundle has no trace of it), so a phone or a tab nobody can
+inspect still reports. Then an offline replay: `ml/export_stream_clips.py` writes the landmarks of JestDili.az's 500
+sentence videos (49.5 min) and `tools/sim_danis.mjs` runs them frame by frame through the browser's own code
+(`WindowStream`, `recognizer.frameProbs`, `SentenceStream.add/peek`, the display rules), so display rules and the
+sentence gap could be compared on 1,894 words instead of by eye. Caveat: the installed sentence model
+(`final_all_ctc500`) was trained on these 500 sentences, so its probabilities there are cleaner than on a new person;
+the replay's false-grey rate (9.5 per minute with the E28 rule) is close to the live one while signing (~8 per minute), though.
+
+**Round 1, the E28 page (two sittings, ~8 min).**
+
+| | Measured |
+|---|---|
+| Camera | 22-37 fps, mostly ~30 |
+| MediaPipe (hands + pose, GPU), per camera frame | 24-42 ms, ~31 ms typical: ~90 % of the main thread at 30 fps |
+| Sentence model per 96-frame window (every 8 frames) | 8-14 ms |
+| From a window's last frame to its result | 32-51 ms |
+| Grey word, after its sign starts (median of 44) | 0.51 s |
+| White word, after its sign ends | 0.97-1.21 s (the 24-frame lookahead + 4 frames of decode lag + up to one stride) |
+| Sentence moves to the list, after the last sign ends | 2.9-3.1 s, not the 2 s the page promised: the 60-frame gap is counted on fixed frames, 24 frames behind |
+
+What went wrong:
+- **False grey words:** 25 in the first 6 minutes (much of it idle), 15 in the next 2 minutes of steady signing
+  (~8 per minute, about one for every three real words): ALMAQ, SURƏT, DÜNƏN seven times in 5 s, …, most visible for
+  one window (0.27 s). Distracting while signing.
+- **Retries merged into one sentence:** the tester repeated a sentence 2-2.5 s after the last attempt, inside the
+  3 s gap, so MƏN VAXT MƏN VAXT YOX UŞAQ … grew until cleared. Nothing on the screen showed when a sentence would
+  close.
+- **Words with no hand in view:** after a sentence, with the hands lowered below the frame or reaching for the mouse,
+  words came from the arms alone (YANDIRMAQ, AY, BURA, GETMƏK at p 0.31-0.46; in round 2 BEL and GƏLİB with a hand in
+  0 % of their frames). SU held for 5 s with the hands still.
+- Smaller: "Köçürüldü" stayed in the status pill for good after copying; copy was disabled until the first sentence
+  closed; the hint pill was 509 px wide on a 375 px phone (cut off on both sides); a window still queued when
+  "Təmizlə" was pressed went into the new, empty stream.
+- Fine: the "raise your hands" hint came after ~10 s without hands and went away with them; the body hint never
+  fired (the tester never left the frame completely).
+
+**Replay: which grey words to show** (500 JestDili.az sentences, 1,894 final words; frames at 30 fps):
+
+| Show a pending word when | False grey words shown (per min) | Real words that were grey first | Grey after the sign starts, median / p90 | Delay the rule adds, mean |
+|---|---|---|---|---|
+| always (E28) | 472 (9.5) | 1,888 | 0.53 / 0.87 s | 0 |
+| seen in 2 windows in a row | 124 (2.5) | 1,859 | 0.80 / 1.13 s | 0.28 s |
+| p ≥ 0.4 | 350 (7.1) | 1,840 | 0.53 / 0.87 s | 0.01 s |
+| p ≥ 0.5 | 226 (4.6) | 1,600 | 0.53 / 0.97 s | 0.06 s |
+| segment ≥ 14 frames | 259 (5.2) | 1,839 | 0.63 / 0.90 s | 0.09 s |
+| 2 windows, or at once if p ≥ 0.6 | 210 (4.2) | 1,862 | 0.63 / 1.07 s | 0.12 s |
+| **2 windows, or at once if p ≥ 0.7** | **158 (3.2)** | **1,859** | **0.70 / 1.10 s** | **0.16 s** |
+| 2 windows, or at once if p ≥ 0.8 | 133 (2.7) | 1,859 | 0.73 / 1.13 s | 0.21 s |
+
+A probability floor alone hides real words (p ≥ 0.5 loses the grey stage for 294 of them) and barely helps; the
+false words are short-lived, not weak. Two windows in a row removes three quarters of them; letting confident
+words through at once keeps most of the speed. Chosen: 2 windows or p ≥ 0.7 (−66 % false greys, +0.16 s).
+
+**Replay: when to close a sentence.** Gaps between consecutive words inside a JestDili.az sentence: median 3
+frames, p90 12, p99 44, max 107. With the sentence gap at 36 fixed frames (closing ~2.0 s after the last sign) 12.2 %
+of the sentences are cut in two; 42: 8.0 %; 48 (~2.4 s): 3.6 %; 60 (~2.8 s, as now): 0.6 %. A split sentence gets
+its text written in two halves, which is worse than waiting; so the gap stays at 60 and the page now shows it.
+
+**Changes** (all in the page and the `s2s.js` glue; `decode()`, `SentenceStream` and the Python side are
+untouched, `verify_continuous.mjs` passes):
+- `src/tercume/live.js` (new): the display rules in one place. `PENDING_RULE` (2 windows or p ≥ 0.7);
+  `MIN_HANDS = 0.25`: a word, grey or final, is shown only if at least one hand is in 25 % of its frames (live false
+  words had 0 %, the tester's real words at least 42 %; of the replay's 1,894 words none is below 33 % and one below
+  70 %, so the rule removes none of them); `SENTENCE_GAP = 60` with the numbers above.
+- `s2s.js`: pending words carry their position and frames and pass through `#shown()` (consecutive windows per
+  position and label); hands per frame are kept for the last 4,096 frames; `onPause({progress})` each window (fixed
+  frames since the last final word / sentence gap); a generation counter drops windows queued before
+  `clear()`; the open sentence closes when the page is hidden or frames stop for over a second (round 3); `onTrace`
+  and `stats` for the debug mode. Final words with no hands are dropped before they reach the sentence and its text.
+- `/danis/`: a thin bar under the caption fills while the sentence is about to close (it is full when the sentence
+  moves to the list); the help text says "about three seconds" and to wait for the bar; copy includes the sentence
+  still on screen and the status goes back after 1.5 s; the hint wraps inside the frame; `?debug=1`.
+- Phone: `npm run dev:https` (`tools/dev_https.mjs`) makes a self-signed certificate for this PC's addresses with
+  openssl (`.cert/`, ignored by git; remade when the Wi-Fi address changes) and serves Vite over HTTPS on the LAN
+  (port 5174), so a phone's browser may open the camera. The 375 px layout was checked in the browser pane; a real
+  phone was not tried.
+
+**Round 2, the tuned page** (~2.5 min, before the hand rule):
+
+| | Round 1 | Round 2 |
+|---|---|---|
+| False grey words | ~8 per minute | ~4 per minute |
+| Grey after the sign starts, median | 0.51 s | 0.81 s |
+| White after the sign ends | 0.97-1.21 s | 0.95-1.24 s |
+| Sentence closes after the last sign ends | 2.9-3.1 s | 2.84-3.04 s |
+| Camera / MediaPipe | ~30 fps / ~31 ms | 34-51 fps / 19-28 ms (the GPU had no training job this time) |
+
+Live, the grey stage costs +0.3 s rather than the replay's +0.16 s: the tester's signs were less confident (MƏN
+mostly at p 0.42-0.52), so they waited for the second window.
+
+**Round 3, with the hand rule** (~2 min of signing in four stretches): the hand rule dropped BEL (a hand in 0 % of
+its frames) while the arms moved below the frame; the body hint ("Bədəniniz görünmür…") came when the tester left the
+frame and went away when they came back; copy took two lines both times; 5 false grey words (~2.5 per minute);
+grey after the sign starts 0.40-1.56 s, white after the end 0.98-1.29 s, sentence closed 2.85-3.09 s after the last
+sign. The bar under the caption, checked on a JestDili.az video with 5 s of rest after the last sign, fills in eight
+steps of one window and empties when the sentence moves to the list. The model took 12-25 ms here (a training job of
+session 1 was running).
+
+One more problem: whenever the tester switched to another window, Chrome stopped giving frames (0 fps for 30 s at a
+time; a covered or hidden page gets none). The open sentence stayed open and closed only when frames came back, 39 s
+after its last sign ("Mən vaxt evdə kart"), and anything signed right after would have joined it. Now
+(`live.js FRAME_GAP_MS`, `s2s.js #closeSentence`) the open sentence is closed at once when the page is hidden
+(`visibilitychange`) and, if frames simply stop, when they come back after more than a second; the stream then
+starts fresh.
+
+**Speed (R5, A5).**
+- Sentence model: `tools/bench_cont_model.mjs` (Node, onnxruntime-web WASM, one thread) 15.9 ms median per window,
+  p90 16.8 ms, 6 % of the 267 ms between windows; in the page 8-14 ms.
+- MediaPipe in the page, a 1280×720 frame: hand landmarker 27.6 ms, pose (lite) 8.5 ms, median. The frame size
+  hardly matters (median of hands + pose: 35.5 ms at 1280×720, 34.4 ms at 960×540, 33.7 ms at 640×360): the cost is
+  the models, not the pixels, so a smaller camera request would not speed it up. Landmarks, not the sentence model,
+  limit the frame rate.
+- Avatar (text → sign): one frame of motion update + render, in sign mode, 0.4 ms median (update 0.2 ms) at
+  444×338, 0.6 ms at 1280×720, 0.4 ms (p90 0.8 ms) at 1280×720 with pixel ratio 2. It runs at the screen's rate
+  with room to spare.
+- A mid-range phone: if its GPU runs the two MediaPipe models 2-3 times slower than this laptop (~70-100 ms per
+  frame), landmarks come at 10-15 fps. E7 measured what that costs the sentence model: 30 → 10 fps loses 0.008 F1 on
+  AzSLD test (the stream is filled back to 30 fps, `Resampler`), so recognition survives. What would suffer is the
+  page: MediaPipe and the model both run on the main thread (onnxruntime-web, one WASM thread), and a phone 3-5 times
+  slower spends 40-80 ms per window four times a second on top. Needed before phones are a target: the model in a
+  Web Worker, landmarks capped at ~15 fps when frames take longer than ~50 ms, and a test on a real phone with
+  `npm run dev:https`.
+
+Not done here: a real phone; a native signer at the camera (the accuracy part of this test needs one). Seen but
+left to the sessions that own it: MƏN VAXT without YOX became "Mən vaxtam" (`gloss2text`, session 5); the tester's
+YOX was often read as UŞAQ, AC, EV, BOĞAZ or ƏL, and SU came from hands held still (the model, sessions 1 and 4).

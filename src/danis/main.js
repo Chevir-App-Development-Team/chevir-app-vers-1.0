@@ -3,8 +3,9 @@
  *
  * Cümlə modeli (s2s.js, davamlı tanıma) hər ~0.27 s-dən bir işləyir. İşarə göstərilən anda söz boz (hələ yekun
  * deyil, SentenceStream.peek) görünür, ~1 s sonra təsdiqlənib ağ olur; mətn hər dəfə bütün sözlərdən qurulur
- * (gloss2text.js). Sözlər arasında əlləri endirmək lazım deyil; iki saniyə yeni söz gəlməyəndə cümlə söhbətə
- * keçir. Video və nöqtələr cihazda qalır.
+ * (gloss2text.js). Bir pəncərəlik yalançı boz sözlər göstərilmir (live.js PENDING_RULE). Sözlər arasında əlləri
+ * endirmək lazım deyil; son işarədən ~3 s sonra cümlə söhbətə keçir (live.js SENTENCE_GAP), altyazının altındakı
+ * xətt bunu göstərir. Video və nöqtələr cihazda qalır. ?debug=1 — ölçmə (E35).
  */
 import '../styles/base.css'
 import '../styles/sections/navbar.css'
@@ -22,14 +23,27 @@ const $ = (s) => document.querySelector(s)
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 const video = $('#cam'), canvas = $('#overlay'), ctx = canvas.getContext('2d')
 const history = []
+let live = { words: [], text: '' }
 let noBody = 0, noHands = 0
+const params = new URLSearchParams(location.search)
+// ?debug=1: ölçmə — konsolda hər sözün boz/ağ anı ([danis] sətirləri), kadrda fps, MediaPipe və model vaxtı
+const debug = params.has('debug')
+const trace = []
+/** ?debug=1: konsola, dev serverdə həm də serverin konsoluna (telefonla sınaqda oxumaq üçün) */
+function log(line) {
+  console.log(`[danis] ${line}`)
+  if (import.meta.env.DEV) fetch('/__danis', { method: 'POST', body: JSON.stringify({ line }), keepalive: true }).catch(() => {})
+}
 
 function status(text, stage = '') {
   $('#status-text').textContent = text
   $('#status').dataset.state = stage
 }
 
+let lastHint = '', handsUp = false
 function hint(text) {
+  if (debug && text !== lastHint) log(`göstəriş: ${text || '(yox)'}`)
+  lastHint = text
   const h = $('#hint')
   h.hidden = !text
   if (text) h.textContent = text
@@ -43,19 +57,62 @@ const s2s = new SignToSentence({
     draw(hands)
     noBody = Number.isFinite(frame.pose[0]) ? 0 : noBody + 1
     noHands = hands.length ? 0 : noHands + 1
+    if (debug && !!hands.length !== handsUp) {
+      handsUp = !!hands.length
+      log(handsUp ? `əllər kadrda (${hands.length})` : 'əl yoxdur')
+    }
     hint(noBody > 45 ? 'Bədəniniz görünmür: bir az geri çəkilin, belinizdən yuxarı kadrda olsun'
       : noHands > 300 ? 'Danışmaq üçün əllərinizi qaldırın' : '')
   },
   onLive: ({ words, pending, text }) => renderLive(words, pending, text),
+  onPause: ({ progress }) => { $('#closing').style.transform = `scaleX(${progress})` },
+  onTrace: debug ? onTrace : undefined,
   onSentence: ({ words, text }) => {
     history.push({ text: text || words.map((w) => w.label).join(' '), signs: words.map((w) => w.label) })
     renderHistory()
     renderLive([], [], '')
+    $('#closing').style.transform = 'scaleX(0)'
   },
 })
 
+/** ?debug=1: sözün kadrları (başlanğıc/son) gələndən boz və ağ olana qədər keçən vaxt, saniyə. */
+function onTrace(e) {
+  trace.push(e)
+  const s = (ms) => (ms == null || !Number.isFinite(ms) ? '-' : (ms / 1000).toFixed(2))
+  if (e.kind === 'word') {
+    const grey = e.grey == null ? 'boz göstərilmədi' : `boz: başlanğıcdan +${s(e.grey - e.tStart)}`
+    log(`${e.label} p=${e.p.toFixed(2)} ${e.len} kadr, əl ${Math.round(100 * e.hands)} % · ${grey}`
+      + ` · ağ: sondan +${s(e.white - e.tEnd)}${e.grey == null ? '' : ` · bozdan ağa ${s(e.white - e.grey)}`}`)
+  } else if (e.kind === 'nohands') {
+    log(`süzüldü (əl ${Math.round(100 * e.hands)} %): ${e.label} p=${e.p.toFixed(2)}`)
+  } else if (e.kind === 'dropped') {
+    log(`yalançı boz: ${e.label} (${s(e.gone - e.grey)} s göründü)`)
+  } else if (e.kind === 'sentence') {
+    const last = trace.filter((x) => x.kind === 'word' && x.sentence === e.sentence).pop()
+    log(`cümlə: "${e.text}" · son sözün sonundan +${s(last ? e.t - last.tEnd : null)}`)
+  }
+}
+window.danisTrace = trace
+
+function statsLoop() {
+  const el = $('#debug')
+  let frames = s2s.stats.camFrames, t = performance.now(), ticks = 0
+  setInterval(() => {
+    const st = s2s.stats, now = performance.now()
+    const fps = ((st.camFrames - frames) * 1000) / (now - t)
+    frames = st.camFrames
+    t = now
+    window.danisStats = { fps, lmMs: st.lmMs, modelMs: st.modelMs, lagMs: st.lagMs }
+    el.textContent = `kamera ${fps.toFixed(0)} fps · MediaPipe ${st.lmMs.toFixed(0)} ms · model ${st.modelMs.toFixed(0)} ms`
+      + ` · pəncərə gecikməsi ${st.lagMs.toFixed(0)} ms`
+    if (s2s.running && ++ticks % 5 === 0) log(el.textContent + ` · ${video.videoWidth}×${video.videoHeight}`)
+  }, 1000)
+}
+
 function renderLive(words, pending, text) {
   const all = [...words, ...pending]
+  live = { words, text }
+  $('#btn-copy').disabled = !history.length && !words.length
   $('#live-text').innerHTML = all.length
     ? `${esc(text)}${pending.length ? '<span class="danis-cursor"></span>' : ''}`
     : '<span class="muted">İşarə ilə danışın - mətn burada görünəcək</span>'
@@ -64,7 +121,7 @@ function renderLive(words, pending, text) {
 
 function renderHistory() {
   $('#count').textContent = String(history.length)
-  $('#btn-copy').disabled = !history.length
+  $('#btn-copy').disabled = !history.length && !live.words.length
   $('#history').innerHTML = history.length
     ? history.slice().reverse().map((h) => `<li><span class="t">${esc(h.text)}</span>`
       + `<span class="g">${esc(h.signs.join(' '))}</span></li>`).join('')
@@ -118,15 +175,31 @@ $('#btn-clear').addEventListener('click', () => {
   s2s.clear()
   history.length = 0
   renderHistory()
+  $('#closing').style.transform = 'scaleX(0)'
+  if (debug) log('təmizləndi')
 })
+// söhbət və hələ söhbətə keçməmiş cari cümlə (yekun sözləri); status bir az sonra əvvəlki halına qayıdır
 $('#btn-copy').addEventListener('click', () => {
-  navigator.clipboard?.writeText(history.map((h) => h.text).join('\n'))
-    .then(() => status('Köçürüldü', 'running'), () => status('Köçürmək olmadı', 'error'))
+  const lines = history.map((h) => h.text)
+  if (live.words.length) lines.push(live.text)
+  const back = [$('#status-text').textContent, $('#status').dataset.state]
+  const say = (text, stage) => {
+    status(text, stage)
+    setTimeout(() => status(...back), 1500)
+  }
+  if (debug) log(`köçürülür: ${lines.length} sətir`)
+  if (!navigator.clipboard) return say('Köçürmək olmadı', 'error')
+  navigator.clipboard.writeText(lines.join('\n')).then(() => say('Köçürüldü', back[1]), () => say('Köçürmək olmadı', 'error'))
 })
 $('#show-signs').addEventListener('change', (e) => document.body.classList.toggle('hide-signs', !e.target.checked))
 
 // ?video=<ünvan>: kamerasız sınaq və nümayiş, video kadr-kadr eyni yoldan keçir
-const file = new URLSearchParams(location.search).get('video')
+const file = params.get('video')
+if (debug) {
+  document.body.classList.add('debug')
+  $('#debug').hidden = false
+  statsLoop()
+}
 async function startFile() {
   await s2s.startFile(file)
   status('Video bitdi', 'ended')

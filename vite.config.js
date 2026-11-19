@@ -14,6 +14,22 @@ function redirectPages(req, res, next) {
   res.end()
 }
 
+// /danis/?debug=1 (yalnız dev): səhifə ölçmə sətirlərini bura göndərir, server konsola yazır — kamera ilə sınaqda
+// (telefon da) sətirləri brauzerin konsolu olmadan oxumaq üçün
+function danisLog(req, res, next) {
+  if (req.method !== 'POST' || req.url !== '/__danis') return next()
+  let body = ''
+  req.on('data', (c) => { body += c })
+  req.on('end', () => {
+    try {
+      const { line } = JSON.parse(body)
+      console.log(`[danis] ${new Date().toISOString().slice(11, 23)} ${line}`)
+    } catch { /* pozuq sətir */ }
+    res.statusCode = 204
+    res.end()
+  })
+}
+
 // Səhifələr: sayt (/ + EN nüsxəsi /en/), tərcümə sistemi (/tercume/), işarə dilində danışmaq (/danis/),
 // NSosyal inteqrasiya demosu (/nsosyal/), komanda alətləri (/rey/, /qeyd/)
 export default defineConfig({
@@ -23,6 +39,7 @@ export default defineConfig({
       // Hook heç nə qaytarmamalıdır: qaytarılan funksiyanı Vite sonradan çağırır
       configureServer(server) {
         server.middlewares.use(redirectPages)
+        server.middlewares.use(danisLog)
       },
       configurePreviewServer(server) {
         server.middlewares.use(redirectPages)
