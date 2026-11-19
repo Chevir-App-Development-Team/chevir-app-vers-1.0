@@ -3519,3 +3519,91 @@ GPU was used only to save the probabilities (about 10 minutes). Commands:
     node tools/build_sign_lm.mjs                      # sign_lm.json (bigram, the corpus only)
     node tools/eval_nbest_text.mjs --nbest <alternatives.jsonl> --k 3 [--wordlm data/corpus/hplt_sentences.txt --gamma 0.02 --mu 8]
     node tools/sim_danis.mjs D:/chevir/eval/danis_sim/jestdili --lm
+
+## E34 — The avatar: a back-translation score (V3), timing (A4), movement between signs (A1) (no training)
+
+**V3, back-translation** (`tools/backtranslate.mjs` + the page part `tools/backtranslate.js`). Text → the app's own
+`TextToSign` plan and player (native rules, the same lexicon) → the VRM avatar in headless Chrome on a virtual clock (as
+`tools/render_avatar_clips.mjs`, so the timing is the app's, not the PC's) → every 1/30 s a MediaPipe-shaped frame built
+from the avatar's bones, a "perfect tracker": pose (nose, shoulders, elbows, wrists, hips) and both hands' 21 points
+projected through a fixed virtual camera placed like AzSLD's front camera (Cam2 median: shoulders' midpoint at y 0.566,
+shoulder width 0.316 of the frame height, 4:3), hand z scaled like MediaPipe's (0.46 of x, measured on AzSLD), hand world
+landmarks at MediaPipe's median hand size (wrist → middle knuckle 9 cm); a hand whose palm is below y 0.97 counts as not
+detected (AzSLD hands on the lap: 24 % detected); no face (the sentence model drops it). → the installed sentence model
+(`final_all_ctc500_slovo`, windows and plain `decode()` as in the app) → detections matched to the signs the player
+showed, by class and overlapping frames (`segment_eval.Tally`). Main number: sign F1 over the intended signs the model
+knows (90 % of them; the others are JestDili.az words outside the recognizer), letters separately. Fixed set: the 49 AzSLD
+test sentences (heldout_sentence) + the 150 set C draft sentences (`ml/setc/setc.csv`). ~5 minutes on this laptop, CPU
+only. `--mode source` runs the signer's own lexicon clips through the same camera and timing (no avatar): what the clips
+alone give. `tools/compare_v3.mjs a.json b.json` compares two reports sentence by sentence (paired bootstrap). Each
+sentence starts at the same phase of the virtual clock: the player's 16 ms waits against the 60 Hz updates move frames
+slightly, and when the phase depended on the sentences before, the same settings scored 0.539 or 0.530. `--phases 3`
+pools three phase offsets per sentence (gave the same numbers as one phase here). The hand checks run on every frame of
+the sentences too: hands in each other or in the body (> 5 mm), E28's raised right elbow, the palm's largest move in 1/30 s.
+
+| before E34 (old player) | sentences | sign F1 | P / R | WER | letters F1 | s / sentence |
+|---|---|---|---|---|---|---|
+| avatar, all | 199 | **0.543** | 0.484 / 0.619 | 76.0 % | 0.468 | 10.5 |
+| avatar, AzSLD test | 49 | 0.643 | 0.608 / 0.682 | 54.7 % | 0.356 | 10.1 |
+| avatar, set C | 150 | 0.507 | 0.443 / 0.593 | 84.5 % | 0.489 | 10.6 |
+| signer's clips, all | 199 | 0.699 | 0.602 / 0.835 | 58.9 % | – | 10.5 |
+
+The avatar loses 0.16 F1 against the clips it is built from, nearly all in recall: two-handed signs 0.52 (clips 0.83),
+one-handed 0.74 (0.84); the first sign of a sentence 0.76, later signs 0.57 (clips 0.88 / 0.82). Precision is low in both
+(extra detections during fingerspelled words, a sign detected twice). Typical misses: İSTƏMƏK, SƏN, OLACAQ, BİZ, ALMAQ,
+NƏ VAXT; BAKI (hand at the chin) reads as YEMƏK. The roadmap's exit test (V3 tracks V2 on 20 items) waits for the first
+native review answers.
+
+**A4, timing measured on AzSLD** (10,104 front-camera recordings, 49,280 annotated signs, 39,158 sign pairs; scripts
+outside git): the gap between two annotated signs is 3.5 + 4.7 d frames at 30 fps (median; d = the palm's travel in
+shoulder widths), 120 ms + 160 ms × d. The last sign of a sentence is 1.6× as long as the same sign in the middle (+11
+frames), the first 1.23×; question-final signs are not longer than statement-final ones (1.63× vs 1.59×). Between two
+signs the palm goes nearly straight (largest sideways deviation 8 % of the distance, median of 21,391 transitions), leaving
+slowly and arriving fast: progress at t = 0, 0.1, … 1 is 0, .04, .09, .16, .25, .35, .47, .60, .73, .87, 1 (minimum jerk
+would be 0, .01, .06, .16, .32, .50, …). Per-sign speed: the AzSLD clips already have their sign's typical length (own
+annotation / the sign's median in the middle of sentences: median 1.00, p10–p90 0.83–1.23), so no per-clip correction.
+JestDili.az clips are citation forms, 2.1× as long as the AzSLD in-sentence form for the 11 words both have; the same
+person's 500 sentence videos give no clean estimate. Playing them 1.3× faster changes V3 by +0.002 [−0.004, +0.007]; the
+default stays 1 (`jdSpeed`) until a native review says otherwise.
+
+The old player waited ~590 ms after every sign (last frame 67 + hold 150 + transition 120 + space 250) with the arm parked
+at the sign's end, then gave the next sign's first frame and the spring needed ~250 ms to get there while that sign's
+frames already played; after the sentence the signing hand rose to the fingerspelling "ready" pose by the face for
+0.9 s before dropping. New `timing: 'natural'` (`src/tercume/t2s.js`): the gap is 120 + 160 d ms (at least 200 ms: the
+arm's spring needs that much) and the arm travels to the next sign's start during it; the sentence's last sign is held
+370 ms (questions the same; the question face stays during it) and then both hands go to rest (`VrmAvatar.toRest`).
+Holding the next sign's first frame for longer instead (old ~520 ms gap, early move) is worse: F1 −0.027 [−0.042, −0.007];
+clip starts carry a few frames of the source sentence's movement.
+
+**A1, movement between signs** (`VrmAvatar.setTransition`, `transitions: true`): during the gap the palm follows the
+measured progress profile along a straight line from one sign's last frame to the next one's first, the hand rotation
+and fingers are slerped, and the arm is solved at 11 points by the word IK (body avoidance, the signer's elbow, E28's
+`elbowRaise` cost), each next to the previous point's elbow; between the points the joints are slerped. A hand that only
+the next sign uses rises at once, one that only the last sign used goes to rest. Not learned: the profile and the
+straight path are fitted statistics; a learned model can replace the path later.
+
+| V3, 3 clock phases, 199 sentences | sign F1 | WER | AzSLD test F1 | set C F1 | s / sentence | hands in hands / body | right elbow raised | palm step median / max |
+|---|---|---|---|---|---|---|---|---|
+| old player (`timing: 'fixed'`) | 0.543 | 76.0 % | 0.643 | 0.507 | 10.5 | 0.2 / 2.9 % | 0.6 % | 17.0 / 24.5 cm |
+| natural timing, spring only | 0.530 | 76.7 % | 0.644 | 0.489 | 9.7 | 0.1 / 2.6 % | 0.6 % | 14.1 / 24.5 cm |
+| **natural timing + A1 (new default)** | **0.539** | **74.4 %** | **0.657** | 0.496 | **9.7** | 0.2 / 2.7 % | **0.5 %** | **14.1** / 24.5 cm |
+
+New default against the old player: F1 −0.004 [−0.020, +0.017], WER −1.6 [−5.6, +1.7] points (56 sentences better, 53
+worse): level. A1 against the spring alone: F1 +0.009 [−0.006, +0.022], WER −2.3 [−4.2, 0.0] (36 better, 20 worse), so A1
+stays. Sentences are 0.8 s shorter. The hand checks do not get worse: on the per-word checks the word solution is
+untouched (`measure_hands.mjs` on every 6th word, 529 words, totals identical before and after: hands in hands 21, hand
+in body 248 words, placement p90 4.2 cm; `measure_elbows.mjs --n 300`: right elbow raised 4.2 % of frames, 9.0 % / 4.9 %
+of words with ≥ 3 raised frames right / left, as in E28), and on the sentence frames above. The largest palm move per
+frame drops (17.0 → 14.1 cm median per sentence) because the "ready" rise at the end is gone. The source reference under
+the new timing: 0.671 (the clips' own starts are now reached and shown, including their transition frames). V3 does not
+show a gain from timing alone; what it does show is that the avatar's loss is in two-handed signs and in later signs,
+which is placement and retargeting work (the two-hand fix, face-near mapping), not timing.
+
+`timing: 'fixed', transitions: false` gives the old player. Contact sheets of whole sentences, one row per setting:
+`node tools/avatar_sheet.mjs --text "…" --variants '[{"timing":"fixed","transitions":false},{}]' --every 3`
+(D:/chevir/eval/v3/sheet_*.jpg, local). Translator checked in the browser (dev server): sentences play, the avatar ends at
+rest, no console errors. 14 `verify_*` scripts and `ci_gates.mjs` pass (gates unchanged).
+
+    node tools/backtranslate.mjs [--phases 3] [--set azsld|setc] [--opts '{"timing":"fixed","transitions":false}'] --out x.json
+    node tools/backtranslate.mjs --mode both --out x.json            # + the signer's clips through the same camera
+    node tools/compare_v3.mjs before.json after.json [--show 5]

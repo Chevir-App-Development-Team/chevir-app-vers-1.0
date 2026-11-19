@@ -168,7 +168,7 @@ export function handModel(avatar) {
 }
 
 /** Avatarın bir əlinin 21 nöqtəsi (dünya koordinatı, [x,y,z]) — skelet yenilənmiş olmalıdır. */
-function avatarHand(avatar, model, side) {
+export function avatarHand(avatar, model, side) {
   const at = (n) => avatar.bone(side + n).getWorldPosition(new THREE.Vector3());
   const out = [at('Hand').toArray()];
   for (const [name, bones] of Object.entries(FINGERS)) {
@@ -221,7 +221,7 @@ function solidDistance(s, p) {
 }
 
 /** Əlin (barmaq + ovuc) və saidin bədənə ən dərin girməsi (metr, müsbət = içəridə). */
-function bodyDepth(avatar, radius, side, pts) {
+export function bodyDepth(avatar, radius, side, pts) {
   const s = avatar.solid;
   if (!s) return { hand: 0, arm: 0 };
   const p = new THREE.Vector3();

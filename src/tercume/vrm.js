@@ -316,6 +316,7 @@ export class VrmAvatar {
     this.#solved = new WeakMap();
     this.#spikes = new WeakMap();
     this.#words = new WeakMap();
+    this.#paths = new WeakMap();
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(url);
@@ -468,6 +469,92 @@ export class VrmAvatar {
     const face = this.#wordFace(word)[frame];
     this.face.target = face?.w ?? {};
     this.face.head = face?.h ?? [0, 0, 0];
+  }
+
+  /**
+   * İki işarə arasında keçid (roadmap A1, E34): a-nın `fa` kadrından b-nin `fb` kadrına, u ∈ [0, 1] — yolun payı
+   * (TextToSign vaxtı AzSLD-dən ölçülmüş profillə verir). Hər əl üçün ovuc düz xətt üzrə gedir (AzSLD-də keçidin
+   * yanlara əyilməsi yolun ~8 %-i), əlin dönməsi və barmaqlar slerp ilə; qol hər nöqtədə sözün öz IK-sı ilə həll
+   * olunur (bədəndən qaçma, iştirakçının dirsəyi, E28-in dirsək həddi), əvvəlki nöqtənin dirsəyinə yaxın. Yol bir
+   * dəfə 11 nöqtədə həll olunub saxlanılır, arası oynaqlarda slerp-dir. Bir əl yalnız b-də varsa dərhal b-yə
+   * qalxır, yalnız a-da varsa istirahətə enir (yaylar aparır).
+   */
+  setTransition(a, fa, b, fb, u) {
+    if (!this.rigs) return;
+    const A = this.#wordFrame(a, fa), B = this.#wordFrame(b, fb);
+    if (!A || !B) return;
+    const path = this.#transitionPath(a, fa, b, fb);
+    const x = Math.min(1, Math.max(0, u)) * (path.n - 1);
+    const k = Math.min(path.n - 2, Math.floor(x)), w = x - k;
+    for (const side of SIDES) {
+      const P = path[side];
+      if (P) {
+        const p0 = P[k], p1 = P[k + 1];
+        const arm = {
+          upper: p0.arm.upper.clone().slerp(p1.arm.upper, w),
+          lower: p0.arm.lower.clone().slerp(p1.arm.lower, w),
+          hand: p0.arm.hand.clone().slerp(p1.arm.hand, w),
+        };
+        const fingers = {};
+        for (const [n, q] of Object.entries(p0.fingers)) fingers[n] = q.clone().slerp(p1.fingers[n] ?? q, w);
+        this.#setSide(side, arm, fingers);
+      } else if (B[side]) this.#setSide(side, B[side].arm, B[side].fingers);
+      else this.#toRest(side);
+    }
+    this.mode = 'sign';
+    this.idle = 0;
+    // Ölçmə və qoruyucu üçün: yaxın ucun həlli (əllərin tərəfi, dərinlik variantı)
+    this.last = u < 0.5 ? { word: a, frame: fa, ...A } : { word: b, frame: fb, ...B };
+    this.#frameCamera('word', this.#wordBounds(u < 0.5 ? a : b));
+    const fa_ = this.#wordFace(a)[fa], fb_ = this.#wordFace(b)[fb];
+    const face = u < 0.5 ? fa_ : fb_;
+    this.face.target = face?.w ?? {};
+    this.face.head = face?.h ?? [0, 0, 0];
+  }
+
+  #paths = new WeakMap();      // söz a → Map(açar → keçid yolu)
+
+  #transitionPath(a, fa, b, fb) {
+    let byA = this.#paths.get(a);
+    if (!byA) { byA = new Map(); this.#paths.set(a, byA); }
+    const key = `${fa}|${fb}`;
+    let m = byA.get(b);
+    if (!m) { m = new Map(); byA.set(b, m); }
+    if (m.has(key)) return m.get(key);
+    const N = 11;
+    const A = this.#wordFrame(a, fa), B = this.#wordFrame(b, fb);
+    const avoid = this.#avoidBody();
+    const path = { n: N };
+    for (const side of SIDES) {
+      const sa = A[side], sb = B[side];
+      if (!sa || !sb) continue;
+      const rig = this.rigs[side];
+      const pts = [{ arm: sa.arm, fingers: sa.fingers }];
+      let prev = sa.arm.info;
+      for (let i = 1; i < N - 1; i++) {
+        const u = i / (N - 1);
+        const R = sa.target.R.clone().slerp(sb.target.R, u);
+        const anchor = sa.anchor.clone().lerp(sb.anchor, u);
+        const elbow = sa.elbow && sb.elbow ? sa.elbow.clone().lerp(sb.elbow, u) : (sa.elbow ?? sb.elbow);
+        let arm = solveArm(rig, R, anchor, prev, { elbow, shiftCost: 300, avoid });
+        if (!arm) {
+          arm = {
+            upper: sa.arm.upper.clone().slerp(sb.arm.upper, u),
+            lower: sa.arm.lower.clone().slerp(sb.arm.lower, u),
+            hand: sa.arm.hand.clone().slerp(sb.arm.hand, u),
+            info: prev,
+          };
+        }
+        const fingers = {};
+        for (const [n, q] of Object.entries(sa.fingers)) fingers[n] = q.clone().slerp(sb.fingers[n] ?? q, u);
+        pts.push({ arm, fingers });
+        prev = arm.info;
+      }
+      pts.push({ arm: sb.arm, fingers: sb.fingers });
+      path[side] = pts;
+    }
+    m.set(key, path);
+    return path;
   }
 
   /**
@@ -1745,6 +1832,16 @@ export class VrmAvatar {
     this.#setSide(this.hand, p.ready, p.relaxed);
     this.#toRest(this.hand === 'left' ? 'right' : 'left');   // sözdən sonra ikinci əl də enir
     this.mode = 'pause';
+    this.idle = 0;
+    this.face.target = {};
+    this.face.head = [0, 0, 0];
+  }
+
+  /** Cümlə bitdi (E34): hər iki qol birbaşa istirahətə enir — hazır vəziyyətə (hərflər üçün) qalxmadan. */
+  toRest() {
+    if (!this.rigs) return;
+    for (const side of SIDES) this.#toRest(side);
+    this.mode = 'rest';
     this.idle = 0;
     this.face.target = {};
     this.face.head = [0, 0, 0];
