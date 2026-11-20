@@ -25,20 +25,53 @@ const MENU_ENABLED_PAGES = ['home', 'tercume', 'nsosyal']
 // EN düyməsində ana səhifənin EN nüsxəsinə (fallback) aparır.
 const PAGE_EN_PATH = { home: 'en/' }
 
+// /tercume-ə xas tema (dark/light) keçid düyməsi - yalnız bu səhifənin
+// navbar-ına əlavə olunur (bax navbarMarkup-dakı `page === 'tercume'` şərti),
+// digər səhifələrin markup-u dəyişmir. localStorage/klik məntiqi
+// src/tercume/layout.js-dədir (id ilə seçir, DOM-dakı yerindən asılı deyil).
+const TERCUME_THEME_TOGGLE_MARKUP = `
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-pressed="false" aria-label="Açıq rejimə keç">
+      <svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+      <svg class="theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>`
+
 // "AZ | EN" keçidi - iki yerdə işlədilir (masaüstündə CTA-nın yanında,
 // hamburger menyusunda ayrıca sətirdə) - bax navbarMarkup aşağıda.
 // modifierClass ilə iki nüsxə eyni DOM/CSS əsasını paylaşır, yalnız
 // görünmə şərti (media query) fərqlidir.
 function langSwitchMarkup(page, modifierClass = '') {
   const azHref = `${BASE}${LINKS[page]?.href ?? ''}`
-  const enHref = `${BASE}${PAGE_EN_PATH[page] ?? 'en/'}`
+  const enPath = PAGE_EN_PATH[page]
   const isEn = currentLang === 'en'
   const azLabel = t('common.nav.lang.az')
   const enLabel = t('common.nav.lang.en')
+  // EN qarşılığı olan səhifədə (home) adi keçid - əvvəlki davranış dəyişmir.
+  // Olmayan səhifədə (tercume, nsosyal) EN heç yerə aparmayan düymədir,
+  // öz sarğısına (`.navbar__lang-en-wrap`) alınır ki, bitişik tooltip
+  // (bax document click listener aşağıda) MƏHZ EN düyməsinin altında
+  // mərkəzlənsin - bütöv "AZ EN" sətrinin yox (bax navbar.css).
+  const enBlock = enPath
+    ? `<a class="navbar__lang-link${isEn ? ' is-active' : ''}" href="${BASE}${enPath}" lang="en" hreflang="en"${isEn ? ' aria-current="page"' : ''}>${enLabel}</a>`
+    : `<span class="navbar__lang-en-wrap">
+        <button type="button" class="navbar__lang-link navbar__lang-link--soon" lang="en">${enLabel}</button>
+        <span class="navbar__lang-soon" role="status" aria-live="polite" data-message="${t('common.nav.lang.enSoon')}"></span>
+      </span>`
   return `
     <span class="navbar__lang${modifierClass}">
       <a class="navbar__lang-link${!isEn ? ' is-active' : ''}" href="${azHref}" lang="az" hreflang="az"${!isEn ? ' aria-current="page"' : ''}>${azLabel}</a>
-      <a class="navbar__lang-link${isEn ? ' is-active' : ''}" href="${enHref}" lang="en" hreflang="en"${isEn ? ' aria-current="page"' : ''}>${enLabel}</a>
+      ${enBlock}
     </span>`
 }
 
@@ -90,7 +123,7 @@ export function navbarMarkup({ page = 'home', light = false } = {}) {
     ${links}${menuLangBlock}${menuCtaBlock}
   </nav>
   <div class="navbar__end">
-    ${langSwitchMarkup(page)}
+    ${langSwitchMarkup(page)}${page === 'tercume' ? TERCUME_THEME_TOGGLE_MARKUP : ''}
     <a class="navbar__cta" href="${home ? '' : BASE}#pilot">${t('common.nav.cta')}</a>
   </div>
   <button class="navbar__toggle" type="button" aria-expanded="false" aria-controls="navbar-links" aria-label="${t('common.nav.toggleAriaLabel')}">
@@ -146,4 +179,40 @@ document.addEventListener('keydown', (event) => {
   if (!openNavbar) return
   closeNavbarMenu(openNavbar)
   openNavbar.querySelector('.navbar__toggle')?.focus()
+})
+
+// EN qarşılığı olmayan səhifədə (bax PAGE_EN_PATH + langSwitchMarkup
+// yuxarıda) "coming soon" tooltip - bitişik `.navbar__lang-soon` span-ına
+// mətni yazır, 2s sonra özü sönür. Timer düymənin üzərindəki DOM node-a
+// bağlıdır (hər nüsxə - masaüstü/menyu - öz taymerini saxlayır), ona görə
+// təkrar klik köhnə taymeri ləğv edib yenisini qurur.
+const SOON_VISIBLE_MS = 2000
+
+document.addEventListener('click', (event) => {
+  const trigger = event.target.closest('.navbar__lang-link--soon')
+  if (!trigger) return
+  const tooltip = trigger.nextElementSibling
+  if (!tooltip || !tooltip.classList.contains('navbar__lang-soon')) return
+  clearTimeout(tooltip._soonHideTimer)
+  // aria-live yenidən oxusun deyə hər göstərmədə DOM mutasiyası lazımdır -
+  // köhnə mətn eyni olsa belə, textContent təyini uşaq node-u əvəz edir.
+  tooltip.textContent = tooltip.dataset.message
+  tooltip.classList.add('is-visible')
+  tooltip._soonHideTimer = setTimeout(() => {
+    tooltip.classList.remove('is-visible')
+  }, SOON_VISIBLE_MS)
+})
+
+// Mətni YALNIZ fade-out HƏQİQƏTƏN bitəndən sonra silir (bax navbar.css
+// `.navbar__lang-soon` keçid/visibility gecikməsi) - əvvəllər klikdəki
+// `setTimeout` mətni dərhal silirdi, fon/padding isə 180ms ərzində hələ
+// görünən qalırdı ("boş pill" baqı). `transitionend` interrupted fade-in-i
+// (təkrar klik) ÖZÜ filtrləyir: əgər gizlənmə yarımçıq kəsilib yenidən
+// göstərilirsə, həmin 1→0 keçid LƏĞV OLUNUR və onun `transitionend`-i heç
+// vaxt atəşlənmir, ona görə mətn səhvən silinmir.
+document.addEventListener('transitionend', (event) => {
+  if (event.propertyName !== 'opacity') return
+  const tooltip = event.target
+  if (!tooltip.classList?.contains('navbar__lang-soon')) return
+  if (!tooltip.classList.contains('is-visible')) tooltip.textContent = ''
 })

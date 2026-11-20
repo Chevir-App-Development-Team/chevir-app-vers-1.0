@@ -18,6 +18,21 @@ import './layout.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
+// Kamera overlay-nin (#overlay canvas) rəngləri CSS dəyişənlərindən - hər kadrda
+// deyil, yalnız yükləmədə və 'chevir:theme' hadisəsində yenilənir (performans).
+const camColors = { line: '', glow: '', wrist: '', pink: '', dot: '' };
+function readCamColors() {
+  const cs = getComputedStyle(document.body);
+  const get = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+  camColors.line = get('--t-cam-line', 'rgba(63,193,232,.9)');
+  camColors.glow = get('--t-cam-glow', 'rgba(63,193,232,.8)');
+  camColors.wrist = get('--t-cam-wrist', '#f5b94f');
+  camColors.pink = get('--t-cam-pink', '#ff4f97');
+  camColors.dot = get('--t-cam-dot', '#f1ede9');
+}
+readCamColors();
+document.addEventListener('chevir:theme', readCamColors);
+
 // Söz rejimində halqanın yazısı (bax s2w.js)
 const WORD_STATE_LABEL = { rest: 'istirahət', signing: 'jest', recognizing: 'tanınır' };
 
@@ -36,17 +51,35 @@ const state = {
   s2t: null, s2w: null, kind: 'letters', t2s: null,
   skelS2T: null, skelT2S: null, avatar: null,
   booted: { s2t: false, t2s: false, about: false },
+  activeTab: 's2t',
+  camStatus: { text: '', stateName: '' },
+  t2sStatus: { text: '', stateName: '' },
 };
+let t2sIdleStatus = { text: '', stateName: '' };   // son bilinən avatar hazır/xəta statusu — oynatma bitəndə buraya qayıdılır
 
-function setStatus(text, stateName = '') {
+// Status zolağı tab-a görə hədəflənir: 's2t' kamera, 't2s' avatar/oynatma, 'global' hər zaman
+// (yükləmə mərhələsi, hələ heç bir tab aktiv deyilkən). showTab() cari tab üçün uyğun olanı yenidən çəkir.
+function setStatus(text, stateName = '', scope = 'global') {
+  if (scope === 's2t') state.camStatus = { text, stateName };
+  else if (scope === 't2s') state.t2sStatus = { text, stateName };
+  if (scope !== 'global' && scope !== state.activeTab) return;
   $('#status-text').textContent = text;
   $('#status').dataset.state = stateName;
+}
+
+function syncStatusForTab(name) {
+  const el = $('#status');
+  el.hidden = name === 'about';
+  if (el.hidden) return;
+  const s = name === 't2s' ? state.t2sStatus : state.camStatus;
+  $('#status-text').textContent = s.text;
+  el.dataset.state = s.stateName;
 }
 
 /* ══════════════════ yükləmə ══════════════════ */
 async function boot() {
   try {
-    setStatus('Model yüklənir…');
+    setStatus('Model yüklənir…', '', 's2t');
     const [model, decoder, poses, evalData, lexicon] = await Promise.all([
       loadLetterModel({ assetBase: ASSET_BASE }),
       LexiconDecoder.load(`${ASSET_BASE}lm.json`, `${ASSET_BASE}vocab.json`, `${ASSET_BASE}prefixes.json`),
@@ -55,7 +88,7 @@ async function boot() {
       WordLexicon.load(`${WORDS_BASE}index.json`),
     ]);
     Object.assign(state, { model, decoder, poses, eval: evalData, lexicon });
-    setStatus(`${model.labels.length} sinif · ${decoder.words.length.toLocaleString('az')} söz`, 'ready');
+    setStatus(`${model.labels.length} sinif · ${decoder.words.length.toLocaleString('az')} söz`, 'ready', 's2t');
 
     window.__chevir = state;   // sazlama qarmağı (brauzer konsolundan tənzimləmə)
     initTabs();
@@ -76,8 +109,10 @@ function initTabs() {
 }
 
 function showTab(name) {
+  state.activeTab = name;
   $$('.tab').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
   $$('.panel').forEach((p) => p.classList.toggle('is-active', p.id === `tab-${name}`));
+  syncStatusForTab(name);
 
   // WebGL kontekstləri baha olduğu üçün ilk açılışda qurulur
   if (name === 's2t' && !state.booted.s2t) {
@@ -102,10 +137,11 @@ function initS2T() {
   const video = $('#cam');
   const canvas = $('#overlay');
   const ctx = canvas.getContext('2d');
+  const camViewport = video.closest('.viewport');
 
   const s2t = new SignToText({
     model: state.model, decoder: state.decoder, video,
-    onStatus: ({ message, stage }) => setStatus(message, stage),
+    onStatus: ({ message, stage }) => setStatus(message, stage, 's2t'),
     onFrame: ({ landmarks, progress, state: gate }) => {
       drawOverlay(ctx, canvas, video, landmarks ? [landmarks] : []);
       state.skelS2T?.setPose(landmarks ?? null);
@@ -128,7 +164,7 @@ function initS2T() {
       const { SignToWords } = await import('./s2w.js');
       const s2w = new SignToWords({
         video,
-        onStatus: ({ message, stage }) => setStatus(message, stage),
+        onStatus: ({ message, stage }) => setStatus(message, stage, 's2t'),
         onFrame: ({ frame, state: st }) => {
           const hands = [0, 1].map((s) => slotLandmarks(frame.hand, s)).filter(Boolean);
           drawOverlay(ctx, canvas, video, hands);
@@ -167,7 +203,7 @@ function initS2T() {
       alt.mountCorrectionsBar($('#sentence-corrections'));
       const s2s = new SignToSentence({
         video,
-        onStatus: ({ message, stage }) => setStatus(message, stage),
+        onStatus: ({ message, stage }) => setStatus(message, stage, 's2t'),
         onFrame: ({ frame }) => {
           const hands = [0, 1].map((s) => slotLandmarks(frame.hand, s)).filter(Boolean);
           drawOverlay(ctx, canvas, video, hands);
@@ -207,8 +243,8 @@ function initS2T() {
     $('#ring-label').textContent = state.kind !== 'letters' ? WORD_STATE_LABEL.rest : GATE_LABEL.idle;
     $('#pred-quality').textContent = '-';
     renderPredictions([]);
-    if (state.kind === 'words') ensureS2W().catch((err) => setStatus('Söz modeli yüklənmədi: ' + err.message, 'error'));
-    if (state.kind === 'sentence') ensureS2S().catch((err) => setStatus('Cümlə modeli yüklənmədi: ' + err.message, 'error'));
+    if (state.kind === 'words') ensureS2W().catch((err) => setStatus('Söz modeli yüklənmədi: ' + err.message, 'error', 's2t'));
+    if (state.kind === 'sentence') ensureS2S().catch((err) => setStatus('Cümlə modeli yüklənmədi: ' + err.message, 'error', 's2t'));
   });
 
   $('#btn-start').addEventListener('click', async () => {
@@ -217,8 +253,10 @@ function initS2T() {
       const runner = state.kind === 'words' ? await ensureS2W() : state.kind === 'sentence' ? await ensureS2S() : s2t;
       await runner.start();
       $('#btn-stop').disabled = false;
+      camViewport.classList.add('is-live');
+      $('#pred-grid').closest('.card').classList.remove('is-stale');
     } catch (err) {
-      setStatus('Kamera açılmadı: ' + err.message, 'error');
+      setStatus('Kamera açılmadı: ' + err.message, 'error', 's2t');
       $('#btn-start').disabled = false;
     }
   });
@@ -226,7 +264,9 @@ function initS2T() {
     current()?.stop();
     $('#btn-start').disabled = false;
     $('#btn-stop').disabled = true;
+    camViewport.classList.remove('is-live');
     state.skelS2T?.clearPose();
+    $('#pred-grid').closest('.card').classList.add('is-stale');
   });
   $('#btn-finish').addEventListener('click', () => s2t.finish());
   $('#btn-clear').addEventListener('click', () => {
@@ -239,7 +279,9 @@ function initS2T() {
   // Kamerasız sınaq üçün klaviatura girişi
   addEventListener('keydown', (e) => {
     if (!$('#tab-s2t').classList.contains('is-active') || state.kind !== 'letters') return;
-    if (e.target.matches('input,textarea,select')) return;
+    // #theme-toggle öz Enter/Space aktivasiyasını almalıdır (native button
+    // davranışı) - bu qlobal qısayol onu əvvəl tutub preventDefault edirdi.
+    if (e.target.matches('input,textarea,select') || e.target.id === 'theme-toggle') return;
     if (e.key === 'Enter') { e.preventDefault(); s2t.finish(); return; }
     if (e.key === 'Backspace') { e.preventDefault(); s2t.undo(); return; }
     const ch = e.key.toLowerCase();
@@ -270,8 +312,8 @@ function drawOverlay(ctx, canvas, video, hands) {
 
 function drawHand(ctx, w, h, landmarks) {
   ctx.lineWidth = Math.max(2, w / 420);
-  ctx.strokeStyle = 'rgba(63,193,232,.9)';
-  ctx.shadowColor = 'rgba(63,193,232,.8)';
+  ctx.strokeStyle = camColors.line;
+  ctx.shadowColor = camColors.glow;
   ctx.shadowBlur = 10;
   ctx.beginPath();
   for (const [a, b] of HAND_CONNECTIONS) {
@@ -283,7 +325,7 @@ function drawHand(ctx, w, h, landmarks) {
   const tips = new Set([4, 8, 12, 16, 20]);
   landmarks.forEach((p, i) => {
     ctx.beginPath();
-    ctx.fillStyle = i === 0 ? '#f5b94f' : tips.has(i) ? '#ff4f97' : '#f1ede9';
+    ctx.fillStyle = i === 0 ? camColors.wrist : tips.has(i) ? camColors.pink : camColors.dot;
     ctx.arc(p.x * w, p.y * h, Math.max(3, w / 260), 0, Math.PI * 2);
     ctx.fill();
   });
@@ -328,7 +370,7 @@ function renderSentence(words, nNew, match, text = null) {
 function renderDecode({ candidates, best, verified, suggestions, letters }) {
   $('#letters').innerHTML = letters?.length
     ? letters.map((l) => `<span class="l">${escapeHtml(l === ' ' ? '␣' : l)}</span>`).join('')
-    : '<span class="muted">boş</span>';
+    : '<span class="muted">Tanınan hərflər burada yığılacaq</span>';
 
   const dec = $('#decoded');
   if (!best) { dec.innerHTML = '<span class="muted">-</span>'; }
@@ -346,7 +388,7 @@ function renderDecode({ candidates, best, verified, suggestions, letters }) {
 
   const sg = (suggestions ?? []).filter((s) => s.dist > 0);
   $('#suggest').innerHTML = sg.length
-    ? 'Ən yaxın real sözlər: ' + sg.map((s) => `<b>${escapeHtml(s.word)}</b>`).join(', ')
+    ? 'Ən yaxın real sözlər: ' + sg.map((s) => `<b>${escapeHtml(s.word)}</b>`).join('')
     : '';
 }
 
@@ -355,15 +397,17 @@ async function bootT2SViews() {
   state.skelT2S = new CyberHand($('#t2s-skeleton'));
   const { VrmAvatar } = await import('./vrm.js');
   state.avatar = new VrmAvatar($('#t2s-avatar'));
-  setStatus('Avatar yüklənir…');
+  setStatus('Avatar yüklənir…', '', 't2s');
   try {
     const vrmFile = $('#avatar-select')?.value || 'avatar.vrm';
     await state.avatar.load(`${ASSET_BASE}${vrmFile}`);
     state.avatar.setHand($('#hand')?.value || 'right');
-    setStatus('Avatar hazır', 'ready');
+    t2sIdleStatus = { text: 'Avatar hazır', stateName: 'ready' };
+    setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
   } catch (err) {
     console.error(err);
-    setStatus('Avatar yüklənmədi: ' + err.message, 'error');
+    t2sIdleStatus = { text: 'Avatar yüklənmədi: ' + err.message, stateName: 'error' };
+    setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
     $('#t2s-avatar').insertAdjacentHTML('beforeend',
       `<div class="warn" style="position:absolute;inset:auto 12px 12px 12px">
          VRM avatarı yüklənmədi - cyber skeleton işləməyə davam edir.</div>`);
@@ -377,7 +421,7 @@ function initT2S() {
     lexicon: state.lexicon,
     targets: [],
     onLetter: ({ kind, char, index }) => {
-      $('#current-letter').textContent = char === ' ' ? '␣' : char;
+      $('#current-letter').textContent = char === ' ' ? '' : char;
       $('#current-letter').classList.toggle('is-word', kind === 'word');
       $$('#spelled i').forEach((el, i) => {
         el.classList.toggle('now', i === index);
@@ -387,9 +431,12 @@ function initT2S() {
     },
     onState: ({ playing, index, total }) => {
       $('#play-progress').textContent = playing ? `${index + 1}/${total}` : 'hazır';
-      if (!playing) {
-        $('#current-letter').textContent = '·';
+      if (playing) {
+        setStatus('Jest göstərilir', 'running', 't2s');
+      } else {
+        $('#current-letter').textContent = '';
         $$('.abc button').forEach((b) => b.classList.remove('is-on'));
+        setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
       }
     },
   });
@@ -431,13 +478,15 @@ function initT2S() {
   const avatarSelect = $('#avatar-select');
   if (avatarSelect) {
     avatarSelect.addEventListener('change', async (e) => {
-      setStatus('Avatar yüklənir…');
+      setStatus('Avatar yüklənir…', '', 't2s');
       try {
         await state.avatar?.load(`${ASSET_BASE}${e.target.value}`);
         state.avatar?.setHand($('#hand').value);
-        setStatus('Avatar hazır', 'ready');
+        t2sIdleStatus = { text: 'Avatar hazır', stateName: 'ready' };
+        setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
       } catch (err) {
-        setStatus('Avatar yüklənmədi: ' + err.message, 'error');
+        t2sIdleStatus = { text: 'Avatar yüklənmədi: ' + err.message, stateName: 'error' };
+        setStatus(t2sIdleStatus.text, t2sIdleStatus.stateName, 't2s');
       }
     });
   }
