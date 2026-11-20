@@ -269,6 +269,11 @@ export class VrmAvatar {
     this.time = 0;
     this.life = true;              // false → nəfəs/baş/göz qırpma söndürülür (ölçmə üçün)
     this.guard = true;             // false → oynatmada əllər arası qoruyucu söndürülür (ölçmə üçün)
+    // Söz işarələrində əlin oriyentasiyası (E37): şəkil landmark-larının z-i MediaPipe-də x-dən ~2.2 dəfə sıxılıb
+    // (E34: 0.46) — 1/0.46 ilə uzadılır, yoxsa əl şəkil müstəvisinə yatır; əlin burulması avatarın oynaq xəttinə görə
+    // (retarget.handTarget zScale, knuckles). 1 və false — E37-dən əvvəlki avatar
+    this.wordDepth = 1 / 0.46;
+    this.wordKnuckles = true;
     this.blink = { next: 1.5 + Math.random() * 2, t: -1 };
     // Üz: hədəf və cari ifadə çəkiləri, başın sözdəki fırlanması (radian, x/y/z)
     this.face = { target: {}, cur: {}, head: [0, 0, 0], headCur: [0, 0, 0] };
@@ -607,6 +612,11 @@ export class VrmAvatar {
     if (this.rigs) this.#wordBounds(word);
   }
 
+  /** Sözün bütün həlli, kadr → {left, right} (yalnız ölçmə üçün, tools/hand_orient.js; dəyişdirilmir). */
+  wordSolution(word) {
+    return this.rigs ? this.#wordSolve(word) : null;
+  }
+
   /**
    * Söz kadrında hər əl üçün hansı data kadrı və dərinlik variantı seçilib.
    * Cyber skeleton eyni şeyi göstərsin deyə lazımdır: avatar MediaPipe-in güzgülədiyi
@@ -667,6 +677,7 @@ export class VrmAvatar {
     const places = word.frames.map((fr) => (fr.b ? this.#signerToAvatar(fr.b, word.chest) : null));
     const scale = this.#wordScale(word);
     const avoid = this.#avoidBody();
+    const zScale = this.wordDepth, knuckles = this.wordKnuckles;
     const ang = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b))));   // iki dönmə arasında bucaq
 
     for (const [side, key, wrist] of [['left', 'L', 5], ['right', 'R', 6]]) {
@@ -685,14 +696,14 @@ export class VrmAvatar {
         const want = side === 'left' ? -1 : 1;
         const flip = handChirality(hand.w) !== want;            // metrik landmark-lar (barmaq forması)
         const flipN = handChirality(hand.n) !== want;           // şəkil landmark-ları (oriyentasiya)
-        let target = handTarget(rig, { world: hand.w, norm, size: word.size, flipWorld: flip, flipNorm: flipN });
+        let target = handTarget(rig, { world: hand.w, norm, size: word.size, flipWorld: flip, flipNorm: flipN, zScale, knuckles });
         // Biləyin oriyentasiyası şəkil koordinatlarından, barmaqların forması isə metrik
         // landmark-lardan gəlir. İki mənbə kəskin fərqlənirsə, MediaPipe-in metrik
         // rekonstruksiyası etibarsızdır — bilək bir tərəfə, barmaqlar başqa tərəfə baxır və
         // oynaqlar həddə dirənir (ölçülüb: fərq 60°-dən çox olanda kadrların yarıdan çoxu
         // pozulur, 20°-dən az olanda 1%-i). Belə kadrlarda barmaqlar da şəkildən qurulur.
         const frameGap = 2 * Math.acos(Math.min(1, Math.abs(target.R.clone().multiply(target.shapeRinv).w)));
-        if (frameGap > 50 * DEG) target = handTarget(rig, { norm, size: word.size, flipDepth: flipN });
+        if (frameGap > 50 * DEG) target = handTarget(rig, { norm, size: word.size, flipDepth: flipN, zScale, knuckles });
         let anchor = this.#keepOut(this.#wordPalm(place, fr.b[wrist], hand.w, flip, rig, scale));
         const elbow = this.#elbowOut(place.raw(fr.b[wrist - 2]));
         let arm = solveArm(rig, target.R, anchor, null, { elbow, shiftCost: 300, avoid });
@@ -701,16 +712,36 @@ export class VrmAvatar {
         // ola bilər. Bilək həmin oriyentasiyaya çatmırsa, dərinliyin əks variantı yoxlanılır:
         // əlin forması dəyişmir, yalnız biləyin çata biləcəyi istiqamət seçilir.
         if (arm && arm.info.hard > 0.03) {
-          const alt = handTarget(rig, { world: hand.w, norm, size: word.size, flipWorld: flip, flipNorm: !flipN });
+          const alt = handTarget(rig, { world: hand.w, norm, size: word.size, flipWorld: flip, flipNorm: !flipN, zScale, knuckles });
           const altAnchor = this.#keepOut(this.#wordPalm(place, fr.b[wrist], hand.w, flip, rig, scale));
           const altArm = solveArm(rig, alt.R, altAnchor, null, { elbow, shiftCost: 300, avoid });
           if (altArm && altArm.info.hard < arm.info.hard - 0.01) {
             target = alt; anchor = altAnchor; arm = altArm;
           }
         }
+        // E37: uzadılmış dərinlik MediaPipe-in z səs-küyünü də böyüdür — bəzi kadrlarda bilək hədəfə çatmır. Onda
+        // sıxılmış (E37-dən əvvəlki) dərinliyin hədəfi də yoxlanılır; #fixBody də qol bədənə girəndə ona qayıda bilir
+        let flatR = null;
+        if (zScale !== 1) {
+          const flat = frameGap > 50 * DEG
+            ? handTarget(rig, { norm, size: word.size, flipDepth: flipN, knuckles })
+            : handTarget(rig, { world: hand.w, norm, size: word.size, flipWorld: flip, flipNorm: flipN, knuckles });
+          flatR = flat.R;
+          if (arm && arm.info.hard > 0.03) {
+            const flatArm = solveArm(rig, flat.R, anchor, null, { elbow, shiftCost: 300, avoid });
+            if (flatArm && flatArm.info.hard < arm.info.hard - 0.01) { target = flat; arm = flatArm; }
+          }
+          // E28-in "qanad" dirsəyi (çiyindən 15 sm-dən az aşağı, 12 sm-dən çox çöldə): yeni oriyentasiya onu bəzi
+          // kadrlarda qaldırır — sıxılmış dərinlik dirsəyi aşağıda saxlayırsa və bilək pisləşmirsə, o götürülür
+          const up = (a) => a.info.E.y - rig.S.y > -0.15 && (a.info.E.x - rig.S.x) * rig.out > 0.12;
+          if (arm && target !== flat && up(arm)) {
+            const flatArm = solveArm(rig, flat.R, anchor, null, { elbow, shiftCost: 300, avoid });
+            if (flatArm && !up(flatArm) && flatArm.info.hard <= Math.max(0.03, arm.info.hard)) { target = flat; arm = flatArm; }
+          }
+        }
         if (!arm) return null;
         // goal — datadan gələn ilkin yer: sonrakı düzəlişlər anchor-u dəyişir, ölçmə ona baxır
-        return { target, arm, anchor, goal: anchor.clone(), elbow, flip, frame: f, cost: arm.info.cost };
+        return { target, arm, anchor, goal: anchor.clone(), elbow, flip, frame: f, cost: arm.info.cost, flatR };
       });
 
       // Tək kadrlıq sıçrayış (MediaPipe əli bir kadr səhv tapır): üç əlaməti var —
@@ -738,7 +769,10 @@ export class VrmAvatar {
           const anchor = a.anchor.clone().lerp(b.anchor, 0.5);
           const elbow = a.elbow && b.elbow ? a.elbow.clone().lerp(b.elbow, 0.5) : c.elbow;
           const arm = solveArm(rig, mid, anchor, null, { elbow, shiftCost: 300, avoid });
-          use = arm
+          // Ortalama biləyi həddən xeyli çıxarırsa (iki qonşunun yarı yolu çatılmaz ola bilər, E37: 44°-yə qədər)
+          // əvvəlki kadr saxlanılır
+          const ok = arm && arm.info.hard <= Math.max(0.05, Math.max(a.arm.info.hard, b.arm.info.hard) + 0.02);
+          use = ok
             ? { ...a, target: { ...a.target, R: mid }, anchor, goal: anchor.clone(), elbow, arm, frame: f }
             : a;
         }
@@ -757,8 +791,40 @@ export class VrmAvatar {
     // qarşı əli görmür — artıq ayrılmış əllər yenidən bir-birinə girirdi (ölçülüb: "gədə"-nin
     // 5-ci kadrı +1.2 sm-dən −2.3 sm-ə). Nisbi həndəsə burada təkrar köçürülmür, yalnız ayrılır.
     this.#fixTwoHanded(word, sol, places, scale, { relative: false });
+    this.#flatTwoHanded(word, sol, places, scale, avoid);
     this.#words.set(word, sol);
     return sol;
+  }
+
+  /**
+   * E37: əllər son keçiddən sonra da icazə veriləndən çox bir-birinin içindədirsə, iki əl sıxılmış dərinliyin
+   * (E37-dən əvvəlki) oriyentasiyası ilə yenidən həll olunub ayrılır; aralıq 3 mm-dən çox açılırsa, qol bədənə
+   * dərinə girmirsə və bilək həddi aşılmırsa saxlanılır.
+   */
+  #flatTwoHanded(word, sol, places, scale, avoid) {
+    for (let f = 0; f < word.frames.length; f++) {
+      const L = sol[f].left, R = sol[f].right;
+      if (!L || !R || !L.flatR || !R.flatR) continue;
+      const g0 = this.#probeGap(L, R)?.gap;
+      if (g0 == null || g0 >= Math.min(0, sol[f].allow ?? 0)) continue;
+      const flat = (side, c) => {
+        const arm = solveArm(this.rigs[side], c.flatR, c.anchor, null, { elbow: c.elbow, shiftCost: 300, avoid });
+        return arm && { ...c, target: { ...c.target, R: c.flatR.clone() }, anchor: c.anchor.clone(), arm };
+      };
+      const aL = flat('left', L), aR = flat('right', R);
+      if (!aL || !aR) continue;
+      const body0 = { left: this.#bodyGap('left', L).gap, right: this.#bodyGap('right', R).gap };
+      sol[f].left = aL; sol[f].right = aR;
+      this.#fixTwoHanded(word, sol, places, scale, { relative: false, frames: new Set([f]) });
+      const nL = sol[f].left, nR = sol[f].right;
+      const g1 = this.#probeGap(nL, nR)?.gap ?? -9;
+      const ok = g1 > g0 + 0.003
+        && this.#bodyGap('left', nL).gap >= Math.min(0, body0.left) - 0.003
+        && this.#bodyGap('right', nR).gap >= Math.min(0, body0.right) - 0.003
+        && nL.arm.info.hard <= Math.max(HARD_CEIL, L.arm.info.hard)
+        && nR.arm.info.hard <= Math.max(HARD_CEIL, R.arm.info.hard);
+      if (!ok) { sol[f].left = L; sol[f].right = R; }
+    }
   }
 
   /**
@@ -773,12 +839,13 @@ export class VrmAvatar {
    * Hər addımda ölçülür və yalnız ən yaxşı nəticə saxlanılır — düzəlmirsə ilkin poza qalır.
    * `relative: false` — yalnız ayırma (son keçid: yerləşmə artıq bədənə görə düzəldilib).
    */
-  #fixTwoHanded(word, sol, places, scale, { relative = true } = {}) {
+  #fixTwoHanded(word, sol, places, scale, { relative = true, frames = null } = {}) {
     const touched = new Set();
     const NEAR = 0.16;        // m — iştirakçıda bundan yaxın əllər "toxunan" sayılır
     const MESH = 0.002;       // m — səthlər toxunur, amma bir-birinin içinə girmir
     const FULL = 0.020;       // m — datada əllər aralıdırsa tələb olunan aralıq
     for (let f = 0; f < word.frames.length; f++) {
+      if (frames && !frames.has(f)) continue;
       const L = sol[f].left, R = sol[f].right;
       const fr = word.frames[f];
       if (!L || !R || !fr.L || !fr.R || !fr.b) continue;
@@ -989,112 +1056,135 @@ export class VrmAvatar {
         if (!c) continue;
         const start = this.#bodyGap(side, c);
         if (!start.normal || start.gap >= 0) continue;
-        let best = { gap: start.gap, anchor: c.anchor.clone(), arm: c.arm };
-        const start0 = c.arm.info;
-        const hardCap = Math.min(HARD_CEIL, Math.max(0.04, c.arm.info.hard + 0.03));
-
-        // 1. Dirsəyin yeri: çiyin→bilək oxu ətrafında tam süpürgə. Dirsək bu oxun ətrafında
-        //    çevrə cızır (qolun artıq sərbəstlik dərəcəsi) — bilək və əl yerində qalır, ona
-        //    görə işarə dəyişmir. Ölçülüb: bədəndən keçən kadrlarda dirsək gövdənin o biri
-        //    tərəfinə və kürəyin arxasına düşür, kiçik itələmə onu oradan çıxarmır.
-        const rig = this.rigs[side];
-        const toW = c.arm.info.W.clone().sub(rig.S);
-        const reach = toW.length();
-        const axis = toW.clone().normalize();
-        const down = new THREE.Vector3(0, -1, 0).addScaledVector(axis, axis.y).normalize();
-        const side2 = new THREE.Vector3().crossVectors(axis, down).normalize();
-        const dataElbow = c.elbow ?? c.arm.info.E;
-        // Namizədlər IK-nın özünün hesabladığı maneə qiyməti ilə sıralanır (arm.info.body):
-        // bu, pulsuzdur, tam ölçmə isə skeletin bütün sümüklərini yeniləməyi tələb edir və
-        // söz həllini saniyələrlə uzadır (ölçülüb).
-        // Dirsəyi "qanad" kimi qaldırmaq yalnız bədənə xeyli girmə olanda: 5 sm qalxma ~1 sm girmə qədər bahadır
-        // (E28; əvvəl bir neçə mm-lik toxunuş üçün də dirsək çiyin hündürlüyünə qalxırdı)
-        const score = (arm, gap) => gap * (gap < 0 ? 12 : 1)
-          - 3 * Math.max(0, arm.info.hard - start0.hard)
-          - 0.8 * arm.info.E.distanceToSquared(dataElbow)
-          - 0.12 * elbowRaise(rig, arm.info.E.clone().sub(rig.S), dataElbow);
-        // Hər namizəd skelet üzərində həqiqətən ölçülür: ucuz göstərici (IK-nın maneə
-        // qiyməti) yalnız beş nöqtəyə baxır və barmaqları görmür — onunla sıralamaq
-        // nəticəni pisləşdirir (ölçülüb: 51 → 81 problemli söz).
-        let bestScore = score(c.arm, best.gap);
-        for (let k = 0; k < 12; k++) {
-          const a = k * 30 * DEG;
-          const dir = down.clone().multiplyScalar(Math.cos(a)).addScaledVector(side2, Math.sin(a));
-          const guide = rig.S.clone().addScaledVector(axis, reach * 0.55).addScaledVector(dir, reach * 0.45);
-          const arm = solveArm(rig, c.target.R, c.anchor, null, { elbow: guide, shiftCost: 8000, avoid });
-          if (!arm || arm.info.hard > hardCap) continue;
-          const keepArm = c.arm;
-          c.arm = arm;
-          const g = this.#bodyGap(side, c);
-          const sc = score(arm, g.gap);
-          if (sc > bestScore) { bestScore = sc; best = { gap: g.gap, anchor: c.anchor.clone(), arm }; }
-          c.arm = keepArm;
-        }
-        c.anchor = best.anchor.clone();
-        c.arm = best.arm;
-
-        // 1b. Dirsəyin yeri çox vaxt əlin oriyentasiyası ilə kilidlənir: qol bədəndən
-        //     kənara çıxanda bilək həddi aşılır (ölçülüb — `hard` qiyməti 100-ə qalxır,
-        //     dirsək yönləndirməsi 4-dür, ona görə heç nəyi dəyişə bilmir). Çıxış yolu
-        //     əlin özünü önqol oxu ətrafında bir neçə dərəcə döndərməkdir: bu, işarənin
-        //     oxunuşuna təsir etməyən sapmadır, qolun bədəndən keçməsi isə açıq səhvdir.
-        if (best.gap < 0) {
-          const fAxis = c.arm.info.W.clone().sub(c.arm.info.E).normalize();
-          const nAxis = rig.n0.clone().applyQuaternion(c.target.R).normalize();
-          for (const [ax, deg] of [[fAxis, -12], [fAxis, 12], [fAxis, -24], [fAxis, 24],
-                                   [fAxis, -36], [fAxis, 36], [nAxis, -15], [nAxis, 15]]) {
-            const R2 = new THREE.Quaternion().setFromAxisAngle(ax, deg * DEG).multiply(c.target.R);
-            const arm = solveArm(rig, R2, c.anchor, null, { elbow: c.elbow, shiftCost: 8000, avoid });
-            if (!arm || arm.info.hard > hardCap) continue;
-            const keepArm = c.arm, keepR = c.target.R;
-            c.arm = arm; c.target = { ...c.target, R: R2 };
-            const g = this.#bodyGap(side, c);
-            if (g.gap > best.gap + 0.002) {
-              best = { gap: g.gap, anchor: c.anchor.clone(), arm, R: R2 };
-              if (g.gap >= 0) break;
-            }
-            c.arm = keepArm; c.target = { ...c.target, R: keepR };
+        const orig = { ...c };
+        const gap = this.#fixBodyFrame(word, sol, f, side, c, start, avoid);
+        // E37: uzadılmış dərinliyin oriyentasiyası ilə qol bədəndən çıxmırsa, sıxılmış dərinliyin oriyentasiyası
+        // (E37-dən əvvəlki) bütöv düzəlişlə yoxlanılır və 3 mm-dən çox yaxşıdırsa götürülür
+        if (gap < 0 && orig.flatR) {
+          const arm = solveArm(this.rigs[side], orig.flatR, orig.anchor, null,
+            { elbow: orig.elbow, shiftCost: 300, avoid });
+          if (arm) {
+            const alt = { ...orig, target: { ...orig.target, R: orig.flatR.clone() }, anchor: orig.anchor.clone(), arm };
+            const altStart = this.#bodyGap(side, alt);
+            const altGap = !altStart.normal || altStart.gap >= 0
+              ? altStart.gap : this.#fixBodyFrame(word, sol, f, side, alt, altStart, avoid);
+            if (altGap > gap + 0.003 && alt.arm.info.hard <= Math.max(HARD_CEIL, c.arm.info.hard)) Object.assign(c, alt);
           }
-          if (best.R) c.target = { ...c.target, R: best.R };
-          c.arm = best.arm;
         }
-
-        // 1c. Hələ də bədəndən keçirsə, bu kadrın oriyentasiyası etibarsızdır (MediaPipe
-        //     tək kadrda dərinliyi səhv həll edir). Qonşu kadrların ortası götürülür:
-        //     həm anatomik olaraq mümkün olur, həm hərəkət hamar qalır.
-        if (best.gap < -0.01 && f > 0 && f < word.frames.length - 1) {
-          const prev = sol[f - 1][side], next = sol[f + 1][side];
-          if (prev && next) {
-            const R2 = prev.target.R.clone().slerp(next.target.R, 0.5);
-            const arm = solveArm(rig, R2, c.anchor, null, { elbow: c.elbow, shiftCost: 8000, avoid });
-            if (arm && arm.info.hard <= HARD_CEIL) {
-              const keepArm = c.arm, keepR = c.target.R;
-              c.arm = arm; c.target = { ...c.target, R: R2 };
-              const g = this.#bodyGap(side, c);
-              if (g.gap > best.gap + 0.002) best = { gap: g.gap, anchor: c.anchor.clone(), arm, R: R2 };
-              else { c.arm = keepArm; c.target = { ...c.target, R: keepR }; }
-            }
-          }
-          if (best.R) c.target = { ...c.target, R: best.R };
-          c.arm = best.arm;
-        }
-
-        // 2. Ovuc səthdən bayıra
-        let moved = 0;
-        for (let iter = 0; iter < 4 && best.gap < 0 && moved < 0.07; iter++) {
-          const probe = this.#bodyGap(side, c);
-          if (!probe.normal || probe.gap >= 0) break;
-          const push = Math.min(-probe.gap + 0.004, 0.07 - moved);
-          if (!this.#reanchor(c, side, c.anchor.clone().addScaledVector(probe.normal, push), 8000, 0.03)) break;
-          moved += push;
-          const g = this.#bodyGap(side, c);
-          if (g.gap <= best.gap + 0.001) break;
-          best = { gap: g.gap, anchor: c.anchor.clone(), arm: c.arm };
-        }
-        c.anchor = best.anchor.clone();
-        c.arm = best.arm;
       }
     }
+  }
+
+  /** #fixBody-nin bir kadrı və bir qolu: `c` dəyişdirilir, qolun bədəndən son aralığı qaytarılır. */
+  #fixBodyFrame(word, sol, f, side, c, start, avoid) {
+    let best = { gap: start.gap, anchor: c.anchor.clone(), arm: c.arm };
+    const start0 = c.arm.info;
+    const hardCap = Math.min(HARD_CEIL, Math.max(0.04, c.arm.info.hard + 0.03));
+
+    // 1. Dirsəyin yeri: çiyin→bilək oxu ətrafında tam süpürgə. Dirsək bu oxun ətrafında
+    //    çevrə cızır (qolun artıq sərbəstlik dərəcəsi) — bilək və əl yerində qalır, ona
+    //    görə işarə dəyişmir. Ölçülüb: bədəndən keçən kadrlarda dirsək gövdənin o biri
+    //    tərəfinə və kürəyin arxasına düşür, kiçik itələmə onu oradan çıxarmır.
+    const rig = this.rigs[side];
+    const toW = c.arm.info.W.clone().sub(rig.S);
+    const reach = toW.length();
+    const axis = toW.clone().normalize();
+    const down = new THREE.Vector3(0, -1, 0).addScaledVector(axis, axis.y).normalize();
+    const side2 = new THREE.Vector3().crossVectors(axis, down).normalize();
+    const dataElbow = c.elbow ?? c.arm.info.E;
+    // Namizədlər IK-nın özünün hesabladığı maneə qiyməti ilə sıralanır (arm.info.body):
+    // bu, pulsuzdur, tam ölçmə isə skeletin bütün sümüklərini yeniləməyi tələb edir və
+    // söz həllini saniyələrlə uzadır (ölçülüb).
+    // Dirsəyi "qanad" kimi qaldırmaq yalnız bədənə xeyli girmə olanda: 5 sm qalxma ~1 sm girmə qədər bahadır
+    // (E28; əvvəl bir neçə mm-lik toxunuş üçün də dirsək çiyin hündürlüyünə qalxırdı)
+    const score = (arm, gap) => gap * (gap < 0 ? 12 : 1)
+      - 3 * Math.max(0, arm.info.hard - start0.hard)
+      - 0.8 * arm.info.E.distanceToSquared(dataElbow)
+      - 0.12 * elbowRaise(rig, arm.info.E.clone().sub(rig.S), dataElbow);
+    // Hər namizəd skelet üzərində həqiqətən ölçülür: ucuz göstərici (IK-nın maneə
+    // qiyməti) yalnız beş nöqtəyə baxır və barmaqları görmür — onunla sıralamaq
+    // nəticəni pisləşdirir (ölçülüb: 51 → 81 problemli söz).
+    let bestScore = score(c.arm, best.gap);
+    for (let k = 0; k < 12; k++) {
+      const a = k * 30 * DEG;
+      const dir = down.clone().multiplyScalar(Math.cos(a)).addScaledVector(side2, Math.sin(a));
+      const guide = rig.S.clone().addScaledVector(axis, reach * 0.55).addScaledVector(dir, reach * 0.45);
+      const arm = solveArm(rig, c.target.R, c.anchor, null, { elbow: guide, shiftCost: 8000, avoid });
+      if (!arm || arm.info.hard > hardCap) continue;
+      const keepArm = c.arm;
+      c.arm = arm;
+      const g = this.#bodyGap(side, c);
+      const sc = score(arm, g.gap);
+      if (sc > bestScore) { bestScore = sc; best = { gap: g.gap, anchor: c.anchor.clone(), arm }; }
+      c.arm = keepArm;
+    }
+    c.anchor = best.anchor.clone();
+    c.arm = best.arm;
+
+    // 1b. Dirsəyin yeri çox vaxt əlin oriyentasiyası ilə kilidlənir: qol bədəndən
+    //     kənara çıxanda bilək həddi aşılır (ölçülüb — `hard` qiyməti 100-ə qalxır,
+    //     dirsək yönləndirməsi 4-dür, ona görə heç nəyi dəyişə bilmir). Çıxış yolu
+    //     əlin özünü önqol oxu ətrafında bir neçə dərəcə döndərməkdir: bu, işarənin
+    //     oxunuşuna təsir etməyən sapmadır, qolun bədəndən keçməsi isə açıq səhvdir.
+    if (best.gap < 0) {
+      const fAxis = c.arm.info.W.clone().sub(c.arm.info.E).normalize();
+      const nAxis = rig.n0.clone().applyQuaternion(c.target.R).normalize();
+      const turns = [[fAxis, -12], [fAxis, 12], [fAxis, -24], [fAxis, 24],
+                     [fAxis, -36], [fAxis, 36], [nAxis, -15], [nAxis, 15]]
+        .map(([ax, deg]) => new THREE.Quaternion().setFromAxisAngle(ax, deg * DEG).multiply(c.target.R));
+      // E37: sıxılmış dərinliyin oriyentasiyası (yarı yolda və tam) — qol əvvəlki kimi bədəndən kənarda qalır
+      if (c.flatR) turns.push(c.target.R.clone().slerp(c.flatR, 0.5), c.flatR.clone());
+      for (const R2 of turns) {
+        const arm = solveArm(rig, R2, c.anchor, null, { elbow: c.elbow, shiftCost: 8000, avoid });
+        if (!arm || arm.info.hard > hardCap) continue;
+        const keepArm = c.arm, keepR = c.target.R;
+        c.arm = arm; c.target = { ...c.target, R: R2 };
+        const g = this.#bodyGap(side, c);
+        if (g.gap > best.gap + 0.002) {
+          best = { gap: g.gap, anchor: c.anchor.clone(), arm, R: R2 };
+          if (g.gap >= 0) break;
+        }
+        c.arm = keepArm; c.target = { ...c.target, R: keepR };
+      }
+      if (best.R) c.target = { ...c.target, R: best.R };
+      c.arm = best.arm;
+    }
+
+    // 1c. Hələ də bədəndən keçirsə, bu kadrın oriyentasiyası etibarsızdır (MediaPipe
+    //     tək kadrda dərinliyi səhv həll edir). Qonşu kadrların ortası götürülür:
+    //     həm anatomik olaraq mümkün olur, həm hərəkət hamar qalır.
+    if (best.gap < -0.01 && f > 0 && f < word.frames.length - 1) {
+      const prev = sol[f - 1][side], next = sol[f + 1][side];
+      if (prev && next) {
+        const R2 = prev.target.R.clone().slerp(next.target.R, 0.5);
+        const arm = solveArm(rig, R2, c.anchor, null, { elbow: c.elbow, shiftCost: 8000, avoid });
+        if (arm && arm.info.hard <= HARD_CEIL) {
+          const keepArm = c.arm, keepR = c.target.R;
+          c.arm = arm; c.target = { ...c.target, R: R2 };
+          const g = this.#bodyGap(side, c);
+          if (g.gap > best.gap + 0.002) best = { gap: g.gap, anchor: c.anchor.clone(), arm, R: R2 };
+          else { c.arm = keepArm; c.target = { ...c.target, R: keepR }; }
+        }
+      }
+      if (best.R) c.target = { ...c.target, R: best.R };
+      c.arm = best.arm;
+    }
+
+    // 2. Ovuc səthdən bayıra
+    let moved = 0;
+    for (let iter = 0; iter < 4 && best.gap < 0 && moved < 0.07; iter++) {
+      const probe = this.#bodyGap(side, c);
+      if (!probe.normal || probe.gap >= 0) break;
+      const push = Math.min(-probe.gap + 0.004, 0.07 - moved);
+      if (!this.#reanchor(c, side, c.anchor.clone().addScaledVector(probe.normal, push), 8000, 0.03)) break;
+      moved += push;
+      const g = this.#bodyGap(side, c);
+      if (g.gap <= best.gap + 0.001) break;
+      best = { gap: g.gap, anchor: c.anchor.clone(), arm: c.arm };
+    }
+    c.anchor = best.anchor.clone();
+    c.arm = best.arm;
+    return best.gap;
   }
 
   /**

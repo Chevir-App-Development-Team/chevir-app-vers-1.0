@@ -5,6 +5,7 @@
 // işarələr arası keçidlərə baxmaq üçün (tools/backtranslate.js-in virtual saatı ilə, tətbiqin oynatması):
 //   node tools/avatar_sheet.mjs --text "Mən Bakıda yaşayıram" --variants '[{},{"timing":"natural"}]' --every 3 --out s.jpg
 // --avatar yeni.vrm: başqa VRM faylı, quraşdırmadan (avatar.vrm sorğusu ona gedir)
+// --set '{"wordDepth":1}': söz vərəqində VrmAvatar sahələri (E37-nin müqayisəsi üçün)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'vite';
 import puppeteer from 'puppeteer';
@@ -83,9 +84,10 @@ try {
   await page.waitForFunction(() => window.__chevir?.lexicon, { timeout: 120000 });
   await page.click('.tab[data-tab="t2s"]');
   await page.waitForFunction(() => window.__chevir?.avatar?.vrm, { timeout: 180000 });
-  const data = await page.evaluate(async (ids, fracs) => {
+  const data = await page.evaluate(async (ids, fracs, set) => {
     const st = window.__chevir; const av = st.avatar; const lex = st.lexicon;
     av.paused = true;
+    Object.assign(av, set);
     const src = av.renderer.domElement; const W = src.width, H = src.height;
     const sx = 0, sw = W, sy = 0, sh = H; const tw = 230, th = Math.round(tw * sh / sw);
     const outc = document.createElement('canvas'); outc.width = tw * fracs.length + 80; outc.height = th * ids.length;
@@ -104,7 +106,7 @@ try {
       }
     }
     return outc.toDataURL('image/jpeg', 0.88);
-  }, ids, fracs);
+  }, ids, fracs, JSON.parse(opt('--set', '{}')));
   writeFileSync(out, Buffer.from(data.split(',')[1], 'base64'));
   console.log('wrote', out);
   }

@@ -116,6 +116,9 @@ export function measureRig(humanoid, side) {
     u0, f0,
     h0: vec().crossVectors(u0, vec(0, 0, 1)).normalize(),  // dirsək menteşəsi (önə bükülür)
     d0, s0, n0,
+    // Ovucun normalı oynaqların xəttindən (şəhadət→çeçələ kökü), MediaPipe-in landmark-larla tapdığı kimi. T-pozada
+    // anime avatarın oynaq xətti üfüqi deyil: n0-dan 10–12° fərqlənir (E37), əl bu qədər burulmuş görünürdü
+    nk0: (() => { const k = vec().crossVectors(d0, s0).normalize(); return k.dot(n0) < 0 ? k.negate() : k; })(),
     // ovuc normalı = chir · (barmaq istiqaməti × çeçələ→şəhadət); sol/sağ əldə işarə tərsdir
     chir: Math.sign(vec().crossVectors(d0, s0).dot(n0)) || 1,
     fingers,
@@ -128,11 +131,11 @@ export function measureRig(humanoid, side) {
 
 /* ───────────────────────── əl hədəfi ───────────────────────── */
 
-function palmFrame(rig, P) {
+function palmFrame(rig, P, knuckles = false) {
   const d = P[9].clone().sub(P[0]).normalize();
   const s = P[5].clone().sub(P[17]).normalize();
   const n = vec().crossVectors(d, s).multiplyScalar(rig.chir).normalize();
-  const R = frameRotation(rig.d0, rig.n0, d, n);
+  const R = frameRotation(rig.d0, knuckles ? rig.nk0 : rig.n0, d, n);
   return { d, s, n, R, Rinv: R.clone().invert() };
 }
 
@@ -148,17 +151,20 @@ function palmFrame(rig, P) {
  * İkisi arasındakı fərq bəzi hərflərdə 30°-yə çatır (ölçülüb).
  */
 export function handTarget(rig, { world, norm, size, mirror = false, flipDepth = false,
-                                  flipNorm = flipDepth, flipWorld = flipDepth }) {
+                                  flipNorm = flipDepth, flipWorld = flipDepth, zScale = 1, knuckles = false }) {
   const sx = mirror ? -1 : 1;
   // Dərinliyin güzgülənməsi şəkil və metrik landmark-larda fərqli ola bilər (ölçülüb:
   // kadrların ¼-ində iki mənbə əlin tərəfini fərqli göstərir), ona görə ayrıca verilir.
   const szP = flipNorm ? 1 : -1;
   const szW = flipWorld ? 1 : -1;
   const a = size ? size[0] / size[1] : 1;
-  const P = norm.map((p) => vec(sx * p.x * a, -p.y, szP * p.z * a));
-  const view = palmFrame(rig, P);
+  // zScale: MediaPipe şəkil z-i x-dən təxminən 2.2 dəfə sıxılmış verir (E34: 0.46) — oriyentasiya şəkil müstəvisinə
+  // yatırdı (E37); söz işarələri bunu düzəldir (VrmAvatar.wordDepth)
+  const P = norm.map((p) => vec(sx * p.x * a, -p.y, szP * p.z * a * zScale));
+  // knuckles: hədəf avatarın oynaq xəttini landmark-ların oynaq xəttinə gətirir (rig.nk0), söz işarələri (E37)
+  const view = palmFrame(rig, P, knuckles);
   const shape = world ? world.map(([x, y, z]) => vec(sx * x, -y, szW * z)) : P;
-  const shapeFrame = world ? palmFrame(rig, shape) : view;
+  const shapeFrame = world ? palmFrame(rig, shape, knuckles) : view;
   return { ...view, P, shape, shapeRinv: shapeFrame.Rinv };
 }
 

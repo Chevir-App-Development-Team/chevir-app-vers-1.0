@@ -8,6 +8,7 @@
  *   node tools/measure_hands.mjs --out hands.json     # tam hesabat faylda
  *   node tools/measure_hands.mjs --words ad-gunu,agirdir --frames
  *   node tools/measure_hands.mjs --no-guard           # oynatma qoruyucusu olmadan (yalnız həll)
+ *   node tools/measure_hands.mjs --set '{"wordDepth":1,"wordKnuckles":false}'   # VrmAvatar sahələri (E37-dən əvvəl)
  *   node tools/measure_hands.mjs --avatar yeni.vrm    # başqa VRM faylı, quraşdırmadan (avatar.vrm sorğusu ona gedir)
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -60,10 +61,11 @@ try {
     window.__chevir.avatar.vrm.scene.traverse((m) => { if (m.isSkinnedMesh) n += m.geometry.attributes.position.count; });
     return `${n} vertex`;
   }));
-  const rep = await page.evaluate(async (ids, keep, guard) => {
+  const rep = await page.evaluate(async (ids, keep, guard, set) => {
     const m = await import('/tools/measure_hands.js');
+    Object.assign(window.__chevir.avatar, set);
     return m.measureWords(window.__chevir, { ids, keepFrames: keep, guard });
-  }, ids, args.includes('--frames') ? (ids ?? []) : [], args.includes('--no-guard') ? false : null);
+  }, ids, args.includes('--frames') ? (ids ?? []) : [], args.includes('--no-guard') ? false : null, JSON.parse(opt('--set') ?? '{}'));
 
   if (out) writeFileSync(out, JSON.stringify(rep, null, 1));
   const cm = (v) => (v == null ? '   -  ' : (v * 100).toFixed(1).padStart(6));

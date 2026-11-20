@@ -179,33 +179,35 @@ export async function setup({ avatar, t2s, lexicon }) {
    *          opts — yalnız bu cümlə üçün TextToSign.opts
    */
   async function run(text, { mode = 'avatar', pre = 0.5, tail = 0.6, maxSeconds = 60, signs = null, render = 0, opts = null,
-    phase = 0 } = {}) {
+    phase = 0, dual = false } = {}) {
     const keep = { ...t2s.opts };
     if (opts) Object.assign(t2s.opts, opts);
     // Hər cümlə saatın eyni fazasından başlayır (`phase` ms): oynadıcının 16 ms-lik gözləmələri ilə 60 Hz yeniləmələrin
     // nisbəti kadrları azca dəyişir; faza əvvəlki cümlədən asılı olsa nəticə əvvəlki cümlələrdən asılı olardı
     await advance(Math.ceil(vt.now / 1000) * 1000 + 1000 + phase);
     try {
-      return await play(text, { mode, pre, tail, maxSeconds, signs, render });
+      return await play(text, { mode, pre, tail, maxSeconds, signs, render, dual });
     } finally {
       t2s.opts = keep;
     }
   }
 
-  async function play(text, { mode, pre, tail, maxSeconds, signs, render }) {
+  async function play(text, { mode, pre, tail, maxSeconds, signs, render, dual }) {
     const steps = signs ? t2s.planSigns(signs) : t2s.plan(text);
     const words = new Map();
     await Promise.all(steps.filter((s) => s.kind === 'word').map(async (s) => {
       words.set(s.entry.id, await lexicon.get(s.entry.id).catch(() => null));
     }));
     t2s.stop();
-    t2s.targets = mode === 'source' ? [source] : avatarTargets;
+    // dual (avatar rejimində): iştirakçının klipi də eyni anda izlənir — hər kadrda avatarın və klipin kadrı yan-yana
+    // (tools/v3_swap.mjs onları qarışdırıb itkinin hansı hissədən gəldiyini ölçür)
+    t2s.targets = mode === 'source' ? [source] : dual ? [...avatarTargets, source] : avatarTargets;
     source.cur = null;
     avatar.clearHandPose();
     for (let i = 0; i < 90; i++) avatar.update(1 / 60);       // istirahət
     avatar.snap();
 
-    const frames = [], shots = [];
+    const frames = [], shots = [], srcFrames = [];
     // Oynatmada əllərin yoxlanması (avatar): iki əl bir-birinə > 5 mm girir, əl bədənə > 5 mm girir, ovucun bir
     // kadrdakı (1/30 s) ən böyük yerdəyişməsi; yalnız qaldırılmış əllər (istirahətdəki yox)
     const check = { overlap: 0, body: 0, maxStep: 0, path: 0, up: 0, elbow: 0, right: 0 };
@@ -220,6 +222,7 @@ export async function setup({ avatar, t2s, lexicon }) {
         ? sourceFrame(avatar, cam, source.cur.word.frames[source.cur.f])
         : avatarFrame(avatar, model, cam, nose);
       frames.push(fr);
+      if (dual) srcFrames.push(source.cur ? sourceFrame(avatar, cam, source.cur.word.frames[source.cur.f]) : fr);
       if (render && (frames.length - 1) % render === 0) {
         avatar.renderer.render(avatar.scene, avatar.camera);
         shots.push({ t: frames.length - 1, url: avatar.renderer.domElement.toDataURL('image/jpeg', 0.85) });
@@ -279,10 +282,11 @@ export async function setup({ avatar, t2s, lexicon }) {
     });
     // Kadrlar düz massivlərə (Node-a ötürmək üçün)
     const T = frames.length;
-    const pack = (k, n) => { const a = new Array(T * n); frames.forEach((f, t) => { for (let j = 0; j < n; j++) a[t * n + j] = f[k][j]; }); return a; };
+    const pack = (k, n, fs = frames) => { const a = new Array(T * n); fs.forEach((f, t) => { for (let j = 0; j < n; j++) a[t * n + j] = f[k][j]; }); return a; };
     return {
       text, T, aspect: ASPECT, fps: FPS, intended, check, shots,
       hand: pack('hand', 126), hand_world: pack('hand_world', 126), pose: pack('pose', 27),
+      src: dual ? { hand: pack('hand', 126, srcFrames), hand_world: pack('hand_world', 126, srcFrames), pose: pack('pose', 27, srcFrames) } : null,
     };
   }
   return { run, cam, model };

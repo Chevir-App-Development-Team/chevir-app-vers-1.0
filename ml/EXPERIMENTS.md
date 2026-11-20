@@ -3619,3 +3619,124 @@ rest, no console errors. 14 `verify_*` scripts and `ci_gates.mjs` pass (gates un
     node tools/backtranslate.mjs [--phases 3] [--set azsld|setc] [--opts '{"timing":"fixed","transitions":false}'] --out x.json
     node tools/backtranslate.mjs --mode both --out x.json            # + the signer's clips through the same camera
     node tools/compare_v3.mjs before.json after.json [--show 5]
+
+## E37 — The avatar's hands: orientation from MediaPipe's compressed image depth and the knuckle line (V3 follow-up; no training)
+
+**Question.** E34's V3 score gave the avatar sign F1 0.539 against 0.699 for the signer's own lexicon clips through the
+same synthetic camera, with two-handed signs worst (recall 0.52 vs 0.83). Is the loss in placement (`#wordPalm`,
+`#fixTwoHanded`, `#fixBody`), in the second hand going to rest (`place.height < -1.05`), or in the camera?
+
+**Swap test** (`tools/v3_swap.mjs`, new). Each V3 sentence is played once with the avatar and the signer's clips
+followed at the same time (`tools/backtranslate.js`, `dual`), so every frame exists twice; the two are then mixed and
+each mix goes through the installed sentence model. Recall of the intended signs (199 sentences, one clock phase,
+E34 code):
+
+| mix | all | two-handed | one-handed | first sign | later signs |
+|---|---|---|---|---|---|
+| avatar | 0.600 | 0.527 | 0.709 | 0.772 | 0.539 |
+| signer's clips | 0.837 | 0.810 | 0.877 | 0.878 | 0.823 |
+| avatar, clip's hand shape and orientation at the avatar's wrist | **0.835** | **0.824** | 0.851 | 0.888 | 0.816 |
+| avatar's hand shape at the clip's wrist | 0.576 | 0.518 | 0.662 | 0.746 | 0.515 |
+| avatar, clip's pose points (shoulders, elbows, wrists, nose) | 0.549 | 0.480 | 0.652 | 0.695 | 0.497 |
+| avatar, clip's right / left hand (everything) | 0.796 / 0.691 | 0.748 / 0.683 | 0.868 / 0.702 | 0.878 / 0.812 | 0.767 / 0.647 |
+| avatar, the clip's hand detection pattern | 0.620 | 0.538 | 0.742 | 0.797 | 0.557 |
+| avatar, the clip's image z only | 0.621 | 0.554 | 0.722 | 0.787 | 0.562 |
+
+Placement is not the loss (palms differ by 0.22 shoulder widths, the avatar's ~0.1 higher, and moving them to the
+clip's places gains nothing), nor the second hand's detection (left hand seen in 67 % of two-handed sign frames vs 74 %
+in the clips; copying the clips' pattern gives +0.02), nor the camera's body points (the avatar's pose with its own
+hands is better than the clip's). Nearly all of it is the hand's shape and orientation. Missed signs are not found
+elsewhere in the sentence either (5 of 306): not timing.
+
+**Cause 1: MediaPipe's image depth is compressed.** `tools/hand_orient.mjs` (new) compares, frame by frame, the hand
+orientation the word solve aims at (from the image landmarks: x, y and MediaPipe's z), the signer's world landmarks and
+what the avatar's bones reach. The avatar reaches its target within 3-11° (finger direction), but on the failing signs
+the target is 15-33° off the world landmarks (YAXŞI, recognized: 3-5°). MediaPipe's image z is about 2.2 times smaller
+than x for the same distance (E34 measured 0.46), so the orientation built from it tips into the image plane: SƏN's
+index points up instead of at the viewer (read as MƏN), İSTƏMƏK's claw at the chest opens flat to the side (read as
+TƏŞƏKKÜR 13 of 15 times). Image vs world orientation over 21,964 hand frames (every 7th lexicon word), median angle of
+the finger direction / palm normal, with image z scaled by k:
+
+| k | 1 (before) | 1.5 | 2 | 2.17 (1/0.46) | 2.5 | 3 | 4 |
+|---|---|---|---|---|---|---|---|
+| finger direction | 22.8° | 15.7° | 11.4° | 10.6° | 9.8° | 9.7° | 11.2° |
+| palm normal | 23.0° | 16.2° | 13.8° | 13.5° | 13.5° | 14.1° | 16.0° |
+
+Fix: `retarget.handTarget(..., { zScale })`, word signs use `VrmAvatar.wordDepth = 1 / 0.46` (letters unchanged).
+
+**Cause 2: the avatar's knuckle line.** The rig assumed the T-pose palm normal (0, −1, 0), but this avatar's knuckle line
+(index → little finger base) is tilted 9.8° (right) / 12.2° (left) from it, so every hand was twisted that much
+against the landmarks' own palm frame (measured: −10.6° / +12.8° median, all frames). `rig.nk0` (the normal from the
+knuckle line) and `handTarget(..., { knuckles })`, on for word signs (`VrmAvatar.wordKnuckles`): the achieved palm
+normal is now 1-9° from the target instead of 10-16°.
+
+**Side effects and guards.** Stretching z also stretches MediaPipe's z noise: some frames got unreachable wrist targets
+(single frames 44-49° past the limit), more arms into the body, a few raised elbows. The guards fall back to the
+pre-E37 ("flat") orientation of that frame only: (a) when the wrist cannot reach the target (`hard` > 0.03) the flat
+target is tried; (b) a single-frame spike is replaced by the mean of its neighbours only if that does not bend the wrist
+far past its limit (else the previous frame is held; this also applies with `wordDepth` 1); (c) a frame whose arm still
+goes through the body after `#fixBody` is fixed again from the flat orientation and kept if the gap opens more than
+3 mm without the wrist going past its ceiling (`#fixBodyFrame`; in the 529-word sample 752 of 1,869 such frames);
+(d) the same for hands still in each other (`#flatTwoHanded`, 17 of 66 frames); (e) a frame whose elbow is raised in
+E28's sense (less than 15 cm below the shoulder, more than 12 cm out) takes the flat orientation if that keeps the
+elbow down without a worse wrist. E28's `elbowRaise` cost is unchanged.
+
+**V3** (`node tools/backtranslate.mjs --phases 3`, 199 sentences). The team's new `avatar.vrm` (thinner meshes,
+commit 1a20edd) arrived during this work; the first and last rows are both on the new file, the pre-E37 code re-run
+from a detached worktree at that commit (the file alone moves V3 by 0.001: 0.537 → 0.536). Tuning rows are before
+guards (b)-(e); "depth 2.17" alone ran on the old file.
+
+| V3 | sign F1 | WER | AzSLD test F1 | set C F1 | two-handed R | one-handed R | first / later R |
+|---|---|---|---|---|---|---|---|
+| before E37 (new file) | 0.536 | 75.1 % | 0.654 | 0.493 | 0.522 | 0.712 | 0.765 / 0.544 |
+| depth 2.17 | 0.616 | 66.3 % | 0.722 | 0.579 | 0.667 | 0.762 | 0.850 / 0.657 |
+| depth 2.6 | 0.601 | 69.2 % | | | 0.634 | 0.762 | 0.861 / 0.627 |
+| depth 1.8 + knuckles | 0.626 | 67.1 % | | | 0.685 | 0.781 | 0.845 / 0.684 |
+| depth 2.17 + knuckles | 0.632 | 65.3 % | 0.724 | 0.599 | 0.688 | 0.785 | 0.850 / 0.686 |
+| **E37 (2.17 + knuckles + guards), new default** | **0.624** | **66.5 %** | **0.717** | **0.591** | **0.670** | **0.778** | **0.840 / 0.671** |
+| signer's clips, same camera | 0.676 | 66.4 % | 0.720 | 0.660 | 0.808 | 0.871 | 0.877 / 0.819 |
+
+E37 against before: F1 +0.087 [+0.059, +0.112], WER −8.5 [−13.1, −4.0] points (85 sentences better, 44 worse); exact
+sentences 5 → 12 %. Depth alone +0.079 [+0.041, +0.101]; knuckles on top +0.016 [−0.003, +0.037]; 1.8 and 2.6 are not
+better than the measured 1/0.46. The guards cost −0.006 [−0.012, +0.001] (with only (a) and a flat candidate in
+`#fixBody`'s turns: 0.630). Two-handed signs whose second hand is up for only part of the sign: recall 0.446 → 0.620
+(clips 0.868); the rest 0.551 → 0.686 (0.785). The signs E34 named: OLACAQ 2 → 16 of 16, LAZIM 0 → 12 of 12, SƏN 0 → 8
+of 10, PUL 2 → 5 of 7, İSTƏMƏK 0 → 3 of 15, NƏ VAXT 0 → 3 of 7 (read as NƏ ZAMAN), KART 0 → 2 of 9; ALMAQ (0 of 6),
+BAKI (0 of 2: the chin is higher on the avatar's head, reads as YEMƏK), BURADA, SİZ unchanged; BİZ 4 → 2 of 7. Letters
+are not touched (letters F1 0.499 → 0.490: the words around them change). Sentence-frame checks: hand in body 2.7 →
+2.0 % of raised frames, hands in each other 0.2 → 0.2 %, right elbow raised 0.5 → 0.5 %.
+
+**Hand checks** (new file, the same two code states; `measure_hands.mjs --words` on E34's 529 words,
+`measure_elbows.mjs --n 300`):
+
+| | before E37 | E37 |
+|---|---|---|
+| hands in each other > 5 mm (words) / deeper than the signer's own | 20 / 4 | 24 / 5 |
+| … > 1 cm / during playback | 16 / 30 | 15 / 28 |
+| hand in body (words) / mean depth | 255 / 0.85 cm | **224 / 0.66 cm** |
+| arm in body (words > 5 mm): 0.5-2 / 2-3 / > 3 cm | 247 / 77 / 34 | 295 / 58 / 27 |
+| arm in body: mean depth / max | 1.17 / 4.8 cm | 1.14 / 4.5 cm |
+| wrist > 5° past its limit / past the hard ceiling (words) / max | 413 / 91 / 37.7° | **366 / 48** / 35.9° |
+| placement p90 / reach p90 | 4.2 / 2.9 cm | 4.0 / 2.5 cm |
+| out of frame (words) | 86 | 80 |
+| right elbow raised (frames) / words with ≥ 3 raised frames | 4.2 % / 9.4 % | 4.2 % / 8.4 % |
+| left elbow raised (frames) / words with ≥ 3 raised frames | 2.5 % / 4.5 % | 2.6 % / 4.9 % |
+
+Most checks get better, wrists clearly (a hand pointed at the body no longer needs the wrist bent past its limit).
+Not level: three new words with hands in each other beyond the signer's own (SÜMÜK, SÜRÜ, SƏHRA: the thumb bases touch;
+ARXİV and BİBLİYA no longer do), more words where the forearm touches the body by 0.5-2 cm (the deep ones are fewer),
+and the left elbow a little more often raised (+5 frames, +1 word). Contact sheets (`avatar_sheet.mjs --words ...
+--set '{"wordDepth":1,"wordKnuckles":false}'` against the default): İSTƏMƏK's claw at the chest, SƏN pointing forward.
+
+**What is left.** The swap on the fixed avatar (depth + knuckles, new file): avatar 0.724, clips 0.837; the clip's world
+landmarks alone 0.828, the clip's image shape alone 0.704, its detection pattern 0.715. The rest of the gap is in the
+metric hand shape the model reads (`hand_world`: the avatar's finger proportions and articulation, ~10° of
+orientation), not placement, detection or the image. The translator plays sentences with the new defaults, the avatar
+ends at rest, no console errors; 14 `verify_*` scripts and `ci_gates.mjs` pass (gates unchanged).
+
+    node tools/v3_swap.mjs [--mixes avatar,source,shape,place,pose,left,right,detect,world,image] [--avatar '{...}'] --out x.json
+    node tools/v3_swap.mjs --text "Mən yaxşıyam, sən necəsən?" --frames --out x.json     # frames of one sentence
+    node tools/hand_orient.mjs --words isteyirem,sen [--avatar '{"wordDepth":1,"wordKnuckles":false}']
+    node tools/measure_hands.mjs --set '{"wordDepth":1,"wordKnuckles":false}'          # also measure_elbows, avatar_sheet
+
+Local only: D:/chevir/eval/v3hands (reports, sheets), scripts D:/chevir/scripts/e37.

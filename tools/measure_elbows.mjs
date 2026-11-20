@@ -29,8 +29,11 @@ try {
   await page.click('.tab[data-tab="t2s"]');
   await page.waitForFunction(() => window.__chevir?.avatar?.vrm, { timeout: 180000 });
   await page.evaluate((o) => { window.__only = o; }, (opt('--words', '') || '').split(',').filter(Boolean));
+  // --set '{"wordDepth":1}': VrmAvatar sahələri (E37-nin müqayisəsi üçün)
+  await page.evaluate((s) => { window.__set = s; }, JSON.parse(opt('--set', '{}')));
   const rep = await page.evaluate(async (n) => {
     const st = window.__chevir; const av = st.avatar; const lex = st.lexicon;
+    Object.assign(av, window.__set ?? {});
     av.paused = true;
     const only = (window.__only || []); const ents = only.length ? lex.entries.filter((e) => only.includes(e.id)) : lex.entries.filter((e, k) => k % Math.max(1, Math.floor(lex.entries.length / n)) === 0).slice(0, n);
     const rows = [];
