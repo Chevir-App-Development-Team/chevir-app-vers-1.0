@@ -33,7 +33,7 @@
 .sent .alt:focus-visible {
   border-style: solid;
   color: var(--ink, #eef3fc);
-  background: #13265a;
+  background: var(--t-ghost-bg, #13265a);
 }
 
 .sent .alt small {
