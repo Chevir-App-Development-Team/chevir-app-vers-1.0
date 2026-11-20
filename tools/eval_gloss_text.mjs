@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import { prepare, fit, GlossToText, textWords } from '../src/tercume/gloss2text.js';
 import { levenshtein, nearestSentence } from '../src/tercume/continuous.js';
 import { azLower } from '../src/tercume/words.js';
+import { FormTagger } from '../src/tercume/formtag.js';
 
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
@@ -52,11 +53,26 @@ const drop = DROP_OPT ? { min: Number(DROP_OPT.split(',')[0]), ratio: Number(DRO
 const names = !args.includes('--no-names');
 // hərflə yığılan sözlər üçün korpusun ümumi sözləri (R6, E30; AzSLD-dən asılı deyil: leave-one-out-u pozmur)
 const COMMON = fs.readFileSync('ml/common_words.txt', 'utf8').trim().split(/\r?\n/).join('\n');
-const model = (keep) => new GlossToText({ ...fit(prep, (i) => !isPseudo(i) && keep(i), prior, PW), common: COMMON }, { weights, drop, names });
-const fitWithout = (skip) => model((i) => isDev(i) && i !== skip);
-const devModel = () => model(isDev);
+// --tagger <qovluq>: sözün formasının modeli (E33, ml/formtag.py train) — hər cümlə onu görməmiş modellə: dev cümləsi
+// öz qatının modeli f0–f9 ilə (tools/build_form_data.mjs-in qatları: dev-in sırası ilə k % 10), test cümləsi "dev" ilə,
+// "məlum cümlə" "all" ilə. --lambda: modelin payı (susmaya görə gloss2text LAMBDA). Yoxdursa yalnız qaydalar və saylar
+const TAGGER = opt('--tagger', null), LAMBDA_OPT = opt('--lambda', null);
+let fk = 0;
+const FOLD = S.map((s) => (held.has(s.folder) ? 'test' : String(fk++ % 10)));
+const taggers = new Map();
+const taggerOf = (name) => {
+  if (!TAGGER) return false;
+  if (!taggers.has(name)) taggers.set(name, new FormTagger(JSON.parse(fs.readFileSync(`${TAGGER}/${name}.json`, 'utf8'))));
+  return taggers.get(name);
+};
+const taggerFor = (i) => taggerOf(i === null ? 'all' : FOLD[i] === 'test' ? 'dev' : `f${FOLD[i]}`);
+const model = (keep, tagger = false) => new GlossToText({ ...fit(prep, (i) => !isPseudo(i) && keep(i), prior, PW), common: COMMON },
+  { weights, drop, names, tagger, ...(LAMBDA_OPT !== null && { lambda: Number(LAMBDA_OPT) }) });
+const fitWithout = (skip) => model((i) => isDev(i) && i !== skip, taggerFor(skip));
+const devModel = () => model(isDev, taggerOf('dev'));
 let all = null;
-const g2tAll = () => (all ??= model(() => true));   // bütün 492 cümlə (brauzerdəki model)
+const g2tAll = () => (all ??= model(() => true, taggerFor(null)));   // bütün 492 cümlə (brauzerdəki model)
+if (TAGGER) console.log(`form tagger: ${TAGGER} (folds f0-f9 / dev / all), lambda ${LAMBDA_OPT ?? 'default'}`);
 const raw = (labels) => labels.map((l) => azLower(l.split('/')[0])).join(' ');
 
 function wer(items) {
@@ -171,7 +187,7 @@ if (fs.existsSync(DET)) {
     const labels = list.sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     const ref = S[i].text;
     // yeni cümlə: model və siyahı bu cümləsiz (bütün 492-dən, test cümlələri də öyrənməyə girir)
-    if (i !== cur) { cur = i; curModel = model((j) => j !== i); }
+    if (i !== cur) { cur = i; curModel = model((j) => j !== i, taggerFor(i)); }
     const g2t = curModel.generate(labels).text;
     const others = S.filter((_, j) => j !== i);
     const m0 = nearestSentence(labels, others);

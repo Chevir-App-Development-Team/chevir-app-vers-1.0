@@ -20,6 +20,7 @@ import { Lemmatizer, candidates, variants, infinitive } from './morph.js';
 import { analyze, realize, PRONOUNS } from './inflect.js';
 import { azLower, PERSON } from './words.js';
 import { alignRuns, spell, withCase, NAME_HEAD } from './spelled.js';
+import { FormTagger } from './formtag.js';
 
 export const textWords = (t) => azLower(t).replace(/[.,!?;"()«»“”]+/g, ' ').split(/\s+/).filter(Boolean);
 // Annotasiyada İ çox vaxt ı yerinə yazılıb (ALİNMİR): tutuşdurmada ı = i
@@ -85,6 +86,8 @@ export const WEIGHTS = { lc: 8, ln: 4, l: 2, cn: 2, cc: 1, cr: 1, c: 0 };
 // Mətndə sözü olmayan işarə (AzSLD-nin mətnində tutuşmayan): əvvəl bir dəfə görünən də atılırdı (ƏLİL 13/14, VERMƏK 7/13,
 // ÖDƏMƏK 2/2, GƏTİRMƏK 1/1), yeni cümlədə məna itirdi. İndi yalnız tez-tez görünüb demək olar həmişə sözsüz qalan
 export const DROP = { min: 3, ratio: 0.7 };
+// Formanın modelinin (E33) payı #feats-də, modelin içində yazılmayıbsa (dev-in 10 qatında seçilib)
+export const LAMBDA = 0.6;
 // İkinci şəxs əvəzliyi (tamamlıq) felin idarəsi ilə (E26): kimə — yönlük, kimi — təsirlik. Saylarda görünməyən
 // birləşmələr üçün; görünən (MƏN SİZ GÖZLƏMƏK → sizi) sayla qalır
 const GOVERN = {
@@ -375,9 +378,20 @@ export class GlossToText {
   /** native: doğma işarələrin qrammatikası (#native: YOX, OLMAQ, OLACAQ, LAZIM, BİRLİKDƏ); false — yalnız sayılar. */
   /** drop: işarə mətndə sözsüz qalır, AzSLD-də ən azı `min` dəfə görünüb `ratio`-dan çox sözsüz olubsa (E26). */
   /** names: hərflə yığılan söz ad / qısaltma / söz kimi yazılır (R6, E30, spelled.js); false — kiçik hərflərlə bir söz. */
-  constructor(model, { weights = WEIGHTS, native = true, drop = DROP, names = true } = {}) {
+  /**
+   * tagger: sözün formasının modeli (E33, formtag.js) — FormTagger, onun JSON-u və ya false (yalnız qaydalar və saylar).
+   * Susmaya görə modelin içindəki `formTagger` (tools/build_gloss_text.mjs --tagger), onun `on`-u true-dursa. lambda:
+   * modelin payı, kontekst saylarının paylanması ilə qarışdırılır (#feats); işarənin sayı yoxdursa yalnız model.
+   */
+  constructor(model, { weights = WEIGHTS, native = true, drop = DROP, names = true, tagger, lambda } = {}) {
     this.m = model; this.w = weights; this.native = native; this.drop = drop; this.names = names;
+    const t = tagger === undefined ? (model.formTagger?.on ? model.formTagger : null) : tagger;
+    // FormTagger və ya onun kimi obyekt (probs, classes, isVerb), yoxsa JSON
+    this.tagger = !t ? null : typeof t.probs === 'function' ? t : new FormTagger(t);
+    this.lambda = lambda ?? model.formTagger?.lambda ?? LAMBDA;
   }
+
+  #probs = null;
 
   #lexOf = (l) => this.m.lex[l] ?? this.m.guess[l];
 
@@ -485,23 +499,49 @@ export class GlossToText {
     return { pos: pick.pos, root: pick.root, prefix: g.prefix, proper: g.proper, seen: true };
   }
 
-  /** Ən ehtimallı əlamətlər: kontekstlərin paylanmalarının çəkili cəmi (az sayılan kontekst zəifdir). */
+  /**
+   * Ən ehtimallı əlamətlər: kontekstlərin paylanmalarının çəkili cəmi (az sayılan kontekst zəifdir). Formanın modeli
+   * varsa (E33): (1 − λ) · sayların paylanması + λ · modelin bu növə (ad / fel) düşən ehtimalları.
+   */
   #feats(labels, i, pos) {
     const score = new Map();
+    let wsum = 0;
     for (const [name, c] of contexts(labels, i, this.#lexOf, pos)) {
       const table = this.m.feats[`${name}:${c}`];
       const tot = Object.values(table ?? {}).reduce((a, b) => a + b, 0);
       if (!tot) continue;
       const w = this.w[name] * (tot / (tot + 1));
+      wsum += w;
       for (const [k, n] of Object.entries(table)) {
         const f = JSON.parse(k);
         if ((pos === 'verb') !== ('tam' in f)) continue;      // başqa növün əlamətləri
         score.set(k, (score.get(k) ?? 0) + w * (n / tot));
       }
     }
-    let best = null, s = -1;
-    for (const [k, v] of score) if (v > s) { best = k; s = v; }
-    return best ? JSON.parse(best) : pos === 'verb' ? { tam: 'pres' } : {};
+    const argmax = () => {
+      let best = null, s = -1;
+      for (const [k, v] of score) if (v > s) { best = k; s = v; }
+      return best;
+    };
+    const p = this.#probs?.[i];
+    let neg = null;
+    if (p && this.lambda > 0) {
+      const t = this.tagger, verb = pos === 'verb', lam = wsum ? this.lambda : 1;
+      let z = 0;
+      for (let c = 0; c < p.length; c++) if (t.isVerb[c] === verb) z += p[c];
+      if (z > 0) {
+        // inkar mənanı dəyişir: onu model seçmir, saylar seçir (işarənin adındakı inkar sonra yenə əlavə olunur)
+        if (verb) { const b = argmax(); neg = b ? JSON.parse(b).neg === true : false; }
+        for (const [k, v] of score) score.set(k, (1 - lam) * (v / wsum));
+        for (let c = 0; c < p.length; c++) {
+          if (t.isVerb[c] === verb) score.set(t.classes[c], (score.get(t.classes[c]) ?? 0) + lam * (p[c] / z));
+        }
+      }
+    }
+    const best = argmax();
+    const f = best ? JSON.parse(best) : pos === 'verb' ? { tam: 'pres' } : {};
+    if (neg !== null) f.neg = neg;
+    return f;
   }
 
   /**
@@ -758,6 +798,8 @@ export class GlossToText {
    */
   generate(labels, { nonmanual = null } = {}) {
     const items = [];
+    // formanın modeli (E33): bütün cümlənin ehtimalları bir dəfə, #feats işarənin öz sırası ilə götürür
+    this.#probs = this.tagger ? this.tagger.probs(labels, this.m.guess) : null;
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
       let j = this.names ? runEnd(labels, i) : i;
@@ -803,7 +845,9 @@ export class GlossToText {
     // Yiyə: şəxs əvəzliyindən sonrakı ad onun mənsubiyyətindədirsə (mənim atam), əvəzlik yiyəlik haldadır;
     // ad mənsubiyyət almırsa (yer adı: Mən Bakıda), əvəzlik yiyəlikdə qalmır. Qərarı ad verir: qohumluq,
     // bədən sözləri mənsubiyyətlə işlənir, yer adları yox. Cümlənin əvvəlindəki əvəzlikdən sonra ad başqa
-    // haldadırsa (evimə, çantamı), ad mübtəda deyil, əvəzlik mübtəda qalır: Mən evimə gedirəm
+    // haldadırsa (evimə, çantamı), ad mübtəda deyil, əvəzlik mübtəda qalır: Mən evimə gedirəm. Formanın modeli
+    // varsa (E33), əvəzliyin yiyəliyini model bütün cümləyə baxıb seçib: sonrakı adın mənsubiyyəti yoxdursa da qalır
+    const keepGen = (a) => a.keepGen || (!!this.#probs && this.lambda > 0);
     for (let k = 0; k + 1 < items.length; k++) {
       const a = items[k];
       const p = a.lx && SUBJECT[a.lx.root];
@@ -811,14 +855,14 @@ export class GlossToText {
       // rəqəmi keçib (MƏN 3 ƏDƏD QƏLƏM: rəqəmdən sonra yiyəsi olmayan ad — əvəzlik yiyəlikdə qalmır)
       let b = items[k + 1];
       for (let j = k + 1; b && !b.lx && b.via === 'form' && isNumber(b.labels[0]); j++) b = items[j + 1];
-      if (!b?.lx) { if (b !== items[k + 1] && a.f.case === 'gen' && !a.keepGen) a.f = {}; continue; }
+      if (!b?.lx) { if (b !== items[k + 1] && a.f.case === 'gen' && !keepGen(a)) a.f = {}; continue; }
       if (b.lx.pos !== 'noun' || SUBJECT[b.lx.root]) continue;
       if (b.f.poss === possOf(p) || b.f.poss === 'P') {
         b.f = { ...b.f, poss: possOf(p) };
         a.f = k === 0 && b.f.case && b.f.case !== 'gen' ? {} : { case: 'gen' };
         continue;
       }
-      if (a.f.case === 'gen' && !a.keepGen) a.f = {};
+      if (a.f.case === 'gen' && !keepGen(a)) a.f = {};
     }
     // ad + VƏ + ad (E27): ikinci ad birincinin yiyəsini alır (bacım və qardaşım)
     for (let k = 1; k + 1 < items.length; k++) {

@@ -19,7 +19,7 @@ import { levenshtein } from '../src/tercume/continuous.js';
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
-const file = args.find((a) => a.endsWith('.json') && !a.includes('manifest'));
+const file = args.find((a, i) => a.endsWith('.json') && !a.includes('manifest') && !args[i - 1]?.startsWith('--'));
 const SHOW = Number(opt('--show', 0));
 const lab = JSON.parse(fs.readFileSync(opt('--labels', 'public/tercume/assets/cont_model/manifest.json'), 'utf8'));
 const labels = (Array.isArray(lab) ? lab : lab.labels).filter((l) => !l.startsWith('<'));
@@ -54,7 +54,10 @@ for (const it of items) {
 const DROP_OPT = opt('--drop', null);
 const g2t = new GlossToText(JSON.parse(fs.readFileSync(opt('--g2t', 'public/tercume/assets/gloss_text.json'), 'utf8')),
   { ...(DROP_OPT && { drop: { min: Number(DROP_OPT.split(',')[0]), ratio: Number(DROP_OPT.split(',')[1]) } }),
-    names: !args.includes('--no-names') });
+    names: !args.includes('--no-names'),
+    // --no-tagger: yalnız qaydalar və saylar; --tagger <json>: formanın modeli (E33) gloss_text.json-dakının yerinə
+    ...(args.includes('--no-tagger') && { tagger: false }),
+    ...(opt('--tagger', null) && { tagger: JSON.parse(fs.readFileSync(opt('--tagger', null), 'utf8')) }) });
 let werE = 0, werN = 0;
 items.forEach((it, k) => {
   const hyp = it.signs.length ? g2t.generate(it.signs).text : '';

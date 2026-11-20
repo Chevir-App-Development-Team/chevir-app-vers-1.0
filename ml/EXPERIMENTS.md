@@ -3740,3 +3740,118 @@ ends at rest, no console errors; 14 `verify_*` scripts and `ci_gates.mjs` pass (
     node tools/measure_hands.mjs --set '{"wordDepth":1,"wordKnuckles":false}'          # also measure_elbows, avatar_sheet
 
 Local only: D:/chevir/eval/v3hands (reports, sheets), scripts D:/chevir/scripts/e37.
+
+## E33 — A learned word-form model under the sign → text rules (N2, S3)
+
+**Why.** gloss2text picks each sign's word form (case, possessive, plural, predicate suffix, tense, question) from
+context counts over AzSLD's 492 sentences; the rules then fix agreement, possession, tense words and so on. Choosing the
+form was the main weakness (E16: 28 % of the errors are the right root in the wrong form). How much is there to gain:
+if the counts' choice were perfect (the aligned word's own features, rules kept on top), WER would be dev **22.0 %** /
+test **23.6 %** instead of 41.9 / 42.8 %. Roadmap N2 / NLP plan S3: a small sequence model trained on the corpus
+pseudo-glosses in both styles and AzSLD, run in the browser, with the rules as the fallback behind a switch.
+
+**Data.**
+- Pseudo-glosses rebuilt with today's lexicon and recognizer labels (802 words; E18's file was from before E29): the 927,034
+  HPLT sentences through text → sign, in **both styles**: AzSLD style (73,885 pairs) and native (`--native`, new option of
+  `tools/build_pseudo_gloss.mjs`: dropped subject MƏN / SƏN signed, verb + YOX + OLMAQ / OLACAQ, BİRLİKDƏ; 74,234 pairs,
+  23,881 of them differ from the AzSLD style). Local in `data/corpus/pseudo_{azsld,native}_e33.jsonl`.
+- Targets (`tools/build_form_data.mjs`): gloss2text's own alignment (`prepare`) gives each sign's word and its features,
+  written in the space the counts use (`fit`: verb person left to the subject rules, predicate suffix as true, possessive
+  agreeing with the pronoun before it as "P"). 148,611 sentences, **659,000 signs with a target** (1,937 from AzSLD).
+- One bug found on the way: in the corpus an inflected label such as HAQQINDA was matched to many words (haqqınızda) and
+  its target was relative to a shorter root (haqq + locative + possessive, 613 times), while gloss2text uses the whole
+  word "haqqında" as the root, so the model's suffix landed on top of it ("haqqındanda", "münasibətiləsilə",
+  "anasisi"). A target is now kept only when its root is one gloss2text can use for that label (its roots in AzSLD's
+  dev sentences or the root guessed from its name): 25,324 targets dropped. Dev 38.1 → 37.8, test 40.2 → 39.3 (λ 0.6).
+- AzSLD dev in 10 folds (dev order, k mod 10); every evaluated sentence is predicted by a model that never saw it: dev
+  sentences by their fold's model (f0–f9), test sentences and the recognized test recordings of test sentences by "dev"
+  (all 443 dev sentences), recognized recordings of dev sentences by their fold's model; the counts stay leave-one-out
+  as before. The browser model ("all") sees all 492.
+
+**Model** (`ml/formtag.py`, `src/tercume/formtag.js`). Per sign: the label (embedding 48; numbers, years and spelled
+letters as one token each, an unknown label as <UNK>, learned by dropping 10 % of labels in training), its part of speech
+guessed from its name (4) and the last 3 letters of its name (24) → 2-layer bidirectional GRU (96 per direction) →
+softmax over 168 feature bundles. 361,676 parameters, float16. Training: a base model on the corpus pairs (4 epochs,
+80 s on the RTX 4070 laptop), then each of the 12 models continues from it on AzSLD (weight 10) + 20,000 corpus
+sentences (6 epochs, ~15 s). Its own JS forward (no ONNX, so `generate()` stays synchronous): `tools/verify_formtag.mjs`
+against PyTorch, max difference 1e-6 (fixture `ml/fixtures/formtag_v1.json`, 13 sentences incl. an unknown label).
+
+**In gloss2text** (`#feats`, behind a switch): score = (1 − λ) · the counts' distribution + λ · the model's probabilities
+for the sign's part of speech (the model alone when the sign has no counts). The rules run after it as before. Two
+guards: **negation never comes from the model** (the counts' choice, then the label's own negation as before; without
+the guard the browser model turned MƏN BU AY PENSİYA ALMAMIŞAM into "almışam"), and a pronoun's genitive chosen by the model stays even when
+the next noun has no possessive (the reset rule cancelled right choices: dev −0.3 / test −0.8). λ = 0.6 chosen on dev
+(0.5: 38.1, 0.6: **37.8**, 0.7: 38.0; before the negation guard, which moves dev to 37.9). The switch: `gloss_text.json` carries the model as `formTagger` with `on` and
+`lambda` (`tools/build_gloss_text.mjs` embeds `ml/form_tagger.json`; `--off` keeps it off, `--tagger none` leaves it
+out); `new GlossToText(model, { tagger: false })` is rules only.
+
+| sign → text WER (chrF) | rules (E30, E32) | + form model | difference, paired bootstrap 95 % |
+|---|---|---|---|
+| annotated glosses, dev 443 (counts leave-one-out, model 10-fold) | 41.9 % (66.6) | **37.9 %** (69.3) | −4.0 [−5.4, −2.8]; 101 sentences better, 36 worse |
+| annotated glosses, test 49 | 42.8 % (66.2) | **39.3 %** (70.0) | −3.5 [−6.9, −0.4]; 10 better, 3 worse |
+| recognized glosses, new sentence, 1,484 test recordings | 46.3 % (62.8) | **42.5 %** (65.5) | −3.8 [−4.5, −3.2]*; 315 better, 88 worse |
+| recognized, nearest AzSLD sentence else gloss2text (new / known) | 48.1 / 4.7 % | 44.2 / 4.9 % | |
+| R6: spelled sentences dev 23 / test 4 / recognized 96 | 41.0 / 38.5 / 47.5 % | 33.8 / 38.5 / 44.0 % | spelled words right 21/23, 4/5 (same) |
+| JestDili.az held-out 246 (new person), installed decoding (E32) | 57.5 % | **57.5 %** | 0.0 [−1.8, +1.8]; 25 better, 24 worse |
+| JestDili.az held-out, greedy decoding | 60.3 % | 60.2 % | −0.1 [−2.0, +1.7] |
+
+\* recordings of one sentence share it, so this interval is somewhat narrow. Targets: test ≤ 40 % met (39.3), recognized
+new sentence ≤ 45 % met (42.5), JestDili.az not worse (level). The gain is in the form choice itself: of the 1,734 dev
+signs with a target, the counts pick the right features for 64.6 %, the model alone 74.2 %, the installed mix 73.2 %
+(pronouns 59.9 → 76.6 %, verbs 74.4 → 78.5 %); wrong-form words on dev 540 → 449. Known sentences lose 0.2 points: the "all" model is
+mixed into sentences the counts had memorized.
+
+Variants (dev / test / recognized new, λ 0.5–0.7; on the data before the root fix unless marked):
+
+| | dev | test | new |
+|---|---|---|---|
+| base + 3 epochs on AzSLD | 39.0 | 41.5 | 43.7 |
+| base + 6 epochs (chosen recipe) | 38.3–38.8 | 41.0–41.5 | 43.3–43.7 |
+| AzSLD weight 30 | 38.8 | 41.0 | 43.6 |
+| joint training from scratch, 6 epochs | 38.7–38.9 | 41.0 | 43.7 |
+| GRU 128 | 38.7–39.0 | 40.2–41.9 | 43.7–44.0 |
+| average of the 4 models above | 38.3–39.0 | 40.2–41.0 | 43.0–43.8 |
+| + pronoun genitive kept (λ 0.6) | 38.1 | 40.2 | 42.9 |
+| + root fix, seed 0 (installed) / seed 1 | **37.8** / 38.0 | **39.3** / 39.7 | **42.5** / 42.6 |
+
+The model's size and the training recipe hardly matter; the data (the root fix) and the interplay with the rules do.
+Rules ablation with the model on (an earlier run, λ 0.5): every rule still helps or is neutral (`#have` +2.0 dev, `#time` +0.3 dev / +0.9 test,
+`#native` ±0.1 on AzSLD), so they stay on top. A log-linear mix, a separate λ for labels without counts and the
+replace-when-confident variant were no better.
+
+**What is left** (dev, with the model): 359 nouns and 90 verbs in the wrong form (pronouns still 67 of the nouns;
+BİLMƏK's person and question: bilərəm / bilərsinizmi, as the model does not predict person), 172 signs whose word the text
+does not have (İŞLƏMƏK, VERMƏK, SİZ...), 322 text words with no sign (ilə, idi, light verbs: the plan's "insert after"
+list), 120 other words (synonyms, multi-word signs). JestDili.az gains nothing: its errors are mostly recognition (F1 0.70).
+
+**Browser.** `gloss_text.json` 434 → 1,398 KB (100 → 829 KB gzip; the sentence model it comes with is 7 MB; int8 weights
+would halve it if needed); the model is built in 67 ms when the page loads it, and a sentence takes 1.7 ms instead of
+0.2 ms. Checked in the dev server's page: the embedded model loads, outputs match Node, `tagger: false` gives the rules.
+
+**Decision: on.** It wins on all three AzSLD measures, clear of zero, keeps the new person level, R6 and negation are
+unchanged by construction and checked, and the rules stay as the fallback (`tagger: false`, `--off`).
+
+Checks: `tools/verify_gloss_text.mjs` runs every case on both paths: the rules path gives exactly the old outputs; the
+model path the same text except 12 cases where it picks another correct form (`MODEL_FORMS`: "gedirəm" instead of the
+AzSLD text's "getmişəm" when no time sign is there, "ADA universitetində", "eşitmə məhdudiyyətlidir"), plus new checks:
+negation identical on both paths in 532 sequences (the 492 sentences and MƏN / O + every label with negation in its
+name), spelled words identical, MƏN SƏN GÖZLƏMƏK → "səni" (rules: "səndə"), the switch. `tools/ci_gates.mjs`: the old
+gates measure the rules path and are unchanged (dev 41.9, test 42.8); a new gate `s2t_tagger` (dev 38.8, test 40.3,
+new 43.5) runs when the fold models are given (`--tagger D:/chevir/e33/r2` or `FORM_TAGGER_FOLDS`; 12 × 1 MB, not in
+the repo). All 14 `verify_*` scripts, the gates and `npm run build` pass.
+
+Files: `src/tercume/formtag.js` (new: tokens + GRU forward), `src/tercume/gloss2text.js` (`tagger`, `lambda`, `#feats`
+mix, negation guard, `LAMBDA`), `ml/formtag.py` (train / install / fixture), `ml/form_tagger.json` (installed model, 730
+of 2,223 tokens kept: labels the recognizer can output), `tools/build_form_data.mjs` (targets, folds, `--part k/n` for
+parallel runs), `tools/build_pseudo_gloss.mjs --native`, `tools/eval_gloss_text.mjs --tagger <dir> [--lambda]`,
+`tools/score_jestdili.mjs --tagger / --no-tagger`, `tools/build_gloss_text.mjs` (embeds the model), `tools/verify_formtag.mjs`,
+`tools/verify_gloss_text.mjs`, `tools/ci_gates.mjs`, `ml/gates.json`. Local: `D:/chevir/e33/` (data, runs, fold models
+`r2/`, dumps), scripts `D:/chevir/scripts/e33/` (oracle, ablation, error breakdown, bootstrap). No GPU job ran alongside
+another session's.
+
+    node tools/build_pseudo_gloss.mjs data/corpus/hplt_sentences.txt data/corpus/pseudo_native_e33.jsonl --native
+    node tools/build_form_data.mjs --out D:/chevir/e33/form_data2.jsonl --pseudo data/corpus/pseudo_azsld_e33.jsonl,data/corpus/pseudo_native_e33.jsonl --names hplt,native [--part k/12]
+    D:/chevir/venv/Scripts/python ml/formtag.py train --data D:/chevir/e33/form_data2.jsonl --out D:/chevir/e33/r2 --epochs 4 --ft-epochs 6
+    node tools/eval_gloss_text.mjs --tagger D:/chevir/e33/r2
+    D:/chevir/venv/Scripts/python ml/formtag.py install --model D:/chevir/e33/r2/all.json && node tools/build_gloss_text.mjs
+    node tools/ci_gates.mjs --tagger D:/chevir/e33/r2
