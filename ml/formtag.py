@@ -310,6 +310,15 @@ def cmd_fixture(args):
     print(f'{out}: {len(cases)} cümlə')
 
 
+def _public_path(p):
+    """Brauzerə gedən faylda yerli yol qalmasın: repo içindəsə nisbi yol, deyilsə son iki hissə (r2/all.json)."""
+    p = Path(p).resolve()
+    try:
+        return p.relative_to(ROOT.parent.resolve()).as_posix()
+    except ValueError:
+        return '/'.join(p.parts[-2:])
+
+
 def cmd_install(args):
     """Brauzerin modeli: lüğətdə tanıyıcının etiketləri və xüsusi tokenlər qalır (çəkilər olduğu kimi, float16)."""
     m = json.loads(Path(args.model).read_text(encoding='utf-8'))
@@ -321,7 +330,7 @@ def cmd_install(args):
     a = np.frombuffer(base64.b64decode(w['data']), dtype='<f2').reshape(w['shape'])[rows]
     m['weights']['emb_tok'] = {'shape': list(a.shape), 'data': base64.b64encode(a.tobytes()).decode()}
     m['vocab'] = {**m['vocab'], 'tok': [toks[i] for i in rows]}
-    m['source'] = f'{args.model} (E33); tokens kept: {len(rows)} of {len(toks)} (labels of {args.labels})'
+    m['source'] = f'{_public_path(args.model)} (E33); tokens kept: {len(rows)} of {len(toks)} (labels of {_public_path(args.labels)})'
     Path(args.out).write_text(json.dumps(m), encoding='utf-8')
     print(f'{args.out}: {len(rows)} of {len(toks)} tokens, {Path(args.out).stat().st_size / 1024:.0f} KB')
 
