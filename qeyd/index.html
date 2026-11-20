@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="robots" content="noindex" />
+    <title>Chevir - yazılış</title>
+  </head>
+  <body class="tercume tool">
+    <div id="site-nav"></div>
+
+    <header class="tool-head">
+      <div>
+        <h1>İşarələrin yazılışı</h1>
+        <p class="muted">Çatışmayan işarələr və test cümlələri. Video və nöqtələr yalnız bu cihazda saxlanır.</p>
+      </div>
+      <span class="badge" id="who">-</span>
+    </header>
+
+    <!-- razılıq -->
+    <section class="tool-start card" id="consent">
+      <div class="card-head"><h2>Razılıq</h2></div>
+      <div class="consent-text" id="consent-text">
+        <p>Chevir layihəsi Azərbaycan işarə dilini tanıyan və göstərən proqram hazırlayır. Bu səhifədə siz işarələri və
+          cümlələri kameraya göstərirsiniz. Hər yazılışda bunlar saxlanır:</p>
+        <ul>
+          <li>video (istəsəniz, aşağıda söndürə bilərsiniz);</li>
+          <li>əllərin, bədənin və üzün hərəkət nöqtələri (MediaPipe, cihazınızda hesablanır).</li>
+        </ul>
+        <p>Yazılar yalnız bu cihazda qalır, siz onları fayl kimi endirib komandaya özünüz verirsiniz. Komanda onları
+          açıq yerdə paylaşmır və git repozitoriyasına qoymur. Onlardan işarələri tanıma modelləri, avatarın işarələri və
+          test dəstləri hazırlanır; bu modellər və avatar proqramda hamıya açıq olacaq, amma sizin videonuz və adınız yox.
+          Razılığınızı istənilən vaxt geri ala bilərsiniz: komanda yazılarınızı silir.</p>
+      </div>
+      <label class="field">
+        <span>İştirakçının kodu (adınızı yazmayın; komanda sizə kod verir, məsələn P01)</span>
+        <input type="text" id="code" maxlength="12" autocomplete="off" placeholder="P01" />
+      </label>
+      <label class="field">
+        <span>Əsas əliniz</span>
+        <select id="hand">
+          <option value="right">sağ</option>
+          <option value="left">sol</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Kamera</span>
+        <select id="facing">
+          <option value="user">ön kamera (noutbuk, selfi)</option>
+          <option value="environment">arxa kamera (telefonu başqası tutur)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="keep-video" checked /> Videonu da saxla (söndürülsə yalnız nöqtələr qalır)</label>
+      <label class="check"><input type="checkbox" id="agree" /> Yuxarıdakını oxudum və yazılışa razıyam</label>
+      <div class="row"><button class="btn btn-primary" id="btn-consent" disabled>Razıyam, başla</button></div>
+    </section>
+
+    <main class="tool-main" id="rec" hidden>
+      <section class="tool-stage">
+        <div class="viewport" id="stage">
+          <video id="cam" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="viewport-label">Kamera <span class="muted" id="cam-state">· başlanmayıb</span></div>
+          <div class="rec-badge" id="rec-badge" hidden>● YAZILIR <span id="rec-time">0.0</span> s</div>
+          <div class="countdown" id="countdown" hidden>3</div>
+        </div>
+        <div class="row tool-play">
+          <button class="btn" id="btn-cam">Kameranı başlat</button>
+          <span class="muted" id="frame-hint">Bütün bədən başdan belə qədər, iki əl kadrda görünsün.</span>
+        </div>
+      </section>
+
+      <section class="tool-side">
+        <div class="card">
+          <div class="card-head"><h2 id="prompt-group">-</h2><span class="badge" id="prompt-pos">-</span></div>
+          <p class="prompt-text" id="prompt-text">-</p>
+          <p class="hint" id="prompt-note"></p>
+          <p class="hint" id="prompt-how"></p>
+          <div class="row">
+            <button class="btn btn-primary" id="btn-rec" disabled>Yaz (boşluq)</button>
+          </div>
+          <p class="take-info" id="take-info"></p>
+          <div class="row">
+            <button class="btn btn-ghost" id="btn-del" disabled>Son yazını sil</button>
+          </div>
+          <div class="row tool-nav">
+            <button class="btn btn-ghost" id="btn-prev">← Əvvəlki</button>
+            <button class="btn btn-ghost" id="btn-next">Növbəti →</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Tapşırıqlar</h2><span class="badge" id="done-count">-</span></div>
+          <label class="field inline"><span>Bölmə</span><select id="group"></select></label>
+          <div class="tool-items" id="items"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Bu cihazdakı yazılar</h2><span class="badge" id="store-info">-</span></div>
+          <div class="row">
+            <button class="btn btn-primary" id="btn-export-new">Yeniləri endir (ZIP)</button>
+            <button class="btn" id="btn-export-all">Hamısını endir</button>
+          </div>
+          <div class="row"><button class="btn btn-ghost" id="btn-clear">Endirilmişləri cihazdan sil</button></div>
+          <p class="hint">ZIP-də hər yazılışın videosu (.webm/.mp4) və nöqtələri (.json), bir də razılıq qeydi var.
+            Faylı komandaya verin; sonra cihazdan silə bilərsiniz.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/qeyd/main.js"></script>
+  </body>
+</html>

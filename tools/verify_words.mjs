@@ -50,7 +50,7 @@ const formCases = [
   ['evdə', 'w:ev'], ['anam', 'w:ana'], ['Bakıda', 'w:Bakı'], ['oğlum', 'w:oğul'], ['uşağın', 'w:uşaq'],
   ['köynəyini', 'w:köynək'], ['gedəcəm', 'w:getmək'], ['yaşayıram', 'w:yaşamaq'], ['istəyirsən', 'w:istəyir'],
   ['bilirəm', 'w:bilmək'], ['bilmirəm', 'w:bilmir'], ['bilmədim', 'w:bilmir'], ['düşmürəm', 'w:düşməmək'],
-  ['olan', 'w:olmaq'], ['itib', 'w:itib'], ['it', 't:it'], ['ilə', 'd:ilə'], ['yadımda', 't:yadımda'],
+  ['olan', 'w:olmaq'], ['itib', 'w:itib'], ['it', 't:it'], ['ilə', 'd:ilə'], ['də', 'd:də'], ['isə', 'd:isə'], ['yadımda', 't:yadımda'],
   ['şənbə günü', 't:şənbə _ w:gün'], ['ad günündə', 'w:ad günü'],
   ['DOST mərkəzi', 't:dost _ t:mərkəzi'], ['DOST', 'w:dost'],
   // inkarlı felin öz işarəsi yoxdursa: fel + YOX (müsbət işarə tək qalmır), hər zamanda
@@ -115,6 +115,57 @@ for (const [text, want] of [['onu', 'w:o'], ['ona', 'w:o'], ['qarşı', 't:qarş
   check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
 }
 
+// Əlavə mənbənin ifadəsi AzSLD sözlərinin qabağını kəsmir: təbrik edirəm → TƏBRİK EDİRƏM (JestDili.az-ın TƏBRİK ETMƏK yox)
+{
+  const guard = new WordLexicon({ sources: [{ prefix: 'jd-' }], words: [{ id: 'təbrik', text: 'təbrik' },
+    { id: 'edirəm', text: 'edirəm' }, jd('təbrik etmək')] }, { native: false });
+  for (const [text, want] of [['təbrik edirəm', 'w:təbrik _ w:edirəm'], ['təbrik etmək', 'w:təbrik etmək']]) {
+    const got = show(guard.segment(text));
+    check(got === want, `əlavə lüğət: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+}
+
+// E36-da tapılanlar: gələcək (isim) ilə gələcək (fel) ayrılır; idiomun feli hər formada; ifadənin ad forması (text_alt.csv)
+{
+  const words = [...['sabah', 'gəlmək', 'gələcək', 'il', 'gözəl', 'olacaq', 'olmaq', 'mən', 'sən', 'o', 'biz', 'siz', 'bu', 'iş',
+    'yox', 'var', 'həkim', 'getmək', 'tanış olmaq'].map((text) => ({ id: text, text })),
+  { id: 'tamamlamaq', text: 'tamamlamaq', alt: ['yerinə yetirmək'] },
+  { id: 'eşitmə məhdudiyyətli', text: 'eşitmə məhdudiyyətli', alt: ['eşitmə məhdudiyyəti'] }];
+  const lex = { doğma: new WordLexicon({ words }), AzSLD: new WordLexicon({ words }, { native: false }) };
+  for (const [mode, text, want] of [
+    // budağın sonunda fel: felin işarəsi + zaman; başqa yerdə isim və ya feli sifət, zaman işarəsi yox
+    ['doğma', 'Sabah gələcək.', 'w:sabah _ w:gəlmək w:olacaq'], ['doğma', 'Sən gələcəksən?', 'w:sən _ w:gəlmək w:olacaq'],
+    ['doğma', 'Gələcək il gələcək.', 'w:gələcək _ w:il _ w:gəlmək w:olacaq'], ['doğma', 'O gələcək idi.', 'w:o _ w:gəlmək w:olacaq _ d:idi'],
+    ['doğma', 'Gələcək gözəl olacaq.', 'w:gələcək _ w:gözəl _ w:olacaq'], ['doğma', 'Gələcəkdə', 'w:gələcək'],
+    // AzSLD üslubu yazılışı saxlayır (AzSLD-nin annotasiyası: birisigün gələcək → GƏLƏCƏK)
+    ['AzSLD', 'Sabah gələcək.', 'w:sabah _ w:gələcək'],
+    ['doğma', 'Bu işi yerinə yetirdim', 'w:mən w:bu _ w:iş _ w:tamamlamaq w:olmaq'],
+    ['doğma', 'Yerinə yetirmədim.', 'w:mən w:tamamlamaq w:yox w:olmaq'], ['AzSLD', 'Bu işi yerinə yetirdim', 'w:bu _ w:iş _ w:tamamlamaq'],
+    ['AzSLD', 'yerinə yetirəcəyik', 'w:tamamlamaq'], ['AzSLD', 'yerinə yetir', 'w:tamamlamaq'],
+    ['doğma', 'Sizin eşitmə məhdudiyyətiniz var?', 'w:siz _ w:eşitmə məhdudiyyətli _ w:var'],
+    ['AzSLD', 'eşitmə məhdudiyyətim', 'w:eşitmə məhdudiyyətli'], ['AzSLD', 'eşitmə məhdudiyyətliyəm', 'w:eşitmə məhdudiyyətli'],
+    // olmaq-ın gələcəyi OLACAQ-dır; inkarda və ifadədə OLACAQ zaman işarəsidir; keçmişi OLMAQ-ın özü
+    ['doğma', 'Həkim olacam.', 'w:mən w:həkim _ w:olacaq'], ['AzSLD', 'Həkim olacam.', 'w:həkim _ w:olacaq'],
+    ['doğma', 'Həkim olmayacam.', 'w:mən w:həkim _ w:olmaq w:yox w:olacaq'],
+    ['doğma', 'Tanış olacağıq.', 'w:biz w:tanış olmaq w:olacaq'], ['doğma', 'Oldu.', 'w:olmaq'],
+    // -ib budağın ortasında feli bağlamadır (zaman işarəsi yox), sonda xəbərdir
+    ['doğma', 'Gəlib getdim.', 'w:mən w:gəlmək _ w:getmək w:olmaq'], ['doğma', 'O gəlib.', 'w:o _ w:gəlmək w:olmaq'],
+  ]) {
+    const got = show(lex[mode].segment(text));
+    check(got === want, `E36 (${mode}): ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+}
+
+// Ədədlər danışıqdakı hissələrlə, hissələrin hamısının işarəsi varsa (N7): rəqəmin işarəsi, yoxsa adının (JestDili.az)
+const nums = new WordLexicon({ sources: [{ prefix: 'jd-' }], words: [
+  ...['2', '3', '5', '30'].map((text) => ({ id: text, text })), ...['yeddi', 'doqquz', 'doxsan', 'yüz', 'min'].map(jd)] },
+{ native: false });
+for (const [text, want] of [['7', 'w:yeddi'], ['35', 'w:30 w:5'], ['99', 'w:doxsan w:doqquz'], ['300', 'w:3 w:yüz'],
+  ['1990', 'w:min w:doqquz w:yüz w:doxsan'], ['25', 'w:2 w:5'], ['0', 't:sıfır'], ['12345', 't:bir w:2 w:3 t:dörd w:5']]) {
+  const got = show(nums.segment(text));
+  check(got === want, `ədəd: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+}
+
 for (const [text, want] of nativeCases) {
   const got = show(nat.segment(text));
   check(got === want, `doğma: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
@@ -138,6 +189,18 @@ check(plan === 'word:salam space:  letter:a letter:n letter:a', `plan("Salam ana
 const pos = t2s.plan('Salam ana').map((s) => `${s.from}-${s.to}`).join(' ');
 check(pos === '0-5 5-6 6-7 7-8 8-9', `plan mövqeləri → ${pos}`);
 
+// Cümlənin qrammatikası üzdə (N6): sual sözü ilə sual "wh", hə/yox sualı "yn", inkar (YOX və onun feli) başı yelləyir
+{
+  const gt = new TextToSign({ poses: { letters: {} }, lexicon: nat });
+  const marks = (text) => gt.plan(text).filter((s) => s.kind === 'word')
+    .map((s) => `${s.entry.text}${s.gram ? `[${s.gram.q ?? ''}${s.gram.shake ? '~' : ''}]` : ''}`).join(' ');
+  for (const [text, want] of [['Sən haradasan?', 'sən[wh]'], ['Sən evdəsən?', 'sən[yn]'],
+    ['Oxumadım.', 'mən oxumaq[~] yox[~] olmaq'], ['Gəldim. Gəlmədin?', 'mən gəlmək olmaq sən[yn] gəlmək[yn~] yox[yn~] olmaq[yn]']]) {
+    const got = marks(text);
+    check(got === want, `qrammatika: ${JSON.stringify(text)} → ${got}${got === want ? '' : `  (gözlənilən: ${want})`}`);
+  }
+}
+
 // 3. Real lüğətin faylları
 if (!existsSync(new URL('index.json', W))) {
   check(false, 'public/tercume/words/index.json yoxdur — tools/build_words.py işlədilməyib');
@@ -147,6 +210,11 @@ if (!existsSync(new URL('index.json', W))) {
   check(index.count === index.words.length && index.count > 100, `indeksdə ${index.count} söz`);
   check(new Set(index.words.map((w) => w.id)).size === index.count, 'söz id-ləri təkrarlanmır');
   check(show(lex.segment('Salam, ana!')) === 'w:salam _ w:ana', 'real lüğət: "Salam, ana!" → salam | ana');
+  // ml/text_alt.csv lüğətdədir; JestDili.az sözlərinin öz alt-ları qalıb (build_avatar_words.py --alt-only, E36)
+  const esitme = show(lex.segment('eşitmə məhdudiyyətiniz'));
+  check(esitme === 'w:eşitmə məhdudiyyətli', `real lüğət: "eşitmə məhdudiyyətiniz" → ${esitme}`);
+  const jdAlt = index.words.filter((w) => w.id.startsWith('jd-') && w.alt?.length).length;
+  check(!index.sources?.length || jdAlt > 0, `real lüğət: ${jdAlt} JestDili.az sözünün öz alt-ı var`);
 
   const bad = [];
   for (const e of index.words) {

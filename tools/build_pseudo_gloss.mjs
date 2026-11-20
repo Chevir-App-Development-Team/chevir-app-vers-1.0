@@ -2,14 +2,17 @@
 // ml/EXPERIMENTS.md E18) korpusun cümlələrini işarələrə çevirir. İşarələr → mətn modeli (gloss2text) formanı
 // seçməyi AzSLD-nin 492 cümləsindən çox nümunədə öyrənsin (docs/NLP_PLAN.md S2).
 //
-//   node tools/build_pseudo_gloss.mjs data/corpus/hplt_sentences.txt data/corpus/pseudo_gloss.jsonl [--min 0.8]
+//   node tools/build_pseudo_gloss.mjs data/corpus/hplt_sentences.txt data/corpus/pseudo_gloss.jsonl [--min 0.8] [--native]
+//
+// --native: doğma qaydalarla (E22: buraxılmış mübtəda MƏN, fel + YOX + OLMAQ / OLACAQ, BİRLİKDƏ); işarələr → mətn
+// modeli hər iki üslubu görsün (roadmap N2, E33). Əlavə olunan işarələr (words.js isAdded) sözlərə sayılmır.
 //
 // Saxlanır: sözlərin ən azı 80 %-i tanıyıcının bildiyi işarədir (cont_model/manifest.json, sign_merge.json
 // birləşmələri ilə), ən azı 2 işarə. İştirakçıların göstərmədiyi söz (ilə, idi, ki) sayılmır; hərf-hərf
 // göstərilən söz hərflərdir (AzSLD-dəki kimi: D O S T).
 import fs from 'node:fs';
 import readline from 'node:readline';
-import { WordLexicon } from '../src/tercume/words.js';
+import { WordLexicon, isAdded } from '../src/tercume/words.js';
 
 const [src, dst] = process.argv.slice(2);
 const opt = (name, def) => { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : def; };
@@ -21,7 +24,8 @@ const labelOf = new Map(index.words.map((w) => [w.id, JSON.parse(fs.readFileSync
 const merge = JSON.parse(fs.readFileSync('public/tercume/assets/sign_merge.json', 'utf8'));
 const known = new Set(JSON.parse(fs.readFileSync('public/tercume/assets/cont_model/manifest.json', 'utf8')).labels);
 const canon = (g) => { const s = merge.spelling?.[g] ?? g; return merge.merge?.[s] ?? s; };
-const lex = new WordLexicon(index, { native: false });   // AzSLD üslubu: tanıyıcının görəcəyi işarələr kimi
+const NATIVE = process.argv.includes('--native');
+const lex = new WordLexicon(index, { native: NATIVE });   // susmaya görə AzSLD üslubu: tanıyıcının görəcəyi işarələr kimi
 // AzSLD-nin öz cümlələri (dövlət xidmətlərinin saytlarında da ola bilər) korpusdan çıxarılır: ölçmə təmiz qalsın
 const norm = (t) => t.toLocaleLowerCase('az').replace(/[^\p{L}\d]+/gu, ' ').trim();
 const azsld = new Set(JSON.parse(fs.readFileSync('public/tercume/assets/cont_model/sentences.json', 'utf8')).map((s) => norm(s.text)));
@@ -41,7 +45,7 @@ for await (const text of rl) {
     if (seg.kind === 'word') {
       const l = canon(labelOf.get(seg.entry.id));
       glosses.push(l);
-      if (seg.via !== 'neg') { words += shown; if (known.has(l)) signs += shown; }
+      if (seg.via !== 'neg' && !isAdded(seg)) { words += shown; if (known.has(l)) signs += shown; }
     } else if (/\p{L}/u.test(seg.text)) {
       glosses.push(...[...seg.text.toLocaleUpperCase('az')].filter((c) => /\p{L}/u.test(c)));
       words += shown;

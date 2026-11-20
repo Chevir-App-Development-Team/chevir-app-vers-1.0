@@ -71,8 +71,8 @@ const view = ({ offset, shape }) => all.subarray(offset, offset + shape.reduce((
     : rec.labels.length === new Set(plain.labels.map(rec.group)).size && rec.labels.length < plain.labels.length),
   `cümlə modeli ${rec.manifest.run}: ${plain.labels.length} etiket → ${rec.labels.length} işarə`
     + `${trained ? ' (birləşmə öyrədilərkən edilib, brauzer dəyişmir)' : ''}, <blank> 0-cı yerdə`);
-  const cm = JSON.parse(readFileSync(new URL('ml/fixtures/continuous_v2.json', root), 'utf8'));
-  const cb = readFileSync(new URL('ml/fixtures/continuous_v2.bin', root));
+  const cm = JSON.parse(readFileSync(new URL('ml/fixtures/continuous_v3.json', root), 'utf8'));
+  const cb = readFileSync(new URL('ml/fixtures/continuous_v3.bin', root));
   const call = new Float32Array(cb.buffer.slice(cb.byteOffset, cb.byteOffset + cb.byteLength));
   let worst = 0, sums = 0, frames = 0;
   for (const f of cm.features) {

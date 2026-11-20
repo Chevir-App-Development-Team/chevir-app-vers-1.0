@@ -5,22 +5,28 @@ Azərbaycan jest dili ilə danışıq Azərbaycan dili arasında tərcümə: lay
 
 | Səhifə | Nə var |
 |---|---|
-| `/` | layihənin saytı — Vite, GSAP (ScrollTrigger), Lenis, three.js 3D əl |
-| `/tercume/` | tərcümə sistemi: **Jest → Mətn** (kamera) və **Mətn → Jest** (VRM avatar + cyber skeleton) |
+| `/` | layihənin saytı — Vite, GSAP (ScrollTrigger), Lenis, three.js 3D əl (`/en/`: ingilis dilində) |
+| `/tercume/` | tərcümə sistemi: **Jest → Mətn** (kamera: hərflər, ayrı sözlər, fasiləsiz cümlə) və **Mətn → Jest** (VRM avatar + cyber skeleton) |
+| `/danis/` | canlı danışıq: kamera açılır, insan sadəcə işarə ilə danışır, mətn videonun üstündə altyazı kimi yazılır |
 | `/nsosyal/` | sistemin NSosyal axınına inteqrasiyası (prototip): jest dili ilə paylaşım və hər postda avatarla tərcümə |
+| `/rey/` | işarə dili daşıyıcılarının rəyi: avatarın göstərdiyini və proqramın yazdığını qiymətləndirmək (70 bənd, CSV) |
+| `/qeyd/` | yazılış səhifəsi: razılıq mətni, işarələrin landmark-ları və videosu cihazda qalır, ZIP ilə ixrac |
 
 | Modul | Nə edir |
 |---|---|
-| **Jest → Mətn** | Veb-kamera → MediaPipe Hands → 20×63 → model → beam search + leksikon → Azərbaycan sözü |
-| **Mətn → Jest** | Mətn → söz işarələri (3 173 söz: AzSLD 786, JestDili.az 2 387; söz formaları ilə) + qalanı hərf-hərf → real AzSLD pozaları → VRM avatar **və** cyber skeleton (yan-yana) |
+| **Jest → Mətn** | Veb-kamera → MediaPipe (əllər, poza, üz) → landmark modelləri (ONNX, brauzerdə): **hərflər** (32 hərf), **sözlər** (802 söz), **cümlə** (802 söz, fasiləsiz) → işarə dil modeli ilə dekodlama, cümlənin 3 variantı → `gloss2text`: söz formaları (öyrədilmiş model, üstündə qaydalar), cümlədə hərf-hərf yazılmış adlar → Azərbaycan dilində cümlə |
+| **Mətn → Jest** | Mətn → söz işarələri (3 173 söz: AzSLD 786, JestDili.az 2 387; söz formaları və doğma işarə dilinin qaydaları ilə) + qalanı hərf-hərf → real pozalar → VRM avatar (üzdə sual və inkar, işarələr arası hərəkət) **və** cyber skeleton (yan-yana) |
 
 Tərcümə üçün server yoxdur: video cihazdan çıxmır, gecikmə minimaldır, sayt statik fayl
 kimi hər yerdə host oluna bilər (jest dili videosu istifadəçinin üzünü daşıyır — məxfilik
 təsadüfi seçim deyil).
 
-> **Hazırkı həcm:** kamera yalnız barmaq əlifbasını tanıyır — 32 hərf və boşluq / enter /
-> backspace. Avatar isə 3 173 sözü bütöv işarə kimi (hər iki qolla), qalanını hərf-hərf göstərir.
-> Kameradan söz səviyyəsində tanıma, gloss və üz ifadələri hələ yoxdur.
+> **Hazırkı həcm (2026-11-20):** kamera barmaq əlifbasını, ayrı sözləri və fasiləsiz cümləni tanıyır (~800 söz).
+> AzSLD-nin görmədiyi iştirakçıların yeni cümlələrində bildiyi sözlər üzrə F1 0.82, yeni insanda (JestDili.az) 0.70;
+> mətnin söz xətası (WER) AzSLD-də 42.5 %, yeni insanda 57.5 %. Avatar 3 173 sözü bütöv işarə kimi (hər iki qolla),
+> qalanını hərf-hərf göstərir. Üz kanalı (sual, inkar) qurulub, amma açılmayıb. Doğma işarə dili daşıyıcılarının rəyi
+> hələ alınmayıb: rəqəmlər AzSLD və JestDili.az üzərindəki ölçmələrdir ([`ml/EXPERIMENTS.md`](ml/EXPERIMENTS.md),
+> plan: [`docs/ROADMAP.md`](docs/ROADMAP.md)).
 
 ## İşə salmaq
 
@@ -49,8 +55,12 @@ Kamera yalnız HTTPS və ya `localhost` üzərində işləyir (brauzer qaydası)
 
 ### Nə gözləmək
 
-- **Jest → Mətn** — kamerasız da sınana bilər: klaviaturadan hərf yazın (`s a l a m`),
-  sağda beam və leksikon canlı işləyir. `Enter` sözü tamamlayır.
+- **Canlı danış** (`/danis/`) — kamera açılır, işarə ilə danışın: göstərilən söz əvvəl boz, bir az sonra ağ yazılır,
+  ~3 saniyəlik fasilə cümləni söhbət siyahısına keçirir. Cümlənin altında başqa variantlar var: toxunun və ya
+  "Düzəlt" ilə özünüz yazın (düzəlişlər yalnız bu cihazda saxlanılır, ixrac yalnız düymə ilə). Kamerasız sınaq:
+  `/danis/?video=<url>`. Telefonda kamera HTTPS istəyir: `npm run dev:https`.
+- **Jest → Mətn** — "Nə tanınsın" seçimi: hərflər, ayrı sözlər və ya cümlə. Hərf rejimi kamerasız da sınana bilər:
+  klaviaturadan hərf yazın (`s a l a m`), sağda beam və leksikon canlı işləyir. `Enter` sözü tamamlayır.
 - **Mətn → Jest** — mətn yazıb "Jest dilində göstər" düyməsinə basın (lüğətdəki sözlər bütöv
   işarə, qalanı hərf-hərf), ya da Lüğət / Əlifba vərəqindən sözə və ya hərfə toxunun.
 - **Model** — memarlıq və real AzSLD üzərində ölçmələr.
@@ -78,13 +88,24 @@ src/
     s2w.js               söz rejimi: kamera/video → landmark-lar → bölmə → tanınan sözlər
     decoder.js           beam search + hərf-bigram DM + leksikon yoxlaması
     hands.js             MediaPipe sarğısı + sürüşən kadr pəncərəsi (əl/hərəkət ölçüsü)
-    s2t.js / t2s.js      jest → mətn idarəsi / mətn → jest oynatması
+    s2t.js / t2s.js      jest → mətn idarəsi (hərflər) / mətn → jest oynatması
+    letters.js           hərf modeli (landmark-lar, ONNX)
+    continuous.js        cümlə modeli: kadr ehtimalları → işarələr, işarə dil modeli, variantlar (ml/azsl/continuous.py-ın əkizi)
+    s2s.js / live.js     cümlə rejimi və /danis/: kamera/video → cümlə modeli → mətn; canlı göstərmə qaydaları
+    gloss2text.js        işarələr → mətn: söz formaları, razılaşma, doğma işarə dilinin qaydaları
+    formtag.js           söz formalarının öyrədilmiş modeli (BiGRU, JS irəli keçidi; ml/formtag.py)
+    inflect.js           kök + xüsusiyyətlər → söz forması
+    spelled.js           cümlədə hərf-hərf yazılmış adlar
+    nonmanual.js         üz kanalı: sual və inkar (qurulub, açılmayıb)
+    correct.js           cümlənin variantları və düzəliş (yalnız bu cihazda)
     words.js             söz lüğəti: mətni söz / ifadə / hərflərə bölür, sözü lazım olanda yükləyir
     morph.js             söz formaları: şəkilçili sözü lüğətin sözünə gətirir (evdə → ev)
     skeleton.js          Three.js cyber skeleton (UnrealBloom)
     retarget.js          landmark → avatar: əl oriyentasiyası, qol IK, oynaq həddləri
     vrm.js               VRM 1.0 avatar: yaylı animasiya, nəfəs, göz qırpma, istirahət
     paths.js             statik faylların yolları
+  danis/                 canlı danışıq səhifəsi (/danis/)
+  rey/, qeyd/            rəy (/rey/) və yazılış (/qeyd/) səhifələri
   nsosyal/
     main.js              axın, paylaşım paneli (Akış 1), avatar paneli (Akış 2) — tercume/ modulları ilə
     nsosyal.css          açıq axın, tünd avatar paneli
@@ -94,6 +115,8 @@ public/
   tercume/words/         söz işarələri: index.json + hər söz üçün <id>.json
   tercume/wasm/          MediaPipe wasm — @mediapipe/tasks-vision 0.10.14 ilə eyni olmalıdır
   tercume/assets/word_model/   söz modeli: model.onnx + manifest.json (ml/make_manifest.py --install)
+  tercume/assets/cont_model/   cümlə modeli (ml/install_continuous.py --install); letter_model/: hərf modeli
+  tercume/assets/gloss_text.json  işarələr → mətn (söz formalarının modeli daxil); sign_lm.json: işarə dil modeli
 tools/
   export_model.py        model/fingerspelling_33.h5 → model.bin + model.json
   build_lexicon.py       model/lexicon.txt → bigram DM + lüğət + prefikslər
@@ -110,13 +133,16 @@ tools/
   build_pseudo_gloss.mjs korpusun cümlələri → mətn → işarə yolu ilə süni (mətn, işarələr) cütləri
   verify_*.mjs/py        reqressiya yoxlamaları (verify_features.mjs: features.js ↔ Python, ml/fixtures/;
                          verify_recognizer.mjs: brauzerdəki söz modeli ↔ PyTorch;
-                         verify_segment.mjs: söz rejiminin bölücüsü ↔ Python)
+                         verify_segment.mjs: söz rejiminin bölücüsü ↔ Python; cəmi 14 .mjs skripti)
+  ci_gates.mjs           ölçmə hədləri (ml/gates.json); hər PR-da skriptlərlə birlikdə işləyir (.github/workflows/verify.yml)
 ml/                      yeni model üçün Kaggle boru xətti: AzSLD → landmark-lar → signer-independent
                          split (bax ml/README.md)
 model/
   fingerspelling_33.h5   barmaq əlifbası modeli (mənbə)
   lexicon.txt            dekoder üçün söz korpusu
 docs/
+  ROADMAP.md             planın hamısı və hər bəndin vəziyyəti; NLP_PLAN.md: dil hissəsi
+  DATA.md                datasetlər, lisenziyaları və istifadəsi
   NSosyal_2026.docx      texniki hesabat
 ```
 
@@ -232,7 +258,10 @@ təlim datası ola bilər — rəqəmlər **optimistdir**, kənarlaşdırılmı�
 ## Avatar
 
 İki avatar var: `avatar.vrm` (standart) və `avatarfem.vrm` (qadın) — komandanın öz VRM 1.0
-modelləri, lisenziyası yenidən paylaşmağa və kommersiya istifadəsinə icazə verir. VRoid-in
+modelləri, [VRM Public License 1.0](https://vrm.dev/licenses/1.0/) ilə (şərtlər hər faylın öz meta-məlumatındadır).
+`avatar.vrm` (© Chevir Team): yenidən paylaşmaq olar, müəllifi göstərmək lazımdır, istifadə şəxsi və
+qeyri-kommersiya, faylın özünü dəyişdirmək olmaz. `avatarfem.vrm`: yenidən paylaşmağa, kommersiya istifadəsinə və
+dəyişdirməyə icazə verir. VRoid-in
 `AvatarSample_*` nümunələri isə yenidən paylaşmağı qadağan edir — onlar repo-ya əlavə
 olunmamalıdır (`.gitignore`-dadır).
 
@@ -399,7 +428,20 @@ paylaşım paneli açılanda.
 12. Camgöz, N. C., et al. (2016). *BosphorusSign: A Turkish Sign Language Recognition Corpus in Health and Finance Domains*. LREC'16. [PDF Link](https://aclanthology.org/L16-1220.pdf)
 13. SyncWords & Signapse (2025). *SyncWords and Signapse Launch Live Automatic Sign Language for Streaming*. [Link](https://www.prnewswire.com/news-releases/syncwords-and-signapse-launch-live-automatic-sign-language-for-streaming-302605280.html)
 14. Alishzade, N. & Hasanov, J. (2025). *AzSLD: Azerbaijani Sign Language Dataset for Fingerspelling, Word, and Sentence Translation with Baseline Software*. Data in Brief. [DOI: 10.1016/j.dib.2024.111230](https://doi.org/10.1016/j.dib.2024.111230)
+15. Kapitanov, A., Kvanchiani, K., Nagaev, A. & Petrova, E. (2023). *Slovo: Russian Sign Language Dataset*. International Conference on Computer Vision Systems (ICVS), 63–73. [arXiv: 2305.14527](https://arxiv.org/abs/2305.14527), [dataset](https://github.com/hukenovs/slovo)
 
-**Üçüncü tərəf komponentlər:** three.js (MIT), @pixiv/three-vrm (MIT), GSAP, Lenis (MIT),
-MediaPipe Tasks Vision və `hand_landmarker.task` (Apache-2.0), AzSLD Fingerspelling (CC BY 4.0).
+**Üçüncü tərəf komponentlər:** three.js (MIT), @pixiv/three-vrm (MIT), GSAP, Lenis (MIT), onnxruntime-web (MIT),
+MediaPipe Tasks Vision və `hand_landmarker.task` (Apache-2.0), AzSLD (CC BY 4.0).
+Söz və cümlə modelləri AzSLD-dən (CC BY 4.0) başqa Slovo-nun klipləri ilə də öyrədilib (AzSL ilə ortaq işarələr
+`ml/slovo_azsld.csv`, 101 yeni işarə `ml/slovo_new.csv`; işarə dili daşıyıcısı təsdiqləyənə qədər rus işarə dilinin
+işarəsi kimi qeyd olunub): Slovo © Kapitanov və b., [lisenziya](https://github.com/hukenovs/slovo/blob/master/license/en_us.pdf)
+(CC BY-SA 4.0 əsasında, müəllif göstərilməklə; landmark-lar çıxarılıb, kliplər paylaşılmır).
+Cümlə modeli JestDili.az-ın 500 cümləsi ilə də öyrədilib, avatarın 2 387 işarəsi JestDili.az lüğətindəndir (komandaya
+verilən icazə ilə). Mətn korpusu: HPLT 2.0 (CC0).
 Saytın ilkin versiyası [Gulshan-hu/chevir-site](https://github.com/Gulshan-hu/chevir-site) repo-sundan köçürülüb.
+
+## Lisenziya
+
+Repo-nun hələlik lisenziyası yoxdur (komandanın qərarı, 2026-11-20): kod açıqdır, amma bütün hüquqlar qorunur.
+Mənbələrdən alınanlar öz şərtləri ilədir: AzSLD (CC BY 4.0), Slovo (yuxarıda), JestDili.az (yalnız sahibinin icazəsi
+ilə), avatarlar öz VRM lisenziyaları ilə ("Avatar" bölməsi). Ətraflı: [`docs/DATA.md`](docs/DATA.md).

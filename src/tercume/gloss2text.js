@@ -16,9 +16,11 @@
  * Model JSON-dur (tools/build_gloss_text.mjs → public/tercume/assets/gloss_text.json), brauzerdə
  * öyrənmə lazım deyil. Ölçmə: tools/eval_gloss_text.mjs.
  */
-import { Lemmatizer, candidates, variants } from './morph.js';
+import { Lemmatizer, candidates, variants, infinitive } from './morph.js';
 import { analyze, realize, PRONOUNS } from './inflect.js';
 import { azLower, PERSON } from './words.js';
+import { alignRuns, spell, withCase, NAME_HEAD } from './spelled.js';
+import { FormTagger } from './formtag.js';
 
 export const textWords = (t) => azLower(t).replace(/[.,!?;"()«»“”]+/g, ' ').split(/\s+/).filter(Boolean);
 // Annotasiyada İ çox vaxt ı yerinə yazılıb (ALİNMİR): tutuşdurmada ı = i
@@ -51,6 +53,12 @@ const spelled = (labels, i) => isLetter(labels[i])
   && (!PRONOUNS.includes(labelText(labels[i])) || isLetter(labels[i - 1] ?? '') || isLetter(labels[i + 1] ?? ''));
 const isNumber = (l) => /^\d+$/.test(l);
 const labelText = (l) => azLower(l.split('/')[0]);
+// Hərf ardıcıllığının sonu (R6): hərflər, iki hərfin arasındakı nöqtə də (J E S T D İ L İ . A Z)
+function runEnd(labels, i) {
+  let j = i;
+  while (j < labels.length && (spelled(labels, j) || (labels[j] === '.' && j > i && spelled(labels, j + 1)))) j++;
+  return j;
+}
 
 /** İşarənin sinfi (qonşu kimi): əvəzlik öz şəxsi ilə, fel, ad, sual sözü, rəqəm, hərf. */
 function classOf(label, lex) {
@@ -75,6 +83,91 @@ function contexts(labels, i, lexOf, pos) {
 }
 // Kontekstlərin çəkisi (dev cümlələrində seçilib: tools/eval_gloss_text.mjs --tune)
 export const WEIGHTS = { lc: 8, ln: 4, l: 2, cn: 2, cc: 1, cr: 1, c: 0 };
+// Mətndə sözü olmayan işarə (AzSLD-nin mətnində tutuşmayan): əvvəl bir dəfə görünən də atılırdı (ƏLİL 13/14, VERMƏK 7/13,
+// ÖDƏMƏK 2/2, GƏTİRMƏK 1/1), yeni cümlədə məna itirdi. İndi yalnız tez-tez görünüb demək olar həmişə sözsüz qalan
+export const DROP = { min: 3, ratio: 0.7 };
+// Formanın modelinin (E33) payı #feats-də, modelin içində yazılmayıbsa (dev-in 10 qatında seçilib)
+export const LAMBDA = 0.6;
+// İkinci şəxs əvəzliyi (tamamlıq) felin idarəsi ilə (E26): kimə — yönlük, kimi — təsirlik. Saylarda görünməyən
+// birləşmələr üçün; görünən (MƏN SİZ GÖZLƏMƏK → sizi) sayla qalır
+const GOVERN = {
+  dat: ['kömək', 'kömək etmək', 'zəng', 'zəng etmək', 'vermək', 'demək', 'yazmaq', 'göstərmək', 'göndərmək', 'izah etmək',
+    'baxmaq', 'inanmaq', 'qulaq asmaq', 'müraciət etmək', 'təbrik etmək', 'satmaq', 'gətirmək', 'öyrətmək', 'söyləmək',
+    'xəbər', 'xəbər etmək', 'xəbər vermək', 'cavab', 'cavab vermək', 'məsləhət', 'icazə', 'mane olmaq', 'yaxınlaşmaq'],
+  acc: ['sevmək', 'gözləmək', 'görmək', 'tanımaq', 'çağırmaq', 'eşitmək', 'başa düşmək', 'anlamaq', 'aparmaq',
+    'axtarmaq', 'unutmaq', 'xatırlamaq', 'dəvət etmək', 'qorumaq', 'öpmək', 'qucaqlamaq'],
+};
+// yiyəlik şəkilçisi: onların → III şəxs (onların əmisi)
+const possOf = (p) => (p === 6 ? 3 : p);
+const CASE_OF = new Map([...GOVERN.dat.map((v) => [v, 'dat']), ...GOVERN.acc.map((v) => [v, 'acc'])]);
+// Əvəzlikdən sonra yiyəlikdə işlənən adlar: qohumluq, ad, yaş (MƏN OĞUL → mənim oğlum)
+const KIN = new Set(['ana', 'ata', 'oğul', 'qız', 'bacı', 'qardaş', 'nənə', 'baba', 'ər', 'arvad', 'yoldaş', 'həyat yoldaşı',
+  'qayınata', 'qayınana', 'qayın', 'baldız', 'gəlin', 'kürəkən', 'valideyn', 'əmioğlu', 'xalaoğlu', 'qohum', 'qonşu',
+  'uşaq', 'övlad', 'nəvə', 'əmi', 'dayı', 'xala', 'bibi', 'dost', 'ad', 'yaş', 'ailə']);
+// İsmi fel kimi işlənən işarə (KÖMƏK, ZƏNG): modal felin qabağında köməkçi fel alır — kömək edə bilərəm
+// Keçmişi bildirən zaman sözləri və il (E27): sonrakı felin indiki zamanı keçmişə keçir — MƏN DÜNƏN DOST GÖRÜŞMƏK →
+// görüşmüşəm (AzSLD-nin mətnlərində -mış; 3-cü şəxsdə -ıb). İNDİ yenidən indiki zamandır
+const PAST_MARK = new Set(['dünən', 'əvvəl', 'öncə', 'keçən', 'srağagün', 'bayaq']);
+const isYear = (l) => /^\d{4}$/.test(l) && Number(l) >= 1900 && Number(l) < 2026;
+// sıra sayının şəkilçisi son rəqəmin (sıfırlarda onluğun, yüzün, minin) adına görə: 1979-cu, 2018-ci, 1990-cı
+const ORD_SUFFIX = { 1: 'ci', 2: 'ci', 3: 'cü', 4: 'cü', 5: 'ci', 6: 'cı', 7: 'ci', 8: 'ci', 9: 'cu' };
+const ORD_TENS = { 1: 'cu', 2: 'ci', 3: 'cu', 4: 'cı', 5: 'ci', 6: 'cı', 7: 'ci', 8: 'ci', 9: 'cı' };
+// rəqəmin adı ilə sayılan sözlər (bu sözlərdən əvvəl rəqəm şəkilçisiz yazılır)
+const COUNTER = new Set(['yaş', 'nəfər', 'ədəd', 'manat', 'qəpik', 'saat', 'dəqiqə', 'saniyə', 'gün', 'gun', 'ay', 'həftə', 'dəfə',
+  'stəkan', 'bilet', 'kilo', 'kiloqram', 'metr', 'litr', 'dənə', 'uşaq', 'otaq', 'mərtəbə', 'faiz']);
+// rəqəmin çıxışlıq şəkilçisi (6-dan, 5-dən): son rəqəmin (sıfırlarda onluğun, yüzün, minin) adının saitinə görə
+const ABL_DIGIT = { 1: 'dən', 2: 'dən', 3: 'dən', 4: 'dən', 5: 'dən', 6: 'dan', 7: 'dən', 8: 'dən', 9: 'dan' };
+const ABL_TENS = { 1: 'dan', 2: 'dən', 3: 'dan', 4: 'dan', 5: 'dən', 6: 'dan', 7: 'dən', 8: 'dən', 9: 'dan' };
+function ablative(n) {
+  const d = String(n);
+  if (/[1-9]$/.test(d)) return ABL_DIGIT[d.at(-1)];
+  const m = d.match(/([1-9])(0+)$/);
+  if (!m) return 'dan';
+  return m[2].length === 1 ? ABL_TENS[m[1]] : 'dən';
+}
+export function ordinal(n) {
+  const d = String(n);
+  if (/[1-9]$/.test(d)) return `${d}-${ORD_SUFFIX[d.at(-1)]}`;
+  const m = d.match(/([1-9])(0+)$/);
+  if (!m) return d;
+  const z = m[2].length;
+  return `${d}-${z === 1 ? ORD_TENS[m[1]] : z === 2 ? 'cü' : 'ci'}`;
+}
+// Sözün özündə şəkilçi qalıbsa (BAHADIR, FANATIYAM, OĞURLAYIBLAR): xəbər şəkilçisi artırılmır
+const INFLECTED = /(d[ıiuü]r|d[ıiuü]|l[aə]r|y[aə]m|[ıiuü]b|[ıiuüa]r[aə]m)$/;
+// cümlənin sonunda feli olmayan iş adı: "et-" köməkçi feli ilə (Mən hər gün idman edirəm, özümü yaxşı hiss edirəm)
+const ACTION = new Set(['idman', 'hiss', 'zəng', 'kömək', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak', 'təmir', 'söhbət',
+  'səyahət', 'istirahət', 'şikayət', 'xahiş', 'təşəkkür', 'izah', 'rəqs', 'məşq']);
+// Yer: felin qabağındakı yer adı (xüsusi ad və ya yer sözü) felə görə hal alır (E27) — yaşamaq, işləmək → -da
+// (Bakıda yaşayıram), getmək, gəlmək → -a (Sumqayıta gedirəm). Arada nəqliyyat, zaman sözü ola bilər
+const PLACE_CASE = new Map([...['yaşamaq', 'işləmək', 'oxumaq', 'qalmaq', 'oturmaq', 'gözləmək', 'dərs keçmək'].map((v) => [v, 'loc']),
+  ...['getmək', 'gəlmək', 'qayıtmaq', 'köçmək', 'uçmaq', 'daxil olmaq', 'zəng etmək', 'çatmaq', 'girmək'].map((v) => [v, 'dat'])]);
+const PLACE = new Set(['ev', 'məktəb', 'universitet', 'xəstəxana', 'poliklinika', 'bank', 'mağaza', 'bazar', 'park', 'kənd',
+  'şəhər', 'rayon', 'ölkə', 'mərkəz', 'ofis', 'aptek', 'apteka', 'restoran', 'kafe', 'otel', 'hava limanı', 'vağzal', 'metro',
+  'toy', 'dəniz', 'bağ', 'kino', 'teatr', 'muzey', 'kitabxana', 'şirkət', 'zavod', 'fabrik', 'idarə', 'nazirlik', 'klinika',
+  'xaric', 'bağça', 'kollec', 'institut', 'akademiya', 'stadion', 'çimərlik', 'meşə', 'dağ', 'mikrorayon', 'qəsəbə']);
+// Yer adları (AzSLD-nin mətnində görünməsə də böyük hərflə yazılır və yer kimi hal alır)
+const PLACE_NAMES = new Set(['bakı', 'gəncə', 'sumqayıt', 'şamaxı', 'şəki', 'quba', 'lənkəran', 'mingəçevir', 'naxçıvan', 'şuşa',
+  'qəbələ', 'qusar', 'şirvan', 'xaçmaz', 'zaqatala', 'qax', 'masallı', 'astara', 'füzuli', 'ağdam', 'kəlbəcər', 'laçın',
+  'xankəndi', 'qazax', 'tovuz', 'ağstafa', 'şəmkir', 'göygöl', 'naftalan', 'bərdə', 'yevlax', 'ağdaş', 'göyçay', 'ismayıllı',
+  'abşeron', 'xırdalan', 'qarabağ', 'azərbaycan', 'türkiyə', 'rusiya', 'almaniya', 'gürcüstan', 'iran', 'moskva', 'istanbul',
+  'ankara', 'tbilisi', 'london', 'paris', 'amerika', 'fransa', 'ingiltərə', 'ukrayna', 'qazaxıstan', 'özbəkistan', 'italiya',
+  'ispaniya', 'çin', 'yaponiya', 'dubay', 'misir', 'kəlbəcər', 'zəngilan', 'qubadlı', 'cəbrayıl', 'xocalı', 'ağcabədi']);
+const XOSH = { 1: 'xoşum', 2: 'xoşun', 3: 'xoşu', 4: 'xoşumuz', 5: 'xoşunuz', 6: 'xoşları' };
+const XOSH_DAT = { 1: 'xoşuma', 2: 'xoşuna', 3: 'xoşuna', 4: 'xoşumuza', 5: 'xoşunuza', 6: 'xoşlarına' };
+const NEG_LABEL = /(m[aə]m[aə][kq]|m[aə]y[ıi]b|[^t]əm[iı]r|[^ə]m[ıiuü]r)$/;
+const TIME_WORDS = new Set([...PAST_MARK, 'sabah', 'bu gün', 'indi', 'həmişə', 'axşam', 'səhər', 'gecə', 'günorta', 'sonra', 'tez', 'gec']);
+// öz-özünə olan hal: mübtəda şəxs deyil, onun bir şeyidir (Mənim ayağım ağrıyır)
+const UNACC = new Set(['ağrı', 'ağrımaq', 'bit', 'bitmək', 'blokla', 'bloklan', 'bloklanmaq', 'öl', 'ölmək', 'it', 'itmək', 'sın',
+  'sınmaq', 'kəsil', 'kəsilmək', 'oğurlan', 'xarab ol', 'xarab olmaq', 'dayan', 'dayanmaq', 'işləmir', 'yan', 'yanmaq', 'gecik',
+  'gecikmək', 'pozul', 'pozulmaq', 'qırıl', 'qırılmaq', 'qal', 'qalmaq']);
+const ADVERB = new Set(['çox', 'az', 'pis', 'yaxşı', 'tez', 'hələ', 'heç', 'bir', 'necə', 'neçə', 'yer', 'artıq', 'yenə', 'daha', 'hər']);
+// bədən: əvəzlikdən sonra yiyəlidir, əgər fel yoxdursa və ya fel öz-özünə olan haldırsa (ağrımaq) və ya görmək,
+// eşitmək (MƏN GÖZ PİS GÖRMƏK → Mənim gözüm pis görür; MƏN ƏL YUMAQ isə yox)
+const BODY = new Set(['baş', 'göz', 'qulaq', 'ayaq', 'əl', 'bel', 'diş', 'ürək', 'qarın', 'boğaz', 'burun', 'ağız', 'mədə',
+  'böyrək', 'qol', 'barmaq', 'diz', 'sinə', 'kürək', 'boyun', 'təzyiq']);
+const REQUEST = new Set(['kömək', 'ver', 'de', 'göstər', 'izah', 'gətir', 'öyrət']);
+const LIGHT = new Set(['kömək', 'zəng', 'izah', 'təbrik', 'müraciət', 'dəvət', 'qeyd', 'iştirak', 'xəbər']);
 
 const fkey = (f) => JSON.stringify(f, Object.keys(f).sort());
 const inc = (m, k, n = 1) => { m[k] = (m[k] ?? 0) + n; };
@@ -82,16 +175,17 @@ const inc = (m, k, n = 1) => { m[k] = (m[k] ?? 0) + n; };
 /**
  * Öyrənmə. pairs: [{glosses, text}] — işarələr tanıyıcının birləşmiş adlarındadır; merge: sign_merge.json
  * (işarənin digər adları tutuşdurma üçün); labels — cümlələrdə olmayan, ancaq tanınan işarələr də;
- * text — etiketin düzgün yazılışı (ml/label_text.csv).
+ * text — etiketin düzgün yazılışı (ml/label_text.csv); lemmas — lüğət formasında olan etiketlər (Slovo-dan yeni işarələr,
+ * ml/slovo_new.csv): adın təhlili təsrifli fel verirsə (YEDDİ → ye-di, DİMDİK → dim-dik) atılır, fel yalnız məsdərdir.
  */
-export const train = (pairs, merge, labels, text) => fit(prepare(pairs, merge, labels, text));
+export const train = (pairs, merge, labels, text, lemmas) => fit(prepare(pairs, merge, labels, text, lemmas));
 
 /**
  * Hər cümlənin tutuşdurulması və sözlərin əlamətləri (ağır hissə, bir dəfə) və hər işarənin öz adının
  * təhlili. Kök açarları yalnız işarələrin adlarından qurulur, mətndən yox: bir cümləni çıxarıb sayan
  * ölçmə (leave-one-out) düzgündür. text: etiketin düzgün yazılışı (ml/label_text.csv: OLMUSAM → olmuşam).
  */
-export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], text = {}) {
+export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], text = {}, lemmas = new Set()) {
   const members = new Map();
   const addM = (lab, g) => { if (!members.has(lab)) members.set(lab, new Set([lab])); members.get(lab).add(g); };
   const canon = (g) => { const s = merge.spelling?.[g] ?? g; return merge.merge?.[s] ?? s; };
@@ -101,14 +195,20 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
   const textOf = (l) => azLower(text[l] ?? labelText(l));
   const formsOf = (lab) => [...(members.get(lab) ?? [lab])].flatMap((g) => g.split('/'));
   const labels = [...new Set([...pairs.flatMap((p) => p.glosses), ...extra])];
-  const lem = new Lemmatizer([...new Set(labels.flatMap(formsOf).flatMap((g) => norm(azLower(g)).split(' ')))]);
-  const key = (w) => { const n = norm(w); return lem.key(n) ?? n; };
+  // lüğət formasında olan etiketlərin sözləri (AYI, ON ALTI, YAZ) başqa işarələrin təhlilini dəyişməsin (bu ay → ayı,
+  // altında → altı, yazda → yaz): onlar yalnız öz açarları və kökləri üçün ayrıca lemmatizer-ə girir (E29)
+  const wordsOf = (ls) => [...new Set(ls.flatMap(formsOf).flatMap((g) => norm(azLower(g)).split(' ')))];
+  const lem = new Lemmatizer(wordsOf(labels.filter((l) => !lemmas.has(l))));
+  const lemAll = labels.some((l) => lemmas.has(l)) ? new Lemmatizer(wordsOf(labels)) : lem;
+  const keyBy = (lz) => (w) => { const n = norm(w); return lz.key(n) ?? n; };
+  const key = keyBy(lem), keyAll = keyBy(lemAll);
+  const keyOf = (l) => (lemmas.has(l) ? keyAll : key), lemOf = (l) => (lemmas.has(l) ? lemAll : lem);
   // açarlar: işarənin bütün sözləri (tutuşdurma) və son sözü (çoxsözlü işarədə dəyişən söz odur)
-  const keysOf = new Map(labels.map((l) => [l, new Set(formsOf(l).flatMap((g) => norm(azLower(g)).split(' ').map(key)))]));
-  const headKeys = new Map(labels.map((l) => [l, new Set(formsOf(l).map((g) => key(norm(azLower(g)).split(' ').at(-1))))]));
+  const keysOf = new Map(labels.map((l) => [l, new Set(formsOf(l).flatMap((g) => norm(azLower(g)).split(' ').map(keyOf(l))))]));
+  const headKeys = new Map(labels.map((l) => [l, new Set(formsOf(l).map((g) => keyOf(l)(norm(azLower(g)).split(' ').at(-1))))]));
 
   const guess = {};
-  for (const l of labels) if (!spelled([l], 0) && !isNumber(l)) guess[l] = guessOf(l, headKeys.get(l), lem, textOf(l));
+  for (const l of labels) if (!spelled([l], 0) && !isNumber(l)) guess[l] = guessOf(l, headKeys.get(l), lemOf(l), textOf(l), lemmas.has(l));
   // xüsusi adlar böyük hərflə yazılır (label_text.csv: BAKI → Bakı, ABŞERON RAYON → Abşeron rayonu)
   for (const l of labels) {
     const t = text[l] ?? [...(members.get(l) ?? [])].map((g) => text[g]).find(Boolean);
@@ -120,15 +220,21 @@ export function prepare(pairs, merge = { merge: {}, spelling: {} }, extra = [], 
     const ws = textWords(p.text);
     // rəqəm mətndə şəkilçi ilə yazılır: 6-dan, 2-ci
     const at = align(p.glosses, ws, (l, w) => (isNumber(l) ? w === l || w.startsWith(`${l}-`)
-      : keysOf.get(l)?.has(key(w)) || near(fold(w), fold(textOf(l)))));
+      : keysOf.get(l)?.has(keyOf(l)(w)) || near(fold(w), fold(textOf(l)))));
     const info = p.glosses.map((l, i) => {
       const surface = at[i] === null ? '' : ws[at[i]];
       if (spelled(p.glosses, i)) return { surface: null };           // hərflər işarənin sözü deyil
       if (!surface || isNumber(l)) return { surface };
-      if (!headKeys.get(l).has(key(surface))) return { surface };     // çoxsözlü işarənin başqa sözü
-      return { surface, ...rootOf(l, surface, headKeys.get(l), lem) };
+      if (!headKeys.get(l).has(keyOf(l)(surface))) return { surface };     // çoxsözlü işarənin başqa sözü
+      return { surface, ...rootOf(l, surface, headKeys.get(l), lemOf(l)) };
     });
-    return { glosses: p.glosses, words: ws, at, info, w: p.w ?? 1 };
+    // hərflə yığılan sözlər mətndə necə yazılıb (DOST, Messinin, manat; spelled.js)
+    const runs = [];
+    for (let i = 0; i < p.glosses.length; i++) {
+      const j = runEnd(p.glosses, i);
+      if (j > i) { runs.push(azLower(p.glosses.slice(i, j).join(''))); i = j - 1; }
+    }
+    return { glosses: p.glosses, words: ws, at, info, w: p.w ?? 1, spelled: runs.length ? alignRuns(runs, p.text) : [] };
   });
   return { sentences, guess };
 }
@@ -143,10 +249,18 @@ const scaled = (t, a) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k
  * model.opts — işarənin kök və növ sayları (prior üçün); brauzerin modelinə yazılmır.
  */
 export function fit({ sentences, guess }, keep = () => true, prior = null, alpha = 1) {
-  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, opts: {}, guess };
+  const model = { lex: {}, forms: {}, feats: {}, subj: {}, posCtx: {}, opts: {}, guess, spelled: {} };
   if (prior) for (const t of TABLES) model[t] = scaled(prior[t], alpha);
   const used = sentences.filter((_, i) => keep(i));
   const opts = model.opts;
+  // hərflə yığılan sözlərin yazılışı (R6): {hərflər: {n, forms: {yazılış: say}}}
+  for (const { spelled: runs, w } of used) {
+    for (const { run, surface } of runs ?? []) {
+      const e = (model.spelled[norm(run)] ??= { n: 0, forms: {} });
+      e.n += w;
+      if (surface) inc(e.forms, surface, w);
+    }
+  }
   for (const { glosses, info, w } of used) {
     glosses.forEach((l, i) => {
       if (info[i].surface === null) return;
@@ -215,8 +329,10 @@ function rootOf(label, surface, keys, lem) {
   const roots = new Set([surface]);
   for (const c of candidates(surface)) for (const v of [...variants(c.stem, true), ...variants(c.stem)]) roots.add(v);
   for (const r of [...roots].sort((a, b) => a.length - b.length)) {
-    if (!keys?.has(norm(r)) && !keys?.has(`${norm(r)}-`)) continue;
+    // işarənin öz sözü də kökdür: lemmatizer "kömək"-i kö-mək kimi açır (E27)
+    if (!keys?.has(norm(r)) && !keys?.has(`${norm(r)}-`) && norm(r) !== norm(t)) continue;
     for (const p of lem.verbs.has(norm(r)) ? ['verb', 'noun'] : ['noun', 'verb']) {
+      if (p === 'verb' && !realVerb(r)) continue;        // kömək ≠ kö-mək
       const a = analyze(surface, r, p);
       if (a) return { root: r, pos: p, feats: a.feats };
     }
@@ -229,13 +345,14 @@ function rootOf(label, surface, keys, lem) {
  * BİLMİR → bil, inkar; YAŞAMAQ → yaşa (məsdər lüğət formasıdır, əlaməti yoxdur). Çoxsözlü işarənin
  * son sözü dəyişir, qalanı `prefix`-dir (ANADAN OLMAQ → anadan + ol).
  */
-function guessOf(label, keys, lem, t = labelText(label)) {
+function guessOf(label, keys, lem, t = labelText(label), lemma = false) {
   const toks = t.split(' ');
   const head = toks.at(-1);
   const prefix = toks.slice(0, -1).join(' ');
   const base = { ...(prefix && { prefix }) };
   if (PRONOUNS.includes(head)) return { pos: 'noun', root: head, ...base };
-  const a = rootOf(label, head, keys, lem);
+  let a = rootOf(label, head, keys, lem);
+  if (lemma && a.pos === 'verb' && a.feats.tam !== 'inf') a = {};   // lüğət forması təsrifli fel deyil (YEDDİ ≠ ye-di)
   if (a.root) {
     const inherent = a.pos === 'verb' && a.feats.tam !== 'inf' ? { tam: a.feats.tam, neg: a.feats.neg } : null;
     return { pos: a.pos, root: a.root, ...base, ...(inherent && { inherent }) };
@@ -259,9 +376,106 @@ function subjectOf(glosses, nominative = () => true) {
 
 export class GlossToText {
   /** native: doğma işarələrin qrammatikası (#native: YOX, OLMAQ, OLACAQ, LAZIM, BİRLİKDƏ); false — yalnız sayılar. */
-  constructor(model, { weights = WEIGHTS, native = true } = {}) { this.m = model; this.w = weights; this.native = native; }
+  /** drop: işarə mətndə sözsüz qalır, AzSLD-də ən azı `min` dəfə görünüb `ratio`-dan çox sözsüz olubsa (E26). */
+  /** names: hərflə yığılan söz ad / qısaltma / söz kimi yazılır (R6, E30, spelled.js); false — kiçik hərflərlə bir söz. */
+  /**
+   * tagger: sözün formasının modeli (E33, formtag.js) — FormTagger, onun JSON-u və ya false (yalnız qaydalar və saylar).
+   * Susmaya görə modelin içindəki `formTagger` (tools/build_gloss_text.mjs --tagger), onun `on`-u true-dursa. lambda:
+   * modelin payı, kontekst saylarının paylanması ilə qarışdırılır (#feats); işarənin sayı yoxdursa yalnız model.
+   */
+  constructor(model, { weights = WEIGHTS, native = true, drop = DROP, names = true, tagger, lambda } = {}) {
+    this.m = model; this.w = weights; this.native = native; this.drop = drop; this.names = names;
+    const t = tagger === undefined ? (model.formTagger?.on ? model.formTagger : null) : tagger;
+    // FormTagger və ya onun kimi obyekt (probs, classes, isVerb), yoxsa JSON
+    this.tagger = !t ? null : typeof t.probs === 'function' ? t : new FormTagger(t);
+    this.lambda = lambda ?? model.formTagger?.lambda ?? LAMBDA;
+  }
+
+  #probs = null;
 
   #lexOf = (l) => this.m.lex[l] ?? this.m.guess[l];
+
+  /**
+   * Hərflə yığılan söz (R6, spelled.js) modelə tanışdırmı: AzSLD mətnindəki sözlər və işarələrin kökləri (manat,
+   * may) — tanış söz ad deyil, kiçik hərflə yazılır. Xüsusi adlar (BAKI → Bakı, yer adları) ayrıca: onlar addır.
+   */
+  #words = null;
+  #wordSets() {
+    if (this.#words) return this.#words;
+    const known = new Set(), proper = new Set(), spelling = new Map();     // ı = i ilə açar → lüğətdəki yazılış
+    const add = (set, w) => { const n = norm(w); set.add(n); if (!spelling.has(n) || w.includes('ı')) spelling.set(n, w); };
+    const isProper = (l) => this.#lexOf(l)?.proper?.some(Boolean);
+    for (const p of PLACE_NAMES) add(proper, p);
+    for (const [l, f] of Object.entries(this.m.forms ?? {})) {
+      for (const s of Object.keys(f)) for (const t of s.split(' ')) if (t) add(isProper(l) ? proper : known, t);
+    }
+    for (const [l, x] of [...Object.entries(this.m.guess ?? {}), ...Object.entries(this.m.lex ?? {})]) {
+      if (x?.root) add(isProper(l) ? proper : known, x.root);
+    }
+    // korpusun ümumi sözlərinin kökləri (tools/build_common_words.mjs → ml/common_words.txt)
+    for (const w of (this.m.common ?? '').split(/\r?\n/)) if (w) add(known, w);
+    for (const p of proper) known.delete(p);
+    this.#words = { known, proper, spelling };
+    return this.#words;
+  }
+
+  #stemIn = (set, w) => {
+    const n = norm(w);
+    return candidates(n).find((c) => !c.neg && set.has(c.stem) && (c.stem === n || c.stem.length >= 3));
+  };
+
+  /** Lüğətdəki yazılış (B A K İ Y A → bakıya): kök lüğətdən, şəkilçinin i-si kökün ahənginə görə. */
+  #restore(w) {
+    const { known, proper, spelling } = this.#wordSets();
+    const c = this.#stemIn(proper, w) ?? this.#stemIn(known, w);
+    if (!c) return w;
+    const stem = spelling.get(c.stem) ?? c.stem;
+    let out = stem, back = /[aıou][^aıoueəiöü]*$/.test(stem);
+    for (const ch of w.slice(c.stem.length)) {
+      out += ch === 'i' && back ? 'ı' : ch;
+      if ('aıoueəiöü'.includes(ch)) back = 'aıou'.includes(ch === 'i' && back ? 'ı' : ch);
+    }
+    return out;
+  }
+
+  /** Hərflərdən sonrakı fel halı istəyirsə (GETMƏK → -a, YAŞAMAQ → -da, MÜRACİƏT ETMƏK → -a, SEVMƏK → -ı). */
+  #governed(labels, j) {
+    const t = labels[j] && labelText(labels[j]);
+    if (!t) return null;
+    const lx = this.#lexOf(labels[j]);
+    const inf = lx?.pos === 'verb' && lx.root ? infinitive(lx.root) : null;
+    const light = LIGHT.has(t) && labels[j + 1] && /^e[td]/.test(labelText(labels[j + 1])) ? `${t} etmək` : null;
+    for (const v of [light, t, inf]) {
+      const c = v && (PLACE_CASE.get(v) ?? CASE_OF.get(v));
+      if (c) return c;
+    }
+    return null;
+  }
+
+  /**
+   * Hərf ardıcıllığı labels[i, j) → bir-iki söz (spelled.js): öyrənilmiş yazılış, qısaltma, ad və ya söz; ad və
+   * qısaltma ardınca gələn felin halını alır (TSEK-ə gedirəm), cümlənin əvvəlində deyilsə (orada mübtədadır).
+   */
+  #spelledItems(labels, i, j) {
+    // tək hərf (çox vaxt tanıma səhvi) olduğu kimi qalır
+    if (j - i === 1 || !this.names) return [{ labels: labels.slice(i, j), word: azLower(labels.slice(i, j).join('')), via: 'letters' }];
+    const { known, proper } = this.#wordSets();
+    const next = labels[j] ? labelText(labels[j]) : '';
+    const parts = spell(azLower(labels.slice(i, j).join('')), { table: this.m.spelled ?? {},
+      known: (w) => !!this.#stemIn(known, w), proper: (w) => !!this.#stemIn(proper, w), restore: (w) => this.#restore(w),
+      headNext: NAME_HEAD.has(next) });
+    const last = parts.at(-1);
+    // O + III şəxsin mənsubiyyəti (O N Ə V Ə S İ N İ N → onun nəvəsinin)
+    if (parts[0].kind === 'pronoun' && /s[ıiuü](n[ıiuü]n?|n[aə]|nd[aə]n?)?$/.test(azLower(last.word))) parts[0].word = 'onun';
+    const c = i > 0 && (last.kind === 'name' || last.kind === 'acronym') ? this.#governed(labels, j) : null;
+    if (c) last.word = withCase(last.word, last.kind, c);
+    let at = i;
+    return parts.map((p) => {
+      const ls = labels.slice(at, at + p.len);
+      at += p.len;
+      return { labels: ls, word: p.word, via: 'letters', kind: p.kind };
+    });
+  }
 
   #best(table) {
     let best = null, n = 0;
@@ -272,6 +486,7 @@ export class GlossToText {
   /** İşarənin kökü və növü: iki növü varsa (İŞLƏMƏK: iş / işlə), sonrakı işarənin sinfinə görə. */
   #lex(labels, i) {
     const l = labels[i];
+    if (PLACE_NAMES.has(labelText(l))) return { pos: 'noun', root: labelText(l), proper: [true], seen: !!this.m.lex[l] };
     const g = this.m.guess[l] ?? { pos: 'noun', root: labelText(l) };
     const lx = this.m.lex[l];
     if (!lx) return { ...g, seen: false };
@@ -284,23 +499,49 @@ export class GlossToText {
     return { pos: pick.pos, root: pick.root, prefix: g.prefix, proper: g.proper, seen: true };
   }
 
-  /** Ən ehtimallı əlamətlər: kontekstlərin paylanmalarının çəkili cəmi (az sayılan kontekst zəifdir). */
+  /**
+   * Ən ehtimallı əlamətlər: kontekstlərin paylanmalarının çəkili cəmi (az sayılan kontekst zəifdir). Formanın modeli
+   * varsa (E33): (1 − λ) · sayların paylanması + λ · modelin bu növə (ad / fel) düşən ehtimalları.
+   */
   #feats(labels, i, pos) {
     const score = new Map();
+    let wsum = 0;
     for (const [name, c] of contexts(labels, i, this.#lexOf, pos)) {
       const table = this.m.feats[`${name}:${c}`];
       const tot = Object.values(table ?? {}).reduce((a, b) => a + b, 0);
       if (!tot) continue;
       const w = this.w[name] * (tot / (tot + 1));
+      wsum += w;
       for (const [k, n] of Object.entries(table)) {
         const f = JSON.parse(k);
         if ((pos === 'verb') !== ('tam' in f)) continue;      // başqa növün əlamətləri
         score.set(k, (score.get(k) ?? 0) + w * (n / tot));
       }
     }
-    let best = null, s = -1;
-    for (const [k, v] of score) if (v > s) { best = k; s = v; }
-    return best ? JSON.parse(best) : pos === 'verb' ? { tam: 'pres' } : {};
+    const argmax = () => {
+      let best = null, s = -1;
+      for (const [k, v] of score) if (v > s) { best = k; s = v; }
+      return best;
+    };
+    const p = this.#probs?.[i];
+    let neg = null;
+    if (p && this.lambda > 0) {
+      const t = this.tagger, verb = pos === 'verb', lam = wsum ? this.lambda : 1;
+      let z = 0;
+      for (let c = 0; c < p.length; c++) if (t.isVerb[c] === verb) z += p[c];
+      if (z > 0) {
+        // inkar mənanı dəyişir: onu model seçmir, saylar seçir (işarənin adındakı inkar sonra yenə əlavə olunur)
+        if (verb) { const b = argmax(); neg = b ? JSON.parse(b).neg === true : false; }
+        for (const [k, v] of score) score.set(k, (1 - lam) * (v / wsum));
+        for (let c = 0; c < p.length; c++) {
+          if (t.isVerb[c] === verb) score.set(t.classes[c], (score.get(t.classes[c]) ?? 0) + lam * (p[c] / z));
+        }
+      }
+    }
+    const best = argmax();
+    const f = best ? JSON.parse(best) : pos === 'verb' ? { tam: 'pres' } : {};
+    if (neg !== null) f.neg = neg;
+    return f;
   }
 
   /**
@@ -336,6 +577,7 @@ export class GlossToText {
         if (!asVerb(items[v])) continue;
         const f = items[v].f;
         items[v].f = n === 'yox' ? { ...f, neg: true, tam: FINITE.has(f.tam) ? f.tam : 'pres' } : { ...f, tam: NATIVE_TAM[n] };
+        if (NATIVE_TAM[n]) items[v].nativeTam = true;
         drop(m);
         if (n === 'yox') m.negMark = true;
       } else if (n === 'birlikdə' && items[k - 1]?.lx && PERSON.has(items[k - 1].lx.root)) {
@@ -345,28 +587,239 @@ export class GlossToText {
   }
 
   /**
+   * Yiyəlik cümlələri (E26). "Var / yox" ilə bitən cümlədə əvəzlik + (rəqəm) + ad: yiyəlikdir — MƏN 2 BACI VAR →
+   * Mənim 2 bacım var, SİZ EV VAR → Sizin eviniz var (AzSLD-nin sayları yalnız əvəzlik adın yanındadırsa tapırdı).
+   * Addan sonra LAZIM: ehtiyacdır — MƏN DƏRMAN LAZIM → Mənə dərman lazımdır (felin LAZIM-ı -malı olaraq #native-dədir).
+   */
+  #have(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    const content = items.filter((it) => it.via !== 'drop');
+    const last = content.at(-1), n = name(last);
+    const p0 = content.findIndex((it) => it.lx && SUBJECT[it.lx.root]);
+    if (p0 < 0) return;
+    const pron = content[p0];
+    // ikinci əvəzlik tamamlıqdır: halını fel (və ya KÖMƏK kimi ismi fel) verir
+    const obj = content[p0 + 1];
+    if (obj?.lx && SUBJECT[obj.lx.root] && obj.lx.root !== pron.lx.root && (!obj.f.case || obj.f.case === 'gen')) {
+      const head = content.slice(p0 + 2).find((it) => it.lx && (it.lx.pos === 'verb' || LIGHT.has(it.lx.root)));
+      const c = head && (CASE_OF.get(head.lx.root) ?? CASE_OF.get(name(head)));
+      if (c) obj.f = { case: c };
+    }
+    // ismi fel + modal (BİLMƏK, İSTƏMƏK, OLMAQ): köməkçi fel "et-" (kömək edə bilərəm, zəng etmək istəyirəm)
+    for (let k = 0; k + 1 < content.length; k++) {
+      const a = content[k], b = content[k + 1];
+      if (a.lx && LIGHT.has(a.lx.root) && !a.lx.prefix && b.lx?.pos === 'verb' && MODAL.has(b.lx.root === 'bil' ? 'bilmək' : name(b))) {
+        a.lx = { ...a.lx, pos: 'verb', root: 'et', prefix: a.lx.root };
+        a.f = { tam: name(b) === 'istəmək' ? 'inf' : 'opt' };
+      }
+    }
+    // qohumluq, ad, yaş: əvəzlikdən sonra yiyəlik (mənim oğlum), əgər ad başqa halda deyilsə
+    const kin = content[p0 + 1];
+    if (kin?.via === 'form' && KIN.has(name(kin))) {            // öyrənilmiş bütöv söz (oğlum): kökdən qurulur
+      Object.assign(kin, { via: 'gen', lx: { pos: 'noun', root: name(kin) }, f: {} });
+    }
+    // feli olmayan cümlədə təsirlik ola bilməz (SİZ AD NƏDİR: adı → adınız)
+    const objCase = kin?.f?.case === 'acc' && !content.some((it) => it.lx?.pos === 'verb');
+    const verb = content.find((it) => it.lx?.pos === 'verb');
+    const body = kin?.lx && BODY.has(kin.lx.root) && (!verb || UNACC.has(verb.lx.root) || ['gör', 'eşit'].includes(verb.lx.root));
+    if (kin?.lx?.pos === 'noun' && (KIN.has(kin.lx.root) || body) && (!kin.f.case || objCase) && (!kin.f.poss || kin.f.poss !== possOf(SUBJECT[pron.lx.root]))) {
+      kin.f = { poss: possOf(SUBJECT[pron.lx.root]) };
+      pron.f = { case: 'gen' }; pron.keepGen = true;
+    }
+    // qohumun adı, yaşı (E27, JestDili.az): MƏN QARDAŞ AD ... → Mənim qardaşımın adı ..., SİZ ATA AD NƏDİR → Sizin atanızın adı
+    const attr = content[p0 + 2];
+    if (kin?.lx && KIN.has(kin.lx.root) && attr?.lx && ['ad', 'yaş'].includes(attr.lx.root) && attr.via === 'gen') {
+      kin.f = { poss: possOf(SUBJECT[pron.lx.root]), case: 'gen' };
+      attr.f = { poss: 3 };
+      pron.f = { case: 'gen' }; pron.keepGen = true;
+      return;
+    }
+    if (content.length < 3) return;
+    const noun = content.at(-2);
+    const between = content.slice(p0 + 1, -2);
+    if (!noun?.lx || noun.lx.pos !== 'noun' || SUBJECT[noun.lx.root]) return;
+    const owner = between[0];
+    if ((n === 'var' || n === 'yox') && owner?.lx && KIN.has(owner.lx.root) && between.slice(1).every((it) => it.via === 'form')) {
+      owner.f = { poss: possOf(SUBJECT[pron.lx.root]), case: 'gen' };   // MƏN ANA 67 YAŞ VAR → Mənim anamın 67 yaşı var
+      noun.f = { poss: 3 };
+      pron.f = { case: 'gen' }; pron.keepGen = true;
+    } else if ((n === 'var' || n === 'yox') && between.every((it, j) => it.via === 'form' || (it.lx?.pos === 'noun'
+      && !SUBJECT[it.lx.root] && !(j === 0 && KIN.has(it.lx.root)) && (!it.f.case || it.f.case === 'loc') && (!it.f.poss || it.f.poss === 'P')))) {
+      noun.f = { ...noun.f, poss: possOf(SUBJECT[pron.lx.root]) };
+      // VƏ-dən əvvəlki ad da yiyəlidir: MƏN 2 OĞUL VƏ 1 QIZ VAR → 2 oğlum və 1 qızım
+      between.forEach((it, j) => {
+        if (it.lx?.pos === 'noun' && name(between[j + 1] ?? noun) === 'və') it.f = { ...it.f, poss: possOf(SUBJECT[pron.lx.root]) };
+      });
+      delete noun.f.case;
+      pron.f = { case: 'gen' }; pron.keepGen = true;
+    } else if (n === 'lazım' && last.via !== 'drop' && between.every((it) => it.lx?.pos === 'noun' && !SUBJECT[it.lx.root])) {
+      pron.f = { case: 'dat' };
+      noun.f = {};
+      last.f = { ...last.f, cop: 3 };
+    }
+  }
+
+  /**
+   * Zaman (E27): il + İL — sıra sayı (MƏN 1979 İL ANADAN OLMAQ → 1979-cu ildə); keçmiş zaman sözündən (DÜNƏN,
+   * ƏVVƏL, ÖNCƏ, il) sonrakı fel indiki zamandadırsa keçmişə keçir (İNDİ-yə qədər).
+   */
+  #time(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    let past = false, now = false;
+    for (let k = 0; k < items.length; k++) {
+      const it = items[k], n = name(it);
+      if (it.labels.length === 1 && isYear(it.labels[0])) {
+        past = true;
+        const il = items[k + 1];
+        if (name(il) === 'il') {
+          it.word = ordinal(it.labels[0]);
+          // ildən sonra fel varsa, il zaman yeridir: 2019-cu ildə köçüb
+          if (il.via === 'gen' && !il.f.case && items.slice(k + 2).some((x) => x.lx?.pos === 'verb')) il.f = { ...il.f, case: 'loc' };
+        }
+      } else if (PAST_MARK.has(n)) { past = true; now = false; }
+      else if (n === 'indi') { past = false; now = true; }
+      else if (n === 'bu gün' || n === 'sabah') past = now = false;
+      else if (past && it.via === 'gen' && it.lx?.pos === 'verb' && it.f.tam === 'pres') it.f = { ...it.f, tam: 'ev' };
+      else if (now && it.via === 'gen' && it.lx?.pos === 'verb' && ['past', 'perf', 'ev'].includes(it.f.tam) && !it.nativeTam) {
+        it.f = { ...it.f, tam: 'pres' };                      // MƏN İNDİ YATMAQ → yatıram
+      }
+    }
+  }
+
+  /**
+   * XOŞU GƏLMƏK (E27): bəyənən yiyəlikdə, "xoş" onun mənsubiyyətində, fel III şəxsdə — MƏN XOŞU GƏLMƏK → Mənim xoşum
+   * gəlir (AzSLD: xoşum gəlir 3, xoşuma gəlir 1; bəyənilən əvvəldədirsə xoşuma). Eyni işarə dalbadal iki dəfə tanınıbsa bir sözdür.
+   */
+  #like(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    for (let k = 1; k < items.length; k++) {
+      const it = items[k];
+      if (it.via === 'gen' && name(it) === name(items[k - 1]) && it.lx?.pos === 'noun' && !SUBJECT[it.lx.root]) {
+        const prev = items[k - 1];
+        prev.word = ''; prev.via = 'drop'; delete prev.lx; delete prev.f;
+      }
+    }
+    for (let k = 1; k < items.length; k++) {
+      const it = items[k];
+      if (name(it) === 'xoşu gəlmək' && it.via === 'gen' && it.lx?.pos === 'verb') {
+        const pron = items.slice(0, k).reverse().find((x) => x.lx && SUBJECT[x.lx.root]);
+        if (!pron) continue;
+        pron.f = { case: 'gen' }; pron.keepGen = true;
+        // bəyənilən əvvəldədirsə (BU ƏTİR MƏN XOŞU GƏLMƏK): xoşuma gəlir
+        const thing = items.slice(0, items.indexOf(pron)).some((x) => x.lx?.pos === 'noun');
+        it.lx = { ...it.lx, prefix: (thing ? XOSH_DAT : XOSH)[SUBJECT[pron.lx.root]] };
+        it.pers = 3;
+      }
+    }
+  }
+
+  /**
+   * Yiyəsi olan şeyin öz-özünə olan halı (E27): əvəzlik + ad + ağrımaq, bitmək, xarab olmaq... — əvəzlik yiyəlikdə, felin
+   * qabağındakı ad onun mənsubiyyətində, fel III şəxsdə: MƏN AYAQ AĞRIMAQ → Mənim ayağım ağrıyır, MƏN MOBİL TELEFON
+   * İŞLƏMİR → Mənim mobil telefonum işləmir.
+   */
+  #owned(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    const content = items.filter((it) => it.via !== 'drop');
+    const p0 = content.findIndex((it) => it.lx && SUBJECT[it.lx.root]);
+    if (p0 < 0 || content[p0].f.case) return;
+    const v = content.findIndex((it, k) => k > p0 + 1 && it.lx?.pos === 'verb');
+    if (v < 0 || !(UNACC.has(content[v].lx.root) || UNACC.has(name(content[v])))) return;
+    if (/(d[ıiuü]m|d[ıiuü]q|d[ıiuü]k|d[ıiuü]n)$/.test(name(content[v]) ?? '')) return;   // KƏSİLDİM: şəxs işarənin adındadır
+    const nouns = content.slice(p0 + 1, v);
+    const plain = (it) => it.lx?.pos === 'noun' && !SUBJECT[it.lx.root] && !it.f.case && !TIME_WORDS.has(it.lx.root)
+      && !it.lx.proper && !PLACE.has(it.lx.root) && !ADVERB.has(it.lx.root);
+    if (!nouns.length || !plain(nouns.at(-1)) || !nouns.every((it) => plain(it) || it.via === 'form')) return;
+    const pron = content[p0];
+    nouns.at(-1).f = { poss: possOf(SUBJECT[pron.lx.root]) };
+    pron.f = { case: 'gen' }; pron.keepGen = true;
+    content[v].pers = 3;
+  }
+
+  /** Yer adının halı felə görə (PLACE_CASE): felin qabağında, aradakı sözlər hal almayıbsa. */
+  #place(items) {
+    const name = (it) => (it?.labels.length === 1 ? labelText(it.labels[0]) : null);
+    for (let k = 1; k < items.length; k++) {
+      const v = items[k];
+      if (v.via !== 'gen' || v.lx?.pos !== 'verb') continue;
+      const c = PLACE_CASE.get(name(v)) ?? PLACE_CASE.get(`${v.lx.prefix ?? ''} ${v.lx.root}mək`.trim());
+      if (!c) continue;
+      for (let j = k - 1; j >= 0 && j >= k - 3; j--) {
+        const it = items[j];
+        if (it.via === 'drop') continue;
+        if (!it.lx || it.lx.pos !== 'noun' || SUBJECT[it.lx.root] || it.f.case) break;
+        if (it.lx.proper || PLACE.has(it.lx.root)) { it.f = { ...it.f, case: c }; break; }
+      }
+    }
+  }
+
+  /**
+   * Xəbər ad olan cümlə (E27): feli, VAR / YOX / LAZIM / DEYİL-i olmayan, mübtədası şəxs əvəzliyi olan cümlənin
+   * sonundakı ad (sifət) xəbərdir, şəxs şəkilçisi alır — MƏN SUBAY → Mən subayam, BU MƏN ATA → Bu mənim atamdır.
+   */
+  #copula(items) {
+    const content = items.filter((it) => it.via !== 'drop');
+    const last = content.at(-1);
+    if (!last || last.via !== 'gen' || last.lx.pos !== 'noun' || last.f.case || last.f.cop || SUBJECT[last.lx.root]) return;
+    if (QWORDS.has(last.lx.root) || EXIST.has(last.lx.root) || INFLECTED.test(last.lx.root) || TIME_WORDS.has(last.lx.root)) return;
+    if (items.some((it) => it.via === 'drop' && it.negMark !== undefined)) return;
+    if (content.some((it) => it.lx?.pos === 'verb' || EXIST.has(it.labels.length === 1 ? labelText(it.labels[0]) : ''))) return;
+    const subj = content.find((it) => it.lx && (SUBJECT[it.lx.root] || it.lx.root === 'bu') && !it.f.case);
+    if (!subj || subj === last) return;
+    // aradakı ad hal alıbsa (MƏN EV QAZ İYİ: evdə), son ad o cümləciyin mübtədasıdır, xəbər deyil
+    if (content.slice(content.indexOf(subj) + 1, -1).some((it) => it.f?.case && it.f.case !== 'gen')) return;
+    if (ACTION.has(last.lx.root) && SUBJECT[subj.lx.root]) {     // MƏN HƏR GÜN İDMAN → idman edirəm
+      last.lx = { ...last.lx, pos: 'verb', root: 'et', prefix: last.lx.root };
+      last.f = { tam: 'pres' };
+    } else last.f = { ...last.f, cop: 3 };
+  }
+
+  /**
+   * Üz kanalı (E31, nonmanual.js marks()): bəli/xeyr sualında (mi verilibsə) son xəbər -mı alır (varmı,
+   * bilərsinizmi); üz inkar deyirsə və cümlədə inkar işarəsi (YOX, DEYİL, BİLMİR, İSTƏMİR, GÖRMƏMƏK...)
+   * yoxdursa son fel inkardadır.
+   */
+  #nonmanual(items, { question, neg, mi }) {
+    const content = items.filter((it) => it.via !== 'drop');
+    const pred = content.at(-1)?.via === 'gen' ? content.at(-1) : null;
+    const manualNeg = items.some((it) => it.f?.neg || it.negMark !== undefined
+      || (it.labels.length === 1 && /^(yox|deyil)$|m[ıiuü]r$|m[aə]m[aə][kq]$/.test(labelText(it.labels[0]))
+        && !/^təmir/.test(labelText(it.labels[0]))));
+    const verb = [...content].reverse().find((it) => it.via === 'gen' && it.lx?.pos === 'verb');
+    if (neg && !manualNeg && verb) verb.f = { ...verb.f, neg: true, tam: FINITE.has(verb.f.tam) ? verb.f.tam : 'pres' };
+    if (question === 'yn' && mi && pred && !pred.f.q) pred.f = { ...pred.f, q: true };
+  }
+
+  /**
    * İşarələr → {text, words: [{labels, word, via}]}. via: 'gen' — kök + əlamətlər, 'form' — işarənin
    * öyrənilmiş sözü (rəqəm), 'letters' — hərflər bir sözdür, 'drop' — mətndə sözü olmayan işarə.
+   * nonmanual (E31, üz kanalı; verilməyibsə heç nə dəyişmir): { question: 'wh' | 'yn' | null, neg, mi } —
+   * sual → sonda "?", 'yn' və mi → -mı, neg → inkar (#nonmanual).
    */
-  generate(labels) {
+  generate(labels, { nonmanual = null } = {}) {
     const items = [];
+    // formanın modeli (E33): bütün cümlənin ehtimalları bir dəfə, #feats işarənin öz sırası ilə götürür
+    this.#probs = this.tagger ? this.tagger.probs(labels, this.m.guess) : null;
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
-      let j = i;
-      while (j < labels.length && spelled(labels, j)) j++;
-      if (j > i) {                                         // D O S T → dost (tək "O" isə əvəzlikdir)
-        items.push({ labels: labels.slice(i, j), word: azLower(labels.slice(i, j).join('')), via: 'letters' });
+      let j = this.names ? runEnd(labels, i) : i;
+      while (!this.names && j < labels.length && spelled(labels, j)) j++;
+      if (j > i) {                                         // D O S T → DOST, M E S S İ N İ N → Messinin (tək "O" isə əvəzlikdir)
+        items.push(...this.#spelledItems(labels, i, j));
         i = j - 1;
         continue;
       }
       const forms = this.m.forms[l];
       if (isNumber(l)) {                                   // 6 → 6-dan (öyrənilmiş yazılış), yoxsa 6
         const seen = Object.entries(forms ?? {}).filter(([w]) => w).sort((a, b) => b[1] - a[1]);
-        items.push({ labels: [l], word: seen[0]?.[0] ?? l, via: 'form' });
+        // sayılan sözdən əvvəl çılpaq rəqəm (3 ədəd, 67 yaş), SONRA / ƏVVƏL-dən əvvəl çıxışlıq (6-dan sonra) (E27)
+        const next = labels[i + 1] && labelText(labels[i + 1]);
+        const word = COUNTER.has(next) ? l : (next === 'sonra' || next === 'əvvəl') ? `${l}-${ablative(l)}` : seen[0]?.[0] ?? l;
+        items.push({ labels: [l], word, via: 'form' });
         continue;
       }
       const tot = Object.values(forms ?? {}).reduce((a, b) => a + b, 0);
-      if (tot && (forms[''] ?? 0) / tot > 0.5) { items.push({ labels: [l], word: '', via: 'drop' }); continue; }
+      if (tot >= this.drop.min && (forms[''] ?? 0) / tot > this.drop.ratio) { items.push({ labels: [l], word: '', via: 'drop' }); continue; }
       const lx = this.#lex(labels, i);
       // kökü tapılmayan, ancaq mətndə sözü olan işarə (adında hərf səhvi): öyrənilmiş söz
       const seen = !lx.seen && Object.entries(forms ?? {}).filter(([w]) => w).sort((a, b) => b[1] - a[1])[0];
@@ -376,31 +829,82 @@ export class GlossToText {
       const inh = !lx.seen && this.m.guess[l]?.inherent;
       items.push({ labels: [l], lx, f: inh ? { ...f, ...inh } : f, via: 'gen' });
     }
+    // inkar işarənin adındadır (BAŞA DÜŞMƏMƏK, GÖRMƏMƏK, İŞLƏMİR): fel inkarda qalır (E27)
+    for (const it of items) {
+      if (it.via === 'gen' && it.lx?.pos === 'verb' && it.labels.length === 1 && NEG_LABEL.test(labelText(it.labels[0])) && !it.f.neg) {
+        it.f = { ...it.f, neg: true, tam: FINITE.has(it.f.tam) ? it.f.tam : 'pres' };
+      }
+    }
     if (this.native) this.#native(items);
+    this.#have(items);
+    this.#time(items);
+    this.#like(items);
+    this.#place(items);
+    this.#owned(items);
+    this.#copula(items);
     // Yiyə: şəxs əvəzliyindən sonrakı ad onun mənsubiyyətindədirsə (mənim atam), əvəzlik yiyəlik haldadır;
     // ad mənsubiyyət almırsa (yer adı: Mən Bakıda), əvəzlik yiyəlikdə qalmır. Qərarı ad verir: qohumluq,
     // bədən sözləri mənsubiyyətlə işlənir, yer adları yox. Cümlənin əvvəlindəki əvəzlikdən sonra ad başqa
-    // haldadırsa (evimə, çantamı), ad mübtəda deyil, əvəzlik mübtəda qalır: Mən evimə gedirəm
+    // haldadırsa (evimə, çantamı), ad mübtəda deyil, əvəzlik mübtəda qalır: Mən evimə gedirəm. Formanın modeli
+    // varsa (E33), əvəzliyin yiyəliyini model bütün cümləyə baxıb seçib: sonrakı adın mənsubiyyəti yoxdursa da qalır
+    const keepGen = (a) => a.keepGen || (!!this.#probs && this.lambda > 0);
     for (let k = 0; k + 1 < items.length; k++) {
-      const a = items[k], b = items[k + 1];
+      const a = items[k];
       const p = a.lx && SUBJECT[a.lx.root];
-      if (!p || !b.lx || b.lx.pos !== 'noun' || SUBJECT[b.lx.root]) continue;
-      if (b.f.poss === p || b.f.poss === 'P') {
-        b.f = { ...b.f, poss: p };
+      if (!p) continue;
+      // rəqəmi keçib (MƏN 3 ƏDƏD QƏLƏM: rəqəmdən sonra yiyəsi olmayan ad — əvəzlik yiyəlikdə qalmır)
+      let b = items[k + 1];
+      for (let j = k + 1; b && !b.lx && b.via === 'form' && isNumber(b.labels[0]); j++) b = items[j + 1];
+      if (!b?.lx) { if (b !== items[k + 1] && a.f.case === 'gen' && !keepGen(a)) a.f = {}; continue; }
+      if (b.lx.pos !== 'noun' || SUBJECT[b.lx.root]) continue;
+      if (b.f.poss === possOf(p) || b.f.poss === 'P') {
+        b.f = { ...b.f, poss: possOf(p) };
         a.f = k === 0 && b.f.case && b.f.case !== 'gen' ? {} : { case: 'gen' };
         continue;
       }
-      if (a.f.case === 'gen') a.f = {};
+      if (a.f.case === 'gen' && !keepGen(a)) a.f = {};
+    }
+    // ad + VƏ + ad (E27): ikinci ad birincinin yiyəsini alır (bacım və qardaşım)
+    for (let k = 1; k + 1 < items.length; k++) {
+      const a = items[k - 1], v = items[k], b = items[k + 1];
+      if (v.labels.length === 1 && labelText(v.labels[0]) === 'və' && a.lx?.pos === 'noun' && typeof a.f.poss === 'number'
+        && b.lx?.pos === 'noun' && (!b.f.poss || b.f.poss === 'P') && !SUBJECT[b.lx.root]) b.f = { ...b.f, poss: a.f.poss };
     }
     for (const it of items) if (it.f?.poss === 'P') { const { poss, ...rest } = it.f; it.f = rest; }  // yiyəsiz
+    // BİLMƏK / İSTƏMƏK (E27): mübtədası olmayan cümlədə "mən" (AzSLD: 10 / 15 I şəxs: Harda gözləyə bilərəm?);
+    // I, II şəxs əvəzliyi yiyəlikdədirsə (Mənim təhsilim ... istəyir), o mübtədadır (Mən təhsilim ... istəyirəm)
+    const modal = items.find((it) => it.via === 'gen' && it.lx?.pos === 'verb' && ['bil', 'istə'].includes(it.lx.root)
+      && FINITE.has(it.f.tam) && it.pers === undefined);
+    // xahiş (E27): MƏN + kömək / vermək / demək / göstərmək + BİLMƏK, başqa əvəzlik yoxdursa — Mənə kömək edə
+    // bilərsinizmi? (AzSLD: 3 / 3; "MƏN ZƏNG BİLMƏK" isə Mən zəng edə bilərəm)
+    const prons = items.filter((it) => it.lx && SUBJECT[it.lx.root]);
+    const isRequest = (it) => (it.lx && REQUEST.has(it.lx.prefix ?? it.lx.root))
+      || (it.labels.length === 1 && REQUEST.has(labelText(it.labels[0]).replace(/m[əa][kq]$/, '')));
+    if (modal?.lx.root === 'bil' && !modal.f.neg && prons.length === 1 && prons[0] === items.find((it) => it.lx)
+      && SUBJECT[prons[0].lx.root] === 1 && !prons[0].f.case
+      && items.some(isRequest) && items.every((it) => it.lx?.pos !== 'verb' || it === modal || isRequest(it) || it.lx.root === 'et')) {
+      prons[0].f = { case: 'dat' };
+      modal.pers = 5;
+      modal.f = { ...modal.f, q: true };
+    }
+    if (modal && !items.some((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case)) {
+      const pr = items.find((it) => it.lx && [1, 2, 4, 5].includes(SUBJECT[it.lx.root]) && it.f.case === 'gen' && !it.keepGen);
+      const owned = pr && items[items.indexOf(pr) + 1];
+      // mənim atam ... bilmir: qohum mübtədadır; Zərifə, hamı ... : mübtəda addır
+      const person = (it) => it?.lx && (it.lx.proper || KIN.has(it.lx.root) || PERSON.has(it.lx.root) || it.lx.root === 'hamı');
+      if (pr && !person(owned)) pr.f = {};
+      else if (!pr && !items.some((it) => it.lx && SUBJECT[it.lx.root]) && !person(items.find((it) => it.lx))) modal.pers = 1;
+    }
+    if (nonmanual) this.#nonmanual(items, nonmanual);
     const at = items.findIndex((it) => it.lx && SUBJECT[it.lx.root] && !it.f.case);
     const subj = at >= 0 ? SUBJECT[items[at].lx.root] : 3;
     for (const it of items) {
       if (it.via !== 'gen') continue;
       const f = { ...it.f };
       if (it.lx.pos === 'verb' && FINITE.has(f.tam)) {
-        f.pers = Number(this.#best(this.m.subj[subj]) ?? subj);
+        f.pers = it.pers ?? Number(this.#best(this.m.subj[subj]) ?? subj);
         if (f.tam === 'ev' && ![3, 6].includes(f.pers)) f.tam = 'perf';     // gəlib → mən gəlmişəm
+        else if (f.tam === 'perf' && [3, 6].includes(f.pers)) f.tam = 'ev';  // o görmüş → o görüb (E27)
       }
       if (f.cop) f.cop = subj === 6 ? 3 : subj;
       const w = realize(it.lx.root, it.lx.pos, f) ?? it.lx.root;
@@ -408,8 +912,17 @@ export class GlossToText {
       it.word = it.lx.proper
         ? word.split(' ').map((t, j) => (it.lx.proper[j] ? t[0].toLocaleUpperCase('az') + t.slice(1) : t)).join(' ') : word;
     }
+    // hərflə göstərilən ad AD-dan sonra (E27): böyük hərflə, cümlənin sonundadırsa xəbər — Mənim adım Samirdir
+    items.forEach((it, k) => {
+      const prev = items.slice(0, k).reverse().find((x) => x.via !== 'drop');
+      if (it.via !== 'letters' || !prev?.lx || prev.lx.root !== 'ad' || it.word.length < 2) return;
+      const last = !items.slice(k + 1).some((x) => x.via !== 'drop');
+      const w = last ? realize(it.word, 'noun', { cop: 3 }) ?? it.word : it.word;
+      it.word = w[0].toLocaleUpperCase('az') + w.slice(1);
+    });
     const words = items.map(({ labels: ls, word, via }) => ({ labels: ls, word, via }));
-    const text = words.map((w) => w.word).filter(Boolean).join(' ');
+    let text = words.map((w) => w.word).filter(Boolean).join(' ');
+    if (text && nonmanual?.question) text += '?';
     return { text: text ? text[0].toLocaleUpperCase('az') + text.slice(1) : '', words };
   }
 }

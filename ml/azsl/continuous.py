@@ -10,7 +10,9 @@ The model is the isolated-sign network with a label per frame instead of one per
 random windows of 48–160 frames. In the browser it runs on the last `window` frames every `stride` new
 frames, and a frame's probabilities are fixed once it is `lookahead` frames from the window's right edge
 (stream_windows / stream_probs: the browser twin does exactly this). decode() turns frame probabilities
-into words; its settings are chosen on val sentences (notebook 06).
+into words; its settings are chosen on val sentences (notebook 06). decode_lm() adds a sign-sequence language model
+(the corpus of E18 as sign n-grams): each word is chosen given the words before it, left to right as the stream
+fixes them; nbest() / alternatives() give the sentence's alternatives (E32).
 """
 import csv
 import json
@@ -28,8 +30,9 @@ from . import segment_eval as SE
 from . import train as TR
 from .store import LandmarkStore
 
-CONTINUOUS_VERSION = 2    # streaming schedule + decode(); continuous.js and ml/fixtures/continuous_v<N> follow it
+CONTINUOUS_VERSION = 3    # streaming schedule + decode(); continuous.js and ml/fixtures/continuous_v<N> follow it
                           # v2: decode's optional min_len_short for single-character labels (fingerspelled letters)
+                          # v3: decode_lm / nbest / alternatives with the sign LM (SignLM, sign_lm.json; E32)
 BLANK = '<blank>'
 IGNORE = -100
 STREAM = dict(window=96, stride=8, lookahead=24)        # browser: 3.2 s of context, a word 0.8 s after it ends
@@ -41,6 +44,14 @@ DEFAULTS = dict(TR.DEFAULTS, epochs=80, batch=32, crop=(48, 160), repeats=2, edg
                 fps_aug=0.0,         # P(a training window comes as a slower camera gives it, refilled to 30 fps)
                 fps_min=8.0,         # its frame rate: uniform in [fps_min, 30]
                 spell=0.0,           # P(a training sample is a spelled sequence: 3-8 letter signs of other recordings)
+                weak=0.0,            # weight of a CTC loss on recordings with a sign sequence but no frame labels
+                                     # (fit's weak: JestDili.az sentences, their sequence from the text; E27)
+                weak_batch=8,
+                weak_every=1,        # the CTC batch every n-th step (few recordings: less repetition)
+                corpus=0.0,          # P(a spliced sentence follows 2-6 consecutive signs of a text corpus sentence
+                                     # (fit's seqs: pseudo-glosses, E18) instead of random signs; roadmap R1)
+                ema=0.0,             # decay of an exponential moving average of the weights, scored and saved
+                                     # instead of the raw weights (0 = off; 0.999 ≈ the last 1,000 steps)
                 stream=None)         # browser streaming (window, stride, lookahead); None = STREAM
 
 
@@ -76,7 +87,12 @@ class SeqBank:
         self.n += len(y)
 
     def done(self):
-        self.data = {k: np.concatenate(v) if v else np.zeros((0,), np.float16) for k, v in self.chunks.items()}
+        # field by field, each field's chunks freed after it is joined: peak memory = the data + one field
+        self.data = {}
+        for k in list(self.chunks):
+            v = self.chunks.pop(k)
+            self.data[k] = np.concatenate(v) if v else np.zeros((0,), np.float16)
+            del v
         self.labels = np.concatenate(self.lab) if self.lab else np.zeros(0, np.int16)
         self.chunks = self.lab = None
         self.ids = [r[3] for r in self.rows]
@@ -88,6 +104,31 @@ class SeqBank:
     def get(self, i):
         off, T, aspect, rid = self.rows[i]
         return {k: self.data[k][off:off + T] for k in TR.KEYS}, self.labels[off:off + T].astype(np.int64), aspect, rid
+
+    def to_disk(self, path):
+        """Arrays → .npy files, opened again memory-mapped: DataLoader workers on Windows (spawn) get the file
+        paths instead of a pickled copy of gigabytes, and the OS shares the pages between them."""
+        os.makedirs(path, exist_ok=True)
+        for k, v in [*self.data.items(), ('_labels', self.labels)]:
+            np.save(os.path.join(path, f'{k}.npy'), np.ascontiguousarray(v))
+        self._disk = path
+        self._open()
+        return self
+
+    def _open(self):
+        self.data = {k: np.load(os.path.join(self._disk, f'{k}.npy'), mmap_mode='r') for k in TR.KEYS}
+        self.labels = np.load(os.path.join(self._disk, '_labels.npy'), mmap_mode='r')
+
+    def __getstate__(self):
+        st = self.__dict__.copy()
+        if st.get('_disk'):
+            st['data'] = st['labels'] = None
+        return st
+
+    def __setstate__(self, st):
+        self.__dict__.update(st)
+        if st.get('_disk'):
+            self._open()
 
 
 def load_recordings(sentence_dirs, recs, anns, index, unknown=None, exclude=(), edge=1, side=None, log=print):
@@ -164,6 +205,19 @@ def _shoulders(raw):
     return c, (w if w > 1e-3 else 0.3)
 
 
+def _reshaped(raw, f):
+    """Image x of another camera shape in this one's width units: x · (its width/height) / (this width/height),
+    so a spliced sign keeps its proportions (hand z follows x, as in the trackers)."""
+    out = dict(raw)
+    for k in ('hand', 'pose', 'face'):
+        v = raw[k].astype(np.float32).copy()
+        v[..., 0] *= f
+        if k == 'hand':
+            v[..., 2] *= f
+        out[k] = v
+    return out
+
+
 def _moved(raw, c, w, c0, w0):
     """Image coordinates of a unit moved and scaled so its shoulders sit where the first unit's do."""
     out = dict(raw)
@@ -186,7 +240,7 @@ class SeqDataset(torch.utils.data.Dataset):
     whole recording through features.preprocess (no length cap)."""
 
     def __init__(self, bank, train=False, groups=None, face=True, crop=(48, 160), face_drop=0.0, splice=0.0,
-                 splice_power=0.0, fps_aug=0.0, fps_min=8.0, spell=0.0, short=()):
+                 splice_power=0.0, fps_aug=0.0, fps_min=8.0, spell=0.0, short=(), seqs=None, corpus=0.0):
         self.bank, self.train, self.groups, self.face, self.crop, self.face_drop = bank, train, groups, face, crop, face_drop
         self.fps_aug, self.fps_min = fps_aug, fps_min
         self.cols = FT.columns(groups) if groups else None
@@ -196,17 +250,51 @@ class SeqDataset(torch.utils.data.Dataset):
         if self.units and spell:
             self.letters = {k: [x for x in u if x[3] in short] for k, u in self.units.items()}
             self.letter_cdf = {k: unit_cdf(u, 0.5) for k, u in self.letters.items()}
+        # corpus sequences: one flat array + offsets (cheap to send to the workers); units by label and camera
+        self.corpus, self.seq_flat, self.seq_off = corpus, None, None
+        if self.units and splice and corpus and seqs:
+            seqs = [np.asarray(q, np.int32) for q in seqs if len(q) >= 2]
+            self.seq_flat = np.concatenate(seqs)
+            self.seq_off = np.cumsum([0] + [len(q) for q in seqs])
+            self.by_label = {k: {} for k in self.units}
+            for k, u in self.units.items():
+                for j, x in enumerate(u):
+                    self.by_label[k].setdefault(x[3], []).append(j)
+
+    def _corpus_picks(self, rng, side):
+        """2-6 consecutive signs of a random corpus sentence → indices of units of those labels (this camera);
+        labels with no unit are skipped. None if fewer than 2 remain after a few tries."""
+        by = self.by_label[side]
+        for _ in range(5):
+            q = int(rng.integers(len(self.seq_off) - 1))
+            seq = self.seq_flat[self.seq_off[q]:self.seq_off[q + 1]]
+            n = int(rng.integers(2, 7))
+            a = int(rng.integers(0, max(1, len(seq) - n + 1)))
+            picks = [by[l][int(rng.integers(len(by[l])))] for l in seq[a:a + n] if l in by]
+            if len(picks) >= 2:
+                return picks
+        return None
 
     def _spliced(self, rng, side, letters=False):
         units, cdf = (self.letters[side], self.letter_cdf[side]) if letters else (self.units[side], self.cdf[side])
         parts, ys, aspect, ref = [], [], None, None
-        for _ in range(int(rng.integers(3, 9) if letters else rng.integers(2, 7))):
-            i, a, b, _ = units[min(int(np.searchsorted(cdf, rng.random(), side='right')), len(units) - 1)]
+        picks = None
+        if not letters and self.seq_flat is not None and rng.random() < self.corpus:
+            picks = self._corpus_picks(rng, side)
+        if picks is None:
+            picks = [min(int(np.searchsorted(cdf, rng.random(), side='right')), len(units) - 1)
+                     for _ in range(int(rng.integers(3, 9) if letters else rng.integers(2, 7)))]
+        for j in picks:
+            i, a, b, _ = units[j]
             raw, y, asp, _ = self.bank.get(i)
             raw = {k: v[a:b].astype(np.float32) for k, v in raw.items()}
+            if aspect is None:
+                aspect = asp
+            elif asp != aspect:          # another camera shape (Slovo: upright phones): x in the first unit's width
+                raw = _reshaped(raw, asp / aspect)
             c, w = _shoulders(raw)
             if ref is None:
-                ref, aspect = (c, w), asp
+                ref = (c, w)
             parts.append(_moved(raw, c, w, *ref))
             ys.append(y[a:b].copy())
         raw, y = parts[0], ys[0]
@@ -220,7 +308,8 @@ class SeqDataset(torch.utils.data.Dataset):
         return raw, y, aspect
 
     def __len__(self):
-        return len(self.bank)
+        # a bank's pool recordings (pool_from on: Slovo's isolated signs) are drawn only as spliced signs
+        return len(self.bank) if getattr(self.bank, 'pool_from', None) is None else self.bank.pool_from
 
     def __getitem__(self, i):
         raw, y, aspect, _ = self.bank.get(i)
@@ -243,6 +332,62 @@ class SeqDataset(torch.utils.data.Dataset):
             d = FT.drop_face(d)
         x = FT.features(d, max_len=None)
         return torch.from_numpy(x if self.cols is None else x[:, self.cols]), torch.from_numpy(y[idx])
+
+
+class WeakDataset(torch.utils.data.Dataset):
+    """Whole recordings with a sign sequence (no frame labels) for the CTC loss: augmented like the training
+    windows (speed, crop jitter, rotation), never cropped in time; longer than max_len frames are resampled."""
+
+    def __init__(self, items, groups=None, face=False, max_len=320):
+        self.items, self.groups, self.face, self.max_len = items, groups, face, max_len
+        self.cols = FT.columns(groups) if groups else None
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, i):
+        raw, aspect, target = self.items[i]
+        raw = {k: v.astype(np.float32) for k, v in raw.items()}
+        T = raw['hand'].shape[0]
+        if T > self.max_len:
+            keep = np.linspace(0, T - 1, self.max_len).round().astype(int)
+            raw = {k: v[keep] for k, v in raw.items()}
+        rng = np.random.default_rng()
+        d = FT.augment(FT.to_square(raw, aspect), rng, aspect)
+        if not self.face:
+            d = FT.drop_face(d)
+        x = FT.features(d, max_len=None)
+        return torch.from_numpy(x if self.cols is None else x[:, self.cols]), torch.tensor(target, dtype=torch.long)
+
+
+def collate_weak(batch):
+    T = max(x.shape[0] for x, _ in batch)
+    X = torch.zeros(len(batch), T, batch[0][0].shape[1])
+    M = torch.zeros(len(batch), T, dtype=torch.bool)
+    for i, (x, _) in enumerate(batch):
+        X[i, :len(x)], M[i, :len(x)] = x, True
+    lens = torch.tensor([len(x) for x, _ in batch])
+    return X, M, torch.cat([t for _, t in batch]), lens, torch.tensor([len(t) for _, t in batch])
+
+
+def load_weak(dirs, glosses, index, log=print):
+    """{item_id: [label, ...]} of a landmark store (JestDili.az sentences) → WeakDataset items; unknown labels
+    become the UNKNOWN index if the model has one, else are dropped."""
+    store = LandmarkStore(dirs)
+    unk = index.get(TR.UNKNOWN)
+    items = []
+    for item_id, seq in glosses.items():
+        if item_id not in store.index.index:
+            continue
+        target = [index[g] if g in index else unk for g in seq]
+        target = [t for t in target if t is not None and t > 0]
+        if not target:
+            continue
+        raw = FT.reduce(store.get(item_id, dtype=np.float16))
+        aspect = float(store.index.at[item_id, 'width']) / float(store.index.at[item_id, 'height'])
+        items.append((raw, aspect, target))
+    log(f'weak: {len(items)} recordings with a sign sequence ({sum(len(t) for *_, t in items)} signs)')
+    return items
 
 
 def collate(batch):
@@ -353,6 +498,184 @@ def decode(P, p=DECODE, unknown=None, short=()):
         if b - a >= need and pm >= p['min_p'] and c != unknown:
             out.append((a, b, c, pm))
     return out
+
+
+# ---------------------------------------------------------------- decoding with a sign language model (v3, E32)
+
+LM_DECODE = dict(alpha=0.0, beta=0.0, norm=0.0, top=4, floor=0.05, beam=8, nbest=3, temp=1.0)
+# alpha: weight of the sign LM's ln-probability; beta: a bonus per word (the LM costs every word); norm: how much
+# of the word's own unigram is taken back (1 = pointwise mutual information: a rare word is not punished for being
+# rare, only for not fitting its neighbours); top / floor: a segment's candidate labels (the `top` most probable,
+# mean probability >= floor); beam / nbest: the sentence's alternatives; temp: the temperature of their shares
+# (confidences). The settings chosen in E32 are in sign_lm.json ('decode'). alpha = beta = 0 is decode().
+
+
+def lm_token(label):
+    """The sign LM's token (tools/build_sign_lm.mjs): a fingerspelled letter (a one-letter label other than the
+    pronoun O) and the dot are one class '<L>' (the frames say which letter); every other label is itself."""
+    return '<L>' if (len(label) == 1 and label.isalpha() and label != 'O') or label == '.' else label
+
+
+class SignLM:
+    """Sign n-gram model (interpolated Kneser-Ney in backoff form, public/tercume/assets/sign_lm.json); the
+    browser's twin is continuous.js SignLM: the same numbers, added in the same order."""
+
+    def __init__(self, d, labels):
+        self.order = int(d['order'])
+        tid = {t: i for i, t in enumerate(d['tokens'])}
+        self.bos, self.eos, self.V = tid['<s>'], tid['</s>'], len(d['tokens']) - 1
+        self.p1 = [float(x) for x in d['p1']]
+        key = lambda h: tuple(int(x) for x in h.split(' ')) if h else ()      # noqa: E731
+        self.p = {n: {key(h): {int(v[i]): float(v[i + 1]) for i in range(0, len(v), 2)} for h, v in d.get(f'p{n}', {}).items()}
+                  for n in range(2, self.order + 1)}
+        self.b = {n: {key(h): float(v) for h, v in d.get(f'b{n}', {}).items()} for n in range(1, self.order)}
+        self.tok = [tid.get(lm_token(g)) if not g.startswith('<') else None for g in labels]   # label index → token
+
+    def start(self):
+        return (self.bos,) * (self.order - 1)
+
+    def logp(self, h, w):
+        """ln P(w | h), h = the last order − 1 tokens: the stored n-gram, else the context's backoff + lower order."""
+        n = len(h) + 1
+        if n == 1:
+            return self.p1[w]
+        e = self.p[n].get(h)
+        if e is not None and w in e:
+            return e[w]
+        return self.b[n - 1].get(h, 0.0) + self.logp(h[1:], w)
+
+    def score(self, h, w, norm):
+        """The LM's word score: ln P(w | h) − norm · ln P(w); a label the LM does not know: ln(1 / V)."""
+        if w is None:
+            return -math.log(self.V) * (1.0 - norm)
+        return self.logp(h, w) - norm * self.p1[w]
+
+    def push(self, h, w):
+        """The history after w (a label the LM does not know leaves it as it was)."""
+        return h if w is None or self.order == 1 else (h + (w,))[1:]
+
+
+def lm_segments(P, p=DECODE, unknown=None, short=(), top=4, floor=0.05):
+    """decode()'s runs before its probability threshold → [(a, b, [(label, mean probability), ...])]: runs of a
+    label after smoothing, joined across `gap`, long enough (min_len / min_len_short), not UNKNOWN; candidates are
+    the `top` labels (not BLANK, not UNKNOWN) with the highest mean probability over the run's frames, if >= floor
+    (the run's own label always), most probable first, ties by label index."""
+    Ps = smooth(P, int(p['smooth']))
+    lab = Ps.argmax(1)
+    runs, t, T = [], 0, len(lab)
+    while t < T:
+        u = t
+        while u < T and lab[u] == lab[t]:
+            u += 1
+        if lab[t] != 0:
+            runs.append([t, u, int(lab[t])])
+        t = u
+    joined = []
+    for r in runs:
+        if joined and joined[-1][2] == r[2] and r[0] - joined[-1][1] <= p['gap']:
+            joined[-1][1] = r[1]
+        else:
+            joined.append(r)
+    out = []
+    for a, b, c in joined:
+        need = p['min_len_short'] if c in short and 'min_len_short' in p else p['min_len']
+        if b - a < need or c == unknown:
+            continue
+        q = Ps[a:b].sum(0) / (b - a)              # frame by frame, as the browser adds them
+        order = sorted((j for j in range(1, len(q)) if j != unknown and (q[j] >= floor or j == c)),
+                       key=lambda j: (-q[j], j))[:top]
+        if c not in order:
+            order = order[:top - 1] + [c]
+        out.append((a, b, [(j, float(q[j])) for j in order]))
+    return out
+
+
+def _word_score(lm, lp, h, j, q):
+    """A candidate's score: ln(mean probability) + alpha · LM score + beta."""
+    return math.log(q) + (lp['alpha'] * lm.score(h, lm.tok[j], lp['norm']) if lm else 0.0) + lp['beta']
+
+
+def _end_score(lm, lp, h):
+    return lp['alpha'] * lm.score(h, lm.eos, lp['norm']) if lm else 0.0
+
+
+def _left_to_right(segs, p, lm, lp):
+    """Each segment's word given the words chosen before → (words, the path's score with the sentence end)."""
+    skip = math.log(p['min_p'])
+    h = lm.start() if lm else ()
+    out, total = [], 0.0
+    for a, b, cands in segs:
+        best, best_s = None, skip
+        for j, q in cands:
+            s = _word_score(lm, lp, h, j, q)
+            if s > best_s or (best is None and s == best_s):
+                best, best_s = (j, q), s
+        total += best_s
+        if best:
+            out.append((a, b, best[0], best[1]))
+            if lm:
+                h = lm.push(h, lm.tok[best[0]])
+    return out, total + _end_score(lm, lp, h)
+
+
+def _hyp_key(x):
+    return (-x[0], [w[2] for w in x[1]], [w[0] for w in x[1]])
+
+
+def _beam(segs, p, lm, lp):
+    """Beam search over the segments → distinct word sequences [(score, words)], best first."""
+    skip = math.log(p['min_p'])
+    beams = [(0.0, (), lm.start() if lm else ())]
+    for a, b, cands in segs:
+        grown = []
+        for s0, words, h in beams:
+            grown.append((s0 + skip, words, h))
+            for j, q in cands:
+                grown.append((s0 + _word_score(lm, lp, h, j, q), words + ((a, b, j, q),), lm.push(h, lm.tok[j]) if lm else h))
+        grown.sort(key=_hyp_key)
+        beams = grown[:lp['beam']]
+    final = sorted(((s0 + _end_score(lm, lp, h), words) for s0, words, h in beams), key=_hyp_key)
+    out, seen = [], set()
+    for s, words in final:
+        k = tuple(w[2] for w in words)
+        if k not in seen:
+            seen.add(k)
+            out.append((s, list(words)))
+    return out
+
+
+def decode_lm(P, p=DECODE, lm=None, lp=LM_DECODE, unknown=None, short=()):
+    """decode() with the sign LM, left to right (as the browser fixes words while the sentence is signed): each
+    segment's word is the candidate with the best ln(mean probability) + alpha · LM score + beta given the words
+    chosen before, or none if no candidate beats ln(min_p). → [(a, b, label, mean probability)], like decode().
+    Without an LM (or alpha = beta = 0) this is decode() (but where a joined run's mean favours another label)."""
+    return _left_to_right(lm_segments(P, p, unknown, short, lp['top'], lp['floor']), p, lm, lp)[0]
+
+
+def nbest(P, p=DECODE, lm=None, lp=LM_DECODE, unknown=None, short=()):
+    """Beam search over the same segments and scores as decode_lm, the end of the sentence scored by the LM too
+    → up to lp['nbest'] distinct word sequences, best first: [(score, [(a, b, label, mean probability), ...])].
+    Ties: the lower label sequence first, then the earlier starts."""
+    return _beam(lm_segments(P, p, unknown, short, lp['top'], lp['floor']), p, lm, lp)[:lp['nbest']]
+
+
+def alternatives(P, p=DECODE, lm=None, lp=LM_DECODE, unknown=None, short=()):
+    """The sentence's alternatives (N4): decode_lm's words first (what the stream fixed while it was signed), then
+    the beam's best other word sequences → up to lp['nbest'] [(score, words)], scored as in nbest."""
+    segs = lm_segments(P, p, unknown, short, lp['top'], lp['floor'])
+    words, total = _left_to_right(segs, p, lm, lp)
+    main = [w[2] for w in words]
+    return ([(total, words)] + [x for x in _beam(segs, p, lm, lp) if [w[2] for w in x[1]] != main])[:lp['nbest']]
+
+
+def confidences(scores, temp=1.0):
+    """Alternatives' scores → shares that sum to 1 (softmax over the alternatives shown)."""
+    if not scores:
+        return []
+    m = max(scores)
+    e = [math.exp((s - m) / temp) for s in scores]
+    z = sum(e)
+    return [x / z for x in e]
 
 
 @torch.no_grad()
@@ -479,9 +802,10 @@ def score(probs, bank, anns, vocab_list, decode_p, unknown, fam=None, keep=None,
 
 # ---------------------------------------------------------------- training
 
-def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
+def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None, seqs=None, weak=None):
     """cfg['select']: the val score that picks the checkpoint ('f1_all', or on banks['val_unseen']:
-    'f1_unseen', 'f1_unseen_learnable' = only annotations of the glosses in unseen_keep)."""
+    'f1_unseen', 'f1_unseen_learnable' = only annotations of the glosses in unseen_keep). seqs: label-index
+    sequences of corpus sentences for cfg['corpus']."""
     cfg = {**DEFAULTS, **cfg}
     os.makedirs(out_dir, exist_ok=True)
     torch.manual_seed(cfg['seed'])
@@ -501,29 +825,49 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
                    cfg['drop'], cfg['head_drop']).to(device)
     if cfg['init']:
         init_from(model, cfg['init'], vocab_list, log)
-    sampler = torch.utils.data.RandomSampler(tr, replacement=True, num_samples=len(tr) * cfg['repeats'])
-    dl = torch.utils.data.DataLoader(SeqDataset(tr, train=True, groups=groups, face=face, crop=tuple(cfg['crop']),
-                                                face_drop=cfg['face_drop'], splice=cfg['splice'],
-                                                splice_power=cfg['splice_power'], fps_aug=cfg['fps_aug'],
-                                                fps_min=cfg['fps_min'], spell=cfg['spell'],
-                                                short=short_classes(vocab_list)),
-                                     batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
+    if cfg['workers'] > 0 and os.name == 'nt' and not getattr(tr, '_disk', None):
+        tr.to_disk(os.path.join(out_dir, '_train_bank'))      # spawned workers share it memory-mapped
+        log(f'train bank memory-mapped from {os.path.join(out_dir, "_train_bank")} for {cfg["workers"]} workers')
+    ds = SeqDataset(tr, train=True, groups=groups, face=face, crop=tuple(cfg['crop']), face_drop=cfg['face_drop'],
+                    splice=cfg['splice'], splice_power=cfg['splice_power'], fps_aug=cfg['fps_aug'],
+                    fps_min=cfg['fps_min'], spell=cfg['spell'], short=short_classes(vocab_list), seqs=seqs,
+                    corpus=cfg['corpus'])
+    sampler = torch.utils.data.RandomSampler(ds, replacement=True, num_samples=len(ds) * cfg['repeats'])
+    dl = torch.utils.data.DataLoader(ds, batch_size=cfg['batch'], sampler=sampler, num_workers=cfg['workers'],
                                      collate_fn=collate, drop_last=True, persistent_workers=cfg['workers'] > 0,
                                      pin_memory=device.type == 'cuda')
+    weak_it = None
+    if weak and cfg['weak']:
+        wdl = torch.utils.data.DataLoader(WeakDataset(weak, groups=groups, face=face), batch_size=cfg['weak_batch'],
+                                          shuffle=True, drop_last=True, collate_fn=collate_weak,
+                                          num_workers=min(2, cfg['workers']), persistent_workers=cfg['workers'] > 0)
+
+        def cycle():
+            while True:
+                yield from wdl
+        weak_it = cycle()
+        log(f"weak: CTC loss × {cfg['weak']} on {len(weak)} recordings, batch {cfg['weak_batch']} per step")
+    if seqs and cfg['corpus'] and cfg['splice']:
+        log(f"corpus: {len(seqs):,} sign sequences, {cfg['corpus']:.0%} of the spliced sentences follow them")
     opt = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     steps, warm = cfg['epochs'] * len(dl), max(1, cfg['warmup'] * len(dl))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm) * 0.5 * (
         1 + math.cos(math.pi * min(1.0, max(0, s - warm) / max(1, steps - warm)))))
     scaler = torch.amp.GradScaler(enabled=device.type == 'cuda')
+    ema = None
+    if cfg.get('ema'):
+        ema = torch.optim.swa_utils.AveragedModel(
+            model, multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(cfg['ema']), use_buffers=True)
     n_params = sum(p.numel() for p in model.parameters())
     val = banks.get('val')
     has_val = val is not None and len(val) > 0
     val_unseen = banks.get('val_unseen')
     log(f'{device} | {n_params / 1e6:.2f} M params | {len(FT.columns(groups))} features | {C} labels | '
-        f'{len(tr)} train recordings ({tr.n:,} frames, {len(lab):,} scored, blank {counts[0] / counts.sum():.1%}) | '
+        f'{len(ds)} train recordings' + (f' + {len(tr) - len(ds)} only spliced' if len(tr) > len(ds) else '') +
+        f' ({tr.n:,} frames, {len(lab):,} scored, blank {counts[0] / counts.sum():.1%}) | '
         f'{len(dl)} steps/epoch' + (f' | val {len(val)} recordings' if has_val else ' | no val'))
 
-    history, best, best_ep = [], -1.0, 0
+    history, best, best_ep, step_i = [], -1.0, 0, 0
     for ep in range(1, cfg['epochs'] + 1):
         model.train()
         t0, tl, tc, tn = time.time(), 0.0, 0, 0
@@ -533,6 +877,14 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
                 logits = model(X, M)
             loss = F.cross_entropy(logits.float().reshape(-1, C), Y.reshape(-1), weight=weight,
                                    ignore_index=IGNORE, label_smoothing=cfg['label_smoothing'])
+            step_i += 1
+            if weak_it is not None and step_i % cfg['weak_every'] == 0:
+                Xw, Mw, Tw, Lin, Lt = next(weak_it)
+                with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=device.type == 'cuda'):
+                    lw = model(Xw.to(device, non_blocking=True), Mw.to(device, non_blocking=True))
+                lp = F.log_softmax(lw.float(), -1).transpose(0, 1)
+                ctc = F.ctc_loss(lp, Tw.to(device), Lin.to(device), Lt.to(device), blank=0, zero_infinity=True)
+                loss = loss + cfg['weak'] * ctc
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
@@ -540,16 +892,19 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
             scaler.step(opt)
             scaler.update()
             sched.step()
+            if ema is not None:
+                ema.update_parameters(model)
             ok = Y != IGNORE
             tl += loss.item() * int(ok.sum())
             tc, tn = tc + int((logits.argmax(-1)[ok] == Y[ok]).sum()), tn + int(ok.sum())
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / max(1, tn), 'train_frame_acc': tc / max(1, tn)}
+        net = ema.module if ema is not None else model        # the weights scored and saved
         if has_val:
-            m = score(offline_probs(model, val, groups, face, device), val, anns, vocab_list, DECODE, unk)
+            m = score(offline_probs(net, val, groups, face, device), val, anns, vocab_list, DECODE, unk)
             row.update({f'val_{k}': m[k] for k in ('frame_acc', 'precision', 'recall_all', 'f1_all', 'wer_all')})
             if val_unseen is not None and len(val_unseen):         # sentences no training recording has, streamed
-                model.eval()
-                pu = [stream_probs(model, r, a, groups, face, device, **(cfg['stream'] or STREAM))
+                net.eval()
+                pu = [stream_probs(net, r, a, groups, face, device, **(cfg['stream'] or STREAM))
                       for r, _, a, _ in (val_unseen.get(i) for i in range(len(val_unseen)))]
                 m = score(pu, val_unseen, anns, vocab_list, DECODE, unk)
                 row.update({'val_f1_unseen': m['f1_all'], 'val_wer_unseen': m['wer_all']})
@@ -562,7 +917,7 @@ def fit(cfg, banks, vocab_list, anns, out_dir, log=print, unseen_keep=None):
         row['best'] = key > best if not cfg['save_epoch'] else ep == cfg['save_epoch']
         if row['best']:
             best, best_ep = key, ep
-            torch.save({'model': model.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep, 'kind': 'continuous',
+            torch.save({'model': net.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep, 'kind': 'continuous',
                         'feature_version': FT.FEATURE_VERSION}, os.path.join(out_dir, 'best.pt'))
         history.append(row)
         with open(os.path.join(out_dir, 'history.csv'), 'w', newline='') as f:

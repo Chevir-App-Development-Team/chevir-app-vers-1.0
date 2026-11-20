@@ -8,6 +8,12 @@
   cases and must reproduce the probabilities.
 - The old letter model's scores on the same test samples (letters/old_model/metrics.json next to the run, if
   there) go into the manifest as `old_model`, for the app's model page.
+- A model trained on every signer (notebook 07 TRAIN_ON_ALL) has no test of its own: --recipe-of <run> takes
+  `metrics`, `old_model` and `test_per_letter` from the run of the same recipe that did not see the test signers
+  (the app's page says so, `metrics_from`). --jestdili <scores.json> (ml/eval_letters_photos.py) adds another
+  person's alphabet photos for this run and the one it replaces (`jestdili`, E30).
+
+    python ml/install_letters.py D:/chevir/runs/letters_all/letters/final_hand_all --recipe-of         ml/results/letters2/final_hand --jestdili D:/chevir/eval/letters_jestdili/scores.json --install
 """
 import argparse
 import hashlib
@@ -62,6 +68,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('run_dir', help='a notebook 07 run folder: manifest.json, best.pt, model.onnx')
     ap.add_argument('--install', action='store_true', help=f'copy model + manifest to {ASSETS}')
+    ap.add_argument('--recipe-of', help='run of the same recipe without the test signers: its test metrics')
+    ap.add_argument('--jestdili', help='ml/eval_letters_photos.py scores.json: alphabet photos of another person')
     a = ap.parse_args()
     with open(os.path.join(a.run_dir, 'manifest.json'), encoding='utf-8') as f:
         manifest = json.load(f)
@@ -79,6 +87,19 @@ def main():
         manifest['test_per_letter'] = {L.LABELS[c]: {'recall': float((p[y == c].argmax(1) == c).mean()),
                                                      'n': int((y == c).sum())}
                                        for c in np.unique(y) if c != none}
+    if a.recipe_of:
+        with open(os.path.join(a.recipe_of, 'manifest.json'), encoding='utf-8') as f:
+            held = json.load(f)
+        for k in ('metrics', 'old_model', 'test_per_letter'):
+            if held.get(k):
+                manifest[k] = held[k]
+        manifest['metrics_from'] = held['run']
+    if a.jestdili:
+        with open(a.jestdili, encoding='utf-8') as f:
+            js = json.load(f)
+        pick = lambda r: {k: r['as is'][k] for k in ('n', 'top1', 'top3', 'static_top1', 'static_n', 'moving_n')} |             {'jittered_top1': r['jittered']['top1']}                                        # noqa: E731
+        manifest['jestdili'] = {'what': 'JestDili.az alphabet photos (another person, one per letter); moving '
+                                        'letters as stills', 'runs': {n: pick(r) for n, r in js['scores'].items()}}
     with open(os.path.join(a.run_dir, 'manifest.json'), 'w', encoding='utf-8') as f:
         json.dump(manifest, f, ensure_ascii=False, indent=1)
     net, cfg = load_net(a.run_dir)

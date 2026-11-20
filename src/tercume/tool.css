@@ -1,0 +1,267 @@
+/*
+ * Komanda alətləri: /rey/ (işarə dili daşıyıcılarının rəyi) və /qeyd/ (yazılış). tercume.css-in rəngləri və
+ * komponentləri (kart, düymə, sahə, görüntü çərçivəsi) üzərində sadə iki sütun.
+ */
+body.tool {
+  min-height: 100%;
+}
+
+.tool-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px var(--gutter) 8px;
+}
+
+.tool-head h1 {
+  font-size: 22px;
+}
+
+.tool-head p {
+  margin: 4px 0 0;
+}
+
+.tool-start {
+  max-width: 640px;
+  margin: 16px var(--gutter);
+}
+
+.tool-start p {
+  margin: 0 0 10px;
+}
+
+.tool-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr);
+  gap: 16px;
+  padding: 8px var(--gutter) 32px;
+}
+
+.tool-main[hidden],
+.tool-start[hidden] {
+  display: none;
+}
+
+.tool-stage .viewport {
+  height: min(62vh, 620px);
+}
+
+.tool-play {
+  margin-top: 10px;
+  align-items: center;
+}
+
+.tool-play .btn {
+  flex: 0 0 auto;
+  min-width: 160px;
+}
+
+.tool-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap);
+}
+
+.tool-side textarea,
+.tool-start input,
+.tool-side input[type='text'],
+.tool-side select,
+.tool-play select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.tool-text {
+  font-size: 16px;
+  margin: 10px 0;
+}
+
+.tool-text b {
+  color: var(--vurgu);
+  font-weight: 600;
+}
+
+.scale {
+  border: 0;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.scale legend {
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.scale-row {
+  display: flex;
+  gap: 6px;
+}
+
+.scale-row label {
+  flex: 1;
+}
+
+.scale-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scale-row span {
+  display: block;
+  text-align: center;
+  padding: 8px 0;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.scale-row input:checked + span {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.scale-row input:focus-visible + span {
+  outline: 2px solid var(--vurgu);
+}
+
+.tool-nav {
+  margin-top: 14px;
+}
+
+.tool-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.tool-items button {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.tool-items button.done {
+  color: var(--green);
+  border-color: rgba(95, 208, 138, 0.45);
+}
+
+.tool-items button.is-on {
+  border-color: var(--vurgu);
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .tool-main {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-stage .viewport {
+    height: 46vh;
+  }
+}
+
+/* ── /qeyd/ ── */
+.tool-start ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.consent-text {
+  font-size: 13.5px;
+}
+
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.tool-start select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.no-mirror video,
+.no-mirror #overlay {
+  transform: none;
+}
+
+.rec-badge {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 3;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #fff;
+  background: #d6334a;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.countdown {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  font-size: 120px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.countdown[hidden],
+.rec-badge[hidden] {
+  display: none;
+}
+
+.prompt-text {
+  font-size: 26px;
+  font-weight: 650;
+  margin: 6px 0 8px;
+  color: var(--ink);
+}
+
+.take-info {
+  font-size: 12.5px;
+  color: var(--green);
+  min-height: 1em;
+  margin: 4px 0 8px;
+}
+
+.take-info.bad {
+  color: #ffb36b;
+}
+
+.btn.is-rec {
+  background: #d6334a;
+  border-color: #d6334a;
+}

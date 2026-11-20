@@ -1,0 +1,151 @@
+id,domain,split,text,tags
+c001,sosial xidmət,dev,Mən DOST mərkəzinə getmək istəyirəm.,
+c002,sosial xidmət,test,DOST mərkəzi saat neçədə açılır?,sual sözü
+c003,sosial xidmət,dev,Əlillik arayışı almaq üçün hara müraciət etməliyəm?,sual sözü; buraxılmış mübtəda; zaman lazım
+c004,sosial xidmət,test,Mənim şəxsiyyət vəsiqəmin müddəti bitib.,zaman olmaq
+c005,sosial xidmət,dev,Yeni şəxsiyyət vəsiqəsi nə vaxt hazır olacaq?,sual sözü
+c006,sosial xidmət,test,"Mən ərizə yazmaq istəyirəm, mənə kömək edə bilərsiniz?",hə/yox sualı
+c007,sosial xidmət,dev,Hansı sənədləri gətirməliyəm?,sual sözü; buraxılmış mübtəda; zaman lazım
+c008,sosial xidmət,test,Sənədlərimi evdə unutmuşam.,buraxılmış mübtəda; zaman olmaq
+c009,sosial xidmət,dev,Mənim pensiyam bu ay gəlməyib.,inkar; zaman olmaq
+c010,sosial xidmət,test,Pensiya kartımı itirmişəm.,buraxılmış mübtəda; zaman olmaq
+c011,sosial xidmət,dev,Müavinət almaq üçün nə etməliyəm?,sual sözü; buraxılmış mübtəda; zaman lazım
+c012,sosial xidmət,test,Növbəm neçənci nömrədir?,sual sözü
+c013,sosial xidmət,dev,Bir saatdır burada gözləyirəm.,rəqəm; buraxılmış mübtəda
+c014,sosial xidmət,test,Burada işarə dili tərcüməçisi var?,hə/yox sualı
+c015,sosial xidmət,dev,"Mən eşitmirəm, zəhmət olmasa yazın.",inkar
+c016,sosial xidmət,test,Zəhmət olmasa yavaş danışın.,inkar
+c017,sosial xidmət,dev,"Mən sizi başa düşmədim, bir də deyin.",rəqəm; inkar; zaman olmaq
+c018,sosial xidmət,test,ASAN xidmətdə növbəni internetdən götürmək olar?,hə/yox sualı
+c019,sosial xidmət,dev,Ünvanımı dəyişmək istəyirəm.,buraxılmış mübtəda
+c020,sosial xidmət,test,Mənim qardaşım da əlillik təqaüdü alır.,
+c021,sosial xidmət,dev,Arayış üç gün sonra hazır olacaq.,rəqəm
+c022,sosial xidmət,test,Bu sənədi notariusda təsdiq etdirməlisiniz.,
+c023,sosial xidmət,dev,Əlillik müddətim bu ay bitir.,
+c024,sosial xidmət,test,Komissiyaya nə vaxt gəlməliyəm?,sual sözü; buraxılmış mübtəda; zaman lazım
+c025,sosial xidmət,dev,Mən işsizəm və iş axtarıram.,
+c026,sosial xidmət,test,Mənə uyğun iş tapmağa kömək edin.,
+c027,sosial xidmət,dev,Kommunal xərclər üçün güzəşt var?,hə/yox sualı
+c028,sosial xidmət,test,Ailə tərkibi haqqında arayış lazımdır.,
+c029,sosial xidmət,dev,Bu formanı doldurmağa kömək edərsiniz?,hə/yox sualı; buraxılmış mübtəda
+c030,sosial xidmət,test,Mənim telefon nömrəmi yazın.,
+c031,sosial xidmət,dev,Cavabı mənə mesajla göndərin.,
+c032,sosial xidmət,test,Video zənglə danışmaq olar?,hə/yox sualı
+c033,sosial xidmət,dev,Mən sabah yenidən gələcəm.,zaman olacaq
+c034,sosial xidmət,test,Bu gün qəbul yoxdur.,inkar
+c035,sosial xidmət,dev,Müdirlə görüşmək istəyirəm.,buraxılmış mübtəda; birlikdə
+c036,sosial xidmət,test,Şikayətimi kimə yaza bilərəm?,sual sözü; buraxılmış mübtəda
+c037,sosial xidmət,dev,Ərizəmə hələ cavab verilməyib.,
+c038,sosial xidmət,test,Mənim adım Nərmindir.,
+c039,sosial xidmət,dev,Doğum tarixim 12 mart 1985-ci ildir.,rəqəm
+c040,sosial xidmət,test,Mən Sumqayıtda yaşayıram.,
+c041,sağlıq,dev,Mənim başım çox ağrıyır.,
+c042,sağlıq,test,Dünəndən qızdırmam var.,
+c043,sağlıq,dev,Həkimə növbə yazdırmaq istəyirəm.,buraxılmış mübtəda
+c044,sağlıq,test,Həkim nə vaxt qəbul edir?,sual sözü
+c045,sağlıq,dev,"Uşağım xəstədir, öskürür.",
+c046,sağlıq,test,Təcili yardım çağırın!,
+c047,sağlıq,dev,Mənim təzyiqim qalxıb.,zaman olmaq
+c048,sağlıq,test,Bu dərmanı necə içməliyəm?,sual sözü; buraxılmış mübtəda; zaman lazım
+c049,sağlıq,dev,Dərmanı gündə üç dəfə yeməkdən sonra için.,rəqəm
+c050,sağlıq,test,Bu dərman aptekdə var?,hə/yox sualı
+c051,sağlıq,dev,Resept olmadan bu dərmanı satmırıq.,buraxılmış mübtəda; inkar
+c052,sağlıq,test,"Dişim ağrıyır, diş həkiminə getməliyəm.",buraxılmış mübtəda; zaman lazım
+c053,sağlıq,dev,Qan analizi vermək lazımdır.,
+c054,sağlıq,test,Analizin cavabı sabah hazır olacaq.,
+c055,sağlıq,dev,Mən şəkər xəstəsiyəm.,
+c056,sağlıq,test,Mənim heç bir dərmana allergiyam yoxdur.,rəqəm; inkar
+c057,sağlıq,dev,"Ürəyim bulanır, başım gicəllənir.",
+c058,sağlıq,test,"Qolum sınıb, çox ağrıyır.",
+c059,sağlıq,dev,Xəstəxanaya necə gedə bilərəm?,sual sözü; buraxılmış mübtəda
+c060,sağlıq,test,Həkim mənə üç gün yataq rejimi yazdı.,rəqəm; zaman olmaq
+c061,sağlıq,dev,Nə vaxtdan xəstəsiniz?,sual sözü
+c062,sağlıq,test,Harası ağrıyır?,sual sözü
+c063,sağlıq,dev,Mən hamiləyəm.,
+c064,sağlıq,test,Anam xəstəxanada yatır.,
+c065,sağlıq,dev,Atam ürək xəstəsidir.,
+c066,sağlıq,test,Bu iynə ağrılıdır?,hə/yox sualı
+c067,sağlıq,dev,"Mənə tərcüməçi lazımdır, həkimi başa düşmürəm.",inkar; buraxılmış mübtəda
+c068,sağlıq,test,Əməliyyat nə vaxt olacaq?,sual sözü
+c069,sağlıq,dev,Gecələr yata bilmirəm.,inkar; buraxılmış mübtəda
+c070,sağlıq,test,Uşağın peyvəndi vaxtında vurulmalıdır.,zaman lazım
+c071,sağlıq,dev,Mənim tibbi sığortam var.,
+c072,sağlıq,test,"Müayinə pulludur, yoxsa pulsuz?",hə/yox sualı
+c073,sağlıq,dev,Poliklinika şənbə günü işləyir?,hə/yox sualı
+c074,sağlıq,test,"Çox yorğunam, işə gedə bilmərəm.",inkar; buraxılmış mübtəda
+c075,sağlıq,dev,Bir həftədir öskürürəm.,rəqəm; buraxılmış mübtəda
+c076,bank və pul,dev,Mən bank kartı açmaq istəyirəm.,
+c077,bank və pul,test,Kartımın şifrəsini unutmuşam.,buraxılmış mübtəda; zaman olmaq
+c078,bank və pul,dev,Bankomat kartımı udub.,zaman olmaq
+c079,bank və pul,test,Hesabıma pul gəlib?,hə/yox sualı; zaman olmaq
+c080,bank və pul,dev,Maaşım hələ köçürülməyib.,
+c081,bank və pul,test,Bu ay kreditimi ödəyə bilməyəcəm.,inkar; buraxılmış mübtəda; zaman olacaq
+c082,bank və pul,dev,Kreditin faizi neçədir?,sual sözü
+c083,bank və pul,test,Mən nağd pul çıxarmaq istəyirəm.,
+c084,bank və pul,dev,Kommunal xərcləri burada ödəmək olar?,hə/yox sualı
+c085,bank və pul,test,Qəbzi mənə verin.,
+c086,bank və pul,dev,Bu əməliyyat üçün komissiya var?,hə/yox sualı
+c087,bank və pul,test,Bu gün dolların məzənnəsi neçədir?,sual sözü
+c088,bank və pul,dev,Mən yüz dollar dəyişmək istəyirəm.,rəqəm
+c089,bank və pul,test,Anamın kartına pul köçürmək istəyirəm.,buraxılmış mübtəda
+c090,bank və pul,dev,Telefonumda bankın tətbiqi işləmir.,inkar
+c091,bank və pul,test,"Kartımın müddəti bitib, yenisini nə vaxt alacam?",sual sözü; buraxılmış mübtəda; zaman olmaq; zaman olacaq
+c092,bank və pul,dev,Mənim kartım bloklanıb.,zaman olmaq
+c093,bank və pul,test,Pulu qardaşımın hesabına köçürün.,
+c094,bank və pul,dev,Bu qiymət çox bahadır.,
+c095,bank və pul,test,Endirim var?,hə/yox sualı
+c096,bank və pul,dev,Bu neçə manatdır?,sual sözü
+c097,bank və pul,test,On beş manat əlli qəpik.,rəqəm
+c098,bank və pul,dev,Kartla ödəmək olar?,hə/yox sualı
+c099,bank və pul,test,Qalığı mənə qaytarmadınız.,
+c100,bank və pul,dev,Pulu sabah qaytaracam.,
+c101,bank və pul,test,Dostumdan borc pul aldım.,buraxılmış mübtəda; zaman olmaq
+c102,bank və pul,dev,Əmanət hesabı açmaq istəyirəm.,buraxılmış mübtəda
+c103,bank və pul,test,Bank saat neçəyə qədər işləyir?,sual sözü
+c104,bank və pul,dev,Pasportumun surəti lazımdır?,hə/yox sualı
+c105,bank və pul,test,Bu ay xərclərim çox olub.,
+c106,gündəlik həyat,dev,"Sabahın xeyir, necəsən?",hə/yox sualı
+c107,gündəlik həyat,test,"Mən yaxşıyam, sən necəsən?",hə/yox sualı
+c108,gündəlik həyat,dev,Bu gün çöldə qar yağır.,
+c109,gündəlik həyat,test,Axşam evdə olacam.,buraxılmış mübtəda
+c110,gündəlik həyat,dev,Uşaqlar məktəbdən gəlib?,hə/yox sualı; zaman olmaq
+c111,gündəlik həyat,test,Qızım bu il məktəbə gedir.,
+c112,gündəlik həyat,dev,Oğlum universitetdə oxuyur.,
+c113,gündəlik həyat,test,Bazara gedib çörək aldım.,buraxılmış mübtəda; zaman olmaq
+c114,gündəlik həyat,dev,Evdə süd qalmayıb.,inkar; zaman olmaq
+c115,gündəlik həyat,test,Nə yemək istəyirsən?,sual sözü; buraxılmış mübtəda
+c116,gündəlik həyat,dev,Mən çay içmək istəyirəm.,
+c117,gündəlik həyat,test,Avtobus neçədə gəlir?,sual sözü
+c118,gündəlik həyat,dev,Metroya necə gedə bilərəm?,sual sözü; buraxılmış mübtəda
+c119,gündəlik həyat,test,Mən işə gecikdim.,zaman olmaq
+c120,gündəlik həyat,dev,Dünən dostlarımla parka getdik.,buraxılmış mübtəda; birlikdə; zaman olmaq
+c121,gündəlik həyat,test,Bacımla telefonla danışdım.,buraxılmış mübtəda; birlikdə; zaman olmaq
+c122,gündəlik həyat,dev,Qardaşım Rusiyada işləyir.,
+c123,gündəlik həyat,test,Həftə sonu nə edirsən?,sual sözü; buraxılmış mübtəda
+c124,gündəlik həyat,dev,Biz bazar günü qonaq gedəcəyik.,zaman olacaq
+c125,gündəlik həyat,test,Sənin ad günün nə vaxtdır?,sual sözü
+c126,gündəlik həyat,dev,Mənim ad günüm mayın beşindədir.,
+c127,gündəlik həyat,test,Saat neçədir?,sual sözü
+c128,gündəlik həyat,dev,İndi saat üçdür.,rəqəm
+c129,gündəlik həyat,test,Mən səni gözləyirəm.,
+c130,gündəlik həyat,dev,Bu gün gələ bilməyəcəm.,inkar; buraxılmış mübtəda; zaman olacaq
+c131,gündəlik həyat,test,Kömək edə bilərsən?,hə/yox sualı; buraxılmış mübtəda
+c132,gündəlik həyat,dev,Telefonumun batareyası bitib.,zaman olmaq
+c133,gündəlik həyat,test,Mesajımı oxudun?,hə/yox sualı; buraxılmış mübtəda; zaman olmaq
+c134,gündəlik həyat,dev,Mən yeni ev axtarıram.,
+c135,gündəlik həyat,test,Evimiz metroya yaxındır.,
+c136,gündəlik həyat,dev,Qonşumuz çox mehribandır.,
+c137,gündəlik həyat,test,Anam yemək bişirir.,
+c138,gündəlik həyat,dev,Atam televizora baxır.,
+c139,gündəlik həyat,test,Biz ailəliklə dənizə gedəcəyik.,zaman olacaq
+c140,gündəlik həyat,dev,Yay tətilində harada olacaqsan?,sual sözü; buraxılmış mübtəda
+c141,gündəlik həyat,test,Mən futbol oynamağı sevirəm.,
+c142,gündəlik həyat,dev,Kitab oxumağı xoşlayıram.,
+c143,gündəlik həyat,test,Uşaqlar bağçada oynayır.,
+c144,gündəlik həyat,dev,"Bu gün yorğunam, evdə qalacam.",buraxılmış mübtəda; zaman olacaq
+c145,gündəlik həyat,test,Taksi çağıra bilərsən?,hə/yox sualı; buraxılmış mübtəda
+c146,gündəlik həyat,dev,Mən Gəncəyə qatarla gedəcəm.,zaman olacaq
+c147,gündəlik həyat,test,Bilet neçəyədir?,sual sözü
+c148,gündəlik həyat,dev,Toyunuz mübarək!,
+c149,gündəlik həyat,test,Yeni iliniz mübarək!,
+c150,gündəlik həyat,dev,"Görüşənədək, sabah görüşərik.",buraxılmış mübtəda

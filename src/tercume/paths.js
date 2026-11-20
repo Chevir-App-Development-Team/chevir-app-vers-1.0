@@ -14,3 +14,5 @@ export const LETTER_MODEL_BASE = `${BASE}assets/letter_model/`
 export const SIGN_MERGE_URL = `${BASE}assets/sign_merge.json`
 // İşarələr → Azərbaycan mətni (tools/build_gloss_text.mjs, src/tercume/gloss2text.js)
 export const GLOSS_TEXT_URL = `${BASE}assets/gloss_text.json`
+// İşarə ardıcıllıqlarının dil modeli: cümlə rejiminin deşifrəsi və alternativləri (tools/build_sign_lm.mjs, E32)
+export const SIGN_LM_URL = `${BASE}assets/sign_lm.json`

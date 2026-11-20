@@ -62,6 +62,25 @@ def install():
         old.unlink()
     for w in pick:
         shutil.copyfile(src / f"{w['id']}.json", WORDS / f"{w['id']}.json")
+    # "xəstə, xəstəlik", "banket (qonaqlıq, ziyafət": birinci söz mətndir, qalanları alt (E27; əvvəl bütöv sətir
+    # heç bir sözə uyğun gəlmirdi)
+    for w in pick:
+        main, _, note = w['text'].partition('(')
+        note = note.rstrip(') ')
+        if note and ',' not in note:          # "dolu (təbiət hadisəsi)": mənası, sinonim deyil
+            w.setdefault('sense', note.strip())
+            note = ''
+        parts = [p.strip() for p in re.split(r'[,;]', main + ',' + note) if p.strip()]
+        if parts and (len(parts) > 1 or parts[0] != w['text']):
+            w['text'] = parts[0]
+            alt = [p for k, p in enumerate(parts) if p != parts[0] and p not in parts[:k]]
+            if alt:
+                w['alt'] = alt
+            f = WORDS / f"{w['id']}.json"
+            d = json.loads(f.read_text(encoding='utf8'))
+            d.update(text=w['text'], **({'alt': w['alt']} if w.get('alt') else {}),
+                     **({'sense': w['sense']} if w.get('sense') else {}))
+            f.write_text(json.dumps(d, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
     index['words'] = [w for w in index['words'] if not w['id'].startswith(PREFIX)] + pick
     index['count'] = len(index['words'])
     index['sources'] = [s for s in index.get('sources', []) if s['prefix'] != PREFIX] + [{

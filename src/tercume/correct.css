@@ -1,0 +1,98 @@
+/* Cümlənin alternativləri və düzəlişi (correct.js, N4): /danis/-in söhbəti və tərcümə sisteminin cümlə tarixçəsi. */
+.sent .conf {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3, #93a7cc);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.sent .alts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sent .alt {
+  appearance: none;
+  border: 1px dashed var(--line-2, #2a447e);
+  background: transparent;
+  color: var(--ink-2, #93a7cc);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.3;
+  padding: 5px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  min-height: 32px;
+}
+
+.sent .alt:hover,
+.sent .alt:focus-visible {
+  border-style: solid;
+  color: var(--ink, #eef3fc);
+  background: var(--t-ghost-bg, #13265a);
+}
+
+.sent .alt small {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+.sent .alt-edit {
+  border-style: solid;
+  color: var(--ink-3, #93a7cc);
+}
+
+.sent .edit {
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink, #eef3fc);
+  background: var(--field, #091638);
+  border: 1px solid var(--vurgu, #4da0ff);
+  border-radius: 8px;
+  padding: 5px 8px;
+  width: 100%;
+}
+
+.corr-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-3, #93a7cc);
+}
+
+.corr-bar[hidden] {
+  display: none;
+}
+
+.corr-bar .btn {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  font-size: 12.5px;
+}
+
+/* tərcümə sisteminin cümlə tarixçəsi kiçikdir: mətn adi şriftlə, işarələr mono */
+.sentence-history .sent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: inherit;
+}
+
+.sentence-history .sent .t {
+  color: var(--ink, #eef3fc);
+  font-size: 14px;
+}
+
+.sentence-history .sent .g {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}

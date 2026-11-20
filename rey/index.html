@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="robots" content="noindex" />
+    <title>Chevir - rəy</title>
+  </head>
+  <body class="tercume tool">
+    <div id="site-nav"></div>
+
+    <header class="tool-head">
+      <div>
+        <h1>İşarə dili daşıyıcılarının rəyi</h1>
+        <p class="muted">Avatarın göstərdiyini və proqramın yazdığını qiymətləndirin. Cavablar yalnız bu brauzerdə saxlanır.</p>
+      </div>
+      <span class="badge" id="release">-</span>
+    </header>
+
+    <!-- başlanğıc -->
+    <section class="tool-start card" id="start">
+      <div class="card-head"><h2>Başlamaq</h2></div>
+      <p>Hər bənddə avatar ya bir cümləni göstərir (<b>mətn → işarə</b>), ya da bir iştirakçının göstərdiyi işarələri
+        təkrarlayır və proqramın onlardan yazdığı mətn görünür (<b>işarə → mətn</b>). Doğru və ya səhv cavab yoxdur:
+        bizə sizin gördüyünüz lazımdır.</p>
+      <label class="field">
+        <span>Rəy verənin kodu (adınızı yazmayın; məsələn R1, R2)</span>
+        <input type="text" id="code" maxlength="12" autocomplete="off" placeholder="R1" />
+      </label>
+      <p class="hint">Cavablar bu brauzerdə, bu kodla saxlanır: səhifəni bağlayıb sonra davam edə bilərsiniz.
+        Sonda <b>CSV endir</b> düyməsi ilə faylı komandaya göndərin. Heç nə avtomatik göndərilmir.</p>
+      <div class="row"><button class="btn btn-primary" id="btn-begin" disabled>Başla</button></div>
+    </section>
+
+    <!-- bəndlər -->
+    <main class="tool-main" id="review" hidden>
+      <section class="tool-stage">
+        <div class="viewport" id="avatar">
+          <div class="viewport-label">Avatar <span class="muted" id="avatar-state">· yüklənir</span></div>
+        </div>
+        <div class="row tool-play">
+          <button class="btn btn-primary" id="btn-play" disabled>Göstər</button>
+          <label class="field inline"><span>Sürət</span>
+            <select id="speed">
+              <option value="0.5">0.5×</option>
+              <option value="0.75">0.75×</option>
+              <option value="1" selected>1×</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="tool-side">
+        <div class="card">
+          <div class="card-head"><h2 id="item-title">-</h2><span class="badge" id="progress">-</span></div>
+
+          <div data-dir="t2s">
+            <label class="field">
+              <span>1. Avatar nə dedi? Öz sözlərinizlə yazın (mətni görmədən)</span>
+              <textarea id="answer" rows="2"></textarea>
+            </label>
+            <div class="row"><button class="btn btn-ghost" id="btn-reveal">Mətni göstər</button></div>
+            <div id="reveal" hidden>
+              <p class="tool-text">Mətn: <b id="t2s-text">-</b></p>
+              <fieldset class="scale" data-key="comprehension">
+                <legend>2. Nə qədər başa düşülür?</legend>
+                <div class="scale-row"></div>
+                <small class="muted">1 - heç başa düşülmür · 5 - tam başa düşülür</small>
+              </fieldset>
+              <fieldset class="scale" data-key="naturalness">
+                <legend>3. İşarə dilinə nə qədər oxşayır?</legend>
+                <div class="scale-row"></div>
+                <small class="muted">1 - oxşamır · 5 - doğma işarə dili kimidir</small>
+              </fieldset>
+            </div>
+          </div>
+
+          <div data-dir="s2t">
+            <p class="hint">Avatar bir iştirakçının göstərdiyi işarələri təkrarlayır. Proqram həmin cümləni kameradan tanıyıb
+              bu mətni yazıb:</p>
+            <p class="tool-text"><b id="s2t-text">-</b></p>
+            <fieldset class="scale" data-key="adequacy">
+              <legend>1. Mətn göstərilən işarələrin mənasını verir?</legend>
+              <div class="scale-row"></div>
+              <small class="muted">1 - mənası tamam başqadır · 5 - mənası tamamilə düzdür</small>
+            </fieldset>
+            <fieldset class="scale" data-key="fluency">
+              <legend>2. Mətn düzgün Azərbaycan dilindədir?</legend>
+              <div class="scale-row"></div>
+              <small class="muted">1 - oxunmur · 5 - qüsursuzdur</small>
+            </fieldset>
+            <label class="field">
+              <span>3. Düzgün mətn necə olmalıdır? (istəyə bağlı)</span>
+              <textarea id="correction" rows="2"></textarea>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Qeyd (istəyə bağlı): hansı işarə səhvdir, nə əskikdir</span>
+            <textarea id="comment" rows="2"></textarea>
+          </label>
+          <div class="row tool-nav">
+            <button class="btn btn-ghost" id="btn-prev">← Əvvəlki</button>
+            <button class="btn btn-primary" id="btn-next">Saxla və növbəti →</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Bəndlər</h2><span class="badge" id="done-count">-</span></div>
+          <div class="tool-items" id="items"></div>
+          <div class="row"><button class="btn" id="btn-export">CSV endir</button></div>
+          <p class="hint">Faylda kodunuz, cavablarınız və qiymətləriniz var; adınız yoxdur.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/rey/main.js"></script>
+  </body>
+</html>

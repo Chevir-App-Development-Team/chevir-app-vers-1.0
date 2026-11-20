@@ -1,0 +1,1034 @@
+{
+ "release": "2026-11-09 cc1612c",
+ "note": "tools/build_review_items.mjs; mətn → işarə doğma qaydalarla (E22), işarə → mətn gloss2text (E23)",
+ "items": [
+  {
+   "id": "t01",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Mən kitabı oxumadım.",
+   "checks": "inkar: fel + YOX (sual 9)"
+  },
+  {
+   "id": "t02",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "O bu gün işə gəlmir.",
+   "checks": "inkar, indiki zaman"
+  },
+  {
+   "id": "t03",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Mən sabah gələ bilmərəm.",
+   "checks": "felin öz inkar işarəsi"
+  },
+  {
+   "id": "t04",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Sən haradasan?",
+   "checks": "sual: üz ifadəsi hələ yoxdur (sual 10)"
+  },
+  {
+   "id": "t05",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Sən evdəsən?",
+   "checks": "hə/yox sualı yalnız üzlə? (sual 11)"
+  },
+  {
+   "id": "t06",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Mənim anam eşitmir.",
+   "checks": "yiyəlik (sual 14)"
+  },
+  {
+   "id": "t07",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Mən sabah Bakıya gedəcəyəm.",
+   "checks": "zaman yalnız SABAH ilə (sual 18)"
+  },
+  {
+   "id": "t08",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Anamla bazara getdim.",
+   "checks": "*ilə* atılır (sual 23)"
+  },
+  {
+   "id": "t09",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Mənim adım Leyladır.",
+   "checks": "ad şəkilçi ilə yığılır (sual 26, 27)"
+  },
+  {
+   "id": "t10",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Mənim 25 yaşım var.",
+   "checks": "lüğətdə 25 yoxdur: rəqəmlərin işarələri (sual 28)"
+  },
+  {
+   "id": "t11",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Sənədləri ASAN-a apardım.",
+   "checks": "qısaltma yığılır (sual 26)"
+  },
+  {
+   "id": "t12",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Mən sənə kömək edə bilərəm.",
+   "checks": "istiqamət (sual 17), bacarıq (sual 20)"
+  },
+  {
+   "id": "t13",
+   "dir": "t2s",
+   "source": "müsahibə M4",
+   "text": "Sizin eşitmə məhdudiyyətiniz var?",
+   "checks": "ifadənin başqa forması işarəyə çatmır (M3)"
+  },
+  {
+   "id": "t14",
+   "dir": "t2s",
+   "source": "AzSLD test 2",
+   "text": "Mən Bakıda yaşayıram"
+  },
+  {
+   "id": "t15",
+   "dir": "t2s",
+   "source": "AzSLD test 5",
+   "text": "Bu mənim atamdır"
+  },
+  {
+   "id": "t16",
+   "dir": "t2s",
+   "source": "AzSLD test 11",
+   "text": "Mən indi ADA universitetindəyəm"
+  },
+  {
+   "id": "t17",
+   "dir": "t2s",
+   "source": "AzSLD test 19",
+   "text": "Mən harda gözləyə bilərəm?"
+  },
+  {
+   "id": "t18",
+   "dir": "t2s",
+   "source": "AzSLD test 39",
+   "text": "Sabah gələ bilərəmmi?"
+  },
+  {
+   "id": "t19",
+   "dir": "t2s",
+   "source": "AzSLD test 80",
+   "text": "Mən xəbərlərə baxmaq istəyirəm"
+  },
+  {
+   "id": "t20",
+   "dir": "t2s",
+   "source": "AzSLD test 121",
+   "text": "Mən dünən dostlarımla görüşmüşdüm"
+  },
+  {
+   "id": "t21",
+   "dir": "t2s",
+   "source": "AzSLD test 138",
+   "text": "Mən bunu 15 manata almışam"
+  },
+  {
+   "id": "t22",
+   "dir": "t2s",
+   "source": "AzSLD test 185",
+   "text": "Eşitmə aparatımın nasazlığı var"
+  },
+  {
+   "id": "t23",
+   "dir": "t2s",
+   "source": "AzSLD test 228",
+   "text": "Mən yeni bank kartı götürmək istəyirəm"
+  },
+  {
+   "id": "t24",
+   "dir": "t2s",
+   "source": "AzSLD test 232",
+   "text": "Mən telefonu təmir etdirmək istəyirəm"
+  },
+  {
+   "id": "t25",
+   "dir": "t2s",
+   "source": "AzSLD test 258",
+   "text": "Mən istəyirəm ki, ünvanlı dövlət sosial yardımı (ÜDSY) alım"
+  },
+  {
+   "id": "t26",
+   "dir": "t2s",
+   "source": "AzSLD test 261",
+   "text": "Mən poliklinikaya (TSEK-ə) getmişəm"
+  },
+  {
+   "id": "t27",
+   "dir": "t2s",
+   "source": "AzSLD test 284",
+   "text": "Mən çantamı itirmişəm"
+  },
+  {
+   "id": "t28",
+   "dir": "t2s",
+   "source": "AzSLD test 313",
+   "text": "Mən səhərlər tez durmağı sevmirəm"
+  },
+  {
+   "id": "t29",
+   "dir": "t2s",
+   "source": "AzSLD test 328",
+   "text": "İki gün sonra güclü külək olacaq"
+  },
+  {
+   "id": "t30",
+   "dir": "t2s",
+   "source": "AzSLD test 366",
+   "text": "Mən bu gün havaya uyğun geyinməmişəm"
+  },
+  {
+   "id": "t31",
+   "dir": "t2s",
+   "source": "AzSLD test 382",
+   "text": "Mənə bu iş haqqında ətraflı məlumat verin"
+  },
+  {
+   "id": "t32",
+   "dir": "t2s",
+   "source": "AzSLD test 410",
+   "text": "Mən onun yazdıqları ilə razı deyiləm"
+  },
+  {
+   "id": "t33",
+   "dir": "t2s",
+   "source": "AzSLD test 423",
+   "text": "Xahiş edirəm, mənə bu şeiri tərcümə edin"
+  },
+  {
+   "id": "t34",
+   "dir": "t2s",
+   "source": "set C dev c001 (sosial xidmət)",
+   "text": "Mən DOST mərkəzinə getmək istəyirəm."
+  },
+  {
+   "id": "t35",
+   "dir": "t2s",
+   "source": "set C dev c009 (sosial xidmət)",
+   "text": "Mənim pensiyam bu ay gəlməyib."
+  },
+  {
+   "id": "t36",
+   "dir": "t2s",
+   "source": "set C dev c017 (sosial xidmət)",
+   "text": "Mən sizi başa düşmədim, bir də deyin."
+  },
+  {
+   "id": "t37",
+   "dir": "t2s",
+   "source": "set C dev c027 (sosial xidmət)",
+   "text": "Kommunal xərclər üçün güzəşt var?"
+  },
+  {
+   "id": "t38",
+   "dir": "t2s",
+   "source": "set C dev c035 (sosial xidmət)",
+   "text": "Müdirlə görüşmək istəyirəm."
+  },
+  {
+   "id": "t39",
+   "dir": "t2s",
+   "source": "set C dev c045 (sağlıq)",
+   "text": "Uşağım xəstədir, öskürür."
+  },
+  {
+   "id": "t40",
+   "dir": "t2s",
+   "source": "set C dev c053 (sağlıq)",
+   "text": "Qan analizi vermək lazımdır."
+  },
+  {
+   "id": "t41",
+   "dir": "t2s",
+   "source": "set C dev c063 (sağlıq)",
+   "text": "Mən hamiləyəm."
+  },
+  {
+   "id": "t42",
+   "dir": "t2s",
+   "source": "set C dev c071 (sağlıq)",
+   "text": "Mənim tibbi sığortam var."
+  },
+  {
+   "id": "t43",
+   "dir": "t2s",
+   "source": "set C dev c080 (bank və pul)",
+   "text": "Maaşım hələ köçürülməyib."
+  },
+  {
+   "id": "t44",
+   "dir": "t2s",
+   "source": "set C dev c088 (bank və pul)",
+   "text": "Mən yüz dollar dəyişmək istəyirəm."
+  },
+  {
+   "id": "t45",
+   "dir": "t2s",
+   "source": "set C dev c098 (bank və pul)",
+   "text": "Kartla ödəmək olar?"
+  },
+  {
+   "id": "t46",
+   "dir": "t2s",
+   "source": "set C dev c106 (gündəlik həyat)",
+   "text": "Sabahın xeyir, necəsən?"
+  },
+  {
+   "id": "t47",
+   "dir": "t2s",
+   "source": "set C dev c116 (gündəlik həyat)",
+   "text": "Mən çay içmək istəyirəm."
+  },
+  {
+   "id": "t48",
+   "dir": "t2s",
+   "source": "set C dev c124 (gündəlik həyat)",
+   "text": "Biz bazar günü qonaq gedəcəyik."
+  },
+  {
+   "id": "t49",
+   "dir": "t2s",
+   "source": "set C dev c134 (gündəlik həyat)",
+   "text": "Mən yeni ev axtarıram."
+  },
+  {
+   "id": "t50",
+   "dir": "t2s",
+   "source": "set C dev c142 (gündəlik həyat)",
+   "text": "Kitab oxumağı xoşlayıram."
+  },
+  {
+   "id": "s01",
+   "dir": "s2t",
+   "source": "AzSLD test 2",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "baki",
+     "gloss": "BAKI"
+    },
+    {
+     "id": "yasamaq",
+     "gloss": "YAŞAMAQ"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "BAKI",
+    "YAŞAMAQ"
+   ],
+   "text": "Mən Bakı yaşayıram",
+   "reference": "Mən Bakıda yaşayıram"
+  },
+  {
+   "id": "s02",
+   "dir": "s2t",
+   "source": "AzSLD test 5",
+   "signs": [
+    {
+     "id": "bu",
+     "gloss": "BU"
+    },
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "ata",
+     "gloss": "ATA"
+    }
+   ],
+   "recognized": [
+    "BU",
+    "MƏN",
+    "ATA"
+   ],
+   "text": "Bu mən ata",
+   "reference": "Bu mənim atamdır"
+  },
+  {
+   "id": "s03",
+   "dir": "s2t",
+   "source": "AzSLD test 11",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "indi",
+     "gloss": "İNDİ"
+    },
+    {
+     "id": "a",
+     "gloss": "A"
+    },
+    {
+     "id": "d",
+     "gloss": "D"
+    },
+    {
+     "id": "a",
+     "gloss": "A"
+    },
+    {
+     "id": "universitet",
+     "gloss": "UNİVERSİTET"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "İNDİ",
+    "BURA",
+    "MÜƏLLİM",
+    "A"
+   ],
+   "text": "Mən indi bura müəllim a",
+   "reference": "Mən indi ADA universitetindəyəm"
+  },
+  {
+   "id": "s04",
+   "dir": "s2t",
+   "source": "AzSLD test 19",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "hara",
+     "gloss": "HARA"
+    },
+    {
+     "id": "gozlemek",
+     "gloss": "GÖZLƏMƏK"
+    },
+    {
+     "id": "bilmek",
+     "gloss": "BİLMƏK"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "HARA",
+    "GÖZLƏMƏK",
+    "BİLMƏK"
+   ],
+   "text": "Mən harda gözləyə bilərəm",
+   "reference": "Mən harda gözləyə bilərəm?"
+  },
+  {
+   "id": "s05",
+   "dir": "s2t",
+   "source": "AzSLD test 39",
+   "signs": [
+    {
+     "id": "sabah",
+     "gloss": "SABAH"
+    },
+    {
+     "id": "gele",
+     "gloss": "GƏLƏ"
+    },
+    {
+     "id": "bilmek",
+     "gloss": "BİLMƏK"
+    }
+   ],
+   "recognized": [
+    "SABAH",
+    "GƏLƏ",
+    "BİLMƏK"
+   ],
+   "text": "Sabahınız gələ bilər",
+   "reference": "Sabah gələ bilərəmmi?"
+  },
+  {
+   "id": "s06",
+   "dir": "s2t",
+   "source": "AzSLD test 80",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "xeber",
+     "gloss": "XƏBƏR"
+    },
+    {
+     "id": "baxmaq",
+     "gloss": "BAXMAQ"
+    },
+    {
+     "id": "istemek",
+     "gloss": "İSTƏMƏK"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "XƏBƏR",
+    "BAXMAQ",
+    "İSTƏMƏK"
+   ],
+   "text": "Mən xəbər baxmaq istəyirəm",
+   "reference": "Mən xəbərlərə baxmaq istəyirəm"
+  },
+  {
+   "id": "s07",
+   "dir": "s2t",
+   "source": "AzSLD test 121",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "dunen",
+     "gloss": "DÜNƏN"
+    },
+    {
+     "id": "dost",
+     "gloss": "DOST"
+    },
+    {
+     "id": "gorusmek",
+     "gloss": "GÖRÜŞMƏK"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "DÜNƏN",
+    "DOST",
+    "GÖRÜŞMƏK"
+   ],
+   "text": "Mən dünən dost görüşürəm",
+   "reference": "Mən dünən dostlarımla görüşmüşdüm"
+  },
+  {
+   "id": "s08",
+   "dir": "s2t",
+   "source": "AzSLD test 138",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "bu",
+     "gloss": "BU"
+    },
+    {
+     "id": "15",
+     "gloss": "15"
+    },
+    {
+     "id": "manat",
+     "gloss": "MANAT"
+    },
+    {
+     "id": "almaq",
+     "gloss": "ALMAQ"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "15",
+    "MANAT",
+    "ALMAQ"
+   ],
+   "text": "Mən 15 manat almışam",
+   "reference": "Mən bunu 15 manata almışam"
+  },
+  {
+   "id": "s09",
+   "dir": "s2t",
+   "source": "AzSLD test 185",
+   "signs": [
+    {
+     "id": "esitme",
+     "gloss": "EŞİTMƏ"
+    },
+    {
+     "id": "aparat",
+     "gloss": "APARAT"
+    },
+    {
+     "id": "nasaz",
+     "gloss": "NASAZ"
+    },
+    {
+     "id": "var",
+     "gloss": "VAR"
+    }
+   ],
+   "recognized": [
+    "EŞİTMƏ",
+    "APARAT",
+    "NASAZ",
+    "VAR"
+   ],
+   "text": "Eşitmə nasaz var",
+   "reference": "Eşitmə aparatımın nasazlığı var"
+  },
+  {
+   "id": "s10",
+   "dir": "s2t",
+   "source": "AzSLD test 228",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "yeni",
+     "gloss": "YENİ"
+    },
+    {
+     "id": "bank",
+     "gloss": "BANK"
+    },
+    {
+     "id": "kart",
+     "gloss": "KART"
+    },
+    {
+     "id": "almaq",
+     "gloss": "ALMAQ"
+    },
+    {
+     "id": "istemek",
+     "gloss": "İSTƏMƏK"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "YENİ",
+    "BANK",
+    "KART",
+    "ALMAQ",
+    "İSTƏMƏK"
+   ],
+   "text": "Mən yeni bank kartını almaq istəyirəm",
+   "reference": "Mən yeni bank kartı götürmək istəyirəm"
+  },
+  {
+   "id": "s11",
+   "dir": "s2t",
+   "source": "AzSLD test 232",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "telefon",
+     "gloss": "TELEFON"
+    },
+    {
+     "id": "temir",
+     "gloss": "TƏMİR"
+    },
+    {
+     "id": "sifaris",
+     "gloss": "SİFARİŞ"
+    },
+    {
+     "id": "istemek",
+     "gloss": "İSTƏMƏK"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "TELEFON",
+    "TƏMİR",
+    "SİFARİŞ",
+    "İSTƏMƏK"
+   ],
+   "text": "Mənim telefonum təmiri sifariş istəyir",
+   "reference": "Mən telefonu təmir etdirmək istəyirəm"
+  },
+  {
+   "id": "s12",
+   "dir": "s2t",
+   "source": "AzSLD test 258",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "istemek",
+     "gloss": "İSTƏMƏK"
+    },
+    {
+     "id": "dovlet",
+     "gloss": "DÖVLƏT"
+    },
+    {
+     "id": "sosial",
+     "gloss": "SOSİAL"
+    },
+    {
+     "id": "komek",
+     "gloss": "KÖMƏK/YARDİM"
+    },
+    {
+     "id": "yardim",
+     "gloss": "KÖMƏK/YARDİM"
+    },
+    {
+     "spell": "ü",
+     "gloss": "Ü"
+    },
+    {
+     "id": "d",
+     "gloss": "D"
+    },
+    {
+     "id": "s",
+     "gloss": "S"
+    },
+    {
+     "spell": "y",
+     "gloss": "Y"
+    },
+    {
+     "id": "alim",
+     "gloss": "ALİM"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "İSTƏMƏK",
+    "ÜNVANLİ",
+    "DÖVLƏT",
+    "SOSİAL",
+    "KÖMƏK/YARDİM",
+    "Ü",
+    "D",
+    "S",
+    "Y",
+    "ALMAQ"
+   ],
+   "text": "Mən istəyirəm ünvanlı dövlət sosial kömək üdsy almışam",
+   "reference": "Mən istəyirəm ki, ünvanlı dövlət sosial yardımı (ÜDSY) alım"
+  },
+  {
+   "id": "s13",
+   "dir": "s2t",
+   "source": "AzSLD test 261",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "poliklinika",
+     "gloss": "POLİKLİNİKA"
+    },
+    {
+     "spell": "t",
+     "gloss": "T"
+    },
+    {
+     "id": "s",
+     "gloss": "S"
+    },
+    {
+     "spell": "e",
+     "gloss": "E"
+    },
+    {
+     "spell": "k",
+     "gloss": "K"
+    },
+    {
+     "id": "getmek",
+     "gloss": "GETMƏK"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "POLİKLİNİKA",
+    "T",
+    "S",
+    "E",
+    "K",
+    "GETMƏK"
+   ],
+   "text": "Mən poliklinika tsek gedirəm",
+   "reference": "Mən poliklinikaya (TSEK-ə) getmişəm"
+  },
+  {
+   "id": "s14",
+   "dir": "s2t",
+   "source": "AzSLD test 284",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "itirmek",
+     "gloss": "İTİRMƏK"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "ÇANTA",
+    "İTİRMƏK"
+   ],
+   "text": "Mən çanta itirmişəm",
+   "reference": "Mən çantamı itirmişəm"
+  },
+  {
+   "id": "s15",
+   "dir": "s2t",
+   "source": "AzSLD test 313",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "seher",
+     "gloss": "SƏHƏR"
+    },
+    {
+     "id": "tez",
+     "gloss": "TEZ"
+    },
+    {
+     "id": "durmaq",
+     "gloss": "DURMAQ"
+    },
+    {
+     "id": "sevmirem",
+     "gloss": "SEVMİRƏM"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "SƏHƏR",
+    "TEZ",
+    "DURMAQ",
+    "SEVMİRƏM"
+   ],
+   "text": "Mən səhərlər tez durmaq sevmirəm",
+   "reference": "Mən səhərlər tez durmağı sevmirəm"
+  },
+  {
+   "id": "s16",
+   "dir": "s2t",
+   "source": "AzSLD test 328",
+   "signs": [
+    {
+     "id": "iki",
+     "gloss": "IKI"
+    },
+    {
+     "id": "gun",
+     "gloss": "GUN"
+    },
+    {
+     "id": "sonra",
+     "gloss": "SONRA"
+    },
+    {
+     "id": "guclu",
+     "gloss": "GÜCLÜ"
+    },
+    {
+     "id": "kulek",
+     "gloss": "KÜLƏK"
+    },
+    {
+     "id": "olacaq",
+     "gloss": "OLACAQ"
+    }
+   ],
+   "recognized": [
+    "IKI",
+    "GUN",
+    "HƏLƏ",
+    "GÜCLÜ",
+    "KÜLƏK",
+    "OLACAQ"
+   ],
+   "text": "İki hələ güclü olacaq",
+   "reference": "İki gün sonra güclü külək olacaq"
+  },
+  {
+   "id": "s17",
+   "dir": "s2t",
+   "source": "AzSLD test 366",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "bu-gun",
+     "gloss": "BU GÜN"
+    },
+    {
+     "id": "hava",
+     "gloss": "HAVA"
+    },
+    {
+     "id": "uygun",
+     "gloss": "UYĞUN"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "BU GÜN",
+    "HAVA",
+    "UYĞUN"
+   ],
+   "text": "Mən bu gün hava uyğun",
+   "reference": "Mən bu gün havaya uyğun geyinməmişəm"
+  },
+  {
+   "id": "s18",
+   "dir": "s2t",
+   "source": "AzSLD test 382",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "bu",
+     "gloss": "BU"
+    },
+    {
+     "id": "islemek",
+     "gloss": "İŞLƏMƏK"
+    },
+    {
+     "id": "haqqinda",
+     "gloss": "HAQQINDA"
+    },
+    {
+     "id": "etrafli",
+     "gloss": "ƏTRAFLİ"
+    },
+    {
+     "id": "informasiya",
+     "gloss": "İNFORMASİYA"
+    },
+    {
+     "id": "verin",
+     "gloss": "VERİN"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "BU",
+    "İŞLƏMƏK",
+    "HAQQINDA",
+    "ƏTRAFLİ",
+    "İNFORMASİYA",
+    "VERİN"
+   ],
+   "text": "Mən bu iş haqqında ətrafli verin",
+   "reference": "Mənə bu iş haqqında ətraflı məlumat verin"
+  },
+  {
+   "id": "s19",
+   "dir": "s2t",
+   "source": "AzSLD test 410",
+   "signs": [
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "o",
+     "gloss": "O"
+    },
+    {
+     "id": "yazdiqlari",
+     "gloss": "YAZDİQLARI"
+    }
+   ],
+   "recognized": [
+    "MƏN",
+    "O",
+    "YAZDİQLARI",
+    "RAZI"
+   ],
+   "text": "Mən o yazdiqları razıyam",
+   "reference": "Mən onun yazdıqları ilə razı deyiləm"
+  },
+  {
+   "id": "s20",
+   "dir": "s2t",
+   "source": "AzSLD test 423",
+   "signs": [
+    {
+     "id": "xahis",
+     "gloss": "XAHİŞ"
+    },
+    {
+     "id": "etmek",
+     "gloss": "ETMƏK"
+    },
+    {
+     "id": "men",
+     "gloss": "MƏN"
+    },
+    {
+     "id": "bu",
+     "gloss": "BU"
+    },
+    {
+     "id": "metn",
+     "gloss": "MƏTN"
+    },
+    {
+     "id": "tercume",
+     "gloss": "TƏRCÜMƏ"
+    },
+    {
+     "id": "etmek",
+     "gloss": "ETMƏK"
+    }
+   ],
+   "recognized": [
+    "XAHİŞ",
+    "ETMƏK",
+    "MƏN",
+    "BU",
+    "MƏTN",
+    "TƏRCÜMƏ",
+    "ETMƏK"
+   ],
+   "text": "Xahiş etmək mən bu mətn tərcümə etmişəm",
+   "reference": "Xahiş edirəm, mənə bu şeiri tərcümə edin"
+  }
+ ]
+}

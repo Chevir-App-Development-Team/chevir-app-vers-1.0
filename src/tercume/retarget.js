@@ -116,6 +116,9 @@ export function measureRig(humanoid, side) {
     u0, f0,
     h0: vec().crossVectors(u0, vec(0, 0, 1)).normalize(),  // dirsək menteşəsi (önə bükülür)
     d0, s0, n0,
+    // Ovucun normalı oynaqların xəttindən (şəhadət→çeçələ kökü), MediaPipe-in landmark-larla tapdığı kimi. T-pozada
+    // anime avatarın oynaq xətti üfüqi deyil: n0-dan 10–12° fərqlənir (E37), əl bu qədər burulmuş görünürdü
+    nk0: (() => { const k = vec().crossVectors(d0, s0).normalize(); return k.dot(n0) < 0 ? k.negate() : k; })(),
     // ovuc normalı = chir · (barmaq istiqaməti × çeçələ→şəhadət); sol/sağ əldə işarə tərsdir
     chir: Math.sign(vec().crossVectors(d0, s0).dot(n0)) || 1,
     fingers,
@@ -128,11 +131,11 @@ export function measureRig(humanoid, side) {
 
 /* ───────────────────────── əl hədəfi ───────────────────────── */
 
-function palmFrame(rig, P) {
+function palmFrame(rig, P, knuckles = false) {
   const d = P[9].clone().sub(P[0]).normalize();
   const s = P[5].clone().sub(P[17]).normalize();
   const n = vec().crossVectors(d, s).multiplyScalar(rig.chir).normalize();
-  const R = frameRotation(rig.d0, rig.n0, d, n);
+  const R = frameRotation(rig.d0, knuckles ? rig.nk0 : rig.n0, d, n);
   return { d, s, n, R, Rinv: R.clone().invert() };
 }
 
@@ -148,17 +151,20 @@ function palmFrame(rig, P) {
  * İkisi arasındakı fərq bəzi hərflərdə 30°-yə çatır (ölçülüb).
  */
 export function handTarget(rig, { world, norm, size, mirror = false, flipDepth = false,
-                                  flipNorm = flipDepth, flipWorld = flipDepth }) {
+                                  flipNorm = flipDepth, flipWorld = flipDepth, zScale = 1, knuckles = false }) {
   const sx = mirror ? -1 : 1;
   // Dərinliyin güzgülənməsi şəkil və metrik landmark-larda fərqli ola bilər (ölçülüb:
   // kadrların ¼-ində iki mənbə əlin tərəfini fərqli göstərir), ona görə ayrıca verilir.
   const szP = flipNorm ? 1 : -1;
   const szW = flipWorld ? 1 : -1;
   const a = size ? size[0] / size[1] : 1;
-  const P = norm.map((p) => vec(sx * p.x * a, -p.y, szP * p.z * a));
-  const view = palmFrame(rig, P);
+  // zScale: MediaPipe şəkil z-i x-dən təxminən 2.2 dəfə sıxılmış verir (E34: 0.46) — oriyentasiya şəkil müstəvisinə
+  // yatırdı (E37); söz işarələri bunu düzəldir (VrmAvatar.wordDepth)
+  const P = norm.map((p) => vec(sx * p.x * a, -p.y, szP * p.z * a * zScale));
+  // knuckles: hədəf avatarın oynaq xəttini landmark-ların oynaq xəttinə gətirir (rig.nk0), söz işarələri (E37)
+  const view = palmFrame(rig, P, knuckles);
   const shape = world ? world.map(([x, y, z]) => vec(sx * x, -y, szW * z)) : P;
-  const shapeFrame = world ? palmFrame(rig, shape) : view;
+  const shapeFrame = world ? palmFrame(rig, shape, knuckles) : view;
   return { ...view, P, shape, shapeRinv: shapeFrame.Rinv };
 }
 
@@ -221,6 +227,19 @@ export function frameSource(pose, frame, side, landmarks = pose?.frames?.[frame]
 
 /* ───────────────────────── qol ───────────────────────── */
 
+/**
+ * Söz işarəsində dirsəyin "qanad" kimi qalxması və çölə açılması (E28): iştirakçının dirsəyindən (və təbii həddən,
+ * çiyindən 17 sm aşağı, 9 sm çölə) yuxarı və çölə hər sm baha. İştirakçı dirsəyi həqiqətən qaldırırsa (başın üstündə
+ * işarə), hədd onunla birlikdə qalxır. rE — dirsək çiyinə nisbətən, elbow — iştirakçının dirsəyi (dünya).
+ */
+export const RAISE = { y: -0.17, x: 0.09, slack: 0.03, w: 600 };
+export function elbowRaise(rig, rE, elbow) {
+  const dy = elbow.y - rig.S.y, dx = (elbow.x - rig.S.x) * rig.out;
+  const up = Math.max(0, rE.y - Math.max(RAISE.y, dy + RAISE.slack));
+  const out = Math.max(0, rE.x * rig.out - Math.max(RAISE.x, dx + RAISE.slack));
+  return RAISE.w * (up * up + out * out);
+}
+
 export function evalArm(rig, R, T, swivel, elbow = null, avoid = null, cutoff = Infinity) {
   const toT = T.clone().sub(rig.S);
   const dist = toT.length();
@@ -270,7 +289,8 @@ export function evalArm(rig, R, T, swivel, elbow = null, avoid = null, cutoff = 
   const zone = elbow
     ? 40 * over(rE.y, -0.34, 0.04) ** 2 +
       40 * over(rE.x * rig.out, -0.05, 0.30) ** 2 +
-      30 * over(rE.z, -0.10, 0.26) ** 2
+      30 * over(rE.z, -0.10, 0.26) ** 2 +
+      elbowRaise(rig, rE, elbow)
     : 40 * over(rE.y, -0.30, -0.08) ** 2 +          // dirsək çiyindən aşağıda, "qanad" kimi qalxmasın
       40 * over(rE.x * rig.out, -0.02, 0.20) ** 2 + // bədənin içinə girməsin, "qanad" açılmasın
       20 * over(rE.z, -0.14, 0.20) ** 2;

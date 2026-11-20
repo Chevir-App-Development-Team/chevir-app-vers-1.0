@@ -55,6 +55,11 @@ DEFAULTS = dict(epochs=60, batch=64, lr=1e-3, weight_decay=0.05, warmup=3, label
                 select='words',         # checkpoint on val Words_200 macro-F1; 'open': val open-set accuracy
                 save_epoch=None,        # keep this epoch's weights, no val choice (a final model on train + val signers)
                 side=True,              # train on the side-camera samples too, if they were loaded
+                init=None,              # checkpoint whose layers start this model (pretraining, R2); head rows of shared labels
+                ema=0.0,                # decay of an exponential moving average of the weights, scored and saved
+                                        # instead of the raw weights (0 = off; 0.999 ≈ the last 1,000 steps)
+                source_weight=None,     # {sample id prefix: factor}, e.g. {'slovo': 0.3}: another source's signs are
+                                        # drawn less often, so their classes do not draw predictions (E27)
                 fold=None, split_id=None)
 
 
@@ -74,7 +79,12 @@ class Bank:
         self.n += T
 
     def done(self):
-        self.data = {k: np.concatenate(v) if v else np.zeros((0,), np.float16) for k, v in self.chunks.items()}
+        # field by field, each field's chunks freed after it is joined: peak memory = the data + one field
+        self.data = {}
+        for k in list(self.chunks):
+            v = self.chunks.pop(k)
+            self.data[k] = np.concatenate(v) if v else np.zeros((0,), np.float16)
+            del v
         self.chunks = None
         self.labels = np.array([r[2] for r in self.rows], np.int64)
         self.ids = [r[6] for r in self.rows]
@@ -108,6 +118,30 @@ class Bank:
     def raw(self, i):
         off, T, label, aspect, lo, hi, _ = self.rows[i]
         return {k: self.data[k][off:off + T] for k in KEYS}, label, aspect, (lo, hi)
+
+    def to_disk(self, path):
+        """Arrays → .npy files, opened again memory-mapped: DataLoader workers on Windows (spawn) get the file
+        paths instead of a pickled copy, and the OS shares the pages between them."""
+        os.makedirs(path, exist_ok=True)
+        for k, v in self.data.items():
+            np.save(os.path.join(path, f'{k}.npy'), np.ascontiguousarray(v))
+        self._disk = path
+        self._open()
+        return self
+
+    def _open(self):
+        self.data = {k: np.load(os.path.join(self._disk, f'{k}.npy'), mmap_mode='r') for k in KEYS}
+
+    def __getstate__(self):
+        st = self.__dict__.copy()
+        if st.get('_disk'):
+            st['data'] = None
+        return st
+
+    def __setstate__(self, st):
+        self.__dict__.update(st)
+        if st.get('_disk'):
+            self._open()
 
 
 def ambiguous_oov(glosses, vocab_words, prefix=4):
@@ -352,6 +386,8 @@ def scores(logits: np.ndarray, y: np.ndarray) -> dict:
 @torch.no_grad()
 def predict(model, bank, device, batch=128, workers=2, tta=False, groups=None, face=True):
     model.eval()
+    if workers and os.name == 'nt' and not getattr(bank, '_disk', None):
+        workers = 0          # Windows spawns workers with a pickled copy of the bank: a big one fails (truncated pickle)
     outs = []
     for flip in ([False, True] if tta else [False]):
         dl = torch.utils.data.DataLoader(SignDataset(bank, flip=flip, groups=groups, face=face), batch_size=batch, shuffle=False,
@@ -372,6 +408,22 @@ def reads_face(groups) -> bool:
 
 # ---------------------------------------------------------------- training
 
+def init_body(model, ckpt_path, vocab_list, log=print):
+    """Start from another checkpoint (a pretrained encoder, R2): every layer of the same shape, and the head's
+    row of each label both share."""
+    ck = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    state, old = ck['model'], {g: i for i, g in enumerate(ck['vocab'])}
+    own = model.state_dict()
+    body = {k: v for k, v in state.items() if not k.startswith('head.') and k in own and own[k].shape == v.shape}
+    model.load_state_dict(body, strict=False)
+    shared = [(i, old[g]) for i, g in enumerate(vocab_list) if g in old]
+    with torch.no_grad():
+        for i, j in shared:
+            model.head.weight[i] = state['head.weight'][j].to(model.head.weight.device)
+            model.head.bias[i] = state['head.bias'][j].to(model.head.bias.device)
+    log(f'init from {ckpt_path}: {len(body)} of {len(own)} tensors, head rows for {len(shared)} of {len(vocab_list)} labels')
+
+
 def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     """signs/words: dict split → Bank. Writes history.csv, best.pt, metrics.json, … to out_dir."""
     cfg = {**DEFAULTS, **cfg}
@@ -388,9 +440,13 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
     unk = vocab_list.index(UNKNOWN) if UNKNOWN in vocab_list else None
     if unk is not None:
         weights[tr.labels == unk] *= cfg['unknown']          # 0: this run learns the known words only
+    for prefix, w in (cfg['source_weight'] or {}).items():
+        weights[np.array([str(i).startswith(prefix + '|') for i in tr.ids])] *= w
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights), num_samples=len(tr), replacement=True)
     cols, groups = FT.columns(cfg['groups']), cfg['groups']
     face = cfg['face_drop'] < 1.0                             # trained with no face at all → scored without it too
+    if cfg['workers'] > 0 and os.name == 'nt' and not getattr(tr, '_disk', None):
+        tr.to_disk(os.path.join(out_dir, '_train_bank'))      # spawned workers share it memory-mapped
     dl = torch.utils.data.DataLoader(SignDataset(tr, train=True, groups=groups, face_drop=cfg['face_drop']),
                                      batch_size=cfg['batch'], sampler=sampler,
                                      num_workers=cfg['workers'], collate_fn=collate, drop_last=True,
@@ -400,18 +456,25 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
                                ('val_side', signs.get('val_side'))) if b is not None and len(b)}
     # the 200 words (the classes of Words_200): with a bigger vocabulary, sentence-cut scores on them alone
     # stay comparable with the 200-word runs
-    core = np.unique(np.concatenate([b.labels for b in words.values() if b is not None and len(b)]))
-    core = core if len(core) < C - (unk is not None) else None
+    wl = [b.labels for b in words.values() if b is not None and len(b)]
+    core = np.unique(np.concatenate(wl)) if wl else None
+    core = core if core is not None and len(core) < C - (unk is not None) else None
     major = int(np.bincount(tr.labels[tr.labels != unk] if unk is not None else tr.labels, minlength=C).argmax())
 
     model = Net(len(cols), C, cfg['dim'], cfg['stages'], cfg['convs'], cfg['kernel'], cfg['heads'],
                 cfg['drop'], cfg['head_drop']).to(device)
+    if cfg.get('init'):
+        init_body(model, cfg['init'], vocab_list, log)
     n_params = sum(p.numel() for p in model.parameters())
     opt = torch.optim.AdamW(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     steps, warm = cfg['epochs'] * len(dl), max(1, cfg['warmup'] * len(dl))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm) * 0.5 * (
         1 + math.cos(math.pi * min(1.0, max(0, s - warm) / max(1, steps - warm)))))
     scaler = torch.amp.GradScaler(enabled=device.type == 'cuda')
+    ema = None
+    if cfg.get('ema'):
+        ema = torch.optim.swa_utils.AveragedModel(
+            model, multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(cfg['ema']), use_buffers=True)
 
     log(f'{device} | {n_params / 1e6:.2f} M params | {len(cols)} features | {len(tr)} train signs | {C} classes | '
         f'{len(dl)} steps/epoch | majority class "{vocab_list[major]}"' +
@@ -435,10 +498,13 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
             scaler.step(opt)
             scaler.update()
             sched.step()
+            if ema is not None:
+                ema.update_parameters(model)
             tl, tc, tn = tl + loss.item() * len(y), tc + int((logits.argmax(1) == y).sum()), tn + len(y)
         row = {'epoch': ep, 'lr': opt.param_groups[0]['lr'], 'train_loss': tl / tn, 'train_acc': tc / tn}
+        net = ema.module if ema is not None else model        # the weights scored and saved
         for k, b in evals.items():
-            p = predict(model, b, device, workers=min(2, cfg['workers']), groups=groups, face=face)
+            p = predict(net, b, device, workers=min(2, cfg['workers']), groups=groups, face=face)
             if k == 'val_unk':
                 row['val_unk_rejected'] = float((p.argmax(1) == unk).mean())
                 continue
@@ -463,7 +529,7 @@ def fit(cfg, signs, words, vocab_list, out_dir, log=print):
         row['best'] = row.get(key, 0) > best if not cfg['save_epoch'] else ep == cfg['save_epoch']
         if row['best']:
             best, best_ep = row.get(key, 0), ep
-            torch.save({'model': model.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep,
+            torch.save({'model': net.state_dict(), 'cfg': cfg, 'vocab': vocab_list, 'epoch': ep,
                         'feature_version': FT.FEATURE_VERSION}, os.path.join(out_dir, 'best.pt'))
         history.append(row)
         with open(hist_path, 'w', newline='') as f:

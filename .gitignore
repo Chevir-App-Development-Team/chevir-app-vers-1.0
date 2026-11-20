@@ -4,6 +4,7 @@ dist/
 dist-ssr/
 .vercel/
 *.local
+.cert/
 .env
 .env.*
 !.env.example

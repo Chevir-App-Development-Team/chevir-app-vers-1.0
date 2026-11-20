@@ -2316,3 +2316,1542 @@ signs (Pəncərəni açdım → MƏN PƏNCƏRƏ AÇMAQ OLMAQ). "ali" joins xanı
 The web text figure is lower than the 63.0 % above because the false matches no longer count. The small F1 loss
 comes from right signs that the AzSLD signers did not use: MAVİ (they signed GÖY), DƏRƏCƏ (QRUP), SAHİL and
 ƏDƏBİYYAT (spelled), MOBİL TELEFON and TANIŞ OLMAQ as one sign (two in AzSLD). All gates pass; the thresholds stay.
+
+## E25 — Phase 0 tools: native review page, recording page, set C, whole numbers, grammar on the face (no training)
+
+**Review page `/rey/`** (roadmap V2, set D; `rey/index.html`, `src/rey/main.js`, items from `tools/build_review_items.mjs`
+→ `public/rey/items.json`). 70 items per release: 50 text → sign (the interview's 13 avatar sentences, 20 AzSLD test
+sentences, 17 from set C's dev half) and 20 sign → text (one recording per AzSLD test sentence: the avatar replays the
+participants' signs, below it the text gloss2text builds from what the sentence model recognized in that recording,
+with that sentence left out of gloss2text's counts). Text → sign: the reviewer first writes what the avatar said
+without seeing the text, then sees it and rates comprehension and naturalness 1–5. Sign → text: meaning and language
+1–5, an optional corrected text. A reviewer code instead of a name; answers stay in the browser (per release and
+code) and are downloaded as CSV; `tools/review_summary.mjs` averages several files by direction and source, shows
+agreement between reviewers and the lowest-rated items. No videos of people on the page (the repo is public).
+
+**Recording page `/qeyd/`** (D4; `qeyd/index.html`, `src/qeyd/main.js`, prompts from `tools/build_record_prompts.mjs`
+→ `public/qeyd/prompts.json`): a consent text (what is kept, who gets it, that models trained on it ship but videos and
+names do not, withdrawal), a participant code, main hand, front or back camera, video on or off. Each take: 3-2-1
+countdown, MediaPipe hands + pose + face on the device (the recognizer's `landmarks.js`), MediaRecorder video, both in
+IndexedDB; quality line (body, hands, face seen; frame rate, with a note that a slow device's points are re-extracted
+from the video later); ZIP export (stored, no library: consent, per take a `chevir-qeyd-1` landmark JSON in
+`LandmarkClip.toRaw` layout and the video). 201 prompts: 28 numbers still without a sign of their own (0, 7, 9, 13,
+16–20, tens, hundreds, thousands, years, time, a phone number, money, ordinals), 15 everyday words of the interview
+list still without a sign after JestDili.az, the direction sign DOĞRU, 7 places, and set C's 150 sentences. Checked
+end to end in headless Chrome with a fake camera fed from a JestDili.az clip (consent, take, ZIP with consent, JSON
+and video). On software rendering the landmarks come at ~3 frames/s, hence the frame-rate note.
+
+**Set C draft** (V1; `ml/setc/sentences.txt` → `tools/build_setc.mjs` → `ml/setc/setc.csv`): 150 sentences written
+for the product's domains (social services / DOST and ASAN 40, health 35, bank and money 30, daily life 45), first and
+second person, questions, negation, tenses, numbers and names. A first try picked web sentences (HPLT) by domain
+keywords: they read as news ("Offşorlarda qeydiyyatdan keçən şirkətlərin pulu…") and the keywords were loose
+("hesab edirəm", "növbəti"), so it was dropped. Within each domain alternately dev / test (76 / 74). Tags from our own
+analysis: dropped subject 40, wh-question 27, yes/no question 22, past 21, negation 14, numbers 11, future 8, -malı 7.
+Three sentences that were word-level near copies of AzSLD sentences were replaced. A draft for the team and the native
+users to edit; frozen once recorded.
+
+**Whole numbers** (N7, `WordLexicon #number`): with JestDili.az's number signs (YEDDİ, DOQQUZ, the tens from ON to DOXSAN
+except İYİRMİ, YÜZ, MİN, MİLYON) a number without a sign of its own is signed in the spoken parts when every part has
+a sign: 1990 → MİN DOQQUZ YÜZ DOXSAN, 35 → 30 5, 99 → DOXSAN DOQQUZ, 300 → 3 YÜZ; 7 and 9 now have signs. Otherwise
+digit by digit as before (25 → 2 5: no İYİRMİ; long numbers and leading zeros). The native user said every number has
+its own systematic sign, so this stays a stopgap until the numbers are recorded (/qeyd/).
+
+**Grammar on the face** (N6; `t2s.js grammar()`, `VrmAvatar.setGrammar`): every step of a question sentence carries
+its type: a question word (nə, harada, necə, neçə, kim, hansı, …) → brows down and the head slightly tilted, otherwise
+a yes/no question → brows up and the head slightly forward; the face is held 0.45 s after the question ends.
+Negation (the added YOX, the YOX sign, DEYİL) shakes the head (±10°, 2.2 Hz), from the negated verb on. Layered on
+each sign's own face (max) and head motion. "Gəldim. Gəlmədin?" → MƏN GƏLMƏK OLMAQ | SƏN GƏLMƏK~ YOX~ OLMAQ, the
+second sentence with raised brows. Cases in `tools/verify_words.mjs`; to be judged by native users on /rey/.
+
+## E26 — All signers, a first test outside AzSLD (JestDili.az), sign → text rules
+
+**Landmarks of JestDili.az** (`tools/extract_jestdili.py`, the Kaggle extraction's code and md5-pinned models, run on
+this PC with 22 processes, ~110 frames/s): 2,765 word clips (one file unreadable) and the 500 sentence videos, with the
+sentences' Azerbaijani text. Stores in `D:/chevir/landmarks/` (outside the repo). The AzSLD landmark stores came down
+from the Kaggle notebook outputs (01, 02 ×4, 02c1 ×4, 03: 10,189 front and 9,571 side recordings), checked complete;
+the downloaded splits equal `ml/splits/`.
+
+**Local training** (`ml/run_local.py`): runs a notebook's code cells as they are, with the downloaded outputs as input
+and the GPU of this PC (RTX 4070 Laptop, CUDA PyTorch in a Python 3.12 venv on D:, pandas < 3 like Kaggle). On Windows
+the DataLoader spawns its workers, which would each get a pickled copy of the 4–5 GB training bank; the banks now go
+to `.npy` files once and are opened memory-mapped (`SeqBank.to_disk`, `Bank.to_disk`), so 6 workers share them:
+an epoch of the sentence model 170 s → 52 s (GPU 13 % busy before).
+
+**The current models on a new person** (`ml/eval_jestdili.py`, `tools/score_jestdili.mjs`). The JestDili.az person
+signs standing in a studio, filmed at 1080p; nobody like that is in AzSLD.
+- Word model (run 11), 340 clips of words in its vocabulary: top-1 0.374, top-5 0.568 (AzSLD test signers ~0.86).
+  Part of the misses are forms of the same word, which the word model keeps apart (ALMAQ ↔ ALMALIYAM, AZ ↔ AZDIR,
+  AY ↔ BU AY), part may be other signs for the same word.
+- Sentence model (final_merged), 500 natively signed sentences, no glosses: the recognized signs and the text are
+  compared by morph.js root, order ignored. 3.7 signs per sentence; 60 % of them are in the text (the added subject
+  pronoun counts as wrong); 73 % of the text's words that the model knows are found (81 % of the words); F1 0.658.
+  Sign → text (gloss2text on the recognized signs): word error rate 66.7 % (AzSLD recognized new sentences: 51.8 %).
+
+**Trained on all AzSLD signers** (`TRAIN_ON_ALL`, notebooks 04 v13 and 06 v16 on Kaggle, the recipes of the installed
+models): the test signers' recordings become training data; their "test" scores are then seen data (04: 0.878 top-1,
+06: F1 0.975) and only show that the run worked. The fair check is the JestDili.az person:
+
+| | before | all signers |
+|---|---|---|
+| word model, top-1 / top-5 | 0.374 / 0.568 | **0.400** / 0.568 |
+| sentence model: precision / recall / F1 | 0.601 / 0.727 / 0.658 | 0.604 / **0.743** / **0.666** |
+| sign → text WER (same gloss2text) | 66.7 % | **66.0 %** |
+
+Both installed (word model run 13 `final_all_words`, sentence model `final_all`); the JS ports reproduce PyTorch
+(word model max logit difference 3e-6), `verify_cont_model`, `verify_continuous` and the gates pass. The word model's
+word-mode settings are run 11's (same recipe, chosen on val), with no test score in the manifest.
+
+**Sign → text rules** (gloss2text, from the JestDili.az errors; every change measured on AzSLD dev / test, recognized
+new sentences, and JestDili.az; word error rates):
+
+| | dev | test | recognized new | JestDili.az |
+|---|---|---|---|---|
+| before | 48.5 | 49.3 | 51.8 | 66.0 |
+| a sign is dropped only if seen ≥ 3 times and wordless > 70 % (`DROP`; was: seen once, > 50 %) | 47.5 | 48.9 | 50.9 | 66.2 |
+| have-sentences (pronoun + (number) + noun + VAR / YOX → possessive), noun + LAZIM → dative + lazımdır | 46.9 | 47.6 | 50.4 | 65.6 |
+| second pronoun's case from the verb (GOVERN: dative / accusative), light verb before modals (kömək edə bilərəm), kinship nouns after a pronoun are possessive, ONLAR's possessive is III person | 46.7 | 47.2 | 50.3 | 65.5 |
+| stem vowel elision before vowel suffixes (oğul → oğlum, ağız → ağzı, şəkil → şəkli; inflect.js `ELIDE`) | **46.5** | **47.2** | **50.1** | **65.3** |
+
+The drop threshold was chosen on dev (other settings: 2/0.5 → 47.8, 5/0.7 → 47.6, never → 47.6); the old rule dropped
+signs whose AzSLD text did not align (ƏLİL 13/14, VERMƏK 7/13, ÖDƏMƏK, GƏTİRMƏK), so "MƏN SU VERMƏK BİLMƏK" lost the
+verb ("Mən su bilərəm" → "Mən su verə bilərəm"). Gates raised: s2t dev ≤ 47.9, test ≤ 48.6. Cases in
+`tools/verify_gloss_text.mjs`.
+
+## E27 — Training on this PC, more data, sign → text grammar
+
+**Local baseline** (`ml/run_local.py 06`, the v5 protocol: train signers only, held-out sentences left out, epoch and
+decoding chosen on val unseen sentences, learnable words): `seq_splice_local`, best epoch 53, 69 minutes on the RTX
+4070 Laptop. Test F1 0.899 (WER 0.134), test unseen sentences 0.651, unseen learnable 0.805, val unseen learnable
+0.788, in line with Kaggle's v5 `seq_splice`. On the JestDili.az sentences: F1 0.625, sign → text WER 69.6 %
+(the all-signer model in the app: 0.666 / 66.0 %, so more signers help with a new person).
+
+**JestDili.az signs as training data** (`JESTDILI = True`: the person's 331 isolated clips of vocabulary words, blank
+outside the active span, its label inside). Same protocol and seed:
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | JestDili.az F1 / WER |
+|---|---|---|---|---|---|
+| baseline | 0.788 | **0.899** | **0.651** | **0.805** | **0.625** / **69.6 %** |
+| + JestDili.az clips | 0.827 | 0.895 | 0.641 | 0.789 | 0.613 / 71.3 % (same decoding) |
+
+The val gain is the selection metric; every held-out number is lower, also on the person's own sentences. Isolated
+citation forms of one person do not teach the model continuous signing; not used.
+
+**Weight averaging** (`ema=0.999`: an exponential moving average of the weights, ≈ the last 1,000 steps, is scored and
+saved; option added to `continuous.fit` and `train.fit`, default off). Same protocol and seed:
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | JestDili.az F1 / WER |
+|---|---|---|---|---|---|---|
+| baseline | 0.788 | 0.899 | 0.651 | **0.805** | **0.865** | 0.625 / **68.7 %** |
+| EMA | **0.811** | **0.901** | **0.653** | 0.801 | 0.860 | **0.626** / 69.3 % (baseline decoding) |
+
+Ahead early (epoch 20: 0.62 against 0.55 per-epoch val), level at the end; the val gain does not reach test. Not
+adopted. (JestDili.az WERs here use the E27 gloss2text, so the baseline's 69.6 % became 68.7 %.)
+
+**Spliced sentences in corpus word order** (roadmap R1; `corpus=0.5`: half of the spliced sentences take 2–6
+consecutive signs of a corpus sentence instead of random signs; 60,198 sign sequences from E18's pseudo-glosses of
+HPLT, fingerspelled runs removed, `tools/corpus_sign_seqs.mjs`; notebook 06 `CORPUS`):
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | test side | JestDili.az F1 / WER |
+|---|---|---|---|---|---|---|---|
+| baseline | 0.788 | 0.899 | **0.651** | **0.805** | 0.865 | 0.864 | 0.625 / 68.2 % |
+| corpus order | **0.819** | **0.900** | 0.642 | 0.800 | **0.871** | **0.869** | **0.627** / **67.2 %** (baseline decoding) |
+
+(Sign → text WER now with the latest gloss2text.) Again the val gain mostly does not reach AzSLD's unseen test
+sentences; the new person improves a little. The final all-signer model with it (`final_all_corpus`: the installed
+model's recipe, `TRAIN_ON_ALL`, `corpus=0.5`) on all 500 JestDili.az sentences: F1 0.663, WER 64.2 %, against the
+installed model's 0.666 / 62.3 % (the WER favours the installed model a little: some gloss2text rules came from its
+JestDili.az output). Not installed.
+
+**JestDili.az signs in the word model** (`final_all_words_jd`: the installed word model's recipe, run 13, plus the
+person's clips of half of the vocabulary words; the other half, by label md5, stays out: `JESTDILI_HOLDOUT = 0.5`).
+On the 172 held-out clips (150 words):
+
+| | top-1 | top-5 |
+|---|---|---|
+| installed (run 13) | 0.378 | 0.564 |
+| + JestDili.az clips | 0.390 | 0.593 |
+
+Clip by clip, top-1 is right for 12 clips only with the installed model and for 14 only with the new one (top-5: 8
+and 13): not a clear gain. Installed model unchanged. (Testing a word model on this PC crashed on Windows: a large
+test bank was pickled into each DataLoader worker. `train.predict` now reads such banks in the main process.)
+
+**Slovo (roadmap D3, R2).** 20,400 clips (1,000 signs + "no_event", 194 people) through our landmark pipeline
+(`tools/extract_slovo.py`, 2.7 h with 14 processes; 329 clips failed when RAM ran out and were redone). A draft map
+of shared signs, `ml/slovo_azsld.csv`: 172 Russian glosses with an AzSLD word-model label of the same meaning (167
+labels; numbers, pronouns, time words, family, common verbs and adjectives). It is not confirmed by a native user.
+Pretraining (`ml/pretrain_slovo.py --map`): the word model's network on Slovo, mapped signs under their AzSLD label,
+Slovo's own split (new people in val), 40 epochs in 10 minutes: val top-1 0.744, macro-F1 0.734 (996 classes;
+train 0.985).
+
+A check of the map without any AzSL training: the pretrained model alone on JestDili.az's clips of mapped words
+(128 clips): top-1 0.203, top-5 0.383 among 996 classes. Right on 26 words (ANA, AİLƏ, BİLMƏK, BƏLİ, EV, GÖZ, SU,
+YEMƏK, İÇMƏK, ŞƏNBƏ, …); several misses are the RSL sign of a related word (UŞAQ → детский, QIZ → дочь, BÜTÜN →
+целый, BİZ → нас, İŞLƏMƏK → делать). So many AzSL signs are recognizable from Russian signers alone.
+
+The word model from the pretrained weights (`slovo_init_s1`: run 10a's recipe, train signers only, `init=` the
+Slovo checkpoint: every layer, and the head rows of the 167 mapped labels):
+
+| | test words top-1 | test signs top-1 | test signs macro-F1 | test side macro-F1 | test open acc | JestDili.az top-1 / top-5 (340 clips) |
+|---|---|---|---|---|---|---|
+| 10a (Kaggle, seeds 1 / 2) | 0.839 / 0.858 | 0.850 / 0.851 | 0.815 / 0.812 | 0.756 / 0.755 | 0.848 / 0.849 | |
+| run 11 (10a's recipe, train + val signers) | | | | | | 0.374 / 0.568 |
+| run 13 (installed: all signers) | | | | | | 0.400 / 0.568 |
+| Slovo init | 0.840 | 0.849 | 0.815 | 0.751 | 0.847 | 0.385 / 0.556 |
+
+Ahead early (epoch 25: signs macro-F1 0.797 against 10a's 0.778 at epoch 20), level at the end, on AzSLD's test
+signers and on the new person. Initialization alone does not carry Slovo's 194 people into the model.
+
+**Slovo clips as training signs** (`slovo_clips_s1`: 10a's recipe, notebook 04 `SLOVO = 'slovo_azsld.csv'`: 3,438
+Slovo clips of the 167 mapped words join the train signers' 65,939 signs). AzSLD test level with 10a (words top-1
+0.851, words macro-F1 0.855, signs macro-F1 0.817, side macro-F1 0.759, open 0.847). On JestDili.az, by whether the
+word is in the map:
+
+| JestDili.az top-1 / top-5 | mapped words (128 clips) | other words (212) | all (340) |
+|---|---|---|---|
+| run 11 (train + val signers) | 0.422 / 0.641 | 0.344 / 0.524 | 0.374 / 0.568 |
+| run 13 (installed: all signers) | 0.453 / 0.633 | 0.368 / 0.528 | 0.400 / 0.568 |
+| Slovo init (train signers) | 0.438 / 0.609 | 0.354 / 0.524 | 0.385 / 0.556 |
+| Slovo clips (train signers) | **0.531** / **0.727** | 0.321 / 0.481 | **0.400** / **0.574** |
+
+Slovo's 194 people make the mapped words +8 to +11 points top-1 for the new person (against run 13: right only with
+Slovo clips on 19 mapped clips, only with run 13 on 9), so the draft map is mostly right. The other words lose: the
+mapped classes now have many more samples (the sampler weights count^-0.5, so a class's share grows with its count)
+and draw predictions. Not installed: the map is unconfirmed, and the next run weighs the Slovo clips down
+(`train.fit(source_weight={'slovo': w})`: those samples are drawn w times as often).
+
+With `source_weight={'slovo': 0.3}` (`slovo_w03_s1`): mapped 0.523 / 0.734, other 0.297 / 0.500, all 0.382 / 0.588;
+AzSLD test words top-1 0.862, signs macro-F1 0.813. The other words do not recover: it is not the sampling. Their
+wrong answers go to a mapped label more often with Slovo clips (51 % and 48 % of them, against 34 % with Slovo init
+and 40 % for run 13): Slovo's 194 people widen the mapped classes, and some mapped RSL signs may not be AzSL's.
+
+**The map, sign by sign** (`ml/slovo_map_check.py`): the Slovo-only model on AzSLD's Words_200 clips of the mapped
+signs (cut from sentences; train split only, so the test signers and JestDili.az stay out of the decision): 76
+mapped signs, 3,806 clips. Recognized well: ANA, AD, KÖMƏK (top-5 1.00), SOYUQ, UNUTMUŞAM, YEMƏK, İŞLƏMƏK, BİTMƏK,
+DÜNƏN, EV (≥ 0.84), and most family words, numbers and common verbs. Never in the top 5: GETMƏK, GƏLMƏK, SALAM,
+OXUMAQ, BALACA, YOL, ÖYRƏNMƏK, MƏNƏ, and pointing signs (MƏN 0.01 over 1,764 clips, BİZ, BU, BURDA, HAMI). Some
+AzSL signs come out as another, related RSL sign: UŞAQ → детский, HAVA → воздух, BİLMƏK → мочь, İSTƏMƏK → желание,
+LAZIM → нуждаться, SƏN → тебя, YEMƏK → ланч / прием пищи, GUN → днем, İNDİ → немедленный, BU → который. Map v2
+(`ml/slovo_azsld.csv`, column `basis`): the 14 unrecognized signs out (GETMƏK, MƏNƏ, GƏLMƏK, SALAM, OXUMAQ, BALACA,
+YOL, ÖYRƏNMƏK, MƏN, BİZ, HAMI, BURDA, ÇANTA, SAAT), the related RSL signs in (теперь, это, этот replaced): 168 rows,
+153 labels. v1 is commit 43e7042's file. This is evidence for the native review (D3), not a replacement for it.
+
+Slovo clips with map v2 (`slovo_v2_s1`, same recipe: 3,357 clips of 153 words). AzSLD test level (words top-1
+0.853, words macro-F1 0.861, signs macro-F1 0.816, side 0.754, open 0.850). JestDili.az (untouched by the map
+decisions), split by map v2's labels:
+
+| JestDili.az top-1 / top-5 | mapped (112 clips) | other (228) | all (340) |
+|---|---|---|---|
+| run 13 (installed: all signers) | 0.464 / 0.652 | 0.368 / 0.526 | 0.400 / 0.568 |
+| Slovo init (train signers) | 0.455 / 0.634 | 0.351 / 0.518 | 0.385 / 0.556 |
+| Slovo clips, map v1 | 0.554 / 0.759 | 0.325 / 0.482 | 0.400 / 0.574 |
+| Slovo clips, map v1, weight 0.3 | 0.554 / 0.768 | 0.298 / 0.500 | 0.382 / 0.588 |
+| Slovo clips, map v2 | **0.607** / **0.804** | 0.338 / 0.500 | **0.426** / **0.600** |
+
+With the train signers only, the best word model so far on the new person (against run 13, trained on all 27
+signers: top-1 right only here on 33 clips, only there on 24, p = 0.29; top-5 26 / 15, p = 0.12). The other words
+still lose a little (−0.03 top-1).
+
+**The installed word model's recipe with Slovo v2** (`final_all_words_slovo`: run 13, all 27 signers, saved at epoch
+59, plus the 3,357 Slovo clips; 97,507 signs):
+
+| JestDili.az top-1 / top-5 | mapped (112 clips) | other (228) | all (340) |
+|---|---|---|---|
+| run 13 (installed) | 0.464 / 0.652 | 0.368 / 0.526 | 0.400 / 0.568 |
+| run 13 + Slovo v2 | **0.598** / **0.777** | 0.351 / **0.539** | **0.432** / **0.618** |
+
+Clip by clip against run 13: top-5 right only here on 33 clips, only there on 16 (sign test p = 0.021); top-1 34
+against 23 (p = 0.19). The other words are now level. AzSLD test (seen by both) words top-1 0.897 against 0.878.
+It rests on the map (not yet confirmed by a native user) and on Slovo's licence, so it waited for the team's decision.
+
+**Installed (2026-11-11, approved by the team):** `final_all_words_slovo` as the browser's word model
+(`ml/make_manifest.py --install`). Word-mode settings kept from run 11 / 13 (`segment` in the manifest), with a
+`note` and `sources` entry for Slovo. The 12 `verify_*` scripts pass (`verify_recognizer`: the browser reproduces the
+PyTorch logits), gates pass. The previous model is kept outside git (D:/chevir/backup/word_model_before_slovo).
+Slovo's licence (`license/en_us.pdf` in its repository) is not a Creative Commons licence but a reworking of CC BY-SA
+4.0: commercial use allowed, attribution with a link to the licence, adapted material under the same or a
+BY-SA-compatible licence. Credited in the README's sources, in `docs/DATA.md` and in the manifest; whether trained
+weights count as adapted material stays open (the repo has no licence file).
+
+**Letters on all signers** (notebook 07 `TRAIN_ON_ALL`, the installed `final_hand` recipe: hand shape and movement,
+seed 1, saved at epoch 51; 3,411 letter signs of the sentences, 879 gaps, the fingerspelling photos and clips of
+every contributor): 60 epochs in 6 minutes. Nothing is left to test it on, and no other person's fingerspelling is
+in our data: not installed. JestDili.az's alphabet (32 letters, a photo or two each, another person) would be that
+test; it is not downloaded yet.
+
+**JestDili.az sentences without frame labels (CTC).** The person's 500 sentences have text but no glosses or sign
+boundaries. `tools/jestdili_sentence_glosses.mjs` turns the text into the sentence model's labels (text → sign path
+in AzSLD style, sign_merge; words with no sign or a sign the model does not know become `<unk>`); half of the
+sentences (md5 of the id) stay out for testing. The other 254 (933 signs) train through a CTC loss next to the
+frame loss (`continuous.fit(weak=)`: weight 0.3, a batch of 4 whole recordings every 4th step; notebook 06
+`JESTDILI_CTC`). `final_all_ctc` = the installed model's recipe (all signers) with it, scored on the 246 held-out
+sentences:
+
+| | precision | recall (known words) | F1 | sign → text WER |
+|---|---|---|---|---|
+| installed (final_all) | 0.605 | 0.736 | 0.664 | 60.9 % |
+| + CTC on 254 other sentences | 0.627 | 0.782 | **0.696** | **59.8 %** |
+
+Paired bootstrap over sentences (`tools/compare_jestdili.mjs`, 2,000 resamples): F1 difference 95 % interval [+0.012,
++0.053]; 82 sentences better, 53 worse. The first clear gain on the new person. (The WER favours the installed model:
+some gloss2text rules came from its JestDili.az output.) On AzSLD's test recordings, seen by both, F1 0.977 against
+0.979.
+
+Does it cost AzSLD's new sentences? The same CTC under the v5 protocol (`seq_splice_ctc`: train signers only,
+held-out sentences out, epoch and decoding chosen on val unseen learnable), against the local baseline:
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | test side | JestDili.az held-out F1 / WER |
+|---|---|---|---|---|---|---|---|
+| baseline | 0.788 | 0.899 | 0.650 | **0.804** | **0.865** | **0.864** | 0.619 / 68.1 % |
+| + CTC | **0.838** | **0.900** | **0.653** | 0.799 | 0.853 | 0.859 | **0.689** / **62.2 %** |
+
+Ahead from the first epochs on val (epoch 14: 0.687 against 0.540 per-epoch unseen learnable), level on test: as with
+EMA and corpus order, the val gain does not reach AzSLD's test sentences, and nothing there is lost beyond noise
+(letters −0.012). On the new person: F1 +0.070, 95 % interval [+0.045, +0.091], 108 sentences better, 39 worse.
+Leakage check: two of the 49 held-out AzSLD sentences have the text of a CTC training sentence ("Mən Bakıda
+yaşayıram", "Bu mənim atamdır"); test unseen learnable without them: 0.809 baseline, 0.799 CTC (they did not help).
+The decoding this run chose (min_p 0.4, min_len 8, gap 4) on `final_all_ctc`: F1 0.698 against 0.696, WER 60.7 %
+against 59.8 %; the installed decoding stays.
+
+**Installed:** `final_all_ctc500`, the same recipe with all 500 JestDili.az sentences (1,849 signs) in the CTC loss
+(`jestdili_sentence_glosses_all.json`, `--holdout 0`), 60 epochs on this PC. JestDili.az is now training data, so it
+has no new-person score of its own; the evidence is `final_all_ctc` (half held out) above. AzSLD test (seen) F1 0.975
+(was 0.979). `ml/install_continuous.py --install`: the 12 `verify_*` scripts pass (the browser port reproduces
+PyTorch), gates pass (s2t dev 42.0, test 44.1). The previous model is kept outside git (D:/chevir/backup).
+
+**Sign → text grammar** (gloss2text; each rule kept only if it did not hurt AzSLD dev (leave-one-out), test, the
+recognized new sentences and the JestDili.az sentences; sentence-by-sentence diffs with `eval_gloss_text.mjs --dump`).
+Word error rates:
+
+| | dev | test | recognized new | JestDili.az |
+|---|---|---|---|---|
+| E26 | 46.5 | 47.2 | 50.1 | 65.3 |
+| past tense after DÜNƏN / ƏVVƏL / ÖNCƏ / a year until İNDİ (`-ib`, I/II person `-mış`), year + İL → ordinal (1979-cu ildə) | 46.3 | 46.3 | 49.9 | |
+| nominal predicate gets the copula (Mən subayam, Bu mənim atamdır) unless the word already carries one; a final action noun gets "et-" (idman edirəm) | 46.1 | 45.9 | 49.7 | |
+| kin owner in have-sentences (Mənim anamın 67 yaşı var) | 46.0 | 45.4 | 49.7 | |
+| place case from the verb (yaşamaq, işləmək → -da; getmək, köçmək → -a), Azerbaijani place names as proper nouns | 45.7 | 45.0 | 49.5 | |
+| year + İL before a verb → ildə; ONLAR as possessor | 45.5 | 45.0 | 49.4 | |
+| have-sentences with adjuncts (Mənim evdə 2 pişiyim var, Mənim bir sualım var); the genitive they set is kept | 44.6 | 45.0 | 48.8 | |
+| bare number before counters (3 ədəd, 6 yaş), ablative before SONRA (6-dan sonra); numbers skipped when choosing the possessor | 44.3 | 45.0 | 48.6 | 64.2 |
+| XOŞU GƏLMƏK (Mənim xoşum gəlir; xoşuma when the liked thing comes first), possessive across VƏ, a sign recognized twice in a row is one word, İNDİ → present | 43.8 | 45.0 | 48.1 | 64.0 |
+| negation in the sign's name (BAŞA DÜŞMƏMƏK, GÖRMƏMƏK), kin across VƏ in have-sentences, no copula after a case-marked noun or a time word, no accusative in a verbless sentence (Sizin adınız nədir) | 43.4 | 45.0 | 47.8 | 63.8 |
+| a possessed thing's own state (Mənim ayağım ağrıyır, Mənim mobil telefonum işləmir), body parts possessive before such verbs, more kin words, III person perfect → -ib | 42.8 | 45.0 | 47.5 | 63.8 |
+| BİLMƏK / İSTƏMƏK with no subject → I person (AzSLD: 10 of 15 such sentences; Harda gözləyə bilərəm?); a genitive I/II pronoun before them becomes the subject unless a kin word or a name follows | 42.3 | 44.1 | 46.9 | 63.6 |
+| requests: MƏN + KÖMƏK / VERMƏK / DEMƏK / GÖSTƏRMƏK + BİLMƏK and no other pronoun or verb → Mənə ... bilərsinizmi? (AzSLD 3 / 3; JestDili.az "Mənə su verə bilərsən"); analysis fix: no verb root under 3 letters outside the short-verb list (KÖMƏK was read as kö-mək), the sign's own word is a root (browser model `gloss_text.json` rebuilt) | 42.0 | 44.1 | 46.5 | 63.1 |
+| xəbər / cavab take a dative object; a kin word's name or age (from the JestDili.az errors): MƏN QARDAŞ AD → Mənim qardaşımın adı | **42.0** | **44.1** | **46.5** | **62.3** |
+
+Tried and dropped: a separate verb-person table for sentences with no subject pronoun (AzSLD's subjectless
+sentences are 73 % III person: no change); body parts possessive before any verb (JestDili.az 63.8 → 64.1: "Mənim
+gözüm bilmir"); MÜƏLLİM as a kin word ("Mən müəllim işləyirəm"); the verb overriding a learned place case
+(evdə gəlmək → evə: no change). Gates: s2t dev ≤ 43.0, test ≤ 45.1. Cases in
+`tools/verify_gloss_text.mjs`.
+
+**Text → sign coverage** (set C's 150 draft sentences, words the avatar would spell letter by letter; set C is not
+used to choose rules, only counted):
+- 80 JestDili.az entries named several words ("xəstə, xəstəlik", "gün, gündüz, günorta", "banket (qonaqlıq,
+  ziyafət") matched none of them: the first word is now the text and the rest `alt`; a single word in brackets is
+  the sense ("dolu (təbiət hadisəsi)"). `build_jestdili_words.py --install` does it; index and 80 word files updated.
+- "da", "də", "isə" are dropped like ilə / idi / ki (AzSLD signers: da / də 0 of 2).
+- Set C words as signs 90.9 % → 92.4 %; AzSLD test 95.6 % → 96.4 % (gate ≥ 95.5), same-gloss F1 unchanged. What
+  is left is mostly words with no sign at all (yorğun, ürək, hesab, maaş, şikayət, bankomat, kommunal: D4).
+- Tried and dropped: derivation into JestDili.az words (açılır → AÇMAQ, xoşlayıram → XOŞ): 5 right matches in set C
+  and AzSLD, but in 20k HPLT sentences 1,386 new matches with many false ones (qarşı → QAR, adlı → AT, ərinin →
+  ƏRİMƏK, qəbilələri → QƏBİR); the inner lexicon keeps E24's own-forms rule.
+
+## E28 — Signing live, the avatar's elbow, a bigger vocabulary from Slovo (R4)
+
+**Signing live: `/danis/`** (from the team's test of the app: signing worked only in steps, sign, then lower the
+hands for the text to appear). A page that opens straight into signing: the sentence model and the trackers load,
+the camera starts (the browser asks once), and the person just signs. Text appears as captions over the video.
+- `SentenceStream.peek()` decodes the fixed frames plus the window's not yet fixed frames (the 24-frame lookahead)
+  without changing the stream: the sign being made shows at once in grey, and turns white when the Python-verified
+  rules make it final (~1 s later). On a JestDili.az video ("Mənim vaxtım yoxdur"): MƏN VAXT pending at frame 32,
+  MƏN final at 48, VAXT at 64, YOX at the end. `s2s.js onLive` sends final + pending words and the text built from
+  all of them (gloss2text; the AzSLD sentence's own text only when the signs are within distance 0.2 of it). The old
+  panel took the nearest AzSLD sentence within 0.34, which can show another sentence; on the recognized test recordings
+  (`eval_gloss_text.mjs --sweep`) WER for new sentences / known sentences is 50.3 % / 9.3 % at 0.34, 48.8 % / 14.5 % at
+  0.2, 48.8 % / 21.5 % at 0 (exact). People sign new sentences, so 0.2, in both the new page and the translator.
+- No need to lower the hands: two seconds without a new word moves the sentence into the conversation list. Hints
+  when the body is out of frame; `?video=<url>` runs a video through the same path (demo and test without a camera).
+- Linked from the translator's header ("Canlı danış"); `/danis` in vite and vercel redirects.
+
+**New default avatar file** (from the team, 2026-11-15): the same "Chevir Avatar" (VRM 1.0, same 54 humanoid bones,
+every bone in the same rest position 0.0 mm apart, same 18 expressions and 13 morph targets), 3.1 MB instead of
+5.5 MB: the duplicate sclera meshes are gone, 11 textures instead of 15. Installed as `public/tercume/assets/avatar.vrm`
+(old file kept outside git). Its VRM metadata (as in the old file) says `allowRedistribution: false`,
+`commercialUsage: personalNonProfit`, `modification: prohibited`; the README says the team's own model may be
+redistributed and used commercially, so the metadata should be updated by its author.
+
+**Avatar file, 2026-11-20** (from the team, "final 99, optimized"): the metadata now says `allowRedistribution: true`;
+`commercialUsage: personalNonProfit`, `modification: prohibited` and `creditNotation: required` are unchanged, so the
+README now states these terms instead of commercial use. Same 54 bones at the same rest positions (0.0 mm), same 18
+expressions and morph targets, same 11 textures (a little smaller); the meshes are thinned: 24,914 vertices instead
+of 31,005 (body 3,468 → 2,546, hair 9,219 → 5,751, shirt 4,008 → 3,051, head 3,159 → 2,717), 2.6 MB instead of 3.1 MB.
+The body and hand collision shapes are fitted from mesh vertices, so `tools/measure_hands.mjs --avatar <file>` (new
+option: the file is served in place of `avatar.vrm`, nothing installed) on the same 500 words, same code: hands
+entering each other 26 → 30 words (worst −2.6 → −2.7 cm), palm in body 238 → 241, arm in body 328 → 327, wrist over
+the limit 389 → 392, over the hard ceiling 83 → 87, placement p90 4.1 cm both; the 32 words that moved by more than
+3 mm went both ways. Contact sheets (`tools/avatar_sheet.mjs --avatar`) look the same. Installed; the previous file is
+kept outside git (D:/chevir/backup/avatar_before_2026-11-20).
+
+**The raised elbow** (team feedback: "the avatar putting the right hand up looks weird most of the time"). Headless
+contact sheets (`tools/avatar_sheet.mjs`) showed it: in SABAH, SƏN, NƏ the right upper arm went out sideways almost
+to shoulder height while the hand worked at the chin or chest. Measured over 300 words (13,352 arm frames,
+`tools/measure_elbows.mjs`): the avatar's right elbow was within 15 cm of shoulder height and over 12 cm out in 9.0 % of
+frames (the signers' own elbows, mapped to the avatar: 3.0 %), in 23 % of words for ≥ 3 frames. Two sources: the IK
+of word frames allowed the elbow up to shoulder height (the zone was wide because some signs do raise it), and the body
+fix (`#fixBody`) swept the elbow around the shoulder-wrist axis and took any candidate that cleared a few millimetres
+of contact with the chest, the elbow's distance from the signer's barely counting. Fix (`retarget.js elbowRaise`): every
+cm of elbow above max(17 cm below the shoulder, the signer's elbow + 3 cm) or out beyond max(9 cm, the signer's + 3 cm)
+costs, in the word IK and in the body fix's choice (there 5 cm of raise weighs like 1 cm of body contact). Same 500
+sampled words before and after (`tools/measure_hands.mjs --words`):
+
+| | right elbow raised (frames) | words with ≥ 3 raised frames (right / left) | palm in body (words) | arm in body | wrist > 5° over the limit | over the hard ceiling | hands overlapping |
+|---|---|---|---|---|---|---|---|
+| before | 9.0 % | 23.4 % / 17.0 % | 248 | 309 | 339 | 64 | 30 |
+| weight 400, 14 / 12 cm | 6.1 % | 14.4 % / 9.4 % | 237 | 325 | 368 | 72 | 27 |
+| **weight 600, 17 / 9 cm** | **4.2 %** | **9.0 % / 4.9 %** | 238 | 328 | 389 | 83 | 26 |
+| weight 1200, 18 / 8 cm | 3.6 % | 7.4 % / 3.6 % | 231 | 332 | 396 | 97 | 27 |
+
+The middle setting is kept: the strongest one gains little and bends wrists past their limit in more words. Hands
+are placed a little less exactly (p90 placement error 3.6 → 4.1 cm). The sheets after the change: SƏN keeps the elbow
+down by the body, SABAH and NƏ lower but still a little open.
+
+**R4: new recognizer classes from Slovo, checked on JestDili.az.** AzSLD gives the word model 757 labels; Slovo has
+1,000 RSL signs with ~20 people each, and AzSL shares most signs with RSL. Of the 797 Slovo glosses not yet mapped, I
+translated the ones with a clear Azerbaijani word (`D:/chevir/slovo/r4/ru_az.txt`, outside git): 55 are AzSLD labels
+already (left for the native review of the map), 208 are JestDili.az words with no AzSLD sign. Is the Slovo sign the
+AzSL one? The Slovo-only model (E27 pretraining, never saw AzSL) on JestDili.az's clip of each of those words, among
+996 classes: rank 1 for 26 % of the clips, top 5 43 %, top 10 47 % (chance 0.5 %), median rank 13. TİMSAH, KƏPƏNƏK,
+CANAVAR, AÇAR, QADIN, DOQQUZ, DOXSAN, NOYABR, ÇƏRŞƏNBƏ AXŞAMI, AŞPAZ are rank 1. `ml/slovo_new.csv`: 207 rows
+(Russian gloss, new label, `basis` = that rank), 199 labels; notebook 04 `SLOVO_NEW` adds them as classes trained on
+Slovo's clips, `SLOVO_NEW_MAX_RANK` keeps only the checked ones. Run 10a's recipe (train signers), JestDili.az clips:
+
+| | old words (340 clips) top-1 / top-5 | new words, rank ≤ 10 (102) | new words, rank > 10 (101) | AzSLD test words top-1 / signs macro-F1 |
+|---|---|---|---|---|
+| Slovo map v2, no new classes | **0.426** / **0.600** | – | – | 0.853 / 0.816 |
+| + all 199 new classes | 0.397 / 0.550 | 0.549 / 0.853 | 0.089 / 0.218 | 0.854 / 0.824 |
+| + the 101 checked ones | 0.412 / 0.588 | 0.578 / 0.843 | – | 0.847 / 0.815 |
+
+With all 199, the new words reach top-1 0.32 / top-5 0.54 on a person the model never saw and no AzSL example of
+those classes: an unbiased estimate for adding Slovo signs blindly. The unchecked half is mostly wrong (0.09): those
+Slovo signs are not the person's signs (another sign for the word, or the translation is off), and they cost the old
+words 3 points. The checked half's numbers are optimistic (the same clips chose them). With the 101 checked classes the
+old words lose 1.4 points top-1, within noise of the 340-clip set; the vocabulary grows 757 → 858.
+
+**Installed: `final_all_words_r4`** (the installed word model's recipe, all 27 signers, Slovo v2 clips, the 101 checked
+new classes; 858 labels, 802 words in the browser after same-sign merges). JestDili.az, against the installed
+`final_all_words_slovo`: old words top-1 0.426 / top-5 0.603 against 0.432 / 0.618 (clip by clip 26 against 28 right
+only in one, p = 0.89; top-5 14 / 19, p = 0.49: no difference), new words 0.553 / 0.796 on 103 clips (somewhat
+optimistic: the Slovo-only model chose these classes on the same clips, though this model never saw them).
+`make_manifest.py --install` with the word-mode settings kept and a `note`; the 12 `verify_*` scripts and the gates
+pass; the app's word mode loads it ("Hazır · 802 söz"). The previous model is kept outside git
+(D:/chevir/backup/word_model_before_r4). Roadmap R4 target for phase 1 was 1,000 classes: 858 now; the next ones need
+the native review of the 55 Slovo glosses that match AzSLD labels and of the 106 unchecked ones.
+
+## E29 — The sentence model and the 101 new signs from Slovo (R4)
+
+E28 gave the word model 101 new classes from Slovo (`ml/slovo_new.csv`, `SLOVO_NEW_MAX_RANK = 10`) and Slovo clips of
+the mapped words (`ml/slovo_azsld.csv`, map v2). The installed sentence model (`final_all_ctc500`) knew 701 words.
+
+**Notebook 06 with Slovo** (`SLOVO`, `SLOVO_NEW`, `SLOVO_NEW_MAX_RANK`, as in notebook 04): the new labels are appended
+(701 → 802 words; 804 labels with `<blank>` and `<unk>`). Slovo's clips of 252 labels (151 mapped words of map v2 and the
+101 new ones) become recordings labelled with their sign over the whole clip, 2 frames at each end ignored: 5,383 clips
+(17 too short or without hands), 251k frames (+10 % on the train signers' 2.63 M). A Slovo clip has no rest around the
+sign, so it is never a training sample on its own: it only enters spliced sentences (`extra.slovo_recordings`,
+`extra.add_pool`, `SeqBank.pool_from`; the epoch keeps its 758 steps). About 16 % of the frontal camera's splice units
+are then Slovo signs.
+
+A fix on the way: Slovo is filmed on upright phones (width/height 0.56), AzSLD at 4:3 (1.33), and a spliced sign kept
+its own image coordinates, so a Slovo sign inside an AzSLD sentence would have been squeezed 2.4 times sideways.
+`continuous._spliced` now converts x (and hand z) to the first sign's camera shape (`_reshaped`): a spliced Slovo sign
+keeps its body proportions (nose-to-shoulder height over shoulder width 0.58 in the sentence, 0.59 in its own clip).
+Signs of the same camera shape are untouched, so AzSLD-only splicing is unchanged. E27's `JESTDILI = True` run
+(JestDili.az 16:9 spliced into 4:3, stretched 1.33 times) had this distortion; its negative result is not clean.
+
+**JestDili.az sentence labels with the new vocabulary** (`tools/jestdili_sentence_glosses.mjs --labels <vocab.json>`; a
+lexicon word whose label is written differently, JestDili.az's I for İ as in TIMSAH, is found by its text). With the old
+labels the output is identical to E27's file; with the new ones only `<unk>` signs change, into new words: 17 in the
+254 training sentences (NİYƏ 3, NƏ 3, ZƏİF, ƏSƏBİ, TƏCİLİ 2 each, ...), 31 in all 500 (`<unk>` 308 → 277). The
+person's sentences rarely use the new words.
+
+**Fair test, v5 protocol** (train signers, held-out sentences out, epoch and decoding chosen on val unseen learnable,
+JestDili.az CTC on 254 sentences: `seq_splice_ctc`'s recipe; `e29_v5_slovo`, 90 minutes):
+
+| | val unseen learnable | test F1 | test unseen | test unseen learnable | test letters | test side | JestDili.az held-out F1 / WER |
+|---|---|---|---|---|---|---|---|
+| `seq_splice_ctc` | **0.838** | **0.900** | 0.653 | 0.799 | 0.853 | **0.859** | **0.689** / 62.2 % |
+| + Slovo | 0.836 | 0.895 | **0.656** | **0.806** | **0.854** | 0.838 | 0.687 / **60.1 %** |
+
+Per epoch (default decoding) the Slovo run was behind on val to the end (recall 0.75 against 0.81 at the same precision
+0.93, last 10 epochs); the decoding chosen on val (smooth 5 instead of 3) brought it level. Best epoch 44 (baseline 60).
+AzSLD's new sentences are level or a little better, all test recordings −0.005, the side camera −0.021 (Slovo signs only
+enter frontal splices; the earlier epoch may count too). Of 7,380 detections on AzSLD's test recordings 8 are new
+labels. JestDili.az, the 246 held-out sentences: F1 difference 95 % interval [−0.019, +0.018], 61 sentences better,
+70 worse.
+
+**The installed recipe with half of JestDili.az held out** (`final_all_ctc_slovo`: `final_all_ctc` + Slovo, all signers,
+saved at epoch 59, the installed decoding; 64 minutes). The 246 held-out sentences:
+
+| | precision | recall (known words) | F1 | sign → text WER |
+|---|---|---|---|---|
+| installed recipe (`final_all_ctc`) | **0.627** | **0.782** | **0.696** | **59.8 %** |
+| + Slovo | 0.618 | 0.769 | 0.685 | 60.3 % |
+| + Slovo, the v5 run's decoding (smooth 5) | 0.622 | 0.773 | 0.689 | 60.4 % |
+
+Paired bootstrap: F1 difference [−0.030, +0.008] (P(better) 0.12; 58 sentences better, 65 worse); with the v5 run's
+decoding [−0.025, +0.011]. Over the new vocabulary (`compare_jestdili.mjs --labels`, recall then also counts the new
+words the old model cannot know) the same: 0.690 → 0.680, [−0.029, +0.008]. Every point estimate is a little lower, none
+clearly. AzSLD test (seen by both) F1 0.971 against 0.972, side 0.965 against 0.968.
+
+**The new words where they occur** (`score_jestdili.mjs --focus`): in the 246 held-out sentences their stems occur 19
+times (NƏ 4, BOŞ 3, ƏLA, DƏQİQ, TƏCİLİ 2 each, İLAN, ƏSƏBİ, AYI, CANAVAR, SATMAQ, HƏYAT 1 each). Recognized: once
+(TƏCİLİ) by `final_all_ctc_slovo`, twice (NƏ, TƏCİLİ) by the v5 run; shown where the text does not have them: 1 and 4
+times. KAĞIZ, RƏSM, XATIRLAMAQ and YAZ are not counted: their stem is another label's (see below).
+
+Did the sentence model learn the signs at all? On JestDili.az's isolated clips of the words, streamed and decoded like a
+sentence (`D:/chevir/eval/e29/isolated_new.py`, outside git):
+
+| JestDili.az isolated clips | label among the decoded signs | mean probability over the hands' frames, top-1 / top-5 |
+|---|---|---|
+| new words (103 clips), `final_all_ctc_slovo` | 0.505 | 0.485 / 0.864 |
+| old words (331), `final_all_ctc_slovo` | 0.498 | 0.459 / 0.686 |
+| old words (331), `final_all_ctc` | 0.520 | 0.480 / 0.677 |
+
+(As in E28, the new words' numbers are optimistic: the same clips chose those classes.) The sentence model learns the
+new signs about as well as AzSLD's words, and the old words lose about 2 points, as in the word model. The person's
+sentences contain the new words too rarely for that to show.
+
+**Decision on these numbers: not installed.** Level within noise on AzSLD and in the fair test, but below the installed
+recipe in every JestDili.az number of the held-out test (not significantly), and the new words are recognized once in 19
+in the person's sentences. The stopped `v5_slovo` init run was not resumed (the same idea gave nothing for words, E27). A
+sentence test of the new words needs sentences that use them (set C, the recording page); 19 occurrences cannot show a
+gain. The stem count is also strict: some detections of new labels in the held-out sentences are right in meaning but not
+counted, e.g. "Siz məni xatırladız" → SİZ MƏN ... XATIRLAMAQ (XATIRLAMAQ is left out of the count), "Mən bu gün çox
+əsəbiləşmişəm" → ... ÇOX ACIQLI, "Mənim anamın 47 yaşı var" → MƏN ANA 4 YEDDİ YAŞ VAR (the v5 run).
+
+**Installed afterwards (2026-11-19, the team's decision, for the vocabulary): `final_all_ctc500_slovo`**, the installed
+model's recipe (all signers, CTC on all 500 JestDili.az sentences with `jestdili_sentence_glosses_r4_all.json`, saved at
+epoch 59, the installed decoding) plus Slovo; 77 minutes. JestDili.az is training data now, so its held-out evidence is
+`final_all_ctc_slovo` above. AzSLD test (seen by both) F1 0.969 against 0.970 for `final_all_ctc500`, side 0.968
+against 0.967. The manifest has a `note` with the held-out numbers and Slovo's licence in `sources` (as the word
+model's). `ml/install_continuous.py --install`; `sentences.json` changes in one sentence (NƏ is a label now: "Əlilliyin
+təyin olunması üçün nə etmək lazımdır"); `gloss_text.json` rebuilt. The 12 `verify_*` scripts and the gates pass (s2t dev
+42.0, test 44.1, unchanged). The translator's sentence mode loads it (804 labels, no console errors); `/danis/?video=` on
+two JestDili.az sentence videos (training data for this model, so only a check of the path): "Təcili danışmaq lazımdır"
+(TƏCİLİ DANIŞMAQ LAZIM) and "Sən nə istəyirsən" (SƏN NƏ İSTƏMƏK). The live page's hint now says "~800 söz". The previous
+model, its reference and `gloss_text.json` are kept outside git (D:/chevir/backup/cont_model_before_r4).
+
+The first `gloss_text.json` rebuild with the new labels raised s2t test WER 44.1 → 44.5 (dev 42.0 → 42.1): the new
+labels' words entered the lemmatizer that reads every label and every text word, and changed old words (AYI: "bu ay" lost
+AY; YAZ: "Yazda" → "Yaz"; ON ALTI: "altında" → "altı"; KAĞIZ: "kağızlar" → "kağız"). The dictionary-form labels now
+get their own lemmatizer, used only for their keys and roots (`prepare`: `lem` from the other labels, `lemAll` for
+them); text for old labels is as before except the NƏ sentence ("Vermək üçün nə etmək lazımdır", one word closer to the
+reference). Cases in `tools/verify_gloss_text.mjs`.
+
+Four new classes may be AzSLD signs under another label: their word is an AzSLD label in another form or spelling that
+`slovo_new.csv`'s exact-label filter missed: XATIRLAMAQ (вспомнить) and AzSLD's XATIRLADIM, YAZ (весна) and YAZDA, KAĞIZ
+(бумага) and KAGİZLAR, RƏSM (картина) and RƏSİM. They are in the installed word model too (E28); for the native review
+(session 8).
+
+**gloss2text for the new labels** (written before the install above). A label that is not in
+AzSLD's sentences gets its part of speech from its name, and the analysis read some dictionary forms as inflected verbs:
+YEDDİ as ye-di ("ate"), DİMDİK, AĞIR, YAZ, so MƏN YEDDİ YAŞ → "Mən yeddim yaş". The labels of `ml/slovo_new.csv` are
+dictionary forms: an analysis as a finite verb is dropped for them (`train(..., lemmas)`, read by `build_gloss_text.mjs`
+and `eval_gloss_text.mjs`), leaving 8 verbs (ANLAMAQ, DİNLƏMƏK, EŞİTMƏK, QOYMAQ, SATMAQ, TİTRƏMƏK, UZANMAQ, XATIRLAMAQ;
+AXMAQ "foolish" stays a noun) and 93 nouns and adjectives. With the new vocabulary: "Mən yeddi yaşam" (as with digits:
+MƏN 6 YAŞ → "Mən 6 yaşam"), "Sən niyə gəlmirsən", "Mən dinləyirəm", "Mən əsəbiyəm", "O xəsisdir", "Mən eşitmirəm",
+"Təcili həkim lazımdır", "Sənin ümidin var". With the old model's labels `gloss_text.json` rebuilds identically; gates and
+`verify_gloss_text`, `verify_continuous`, `verify_s2t` pass (s2t dev 42.0, test 44.1).
+
+Tools: `score_jestdili.mjs` takes a `vocab.json` for `--labels`, `--focus <labels.json>` (chosen labels where the text
+has them, and where it does not), `--g2t <gloss_text.json>`; `compare_jestdili.mjs --labels`. Runs in
+`D:/chevir/runs/e29_*`, scores in `D:/chevir/eval/e29_*` and `D:/chevir/eval/e29/` (the r4 label files in
+`D:/chevir/kaggle/jestdili_ctc_r4*`). Commands:
+
+    python ml/run_local.py 06 --input D:/chevir/kaggle --out D:/chevir/runs/e29_v5_slovo --workers 4 \
+      --set "EXCLUDE_HELDOUT = True" --set "TRAIN_ON_VAL = False" --set "JESTDILI_CTC = 'jestdili_sentence_glosses_r4.json'" \
+      --set "SLOVO = 'slovo_azsld.csv'" --set "SLOVO_NEW = 'slovo_new.csv'" --set "SLOVO_NEW_MAX_RANK = 10" \
+      --set "RUNS = {'seq_splice_ctc_slovo': dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, select='f1_unseen_learnable')}"
+    # final_all_ctc_slovo: the same Slovo and JESTDILI_CTC settings with TRAIN_ON_VAL = TRAIN_ON_ALL = True and
+    # dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, save_epoch=59, decode=<the installed decoding>);
+    # final_all_ctc500_slovo (installed): the same with JESTDILI_CTC = 'jestdili_sentence_glosses_r4_all.json'
+
+## E30 — Fingerspelling: the letters model on all signers, names spelled inside sentences (R6)
+
+Two parts: the letters model trained on every AzSLD signer (`final_hand_all`, E27) waited for a test on someone
+outside AzSLD; and in sentence mode a run of recognized letters became one lowercase word, so names and
+abbreviations came out as "dost", "messinin", "tsek".
+
+### Letters model: JestDili.az's alphabet as the new-person test
+
+**Data.** JestDili.az's alphabet list (`data/jestdili/alphabets.json`, 32 letters) links two photos per letter. The 32
+cover photos downloaded (2.0 MB, 1080 × 1080, a hand on white with the letter printed; a moving letter is drawn as two
+hands and an arrow); all 32 second photos (`image1Url`) answer 404, the stored list is older than the server (a fresh
+list needs the API address; the user chose to go on with 32). `tools/fetch_jestdili.py --alphabet DIR` downloads them
+from the stored list without the API; the photos stay outside the repo (`D:/chevir/jestdili_alphabet`).
+
+**Method** (`ml/eval_letters_photos.py`, run with `-I`): landmarks with the same MediaPipe hand model in IMAGE mode as
+AzSLD's own photos (`landmarks.Extractor.image`; all 32 photos have a hand, 3 two-hand drawings of moving letters
+have two), each photo a still clip of 24 frames as in `letters.load_photos`, then `letters.preprocess`. Scores among
+the 32 letters. With so few photos, two finer paired measures: the probability given to the right letter, and
+"jittered" = the share right over 30 copies of each photo through the training augmentation (mirror, rotation,
+scale, shear, point noise, a hand missing for a stretch; the same copies for every model), compared with a paired
+bootstrap over photos (10,000 resamples).
+
+| Model | top-1 (32) | top-3 | static letters (24) | moving (8) | mirrored top-1 | jittered top-1 | p(right letter) |
+|---|---|---|---|---|---|---|---|
+| v2 `hand` (train signers only, E8) | 0.531 | 0.688 | 17 | 0 | 0.531 | 0.552 | 0.495 |
+| `final_hand` (installed until now, train + val) | 0.594 | 0.719 | 19 | 0 | 0.562 | 0.569 | 0.516 |
+| **`final_hand_all`** (all signers) | 0.594 | **0.781** | 19 | 0 | **0.625** | **0.622** | **0.541** |
+
+- `final_hand_all` − `final_hand`: photos only one of them gets right 1 / 1 (as is), 3 / 1 (mirrored); jittered
+  +0.053 [−0.028, +0.144]; p(right) +0.025 [−0.035, +0.099] as is, +0.066 [−0.017, +0.165] mirrored. Level on the
+  main score, ahead on every finer one, none of it significant on 32 photos. More signers, better on the new person,
+  in order: v2 < `final_hand` < `final_hand_all` (all − v2 on static letters, jittered: +0.097 [+0.003, +0.215]).
+- The 8 moving letters (ç d g k ö ü y z) are 0 for every model: a still photo has no movement, and the model reads
+  them by their movement (clips 0.93 in E8). A limit of the test, not of the model.
+- **False letters on another person's signing:** JestDili.az's 500 sentence videos (29.7 min, no spelling expected,
+  resampled to 30 fps) through the letter mode's own browser path and rules (`tools/letters_tune.mjs` with
+  `letters: []`, `LETTERS_SPEEDS=1`; `ml/eval_letters_photos.py export-sentences`): `final_hand` types 31 letters in
+  26 videos (1.04 per minute), `final_hand_all` 26 in 23 (0.88 per minute).
+
+**Installed (commit 690932e):** at least level on the new person (the shared install rule) and ahead on every finer
+measure. AzSLD's test cannot score it (it trained on those signers); the held-out run of the same recipe is
+`final_hand` (test top-1 0.933, E8). The previous model is in `D:/chevir/backup/letter_model_before_all`.
+`ml/install_letters.py --recipe-of ml/results/letters2/final_hand --jestdili <scores.json>` puts `final_hand`'s
+held-out metrics into the manifest (`metrics_from`) and the photo result (`jestdili`); the model page says whose
+numbers the table shows and adds the photo line (`app.js renderAboutLetters`). `verify_letters.mjs`, all 13
+`verify_*` and the gates pass; `/tercume/` loads it (33 labels) and its model page shows the note (dev server).
+
+### R6: a spelled name inside a sentence becomes one name in the text
+
+**Before.** The sentence model finds letters (E7). `gloss2text` joined a run (D O S T → "dost"), capitalized only
+after AD (E27: "Mənim adım Samirdir"). The translator's sentence mode and `/danis/` write their text line with
+`generate()` (`s2s.js textOf`, when no AzSLD sentence is near), so a change there reaches both pages; their sign row
+keeps one chip per letter, as it shows signs. AzSLD has 27 of 492 sentences with a spelled run (≥ 2 letters), 4 of
+them held-out test sentences: names (Sahil, Asif Məhərrəmov, Messinin, Qəbələyə, Dolu, Abşeron), abbreviations (DOST
+in 9 sentences, TSEK, ÜDSY, DSMF, ADA), common words with no sign (manat, may, iyun, ədəbiyyat, onlayn, icbari,
+ofisiniz, nəvəsinin) and Jestdili.az.
+
+**Rules** (`src/tercume/spelled.js`, used by `gloss2text.generate`; `names: false` gives the old behaviour):
+1. The spelling AzSLD's text uses for these letters, learned in `fit` per kept sentence (`model.spelled`, so the
+   leave-one-out measure stays fair): DOST, Messinin, ofisiniz. A sentence's first word counts only if all capitals.
+2. Two familiar parts, one of them learned: A B Ş E R O N D O S T → "Abşeron DOST". A leading O whose rest is a word
+   is the pronoun: O N Ə V Ə S İ N İ N → "Onun nəvəsinin" (genitive before a third-person possessive).
+3. Letters never seen, one letter away from a spelling learned at least twice: D S T → DOST.
+4. Otherwise: a place or proper name (PLACE_NAMES, AzSLD's capitalized signs) is a name; short and unreadable (no
+   vowel, three consonants together, two at the start: DSMF, ÜDSY, TSEK) is an abbreviation in capitals; a common
+   word stays lowercase; anything else is a name with a capital. Followed by a word that takes a name (METRO, FİLM,
+   UNİVERSİTET, KÜÇƏ, MƏRKƏZ...), a common word is a name too: "Sahil metroya", "Dolu filminə".
+   Common words: the model's own words plus `ml/common_words.txt` (`tools/build_common_words.mjs`): HPLT 2.0's
+   927,034 sentences (CC0, already used for the pseudo-glosses), words written lowercase after the first word at
+   least 10 times and not more often capitalized, with a vowel, reduced to their shortest attested stem: 13,701
+   stems, 133 KB. They ride in `gloss_text.json` as `common` (294 → 434 KB).
+5. Case from the next sign when it governs one (the existing tables: GETMƏK → dative, YAŞAMAQ → locative, MÜRACİƏT
+   ETMƏK → dative, SEVMƏK → accusative), not for the sentence's first word (the subject: "Samir gəldi") and not
+   when the letters already end in that suffix (Qəbələyə). Names take it directly (Messini, Bakıya, İraqa: no
+   k / q softening), abbreviations after a hyphen by how they are read: as a word if readable (TSEK-ə, DOST-a),
+   else by the last letter's name (DSMF-ə, BMT-yə, ÜDSY-yə).
+
+Also: the sentence model has no I, so a known word gets its ı back (B A K İ Y A → "Bakıya"); a dot between letters
+joins (J E S T D İ L İ . A Z → "Jestdili.az"); a lone letter stays as it was (usually a recognition slip).
+
+**Results** (`tools/eval_gloss_text.mjs`, new lines "spelled ..."; `--no-names` for before; "with capitals" = WER on
+case-sensitive words; "spelled words right" = the word built from letters appears exactly in the text):
+
+| AzSLD | before | R6 |
+|---|---|---|
+| annotated glosses, dev, 23 sentences with spelled words: WER / with capitals / spelled words right | 41.7 / 54.3 / 8 of 24 | **41.0 / 43.5 / 21 of 23** |
+| annotated glosses, test, 4 sentences | 50.0 / 61.5 / 0 of 4 | **38.5 / 46.2 / 4 of 5** |
+| recognized glosses (`detections_test.csv`), 96 test recordings of those sentences, as new sentences | 49.8 / 60.3 | **47.5 / 50.7** |
+| all sentences: dev 443 / test 49 / recognized new 1,484 (WER) | 42.0 / 44.1 / 46.5 | 41.9 / **42.8** / 46.3 |
+
+- What is still wrong: "Asif Məhərrəmov" comes out "Asifməhərrəmov" (no list of first names to split a name from a
+  surname); ADA, seen in no other sentence, becomes "Ada" (a common word before UNİVERSİTET); "DSMF-ə" where the
+  text puts "(DSMF)" after "Fonduna". Recognition slips stay slips with a capital ("Mesi", "MNT"); a letter recognized
+  twice (H H E Y D Ə R) is kept, as real names have double letters (Messi, ədəbiyyat).
+- JestDili.az, the 246 held-out sentences (the E29 hold-out run's outputs, `tools/score_jestdili.mjs`, new
+  `--no-names`): WER 60.3 % before and after; 5 outputs have spelled runs (ADA now right; Samir and Arzu were already
+  right after AD; Sadıqov and Heydər were misrecognized).
+- Gates tightened as `ml/gates.json` asks (current + 1 point): s2t dev 42.9, test 43.8. E31's text table
+  (`tools/eval_nonmanual_text.mjs`) was measured before R6; rerun, its baselines move with these numbers.
+- `tools/verify_gloss_text.mjs`: 23 new checks (the browser's model: TSEK-ə, Messini, Qubada, Bakıya, BMT-yə, DSMF-ə,
+  ÜDSY-yə, Abşeron DOST, D S T → DOST, Jestdili.az, manat, kitab, Sahil metroya, Dolu filminə, ADA, Onun nəvəsinin,
+  Leylanı, Qəbələyə, Samir gəldi, a lone letter, `names: false`; the learned spelling; the case suffixes). All 13
+  `verify_*` and the gates pass. Checked in the browser (dev server, the app's `gloss_text.json`): the same sentences.
+
+Files: `src/tercume/spelled.js` (new), `src/tercume/gloss2text.js` (`runEnd`, `spelled` in `prepare` / `fit`,
+`#spelledItems`, `names` option), `tools/build_common_words.mjs` + `ml/common_words.txt` (new),
+`tools/build_gloss_text.mjs`, `public/tercume/assets/gloss_text.json` (rebuilt: earlier tables unchanged, plus
+`spelled` and `common`), `tools/eval_gloss_text.mjs`, `tools/score_jestdili.mjs`, `tools/verify_gloss_text.mjs`,
+`ml/gates.json`; part 1: `ml/eval_letters_photos.py`, `ml/install_letters.py`, `tools/fetch_jestdili.py`,
+`tools/letters_tune.mjs`, `src/tercume/app.js`, `public/tercume/assets/letter_model/`,
+`ml/fixtures/letters_model_ref.json`. Local only: `D:/chevir/jestdili_alphabet`, `D:/chevir/eval/letters_jestdili`
+(landmarks, scores, false letters), `D:/chevir/eval/r6`. No GPU used.
+
+## E31 — The face channel: questions and negation from the face (R3)
+
+The sign recognizers read hands, body and face points, but nothing says whether a sentence is a question or
+negated: the installed sentence model works without the face, and `gloss2text` never writes "?". R3 asks for a
+sentence-level detector from the face relative to the person's own neutral face plus head pose. Target (phase 1):
+question detection ≥ 0.80 on AzSLD's test signers, measured on JestDili.az too; if it holds, "?", "-mı" and negation
+in `gloss2text`, behind a switch.
+
+**Data and weak labels.** AzSLD's front camera (Cam2), all 10,104 sentence recordings, AzSLD's signer split (train
+7,075 / val 1,545 / test 1,484; 27 / 7 / 5 signers). The side camera has no face (face rate 0) and is not used. Labels
+from the sentence text (`ml/azsl/nonmanual.py weak_labels`, per sentence in `ml/nonmanual_labels.csv`): question =
+"?" in the text (112 of 492 sentences, 2,273 recordings), `wh` if it has a question word, else `yn` (58 wh, 54 yes/no
+sentences); 2 sentences without "?" that read as questions (441, 444) are left out. Negation = a negative word or
+verb form in the text, or YOX / DEYİL / a negative verb in the glosses (55 sentences). JestDili.az's 500 sentence
+texts have no "?" at all, so its labels are the rules plus a hand check of every second-person and question-word
+sentence (kept outside the repo, `D:/chevir/eval/nonmanual/jestdili_labels.csv`): 94 questions (45 yes/no, 49 wh),
+7 left undecided ("Sən ət yemirsən" can be either), 60 negated. JestDili.az's face is visible in 74 % of its clips
+(103 clips have none); a clip with the face in < 50 % of its signing frames gets no face decision.
+
+**Features** (`ml/azsl/nonmanual.py`, 30 fps; JestDili.az's 50 fps resampled). Per frame, from the recognition
+contract's face points (x, y), blendshapes and pose: 8 head values (roll from the eye line; yaw and pitch from the
+nose tip against the eyes, cheeks and chin; head position and size against the shoulders), brow heights over each
+eye (inner, middle, outer), eye and mouth opening, mouth width and corners (all in the head's own axes, in
+inter-eye units), plus the 51 blendshapes: 70 values. Neutral face: the median of the frames with the hands down (no
+hand, or the wrist more than a shoulder width below the shoulders), else the clip's median; subtracted from every
+frame. Sentence vector (427 values): over the frames from the first raised hand to the last, mean, std, max, min, mean
+of the last and of the first third, mean head speed and direction changes (yaw, pitch, roll), face rate.
+
+**What carries the signal** (train signers, relative to the neutral face): yes/no questions end with the head
+lowered and forward (pitch +0.07 against +0.03 for statements in the last third, the head ~0.03 shoulder widths
+lower) and without the frown statements show at their end (browDown +0.00 against +0.03); the brow raise known from
+other sign languages (browInnerUp) hardly differs. Wh questions lie between the two.
+
+**Models tried** (logistic regression unless said; AUC for question vs statement; choices on val):
+
+| | AzSLD test AUC | JestDili.az AUC |
+|---|---|---|
+| all questions, no neutral / the signer's neutral (all their recordings) | 0.78 / 0.78 | 0.75-0.77 / 0.76-0.80 |
+| all questions, neutral = hands-down frames / clip median | 0.78 / 0.79 | 0.81-0.84 / 0.81-0.86 |
+| feature groups (clip neutral): head / upper face / mouth / head + upper / all | 0.76 / 0.75 / 0.76 / 0.77 / 0.79 | 0.73 / 0.80 / 0.72 / 0.84 / 0.84 |
+| 3 classes (statement, yes/no, wh): softmax / MLP / temporal CNN on frames | 0.79 / 0.79 / 0.68 | 0.86 / 0.81 / 0.74 |
+| by type (softmax): yes/no vs statement, wh vs statement | 0.91, 0.70 | 0.81, 0.89 |
+| **trained on yes/no questions vs statements only** | **yes/no 0.91** | **yes/no 0.92** |
+
+The face tells yes/no questions well, on new people too; wh questions much less (on AzSLD). Wh questions carry a
+manual question sign (NƏ, HARA, HANSI, NECƏ, NEÇƏ, KİM, NİYƏ, NƏ VAXT…) that the sentence model recognizes. So the
+detector is: **a question sign among the recognized signs, or the face's yes/no score ≥ t**.
+
+**Final model** (`ml/nonmanual.py fit`, `public/tercume/assets/nonmanual.json`, 11 KB): two logistic heads on the 427
+values, trained on AzSLD's train signers: yn (λ 0.03; threshold 0.725, chosen on val for the detector's F1 with the
+question sign taken from val's annotation) and neg (λ 0.1; threshold 0.51 on val).
+
+| Question detection | AzSLD test signers (1,476 recordings, 338 questions) | JestDili.az held-out sentences (240, 43 questions) |
+|---|---|---|
+| face only (all questions), F1 / AUC | 0.465 / 0.736 | 0.424 / 0.819 (all 366 clips with a face) |
+| face, yes/no vs statements, F1 / AUC | 0.640 / 0.909 | 0.500 / 0.919 (all 366) |
+| recognized question sign only, F1 (P / R) | 0.618 (0.95 / 0.46) | 0.533 (0.94 / 0.37) |
+| **sign or face, F1 (P / R)** | **0.769** (0.755 / 0.784), balanced accuracy 0.854 | 0.523 (0.773 / 0.395) |
+| sign or face: statements marked as questions | 7.6 % | 2.5 % |
+| sign from the annotation (a perfect recognizer) or face, F1 (P / R) | 0.811 (0.776 / 0.849) | — |
+| AzSLD test recordings of the 49 held-out sentences (165, 13 questions) | sign 0.353 → sign or face 0.552 | |
+
+Recognized signs: AzSLD test from `v5_ctc` (trained without the test signers), JestDili.az from `final_ctc_hold`
+(trained without those 246 sentences). On AzSLD the face adds 0.15 F1 (yes/no recall 0.73, wh 0.83). On JestDili.az
+it adds nothing at this threshold: the yes/no ranking is as good as on AzSLD (AUC 0.92), but the threshold set on
+AzSLD's signers is too high for these signers (yes/no recall 0.42); the 173 held-out clips with a face go 0.585 →
+0.565.
+
+Negation from the face (head shake): AUC 0.78 on AzSLD test (F1 0.43), 0.76 on JestDili.az (F1 0.28). Head features
+alone reach 0.82 on AzSLD but 0.66-0.68 on JestDili.az. AzSLD's negated sentences almost always have a manual
+negation (YOX, DEYİL, BİLMİR…), which `gloss2text` already reads.
+
+**In the text** (`tools/eval_nonmanual_text.mjs`: annotated glosses → `gloss2text`, WER without punctuation):
+
+| | oracle labels: dev / test WER | face model per recording (3,019 val + test-signer recordings): dev / test WER |
+|---|---|---|
+| no face channel | 41.95 / 44.10 | 40.71 / 39.92 |
+| "?" only | 41.95 / 44.10 ("?" always right) | 40.71 / 39.92 ("?" P 0.82, R 0.76) |
+| "?" + "-mı" on yes/no questions | 41.67 / 43.23 | 41.04 / 39.92 |
+| negation (only when there is no manual negation) | 41.95 / 44.10 (never fires) | 41.56 / 40.94 |
+
+With perfect labels "-mı" helps a little (AzSLD writes it in ~60 % of its yes/no questions); with the model it costs
+0.3 points on dev. With perfect labels face negation never fires (every negated AzSLD sentence already has a
+manual negation sign); with the model it only adds errors (+0.9 dev, +1.0 test).
+
+**Browser.** `src/tercume/nonmanual.js` ports the features, the neutral face, the sentence vector and the heads
+(`predict`), plus `marks()` (question sign or face → `{question: 'wh' | 'yn' | null, neg}`) and a `NonManualTracker`
+for the live stream (frames in, a sentence's probabilities out). `gloss2text.generate(labels, { nonmanual })` takes
+`{question, neg, mi}`: a question gets "?", `mi` adds "-mı" to a yes/no question, `neg` makes the last verb negative
+when there is no manual negation. Without the option nothing changes (gates: s2t dev 42.0, test 44.1, as before).
+`tools/verify_nonmanual.mjs` with `ml/fixtures/nonmanual_v1` (7 synthetic clips: face shape and blendshape levels are
+averages over many AzSLD train frames, no real person; head shake, nod, 16:9, face gaps, hands up throughout, no
+face, a 50 fps camera): JS = Python to 1e-7 in the frame values, the neutral face, the sentence vector and the
+probabilities; and 7 `gloss2text` cases (no option: the same text; "?", "-mı", negation; a manual negation is left
+alone). 40 real clips (20 AzSLD test, 20 JestDili.az; not committed) agree to 1.1e-7. All 13 `verify_*`
+scripts and `ci_gates` pass.
+
+**Decision: not turned on.** The target (≥ 0.80) is not met by what the app would see: F1 0.769 on AzSLD's test
+signers with recognized signs (0.811 only with a perfect recognizer) and 0.52-0.57 on JestDili.az, where one fixed
+threshold does not fit new signers. A wrong "?" or "-mı" on 7.6 % of statements, or wrong negation, would be visible
+errors, and "-mı" and negation do not lower WER with the model. So the model, the port and the `gloss2text` option
+are in, but the translator and `/danis/` do not call them (no switch is wired into `s2s.js`; `NonManualTracker` is
+ready for it). What would change the decision: a threshold that adapts to the person (the yes/no ranking already
+transfers, AUC 0.91-0.92), set C's face labels from native signers (V1) instead of text-derived ones, and a native
+user's check of whether AzSL marks yes/no questions with the head as found here. A smaller step, independent of the
+face: "?" whenever a question sign is recognized (precision 0.95 on AzSLD test, 0.94 on JestDili.az; recall 0.46 /
+0.37), a punctuation-only change to decide with session 4, which owns `s2s.js`.
+
+Files: `ml/azsl/nonmanual.py` (features, labels), `ml/nonmanual.py` (`cache`, `train` grid, `fit`, `fixture`),
+`ml/nonmanual_labels.csv`, `public/tercume/assets/nonmanual.json`, `src/tercume/nonmanual.js`,
+`src/tercume/gloss2text.js` (`#nonmanual`, `generate(labels, { nonmanual })`), `tools/verify_nonmanual.mjs`,
+`tools/eval_nonmanual_text.mjs`, `ml/fixtures/nonmanual_v1.{json,bin}`. Local only: `D:/chevir/eval/nonmanual/`
+(frame cache, JestDili.az labels, `final/report.json`, per-recording scores), exploration scripts in
+`D:/chevir/scripts/e31/`. No long GPU job: the logistic heads fit on the CPU in seconds; the temporal CNN ran ~2 min.
+
+## E32 — Decoding with a sign language model, alternatives and correction (N3, N4; no training)
+
+The sentence model's `decode()` takes each run of a label as a word if its mean probability passes `min_p`, one run at a
+time. N3 adds a sign-sequence language model, so a word is chosen given the words before it; N4 shows the sentence's 2–3
+alternatives with their share and lets the person pick one or type the right text, kept on the device.
+
+**The sign LM** (`tools/build_sign_lm.mjs` → `public/tercume/assets/sign_lm.json`, 347 KB, 140 KB gzipped): the E18 corpus
+pseudo-glosses (`pseudo_gloss.jsonl` + `pseudo_dialog.jsonl`, 75,830 pairs) mapped to the sentence model's labels
+(`sign_merge.json`), signs the model does not know dropped (the recognizer drops `<unk>` too), fingerspelled letters one
+class `<L>` (the frames say which letter): 61,196 distinct sequences, 852,744 signs, 780 tokens. Interpolated
+Kneser-Ney, the lowest order mixed with 5 % uniform (a label the corpus never shows, like most Slovo labels, keeps a
+probability), stored ARPA-like (ln-probability of seen n-grams, backoff of contexts), so Python and the browser look up
+the same numbers. Bigram (28,044 entries); a trigram (count ≥ 2, 1.5 MB) was not better on val. AzSLD's sentences are
+not in it: with them (×3 or ×10, the 49 held-out sentences left out) val and test rose only on the sentences in the LM,
+not on unseen ones (val unseen learnable F1 0.848 → 0.846), and the evaluation stays clean.
+
+**The decoder** (`continuous.py` `lm_segments` / `decode_lm` / `nbest` / `alternatives`, `continuous.js` twins,
+`CONTINUOUS_VERSION` 3). Segments are `decode()`'s runs before the probability threshold (smoothing, joining across
+`gap`, `min_len` / `min_len_short`, `<unk>` runs dropped); each has candidates, the 4 labels with the highest mean
+probability over its frames (≥ 0.05). A candidate scores ln(mean probability) + α · ln P_LM(label | previous words) + β;
+no word scores ln(`min_p`), so α = β = 0 is `decode()`. `decode_lm` chooses left to right given the words already chosen:
+exactly what the browser's `SentenceStream` fixes while the sentence is signed (a fixed word never changes), and what
+`peek()` shows. `nbest` is a beam search (8) over the same segments with the end of the sentence scored;
+`alternatives` = `decode_lm`'s sentence first, then the beam's best other sequences (3 in all), `confidences` their
+softmax shares (temperature 0.4). `SentenceStream({ lm, lp })` returns `alternatives` (with `conf`) when a sentence closes.
+The settings live in `sign_lm.json` (`decode`), so the browser reads them with the LM.
+
+**Measured on the models' own streaming probabilities**, saved once (`ml/dump_cont_probs.py`: the browser's schedule,
+window 96 / stride 8 / lookahead 24; float16) for `e29_v5_slovo` (the installed recipe's fair twin: test signers and
+held-out sentences unseen; AzSLD val 1,545 and test 1,484 recordings), `cont_v15/final_merged` (the recognizer
+`eval_gloss_text.mjs` uses by default; test 1,484) and `final_all_ctc_slovo` (the 246 held-out JestDili.az sentences).
+The saved probabilities reproduce the runs' scores (val F1 0.8842 / WER 15.86 %, test 0.895 / 13.91 % for
+`e29_v5_slovo`). Settings chosen on val as the v5 models are (`f1_unseen_learnable` on val's held-out sentences, val F1
+not below `decode()`), over bigram / trigram × norm {0, 0.5, 1} (norm 1 = the word's unigram taken back) × α {0.05 … 0.3}
+× β {0 … 1.5}: **bigram, α 0.1, β 0.5, norm 0**. On all val recordings the best F1 wanted a smaller α (0.075); on unseen
+sentences and on the new person a larger one: the LM matters where the recognizer is unsure.
+
+| AzSLD, `e29_v5_slovo`, word F1 / WER | val | val unseen sentences, learnable words | test | test unseen sentences, learnable words |
+|---|---|---|---|---|
+| `decode()` (installed) | 0.884 / 15.9 % | 0.836 / 21.8 % | 0.895 / 13.9 % | 0.806 / 25.6 % |
+| + sign LM, left to right (shipped) | 0.887 / 15.8 % | 0.848 / 20.8 % | 0.899 / 14.0 % | **0.822 / 24.0 %** |
+| + sign LM, beam's best | 0.889 / 15.5 % | 0.850 / 19.9 % | 0.900 / 13.7 % | 0.826 / 23.6 % |
+
+**JestDili.az, the 246 held-out sentences** (a new person and camera; `final_all_ctc_slovo`, the installed decoding;
+`score_jestdili.mjs`, `compare_jestdili.mjs`):
+
+| | precision | recall (known words) | F1 | sign → text WER |
+|---|---|---|---|---|
+| `decode()` | 0.618 | 0.755 | 0.680 | 60.3 % |
+| + sign LM, left to right (shipped) | **0.659** | 0.754 | **0.703** | **57.5 %** |
+| + sign LM, beam's best | 0.652 | 0.752 | 0.698 | 58.3 % |
+
+Paired bootstrap, left to right against `decode()`: F1 difference 95 % interval **[+0.014, +0.032]**, P(better) 1.000,
+56 sentences better, 9 worse. The beam's best is not better than left to right here ([−0.012, +0.002]) and only slightly
+better on AzSLD, so the shipped sentence is the left-to-right one: it is what the person saw while signing, and it does
+not change when the sentence closes. (E29's 0.685 for this model was scored before the labels' text changed; its own
+`sentences.json` scores 0.680 with today's scorer, the same as the greedy decode here.)
+
+**Sign → text on AzSLD's recognized new sentences** (the N3 target; `tools/eval_nbest_text.mjs`: every test recording,
+also the ones where nothing is recognized, gloss2text learned without the sentence, as section 2 of
+`eval_gloss_text.mjs`):
+
+| text WER, new sentence | `decode()` | + sign LM (shipped) | the best of the 3 alternatives | annotated glosses (no recognition errors) |
+|---|---|---|---|---|
+| `cont_v15/final_merged` (the eval's default) | 46.3 % | 46.2 % | 43.1 % | 41.3 % |
+| `e29_v5_slovo` | 49.0 % | 48.8 % (beam's best 48.4 %) | 45.0 % | 41.3 % |
+
+**The target (−5 points) is not reached and cannot be reached by decoding:** with perfect recognition the same
+recordings give 41.3 %, 5.0 points below `cont_v15`'s 46.3 %; the rest of the error is gloss2text's word forms (session
+5, N2). The LM recovers 0.1–0.2 points of that recognition share on AzSLD, whose recognizer already knows these signers'
+sentences well; on the new person it recovers 2.8 points (60.3 → 57.5 %). The alternatives are worth more: a person
+picking the best of the three would be at 43.1 % (−3.2 points); on val the sign sequence is exactly right in the first
+alternative 57.3 % of the time and among the three 66.0 %.
+
+**Word-level rerank** (the N-best sign sequences → gloss2text → a word bigram of the HPLT corpus, 8.3 M tokens, the 10
+AzSLD sentences in it left out; `eval_nbest_text.mjs --wordlm`): it does not help. Alone it prefers short texts (γ 0.05:
+46.3 → 50.6 %); with a per-word bonus the best setting, chosen on test itself, gives 46.3 → 46.1 % (`cont_v15`) and
+48.4 → 48.3 % (`e29_v5_slovo`). A sentence's alternatives differ in which signs they keep, and each text is fluent,
+because gloss2text makes each one grammatical. Not shipped (it would also need a word LM of several MB).
+
+**Confidence.** The shares are a softmax over the shown alternatives' scores; the temperature 0.4 was chosen on val so
+that the first alternative's share matches how often it is exactly right (expected calibration error 0.099; temperature
+1 gives 0.168, mostly 40–50 % shares for sentences right 55–80 % of the time).
+
+**Python ↔ browser.** `ml/make_fixture.py` writes `ml/fixtures/continuous_v3` (v2's cases unchanged + 4 cases with a
+synthetic bigram / trigram LM, a label the LM does not know and letters: segments, `decode_lm`, `nbest`, `alternatives`,
+shares, and ln P(w | h) for every order-3 history); `tools/verify_continuous.mjs` checks them to 1e-9 and runs the LM
+`SentenceStream` window by window (its words = `decode_lm`, `peek()` = the rest, the alternatives when it closes =
+Python's). On real data: JS `decodeLM` with the shipped LM gives the same signs as Python for all 246 held-out JestDili.az
+sentences, 1.0 ms per sentence in Node. `cont_model_ref.json` now points at fixture v3 (the features part is identical).
+
+**The live page** (`tools/sim_danis.mjs --lm`: JestDili.az's 500 sentence recordings through the browser's path with the
+installed model; they are its CTC training data, so this measures display, not accuracy). The first run showed that the
+LM, by leaving out weak words, lengthens the pauses between shown words, and 3.0 % of sentences were split at the
+60-frame gap (2.4 % without the LM with today's model; E35's 0.6 % was the model before E29's install). The stream now
+counts the pause from the last segment `decode()` would have shown, a word the LM left out included; the words themselves
+are unchanged. Then:
+
+| replay, installed model | final words | false grey words per minute (browser rule) | grey: frames from the sign's start (median / p90) | white: frames after its end (median) | sentences split at gap 60 |
+|---|---|---|---|---|---|
+| `decode()` | 1,916 | 3.6 | 22 / 33 | 31 | 12 (2.4 %) |
+| + sign LM | 1,800 | 3.3 | 21 / 33 | 31 | 9 (1.8 %) |
+
+**In the app (N4).** `s2s.js` loads `sign_lm.json` (`useLM`, `/danis/?nolm=1` for a comparison), passes it to the
+`SentenceStream`, and when a sentence closes gives `onSentence` its `alternatives`: each variant's words filtered by the
+hands rule like the shown words (`MIN_HANDS`), its text by `textOf` (nearest AzSLD sentence, else gloss2text), variants
+with the same text merged. The pause bar uses the stream's `quietFrom`. `src/tercume/correct.js` (+ `correct.css`)
+renders a sentence with its share and the other variants as buttons, and "Düzəlt" (type the text); a tap or an edit
+replaces the sentence and is saved in `localStorage` (`chevir.duzelisler.v1`: shown and chosen text, sign names, shares,
+page; no video, no landmarks; the last 1,000). A bar under the conversation shows how many corrections are on the
+device, "Yüklə (JSON)" downloads them only when pressed, "Sil" deletes them. Used by `/danis/` (the conversation) and
+the translator's sentence mode (its history); the page's hint says where corrections are kept. `/danis/?video=` on three
+clips glued from JestDili.az's single-word videos (a check of the path, not of accuracy: the words were not signed as
+one sentence): BU GÜN HAVA SOYUQ → "İndi hava soyuqdur" 52 %, alternatives "Hava soyuqdur" 30 % and "Bu gün hava
+soyuqdur" 18 % (the right one); MƏNİM QARDAŞ MƏKTƏB GETMƏK → "Mən edirəm qardaş" 39 %, "Mən edirəm" 38 %, "Mənim
+qardaşım" 23 %. A tap on an alternative and an edit were saved, the export file was built (not downloaded), then the
+test entries were deleted. The translator's sentence mode loads (802 words) with the bar. No console errors.
+
+**Checks.** The 13 committed `node tools/verify_*.mjs` (and session 5's uncommitted `verify_formtag.mjs`), `node tools/ci_gates.mjs` (s2t dev 41.9, test 42.8: gloss2text is unchanged)
+and `python ml/make_fixture.py --check` pass; `npm run build` passes.
+
+Files: `tools/build_sign_lm.mjs`, `public/tercume/assets/sign_lm.json`, `ml/azsl/continuous.py`, `src/tercume/continuous.js`,
+`ml/make_fixture.py`, `ml/fixtures/continuous_v3.{json,bin}` (v2 removed; `bench_cont_model.mjs`, `verify_sign_merge.mjs`
+read v3), `ml/fixtures/cont_model_ref.json`, `tools/verify_continuous.mjs`, `ml/dump_cont_probs.py`,
+`tools/eval_nbest_text.mjs`, `src/tercume/s2s.js`, `src/tercume/paths.js`, `src/tercume/correct.{js,css}`,
+`src/danis/main.js`, `danis/index.html`, `src/tercume/app.js`, `tercume/index.html`, `tools/sim_danis.mjs` (`--lm`).
+`gloss2text.js` is unchanged. Local only: `D:/chevir/eval/e32/` (probabilities, LM variants, grids, detections, N-best
+lists, JestDili.az scores, replays), scripts `D:/chevir/scripts/e32/`, test videos in `scratch/e32/` (git-ignored). The
+GPU was used only to save the probabilities (about 10 minutes). Commands:
+
+    D:/chevir/venv/Scripts/python ml/dump_cont_probs.py --ckpt D:/chevir/runs/e29_v5_slovo/cont/seq_splice_ctc_slovo/best.pt \
+      --input D:/chevir/kaggle --splits val,test --out D:/chevir/eval/e32/probs_v5slovo
+    D:/chevir/venv/Scripts/python ml/dump_cont_probs.py --ckpt D:/chevir/runs/e29_final_ctc_slovo/cont/final_all_ctc_slovo/best.pt \
+      --jestdili D:/chevir/landmarks --sentences D:/chevir/kaggle/jestdili_ctc_r4/jestdili_sentence_glosses_r4.json \
+      --out D:/chevir/eval/e32/probs_jd_hold
+    node tools/build_sign_lm.mjs                      # sign_lm.json (bigram, the corpus only)
+    node tools/eval_nbest_text.mjs --nbest <alternatives.jsonl> --k 3 [--wordlm data/corpus/hplt_sentences.txt --gamma 0.02 --mu 8]
+    node tools/sim_danis.mjs D:/chevir/eval/danis_sim/jestdili --lm
+
+## E33 — A learned word-form model under the sign → text rules (N2, S3)
+
+**Why.** gloss2text picks each sign's word form (case, possessive, plural, predicate suffix, tense, question) from
+context counts over AzSLD's 492 sentences; the rules then fix agreement, possession, tense words and so on. Choosing the
+form was the main weakness (E16: 28 % of the errors are the right root in the wrong form). How much is there to gain:
+if the counts' choice were perfect (the aligned word's own features, rules kept on top), WER would be dev **22.0 %** /
+test **23.6 %** instead of 41.9 / 42.8 %. Roadmap N2 / NLP plan S3: a small sequence model trained on the corpus
+pseudo-glosses in both styles and AzSLD, run in the browser, with the rules as the fallback behind a switch.
+
+**Data.**
+- Pseudo-glosses rebuilt with today's lexicon and recognizer labels (802 words; E18's file was from before E29): the 927,034
+  HPLT sentences through text → sign, in **both styles**: AzSLD style (73,885 pairs) and native (`--native`, new option of
+  `tools/build_pseudo_gloss.mjs`: dropped subject MƏN / SƏN signed, verb + YOX + OLMAQ / OLACAQ, BİRLİKDƏ; 74,234 pairs,
+  23,881 of them differ from the AzSLD style). Local in `data/corpus/pseudo_{azsld,native}_e33.jsonl`.
+- Targets (`tools/build_form_data.mjs`): gloss2text's own alignment (`prepare`) gives each sign's word and its features,
+  written in the space the counts use (`fit`: verb person left to the subject rules, predicate suffix as true, possessive
+  agreeing with the pronoun before it as "P"). 148,611 sentences, **659,000 signs with a target** (1,937 from AzSLD).
+- One bug found on the way: in the corpus an inflected label such as HAQQINDA was matched to many words (haqqınızda) and
+  its target was relative to a shorter root (haqq + locative + possessive, 613 times), while gloss2text uses the whole
+  word "haqqında" as the root, so the model's suffix landed on top of it ("haqqındanda", "münasibətiləsilə",
+  "anasisi"). A target is now kept only when its root is one gloss2text can use for that label (its roots in AzSLD's
+  dev sentences or the root guessed from its name): 25,324 targets dropped. Dev 38.1 → 37.8, test 40.2 → 39.3 (λ 0.6).
+- AzSLD dev in 10 folds (dev order, k mod 10); every evaluated sentence is predicted by a model that never saw it: dev
+  sentences by their fold's model (f0–f9), test sentences and the recognized test recordings of test sentences by "dev"
+  (all 443 dev sentences), recognized recordings of dev sentences by their fold's model; the counts stay leave-one-out
+  as before. The browser model ("all") sees all 492.
+
+**Model** (`ml/formtag.py`, `src/tercume/formtag.js`). Per sign: the label (embedding 48; numbers, years and spelled
+letters as one token each, an unknown label as <UNK>, learned by dropping 10 % of labels in training), its part of speech
+guessed from its name (4) and the last 3 letters of its name (24) → 2-layer bidirectional GRU (96 per direction) →
+softmax over 168 feature bundles. 361,676 parameters, float16. Training: a base model on the corpus pairs (4 epochs,
+80 s on the RTX 4070 laptop), then each of the 12 models continues from it on AzSLD (weight 10) + 20,000 corpus
+sentences (6 epochs, ~15 s). Its own JS forward (no ONNX, so `generate()` stays synchronous): `tools/verify_formtag.mjs`
+against PyTorch, max difference 1e-6 (fixture `ml/fixtures/formtag_v1.json`, 13 sentences incl. an unknown label).
+
+**In gloss2text** (`#feats`, behind a switch): score = (1 − λ) · the counts' distribution + λ · the model's probabilities
+for the sign's part of speech (the model alone when the sign has no counts). The rules run after it as before. Two
+guards: **negation never comes from the model** (the counts' choice, then the label's own negation as before; without
+the guard the browser model turned MƏN BU AY PENSİYA ALMAMIŞAM into "almışam"), and a pronoun's genitive chosen by the model stays even when
+the next noun has no possessive (the reset rule cancelled right choices: dev −0.3 / test −0.8). λ = 0.6 chosen on dev
+(0.5: 38.1, 0.6: **37.8**, 0.7: 38.0; before the negation guard, which moves dev to 37.9). The switch: `gloss_text.json` carries the model as `formTagger` with `on` and
+`lambda` (`tools/build_gloss_text.mjs` embeds `ml/form_tagger.json`; `--off` keeps it off, `--tagger none` leaves it
+out); `new GlossToText(model, { tagger: false })` is rules only.
+
+| sign → text WER (chrF) | rules (E30, E32) | + form model | difference, paired bootstrap 95 % |
+|---|---|---|---|
+| annotated glosses, dev 443 (counts leave-one-out, model 10-fold) | 41.9 % (66.6) | **37.9 %** (69.3) | −4.0 [−5.4, −2.8]; 101 sentences better, 36 worse |
+| annotated glosses, test 49 | 42.8 % (66.2) | **39.3 %** (70.0) | −3.5 [−6.9, −0.4]; 10 better, 3 worse |
+| recognized glosses, new sentence, 1,484 test recordings | 46.3 % (62.8) | **42.5 %** (65.5) | −3.8 [−4.5, −3.2]*; 315 better, 88 worse |
+| recognized, nearest AzSLD sentence else gloss2text (new / known) | 48.1 / 4.7 % | 44.2 / 4.9 % | |
+| R6: spelled sentences dev 23 / test 4 / recognized 96 | 41.0 / 38.5 / 47.5 % | 33.8 / 38.5 / 44.0 % | spelled words right 21/23, 4/5 (same) |
+| JestDili.az held-out 246 (new person), installed decoding (E32) | 57.5 % | **57.5 %** | 0.0 [−1.8, +1.8]; 25 better, 24 worse |
+| JestDili.az held-out, greedy decoding | 60.3 % | 60.2 % | −0.1 [−2.0, +1.7] |
+
+\* recordings of one sentence share it, so this interval is somewhat narrow. Targets: test ≤ 40 % met (39.3), recognized
+new sentence ≤ 45 % met (42.5), JestDili.az not worse (level). The gain is in the form choice itself: of the 1,734 dev
+signs with a target, the counts pick the right features for 64.6 %, the model alone 74.2 %, the installed mix 73.2 %
+(pronouns 59.9 → 76.6 %, verbs 74.4 → 78.5 %); wrong-form words on dev 540 → 449. Known sentences lose 0.2 points: the "all" model is
+mixed into sentences the counts had memorized.
+
+Variants (dev / test / recognized new, λ 0.5–0.7; on the data before the root fix unless marked):
+
+| | dev | test | new |
+|---|---|---|---|
+| base + 3 epochs on AzSLD | 39.0 | 41.5 | 43.7 |
+| base + 6 epochs (chosen recipe) | 38.3–38.8 | 41.0–41.5 | 43.3–43.7 |
+| AzSLD weight 30 | 38.8 | 41.0 | 43.6 |
+| joint training from scratch, 6 epochs | 38.7–38.9 | 41.0 | 43.7 |
+| GRU 128 | 38.7–39.0 | 40.2–41.9 | 43.7–44.0 |
+| average of the 4 models above | 38.3–39.0 | 40.2–41.0 | 43.0–43.8 |
+| + pronoun genitive kept (λ 0.6) | 38.1 | 40.2 | 42.9 |
+| + root fix, seed 0 (installed) / seed 1 | **37.8** / 38.0 | **39.3** / 39.7 | **42.5** / 42.6 |
+
+The model's size and the training recipe hardly matter; the data (the root fix) and the interplay with the rules do.
+Rules ablation with the model on (an earlier run, λ 0.5): every rule still helps or is neutral (`#have` +2.0 dev, `#time` +0.3 dev / +0.9 test,
+`#native` ±0.1 on AzSLD), so they stay on top. A log-linear mix, a separate λ for labels without counts and the
+replace-when-confident variant were no better.
+
+**What is left** (dev, with the model): 359 nouns and 90 verbs in the wrong form (pronouns still 67 of the nouns;
+BİLMƏK's person and question: bilərəm / bilərsinizmi, as the model does not predict person), 172 signs whose word the text
+does not have (İŞLƏMƏK, VERMƏK, SİZ...), 322 text words with no sign (ilə, idi, light verbs: the plan's "insert after"
+list), 120 other words (synonyms, multi-word signs). JestDili.az gains nothing: its errors are mostly recognition (F1 0.70).
+
+**Browser.** `gloss_text.json` 434 → 1,398 KB (100 → 829 KB gzip; the sentence model it comes with is 7 MB; int8 weights
+would halve it if needed); the model is built in 67 ms when the page loads it, and a sentence takes 1.7 ms instead of
+0.2 ms. Checked in the dev server's page: the embedded model loads, outputs match Node, `tagger: false` gives the rules.
+
+**Decision: on.** It wins on all three AzSLD measures, clear of zero, keeps the new person level, R6 and negation are
+unchanged by construction and checked, and the rules stay as the fallback (`tagger: false`, `--off`).
+
+Checks: `tools/verify_gloss_text.mjs` runs every case on both paths: the rules path gives exactly the old outputs; the
+model path the same text except 12 cases where it picks another correct form (`MODEL_FORMS`: "gedirəm" instead of the
+AzSLD text's "getmişəm" when no time sign is there, "ADA universitetində", "eşitmə məhdudiyyətlidir"), plus new checks:
+negation identical on both paths in 532 sequences (the 492 sentences and MƏN / O + every label with negation in its
+name), spelled words identical, MƏN SƏN GÖZLƏMƏK → "səni" (rules: "səndə"), the switch. `tools/ci_gates.mjs`: the old
+gates measure the rules path and are unchanged (dev 41.9, test 42.8); a new gate `s2t_tagger` (dev 38.8, test 40.3,
+new 43.5) runs when the fold models are given (`--tagger D:/chevir/e33/r2` or `FORM_TAGGER_FOLDS`; 12 × 1 MB, not in
+the repo). All 14 `verify_*` scripts, the gates and `npm run build` pass.
+
+Files: `src/tercume/formtag.js` (new: tokens + GRU forward), `src/tercume/gloss2text.js` (`tagger`, `lambda`, `#feats`
+mix, negation guard, `LAMBDA`), `ml/formtag.py` (train / install / fixture), `ml/form_tagger.json` (installed model, 730
+of 2,223 tokens kept: labels the recognizer can output), `tools/build_form_data.mjs` (targets, folds, `--part k/n` for
+parallel runs), `tools/build_pseudo_gloss.mjs --native`, `tools/eval_gloss_text.mjs --tagger <dir> [--lambda]`,
+`tools/score_jestdili.mjs --tagger / --no-tagger`, `tools/build_gloss_text.mjs` (embeds the model), `tools/verify_formtag.mjs`,
+`tools/verify_gloss_text.mjs`, `tools/ci_gates.mjs`, `ml/gates.json`. Local: `D:/chevir/e33/` (data, runs, fold models
+`r2/`, dumps), scripts `D:/chevir/scripts/e33/` (oracle, ablation, error breakdown, bootstrap). No GPU job ran alongside
+another session's.
+
+    node tools/build_pseudo_gloss.mjs data/corpus/hplt_sentences.txt data/corpus/pseudo_native_e33.jsonl --native
+    node tools/build_form_data.mjs --out D:/chevir/e33/form_data2.jsonl --pseudo data/corpus/pseudo_azsld_e33.jsonl,data/corpus/pseudo_native_e33.jsonl --names hplt,native [--part k/12]
+    D:/chevir/venv/Scripts/python ml/formtag.py train --data D:/chevir/e33/form_data2.jsonl --out D:/chevir/e33/r2 --epochs 4 --ft-epochs 6
+    node tools/eval_gloss_text.mjs --tagger D:/chevir/e33/r2
+    D:/chevir/venv/Scripts/python ml/formtag.py install --model D:/chevir/e33/r2/all.json && node tools/build_gloss_text.mjs
+    node tools/ci_gates.mjs --tagger D:/chevir/e33/r2
+
+## E34 — The avatar: a back-translation score (V3), timing (A4), movement between signs (A1) (no training)
+
+**V3, back-translation** (`tools/backtranslate.mjs` + the page part `tools/backtranslate.js`). Text → the app's own
+`TextToSign` plan and player (native rules, the same lexicon) → the VRM avatar in headless Chrome on a virtual clock (as
+`tools/render_avatar_clips.mjs`, so the timing is the app's, not the PC's) → every 1/30 s a MediaPipe-shaped frame built
+from the avatar's bones, a "perfect tracker": pose (nose, shoulders, elbows, wrists, hips) and both hands' 21 points
+projected through a fixed virtual camera placed like AzSLD's front camera (Cam2 median: shoulders' midpoint at y 0.566,
+shoulder width 0.316 of the frame height, 4:3), hand z scaled like MediaPipe's (0.46 of x, measured on AzSLD), hand world
+landmarks at MediaPipe's median hand size (wrist → middle knuckle 9 cm); a hand whose palm is below y 0.97 counts as not
+detected (AzSLD hands on the lap: 24 % detected); no face (the sentence model drops it). → the installed sentence model
+(`final_all_ctc500_slovo`, windows and plain `decode()` as in the app) → detections matched to the signs the player
+showed, by class and overlapping frames (`segment_eval.Tally`). Main number: sign F1 over the intended signs the model
+knows (90 % of them; the others are JestDili.az words outside the recognizer), letters separately. Fixed set: the 49 AzSLD
+test sentences (heldout_sentence) + the 150 set C draft sentences (`ml/setc/setc.csv`). ~5 minutes on this laptop, CPU
+only. `--mode source` runs the signer's own lexicon clips through the same camera and timing (no avatar): what the clips
+alone give. `tools/compare_v3.mjs a.json b.json` compares two reports sentence by sentence (paired bootstrap). Each
+sentence starts at the same phase of the virtual clock: the player's 16 ms waits against the 60 Hz updates move frames
+slightly, and when the phase depended on the sentences before, the same settings scored 0.539 or 0.530. `--phases 3`
+pools three phase offsets per sentence (gave the same numbers as one phase here). The hand checks run on every frame of
+the sentences too: hands in each other or in the body (> 5 mm), E28's raised right elbow, the palm's largest move in 1/30 s.
+
+| before E34 (old player) | sentences | sign F1 | P / R | WER | letters F1 | s / sentence |
+|---|---|---|---|---|---|---|
+| avatar, all | 199 | **0.543** | 0.484 / 0.619 | 76.0 % | 0.468 | 10.5 |
+| avatar, AzSLD test | 49 | 0.643 | 0.608 / 0.682 | 54.7 % | 0.356 | 10.1 |
+| avatar, set C | 150 | 0.507 | 0.443 / 0.593 | 84.5 % | 0.489 | 10.6 |
+| signer's clips, all | 199 | 0.699 | 0.602 / 0.835 | 58.9 % | – | 10.5 |
+
+The avatar loses 0.16 F1 against the clips it is built from, nearly all in recall: two-handed signs 0.52 (clips 0.83),
+one-handed 0.74 (0.84); the first sign of a sentence 0.76, later signs 0.57 (clips 0.88 / 0.82). Precision is low in both
+(extra detections during fingerspelled words, a sign detected twice). Typical misses: İSTƏMƏK, SƏN, OLACAQ, BİZ, ALMAQ,
+NƏ VAXT; BAKI (hand at the chin) reads as YEMƏK. The roadmap's exit test (V3 tracks V2 on 20 items) waits for the first
+native review answers.
+
+**A4, timing measured on AzSLD** (10,104 front-camera recordings, 49,280 annotated signs, 39,158 sign pairs; scripts
+outside git): the gap between two annotated signs is 3.5 + 4.7 d frames at 30 fps (median; d = the palm's travel in
+shoulder widths), 120 ms + 160 ms × d. The last sign of a sentence is 1.6× as long as the same sign in the middle (+11
+frames), the first 1.23×; question-final signs are not longer than statement-final ones (1.63× vs 1.59×). Between two
+signs the palm goes nearly straight (largest sideways deviation 8 % of the distance, median of 21,391 transitions), leaving
+slowly and arriving fast: progress at t = 0, 0.1, … 1 is 0, .04, .09, .16, .25, .35, .47, .60, .73, .87, 1 (minimum jerk
+would be 0, .01, .06, .16, .32, .50, …). Per-sign speed: the AzSLD clips already have their sign's typical length (own
+annotation / the sign's median in the middle of sentences: median 1.00, p10–p90 0.83–1.23), so no per-clip correction.
+JestDili.az clips are citation forms, 2.1× as long as the AzSLD in-sentence form for the 11 words both have; the same
+person's 500 sentence videos give no clean estimate. Playing them 1.3× faster changes V3 by +0.002 [−0.004, +0.007]; the
+default stays 1 (`jdSpeed`) until a native review says otherwise.
+
+The old player waited ~590 ms after every sign (last frame 67 + hold 150 + transition 120 + space 250) with the arm parked
+at the sign's end, then gave the next sign's first frame and the spring needed ~250 ms to get there while that sign's
+frames already played; after the sentence the signing hand rose to the fingerspelling "ready" pose by the face for
+0.9 s before dropping. New `timing: 'natural'` (`src/tercume/t2s.js`): the gap is 120 + 160 d ms (at least 200 ms: the
+arm's spring needs that much) and the arm travels to the next sign's start during it; the sentence's last sign is held
+370 ms (questions the same; the question face stays during it) and then both hands go to rest (`VrmAvatar.toRest`).
+Holding the next sign's first frame for longer instead (old ~520 ms gap, early move) is worse: F1 −0.027 [−0.042, −0.007];
+clip starts carry a few frames of the source sentence's movement.
+
+**A1, movement between signs** (`VrmAvatar.setTransition`, `transitions: true`): during the gap the palm follows the
+measured progress profile along a straight line from one sign's last frame to the next one's first, the hand rotation
+and fingers are slerped, and the arm is solved at 11 points by the word IK (body avoidance, the signer's elbow, E28's
+`elbowRaise` cost), each next to the previous point's elbow; between the points the joints are slerped. A hand that only
+the next sign uses rises at once, one that only the last sign used goes to rest. Not learned: the profile and the
+straight path are fitted statistics; a learned model can replace the path later.
+
+| V3, 3 clock phases, 199 sentences | sign F1 | WER | AzSLD test F1 | set C F1 | s / sentence | hands in hands / body | right elbow raised | palm step median / max |
+|---|---|---|---|---|---|---|---|---|
+| old player (`timing: 'fixed'`) | 0.543 | 76.0 % | 0.643 | 0.507 | 10.5 | 0.2 / 2.9 % | 0.6 % | 17.0 / 24.5 cm |
+| natural timing, spring only | 0.530 | 76.7 % | 0.644 | 0.489 | 9.7 | 0.1 / 2.6 % | 0.6 % | 14.1 / 24.5 cm |
+| **natural timing + A1 (new default)** | **0.539** | **74.4 %** | **0.657** | 0.496 | **9.7** | 0.2 / 2.7 % | **0.5 %** | **14.1** / 24.5 cm |
+
+New default against the old player: F1 −0.004 [−0.020, +0.017], WER −1.6 [−5.6, +1.7] points (56 sentences better, 53
+worse): level. A1 against the spring alone: F1 +0.009 [−0.006, +0.022], WER −2.3 [−4.2, 0.0] (36 better, 20 worse), so A1
+stays. Sentences are 0.8 s shorter. The hand checks do not get worse: on the per-word checks the word solution is
+untouched (`measure_hands.mjs` on every 6th word, 529 words, totals identical before and after: hands in hands 21, hand
+in body 248 words, placement p90 4.2 cm; `measure_elbows.mjs --n 300`: right elbow raised 4.2 % of frames, 9.0 % / 4.9 %
+of words with ≥ 3 raised frames right / left, as in E28), and on the sentence frames above. The largest palm move per
+frame drops (17.0 → 14.1 cm median per sentence) because the "ready" rise at the end is gone. The source reference under
+the new timing: 0.671 (the clips' own starts are now reached and shown, including their transition frames). V3 does not
+show a gain from timing alone; what it does show is that the avatar's loss is in two-handed signs and in later signs,
+which is placement and retargeting work (the two-hand fix, face-near mapping), not timing.
+
+`timing: 'fixed', transitions: false` gives the old player. Contact sheets of whole sentences, one row per setting:
+`node tools/avatar_sheet.mjs --text "…" --variants '[{"timing":"fixed","transitions":false},{}]' --every 3`
+(D:/chevir/eval/v3/sheet_*.jpg, local). Translator checked in the browser (dev server): sentences play, the avatar ends at
+rest, no console errors. 14 `verify_*` scripts and `ci_gates.mjs` pass (gates unchanged).
+
+    node tools/backtranslate.mjs [--phases 3] [--set azsld|setc] [--opts '{"timing":"fixed","transitions":false}'] --out x.json
+    node tools/backtranslate.mjs --mode both --out x.json            # + the signer's clips through the same camera
+    node tools/compare_v3.mjs before.json after.json [--show 5]
+
+## E35 — The live page with a real camera, speed (R5, A5; no training)
+
+`/danis/` (E28) had only seen videos through `?video=`. This time it ran with the laptop's webcam (1280×720) in
+the user's Chrome, with the user signing. The tester is not a signer: they copied JestDili.az clips, so how many words
+come out right says little about the model (YOX in particular was often missed or read as another word). The
+timings, the false words and the page's behaviour do not depend on who signs.
+
+**How it was measured.** Claude in Chrome was not connected, so the page measures itself: `/danis/?debug=1` shows
+fps, MediaPipe and model time over the video and, for every word, logs when its frames arrived (start and end of
+the segment), when it turned grey and when white; grey words that disappeared without becoming final ("false grey"),
+hints and hand visibility. In the dev server the lines are also posted to `/__danis` and printed in the server's
+console (`vite.config.js`, dev only; the production bundle has no trace of it), so a phone or a tab nobody can
+inspect still reports. Then an offline replay: `ml/export_stream_clips.py` writes the landmarks of JestDili.az's 500
+sentence videos (49.5 min) and `tools/sim_danis.mjs` runs them frame by frame through the browser's own code
+(`WindowStream`, `recognizer.frameProbs`, `SentenceStream.add/peek`, the display rules), so display rules and the
+sentence gap could be compared on 1,894 words instead of by eye. Caveat: the installed sentence model
+(`final_all_ctc500`) was trained on these 500 sentences, so its probabilities there are cleaner than on a new person;
+the replay's false-grey rate (9.5 per minute with the E28 rule) is close to the live one while signing (~8 per minute), though.
+
+**Round 1, the E28 page (two sittings, ~8 min).**
+
+| | Measured |
+|---|---|
+| Camera | 22-37 fps, mostly ~30 |
+| MediaPipe (hands + pose, GPU), per camera frame | 24-42 ms, ~31 ms typical: ~90 % of the main thread at 30 fps |
+| Sentence model per 96-frame window (every 8 frames) | 8-14 ms |
+| From a window's last frame to its result | 32-51 ms |
+| Grey word, after its sign starts (median of 44) | 0.51 s |
+| White word, after its sign ends | 0.97-1.21 s (the 24-frame lookahead + 4 frames of decode lag + up to one stride) |
+| Sentence moves to the list, after the last sign ends | 2.9-3.1 s, not the 2 s the page promised: the 60-frame gap is counted on fixed frames, 24 frames behind |
+
+What went wrong:
+- **False grey words:** 25 in the first 6 minutes (much of it idle), 15 in the next 2 minutes of steady signing
+  (~8 per minute, about one for every three real words): ALMAQ, SURƏT, DÜNƏN seven times in 5 s, …, most visible for
+  one window (0.27 s). Distracting while signing.
+- **Retries merged into one sentence:** the tester repeated a sentence 2-2.5 s after the last attempt, inside the
+  3 s gap, so MƏN VAXT MƏN VAXT YOX UŞAQ … grew until cleared. Nothing on the screen showed when a sentence would
+  close.
+- **Words with no hand in view:** after a sentence, with the hands lowered below the frame or reaching for the mouse,
+  words came from the arms alone (YANDIRMAQ, AY, BURA, GETMƏK at p 0.31-0.46; in round 2 BEL and GƏLİB with a hand in
+  0 % of their frames). SU held for 5 s with the hands still.
+- Smaller: "Köçürüldü" stayed in the status pill for good after copying; copy was disabled until the first sentence
+  closed; the hint pill was 509 px wide on a 375 px phone (cut off on both sides); a window still queued when
+  "Təmizlə" was pressed went into the new, empty stream.
+- Fine: the "raise your hands" hint came after ~10 s without hands and went away with them; the body hint never
+  fired (the tester never left the frame completely).
+
+**Replay: which grey words to show** (500 JestDili.az sentences, 1,894 final words; frames at 30 fps):
+
+| Show a pending word when | False grey words shown (per min) | Real words that were grey first | Grey after the sign starts, median / p90 | Delay the rule adds, mean |
+|---|---|---|---|---|
+| always (E28) | 472 (9.5) | 1,888 | 0.53 / 0.87 s | 0 |
+| seen in 2 windows in a row | 124 (2.5) | 1,859 | 0.80 / 1.13 s | 0.28 s |
+| p ≥ 0.4 | 350 (7.1) | 1,840 | 0.53 / 0.87 s | 0.01 s |
+| p ≥ 0.5 | 226 (4.6) | 1,600 | 0.53 / 0.97 s | 0.06 s |
+| segment ≥ 14 frames | 259 (5.2) | 1,839 | 0.63 / 0.90 s | 0.09 s |
+| 2 windows, or at once if p ≥ 0.6 | 210 (4.2) | 1,862 | 0.63 / 1.07 s | 0.12 s |
+| **2 windows, or at once if p ≥ 0.7** | **158 (3.2)** | **1,859** | **0.70 / 1.10 s** | **0.16 s** |
+| 2 windows, or at once if p ≥ 0.8 | 133 (2.7) | 1,859 | 0.73 / 1.13 s | 0.21 s |
+
+A probability floor alone hides real words (p ≥ 0.5 loses the grey stage for 294 of them) and barely helps; the
+false words are short-lived, not weak. Two windows in a row removes three quarters of them; letting confident
+words through at once keeps most of the speed. Chosen: 2 windows or p ≥ 0.7 (−66 % false greys, +0.16 s).
+
+**Replay: when to close a sentence.** Gaps between consecutive words inside a JestDili.az sentence: median 3
+frames, p90 12, p99 44, max 107. With the sentence gap at 36 fixed frames (closing ~2.0 s after the last sign) 12.2 %
+of the sentences are cut in two; 42: 8.0 %; 48 (~2.4 s): 3.6 %; 60 (~2.8 s, as now): 0.6 %. A split sentence gets
+its text written in two halves, which is worse than waiting; so the gap stays at 60 and the page now shows it.
+
+**Changes** (all in the page and the `s2s.js` glue; `decode()`, `SentenceStream` and the Python side are
+untouched, `verify_continuous.mjs` passes):
+- `src/tercume/live.js` (new): the display rules in one place. `PENDING_RULE` (2 windows or p ≥ 0.7);
+  `MIN_HANDS = 0.25`: a word, grey or final, is shown only if at least one hand is in 25 % of its frames (live false
+  words had 0 %, the tester's real words at least 42 %; of the replay's 1,894 words none is below 33 % and one below
+  70 %, so the rule removes none of them); `SENTENCE_GAP = 60` with the numbers above.
+- `s2s.js`: pending words carry their position and frames and pass through `#shown()` (consecutive windows per
+  position and label); hands per frame are kept for the last 4,096 frames; `onPause({progress})` each window (fixed
+  frames since the last final word / sentence gap); a generation counter drops windows queued before
+  `clear()`; the open sentence closes when the page is hidden or frames stop for over a second (round 3); `onTrace`
+  and `stats` for the debug mode. Final words with no hands are dropped before they reach the sentence and its text.
+- `/danis/`: a thin bar under the caption fills while the sentence is about to close (it is full when the sentence
+  moves to the list); the help text says "about three seconds" and to wait for the bar; copy includes the sentence
+  still on screen and the status goes back after 1.5 s; the hint wraps inside the frame; `?debug=1`.
+- Phone: `npm run dev:https` (`tools/dev_https.mjs`) makes a self-signed certificate for this PC's addresses with
+  openssl (`.cert/`, ignored by git; remade when the Wi-Fi address changes) and serves Vite over HTTPS on the LAN
+  (port 5174), so a phone's browser may open the camera. The 375 px layout was checked in the browser pane; a real
+  phone was not tried.
+
+**Round 2, the tuned page** (~2.5 min, before the hand rule):
+
+| | Round 1 | Round 2 |
+|---|---|---|
+| False grey words | ~8 per minute | ~4 per minute |
+| Grey after the sign starts, median | 0.51 s | 0.81 s |
+| White after the sign ends | 0.97-1.21 s | 0.95-1.24 s |
+| Sentence closes after the last sign ends | 2.9-3.1 s | 2.84-3.04 s |
+| Camera / MediaPipe | ~30 fps / ~31 ms | 34-51 fps / 19-28 ms (the GPU had no training job this time) |
+
+Live, the grey stage costs +0.3 s rather than the replay's +0.16 s: the tester's signs were less confident (MƏN
+mostly at p 0.42-0.52), so they waited for the second window.
+
+**Round 3, with the hand rule** (~2 min of signing in four stretches): the hand rule dropped BEL (a hand in 0 % of
+its frames) while the arms moved below the frame; the body hint ("Bədəniniz görünmür…") came when the tester left the
+frame and went away when they came back; copy took two lines both times; 5 false grey words (~2.5 per minute);
+grey after the sign starts 0.40-1.56 s, white after the end 0.98-1.29 s, sentence closed 2.85-3.09 s after the last
+sign. The bar under the caption, checked on a JestDili.az video with 5 s of rest after the last sign, fills in eight
+steps of one window and empties when the sentence moves to the list. The model took 12-25 ms here (a training job of
+session 1 was running).
+
+One more problem: whenever the tester switched to another window, Chrome stopped giving frames (0 fps for 30 s at a
+time; a covered or hidden page gets none). The open sentence stayed open and closed only when frames came back, 39 s
+after its last sign ("Mən vaxt evdə kart"), and anything signed right after would have joined it. Now
+(`live.js FRAME_GAP_MS`, `s2s.js #closeSentence`) the open sentence is closed at once when the page is hidden
+(`visibilitychange`) and, if frames simply stop, when they come back after more than a second; the stream then
+starts fresh.
+
+**Speed (R5, A5).**
+- Sentence model: `tools/bench_cont_model.mjs` (Node, onnxruntime-web WASM, one thread) 15.9 ms median per window,
+  p90 16.8 ms, 6 % of the 267 ms between windows; in the page 8-14 ms.
+- MediaPipe in the page, a 1280×720 frame: hand landmarker 27.6 ms, pose (lite) 8.5 ms, median. The frame size
+  hardly matters (median of hands + pose: 35.5 ms at 1280×720, 34.4 ms at 960×540, 33.7 ms at 640×360): the cost is
+  the models, not the pixels, so a smaller camera request would not speed it up. Landmarks, not the sentence model,
+  limit the frame rate.
+- Avatar (text → sign): one frame of motion update + render, in sign mode, 0.4 ms median (update 0.2 ms) at
+  444×338, 0.6 ms at 1280×720, 0.4 ms (p90 0.8 ms) at 1280×720 with pixel ratio 2. It runs at the screen's rate
+  with room to spare.
+- A mid-range phone: if its GPU runs the two MediaPipe models 2-3 times slower than this laptop (~70-100 ms per
+  frame), landmarks come at 10-15 fps. E7 measured what that costs the sentence model: 30 → 10 fps loses 0.008 F1 on
+  AzSLD test (the stream is filled back to 30 fps, `Resampler`), so recognition survives. What would suffer is the
+  page: MediaPipe and the model both run on the main thread (onnxruntime-web, one WASM thread), and a phone 3-5 times
+  slower spends 40-80 ms per window four times a second on top. Needed before phones are a target: the model in a
+  Web Worker, landmarks capped at ~15 fps when frames take longer than ~50 ms, and a test on a real phone with
+  `npm run dev:https`.
+
+Not done here: a real phone; a native signer at the camera (the accuracy part of this test needs one). Seen but
+left to the sessions that own it: MƏN VAXT without YOX became "Mən vaxtam" (`gloss2text`, session 5); the tester's
+YOX was often read as UŞAQ, AC, EV, BOĞAZ or ƏL, and SU came from hands held still (the model, sessions 1 and 4).
+
+## E36 — A review package for a native AzSL user (no training)
+
+Many roadmap items wait on a native AzSL user's judgement: whether Slovo's RSL signs are AzSL's (D3, R4), the word
+forms of Words 500 (D5), the first V2 review, the open native rules (N9), synonyms (N8). They are now one local
+folder of short video questions that works offline, and one script turns the answers into data changes.
+
+**The package** (`tools/build_native_review.py` → `D:/chevir/native_review/` and `D:/chevir/native_review.zip`, 58 MB;
+outside git, no clip enters the repo). `index.html` + `data.js` + `review.js`, a plain script with no modules and no
+fetch, so the page opens by double click from `file://` in Chrome, Edge or Firefox, with no server and no install;
+the videos are in `clips/`. The reviewer gives a code, not a name; answers stay in the browser (localStorage, per
+release and code) and download as one CSV. Keyboard: 1–4 answers and moves on, Enter / → next, ← back, space
+replays. `OXU.txt`: instructions in Azerbaijani, the team's commands in English. Checked in headless Chrome from
+`file://`: every video decodes, the answers and the CSV are right, no console errors (two fixes on the way: a CSS
+`display` rule showed the hidden "which word?" field everywhere; focus left in that field swallowed the next key).
+
+| Section | Questions | From | Videos |
+|---|---|---|---|
+| Slovo classes already in the word model (flagged RSL) | 102 (101 labels) | `ml/slovo_new.csv`, rank ≤ 10 | Slovo ×2, JestDili.az |
+| Slovo map v2 | 168 | `ml/slovo_azsld.csv` | Slovo ×2, AzSLD ×2, JestDili.az |
+| D5 word forms | 23 | `ml/review/word_forms_review_w500.csv` (22 pairs + İŞSİZ / İŞLƏMƏK) | AzSLD ×2 per form, the sheet's example sentences |
+| N9 grammar rules | 13 | verb + YOX + tense (past, future), BİRLİKDƏ with görüşmək and razı olmaq, third person, and E22's rules for a second native user (dropped I person, OLACAQ after SABAH, ilə → BİRLİKDƏ, -malı → LAZIM or JestDili.az's MÜTLƏQ, mənim → MƏN), question faces, the negation head shake | avatar, its gloss line |
+| N8 synonyms | 13 | the 9 rows of `ml/text_alt.csv`, maşın → AVTOMOBİL, polysemy of almaq, bilmək, eşitmək | avatar; AzSLD, JestDili.az |
+| Multi-word signs: native or word by word (D5) | 21 | the word model's multi-word AzSLD labels with a Words 500 clip (21 of 33), e.g. ANADAN OLMAQ | AzSLD ×3 |
+| Slovo glosses matching AzSLD labels | 55 | E28's `ru_az.txt` matches (`D:/chevir/slovo/r4/matches.json`) | Slovo ×2, AzSLD ×2, JestDili.az |
+| Slovo new classes not checked | 105 | `ml/slovo_new.csv`, rank > 10 (E28's 106 counted the 208 JestDili.az matches; one has no row) | Slovo ×2, JestDili.az |
+| V2 | 50 | `public/rey/items.json` (release 2026-11-09 cc1612c): 13 interview, 12 AzSLD test, 10 set C (text → sign), 15 sign → text | avatar |
+
+550 questions, 1,599 clips and 73 avatar videos. Slovo's clips come from its zip, already cut to the sign (two people
+per gloss, at least 12 frames); AzSLD's from Words 500, which is the Sentences recordings cut at the annotated signs
+(E20; two participants per label); JestDili.az's from the local word videos (E28's `verify.json` clip for the new
+classes; JestDili.az's video addresses are not read, the package has no URL at all). All re-encoded to small H.264.
+The avatar videos (`tools/render_avatar_clips.mjs`) are the app's avatar in headless Chrome with a virtual clock:
+`performance.now` and `setTimeout` advance one frame at a time, so a video has the app's timing however slowly the PC
+renders (about 10 s per sentence on swiftshader); frames are piped to ffmpeg. V2's texts and recognized signs are
+those of `items.json`, the avatar's signing is this commit's. With 1–4 and autoplaying loops a Slovo question takes a
+few seconds: the two Slovo sections that change the installed model (270 questions) are about 25 minutes, the
+grammar, synonym and word-form sections (70) about 10.
+
+**Applying the answers** (`tools/apply_native_review.py <answers.csv> … [--dry-run]`; several reviewers' files at
+once, an item they disagree on is skipped and listed):
+
+| Section | yes | no | other (a word given) |
+|---|---|---|---|
+| Slovo map | `native = yes` (a new last column of `ml/slovo_azsld.csv`) | the row leaves the map | a word-model label: the row takes it; otherwise the row leaves (logged as a candidate) |
+| Slovo new classes | `native = yes`, `basis` + "native yes = rank 0", so notebook 04's `SLOVO_NEW_MAX_RANK` keeps it | the row leaves `ml/slovo_new.csv` | an AzSLD label: the row moves to the map; another word: the class is renamed to it |
+| 55 matches | a new map row (`native = yes`) | nothing | a word-model label: a new map row with it |
+| D5 | the sheet's answer column (bəli / xeyr / bilmirəm, reviewer code, comment) → `tools/same_sign/apply_review.py` → `ml/lemma_groups.csv` → `tools/build_sign_merge.py` → `sign_merge.json` | | |
+| Multi-word signs | the flag goes | flag `literal` in `ml/label_flags.csv`, the native sign in its note | |
+| N8 | `text_alt.csv` note "native yes"; a proposal is added | the row leaves `text_alt.csv` | |
+| N8 polysemy, N9 | logged and printed for the team (the rules are code: `words.js`, `gloss2text.js`) | | |
+| V2 | not applied: `node tools/review_summary.mjs <answers.csv>` (now keeps only the V2 rows of such a file) | | |
+
+After a `text_alt.csv` change only the affected avatar lexicon entries get new `alt` fields; JestDili.az's own
+alternates stay. Every applied answer goes to `ml/review/native_decisions.csv` (date, reviewer code, answer,
+correction, comment, what changed). `ml/label_flags.csv` (new): the 101 installed Slovo classes flagged `rsl`,
+recomputed from `slovo_new.csv` on every apply (all rows confirmed → no flag, no row left → `rsl-rejected`: the
+installed word model keeps the class until retrained), and ANADAN OLMAQ flagged `literal` (E21). Nothing reads the
+flags yet; they are for the next training and the app.
+
+**Test with made-up answers** (27 rows covering every branch, two reviewers disagreeing on one item, one V2 row),
+applied to the real files and then restored from a backup (git status identical before and after): map 168 → 170 rows,
+`slovo_new.csv` 207 → 204, flags rsl 97 / rsl-rejected 3 / literal 1, İŞSİZ split from İŞLƏMƏK in `lemma_groups.csv`
+and `sign_merge.json`, EDE joined ETMƏK, burda left `text_alt.csv` (and `burada.json`'s alt), maşın joined avtomobil;
+on that state `verify_sign_merge`, `verify_words` and every CI gate passed. After the restore all 12 `verify_*`
+scripts and the gates pass.
+
+**Found on the way**
+- `tools/same_sign/apply_review.py` renamed the KÖMƏK/YARDİM and KƏND/RAYON groups to KÖMƏK and KƏND when run again
+  on a sheet without synonym rows (a family name without its own row was not kept), which would have changed the
+  browser's merge names. Fixed: an existing family keeps its name, and a family name that is not a gloss gets no row;
+  on the unanswered sheet it now changes nothing. `--tag` sets the note's prefix.
+- `tools/build_avatar_words.py --alt-only` drops the alternates of the 80 JestDili.az entries from E27 (it removes every
+  entry's `alt` and sets only `text_alt.csv`'s). Not changed here; the apply script merges instead. Fixed in "E36
+  follow-up" below.
+- Text → sign, seen while writing the N9 and N8 questions: "Sabah gələcək" plays GƏLƏCƏK (the noun "future") + OLACAQ;
+  "Bu işi yerinə yetirdim" spells "yetirdim" (the idiom matches only some forms); "eşitmə məhdudiyyətiniz" is spelled
+  letter by letter although EŞİTMƏ MƏHDÜDİYYƏTLİ is a sign (these three: "E36 follow-up" below); MÜTLƏQ now has a JestDili.az sign (E21: no clip), so
+  -malı could use it (asked in N9).
+- After applying: map or new-class changes need the word model retrained (notebook 04 `SLOVO`, `SLOVO_NEW`) and the
+  sentence model (notebook 06's Slovo options, E29); D5 changes need both for merges the models were trained with.
+
+## E36 follow-up — Four text → sign fixes found in E36 (no training)
+
+The four problems E36 listed under "Found on the way" (`src/tercume/words.js`, `morph.js`, `ml/text_alt.csv`,
+`tools/text_alt.py`; cases in `tools/verify_words.mjs`).
+
+**"Sabah gələcək" → SABAH GƏLMƏK OLACAQ** (was GƏLƏCƏK OLACAQ). The lexicon's GƏLƏCƏK is a bare third-person future
+form, which Azerbaijani also uses as a noun ("gələcəkdə") and a participle ("gələcək il"). In native mode a finite
+tensed form that lands on such an entry (bare -AcAK or -mIş of the same verb) now plays the verb's infinitive sign when the
+lexicon has it, and the tense sign follows as before; forms with a person ending are always verbs ("Sən gələcəksən" →
+SƏN GƏLMƏK OLACAQ). The bare form is a verb only at the end of a clause (sentence end, comma, end of text, or before idi,
+ki, mi, isə, amma, ...); elsewhere it is a noun or participle and gets no tense sign: "Gələcək il gələcək" → GƏLƏCƏK İL
+GƏLMƏK OLACAQ (was GƏLƏCƏK OLACAQ İL GƏLƏCƏK OLACAQ), "Gələcək gözəl olacaq" → GƏLƏCƏK GÖZƏL OLACAQ. OLACAQ itself
+stays. AzSLD style is unchanged on purpose: AzSLD's annotators wrote GƏLƏCƏK for this verb in all three sentences that
+have it (20 of 20, 18 of 20 and 20 of 21 recordings). On the AzSLD sentences the switch changes GƏLƏCƏK, GECİKƏCƏK and
+EDƏCƏK (→ GƏLMƏK, GECİKMƏK, ETMƏK; 6 sentences, all dev).
+
+**"Bu işi yerinə yetirdim" → (MƏN) BU İŞ TAMAMLAMAQ (OLMAQ)** (was "yetirdim" spelled). A phrase's last word was keyed by
+its shortest suffix-free stem, which cut "yetirdim" to "yet" (-ir read as present tense) but "yetirmək" only to "yetir".
+The stems of phrase-final infinitives in the lexicon are now known to the phrase key, so every form of "yerinə
+yetirmək" matches (yetirdim, yetirəcəyik, yetir, ...). In native mode the idiom's verb gets the tense sign and the
+dropped subject like any verb ("rəhmətə getdi" already did; "razı qaldıq" now too): 9 of the 20 AzSLD recordings of
+"yerinə yetirib" also sign OLMAQ after TAMAMLAMAQ. A negative phrase now gets YOX: "yerinə yetirmədim" was TAMAMLAMAQ alone (the negation was lost),
+now MƏN TAMAMLAMAQ YOX OLMAQ. Only in the AzSLD lexicon: with JestDili.az phrases matching every form, "təbrik edirəm"
+became TƏBRİK ETMƏK, "zəng edə bilərəm" ZƏNG ETMƏK BİLƏR and "cavab verməyib" CAVAB VERMƏK YOX, taking words from
+AzSLD's own signs (E24), and the test same-gloss F1 fell below both gates (AzSLD 0.890 → 0.882, native 0.853 → 0.846).
+A verify case guards it.
+
+**"eşitmə məhdudiyyətiniz" → EŞİTMƏ MƏHDUDİYYƏTLİ** (was EŞİTMƏ + spelled). A new `text_alt.csv` row, "eşitmə
+məhdudiyyəti", so the noun phrase in any form reaches the sign. AzSLD supports it: in "Eşitmə məhdudiyyəti olduğuna
+görə ..." 20 of 21 recordings sign EŞİTMƏ MƏHDUDİYYƏTLİ, in "Mənim eşitmə məhdudiyyətim ..." 7 of 22 (the rest EŞİTMƏ
+alone or EŞİTMƏ ƏLİL). The review package's N8 section asks only about the 9 earlier rows; this one is for the next
+native review.
+
+**`build_avatar_words.py --alt-only` keeps JestDili.az's alternates.** The merge is now one function,
+`tools/text_alt.py` `sync_alt`, used by `--alt-only` and `apply_native_review.py`: an AzSLD entry's `alt` comes only
+from `text_alt.csv` (the full build gives it nothing else), so it is replaced; an entry from an added source keeps its
+own alternates and gets the table's on top; the apply script passes the table before its changes, so a removed row
+also leaves a JestDili.az entry. `--alt-only` has no such record, so it cannot remove a removed row from a JestDili.az
+entry (no row targets one today). Only changed entries are rewritten. Tested on a copy of the lexicon: with the table
+unchanged, `index.json` stays byte-identical (the old code rewrote every entry and dropped the 80 JestDili.az
+alternates); removing a row, adding and removing one on a JestDili.az entry, and the new row all came out right. On the
+real lexicon the new row changed only `alt` in `index.json` and `esitme-mehdudiyyetli.json`.
+
+| `tools/eval_text_gloss.mjs`, same-gloss F1 | dev before | dev after | test before | test after |
+|---|---|---|---|---|
+| AzSLD style | 0.892 | 0.893 | 0.890 | 0.890 |
+| native rules | 0.866 | 0.865 | 0.853 | 0.853 |
+
+Words as signs on dev 97.7 → 97.8 % (letters 375 → 350, all from the new row). The native dev drop is the gələcək
+sentences (AzSLD's annotation keeps the written GƏLƏCƏK) and OLMAQ after "yerinə yetirib" and "razı qaldıq"; nothing on
+test changes. All 12
+`verify_*` scripts and `ci_gates.mjs` pass with the same numbers as before; the translator page (dev server) shows
+SABAH GƏLMƏK OLACAQ, MƏN BU İŞ TAMAMLAMAQ OLMAQ, SİZ EŞİTMƏ MƏHDUDİYYƏTLİ VAR with no console errors.
+
+Two more in the same code, fixed after the four:
+- **The future of olmaq plays OLACAQ** (both modes): "həkim olacam" was HƏKİM OLMAQ (the lemma fell back to the infinitive
+  and olmaq gets no tense sign), now HƏKİM OLACAQ, as AzSLD signs it ("burda olacaqsınızmı", 23 of 23 recordings
+  OLACAQ). A sign that is itself a future form stays (OLACAQ, AzSLD's OLACAĞIQ). In native mode a negative or a phrase
+  gets OLACAQ as its tense sign: "olmayacağam" → OLMAMAQ OLACAQ (was OLMAMAQ), "tanış olacağıq" → BİZ TANIŞ OLMAQ OLACAQ.
+  The past stays OLMAQ alone ("oldu").
+- **-ib in mid-clause is a converb**, so native mode adds no OLMAQ: "O gəlib sizə kömək edəcək" → O GƏLMƏK SİZ KÖMƏK ETMƏK
+  OLACAQ (was O GƏLMƏK OLMAQ ...), "bazara gedib çörək aldım" → ... GETMƏK ÇÖRƏK ALMAQ OLMAQ. AzSLD has no OLMAQ after
+  them ("çıxıb" 0 of 22, "yazıb-oxuya" 0 of 20, "tutub" 0 of 17 recordings). At a clause end -ib stays a predicate
+  ("vaxtı bitib." → BİTİB OLMAQ). It also removes a false OLMAQ after "kasıb" (read as kas- + -ıb). -ib entries (BİTİB,
+  İTİB) are signs of their own and are not switched.
+
+Native dev same-gloss F1 0.865 → 0.866 (back to its value before the four fixes), AzSLD style and test unchanged; all 12
+`verify_*` scripts and the gates pass, the translator page shows MƏN GƏLƏCƏK HƏKİM OLACAQ and O GƏLİB SİZ KÖMƏK ETMƏK
+OLACAQ. Still as before: entries with a person ending (GƏLƏCƏKSİNİZ) keep their own sign.
+
+## E37 — The avatar's hands: orientation from MediaPipe's compressed image depth and the knuckle line (V3 follow-up; no training)
+
+**Question.** E34's V3 score gave the avatar sign F1 0.539 against 0.699 for the signer's own lexicon clips through the
+same synthetic camera, with two-handed signs worst (recall 0.52 vs 0.83). Is the loss in placement (`#wordPalm`,
+`#fixTwoHanded`, `#fixBody`), in the second hand going to rest (`place.height < -1.05`), or in the camera?
+
+**Swap test** (`tools/v3_swap.mjs`, new). Each V3 sentence is played once with the avatar and the signer's clips
+followed at the same time (`tools/backtranslate.js`, `dual`), so every frame exists twice; the two are then mixed and
+each mix goes through the installed sentence model. Recall of the intended signs (199 sentences, one clock phase,
+E34 code):
+
+| mix | all | two-handed | one-handed | first sign | later signs |
+|---|---|---|---|---|---|
+| avatar | 0.600 | 0.527 | 0.709 | 0.772 | 0.539 |
+| signer's clips | 0.837 | 0.810 | 0.877 | 0.878 | 0.823 |
+| avatar, clip's hand shape and orientation at the avatar's wrist | **0.835** | **0.824** | 0.851 | 0.888 | 0.816 |
+| avatar's hand shape at the clip's wrist | 0.576 | 0.518 | 0.662 | 0.746 | 0.515 |
+| avatar, clip's pose points (shoulders, elbows, wrists, nose) | 0.549 | 0.480 | 0.652 | 0.695 | 0.497 |
+| avatar, clip's right / left hand (everything) | 0.796 / 0.691 | 0.748 / 0.683 | 0.868 / 0.702 | 0.878 / 0.812 | 0.767 / 0.647 |
+| avatar, the clip's hand detection pattern | 0.620 | 0.538 | 0.742 | 0.797 | 0.557 |
+| avatar, the clip's image z only | 0.621 | 0.554 | 0.722 | 0.787 | 0.562 |
+
+Placement is not the loss (palms differ by 0.22 shoulder widths, the avatar's ~0.1 higher, and moving them to the
+clip's places gains nothing), nor the second hand's detection (left hand seen in 67 % of two-handed sign frames vs 74 %
+in the clips; copying the clips' pattern gives +0.02), nor the camera's body points (the avatar's pose with its own
+hands is better than the clip's). Nearly all of it is the hand's shape and orientation. Missed signs are not found
+elsewhere in the sentence either (5 of 306): not timing.
+
+**Cause 1: MediaPipe's image depth is compressed.** `tools/hand_orient.mjs` (new) compares, frame by frame, the hand
+orientation the word solve aims at (from the image landmarks: x, y and MediaPipe's z), the signer's world landmarks and
+what the avatar's bones reach. The avatar reaches its target within 3-11° (finger direction), but on the failing signs
+the target is 15-33° off the world landmarks (YAXŞI, recognized: 3-5°). MediaPipe's image z is about 2.2 times smaller
+than x for the same distance (E34 measured 0.46), so the orientation built from it tips into the image plane: SƏN's
+index points up instead of at the viewer (read as MƏN), İSTƏMƏK's claw at the chest opens flat to the side (read as
+TƏŞƏKKÜR 13 of 15 times). Image vs world orientation over 21,964 hand frames (every 7th lexicon word), median angle of
+the finger direction / palm normal, with image z scaled by k:
+
+| k | 1 (before) | 1.5 | 2 | 2.17 (1/0.46) | 2.5 | 3 | 4 |
+|---|---|---|---|---|---|---|---|
+| finger direction | 22.8° | 15.7° | 11.4° | 10.6° | 9.8° | 9.7° | 11.2° |
+| palm normal | 23.0° | 16.2° | 13.8° | 13.5° | 13.5° | 14.1° | 16.0° |
+
+Fix: `retarget.handTarget(..., { zScale })`, word signs use `VrmAvatar.wordDepth = 1 / 0.46` (letters unchanged).
+
+**Cause 2: the avatar's knuckle line.** The rig assumed the T-pose palm normal (0, −1, 0), but this avatar's knuckle line
+(index → little finger base) is tilted 9.8° (right) / 12.2° (left) from it, so every hand was twisted that much
+against the landmarks' own palm frame (measured: −10.6° / +12.8° median, all frames). `rig.nk0` (the normal from the
+knuckle line) and `handTarget(..., { knuckles })`, on for word signs (`VrmAvatar.wordKnuckles`): the achieved palm
+normal is now 1-9° from the target instead of 10-16°.
+
+**Side effects and guards.** Stretching z also stretches MediaPipe's z noise: some frames got unreachable wrist targets
+(single frames 44-49° past the limit), more arms into the body, a few raised elbows. The guards fall back to the
+pre-E37 ("flat") orientation of that frame only: (a) when the wrist cannot reach the target (`hard` > 0.03) the flat
+target is tried; (b) a single-frame spike is replaced by the mean of its neighbours only if that does not bend the wrist
+far past its limit (else the previous frame is held; this also applies with `wordDepth` 1); (c) a frame whose arm still
+goes through the body after `#fixBody` is fixed again from the flat orientation and kept if the gap opens more than
+3 mm without the wrist going past its ceiling (`#fixBodyFrame`; in the 529-word sample 752 of 1,869 such frames);
+(d) the same for hands still in each other (`#flatTwoHanded`, 17 of 66 frames); (e) a frame whose elbow is raised in
+E28's sense (less than 15 cm below the shoulder, more than 12 cm out) takes the flat orientation if that keeps the
+elbow down without a worse wrist. E28's `elbowRaise` cost is unchanged.
+
+**V3** (`node tools/backtranslate.mjs --phases 3`, 199 sentences). The team's new `avatar.vrm` (thinner meshes,
+commit 1a20edd) arrived during this work; the first and last rows are both on the new file, the pre-E37 code re-run
+from a detached worktree at that commit (the file alone moves V3 by 0.001: 0.537 → 0.536). Tuning rows are before
+guards (b)-(e); "depth 2.17" alone ran on the old file.
+
+| V3 | sign F1 | WER | AzSLD test F1 | set C F1 | two-handed R | one-handed R | first / later R |
+|---|---|---|---|---|---|---|---|
+| before E37 (new file) | 0.536 | 75.1 % | 0.654 | 0.493 | 0.522 | 0.712 | 0.765 / 0.544 |
+| depth 2.17 | 0.616 | 66.3 % | 0.722 | 0.579 | 0.667 | 0.762 | 0.850 / 0.657 |
+| depth 2.6 | 0.601 | 69.2 % | | | 0.634 | 0.762 | 0.861 / 0.627 |
+| depth 1.8 + knuckles | 0.626 | 67.1 % | | | 0.685 | 0.781 | 0.845 / 0.684 |
+| depth 2.17 + knuckles | 0.632 | 65.3 % | 0.724 | 0.599 | 0.688 | 0.785 | 0.850 / 0.686 |
+| **E37 (2.17 + knuckles + guards), new default** | **0.624** | **66.5 %** | **0.717** | **0.591** | **0.670** | **0.778** | **0.840 / 0.671** |
+| signer's clips, same camera | 0.676 | 66.4 % | 0.720 | 0.660 | 0.808 | 0.871 | 0.877 / 0.819 |
+
+E37 against before: F1 +0.087 [+0.059, +0.112], WER −8.5 [−13.1, −4.0] points (85 sentences better, 44 worse); exact
+sentences 5 → 12 %. Depth alone +0.079 [+0.041, +0.101]; knuckles on top +0.016 [−0.003, +0.037]; 1.8 and 2.6 are not
+better than the measured 1/0.46. The guards cost −0.006 [−0.012, +0.001] (with only (a) and a flat candidate in
+`#fixBody`'s turns: 0.630). Two-handed signs whose second hand is up for only part of the sign: recall 0.446 → 0.620
+(clips 0.868); the rest 0.551 → 0.686 (0.785). The signs E34 named: OLACAQ 2 → 16 of 16, LAZIM 0 → 12 of 12, SƏN 0 → 8
+of 10, PUL 2 → 5 of 7, İSTƏMƏK 0 → 3 of 15, NƏ VAXT 0 → 3 of 7 (read as NƏ ZAMAN), KART 0 → 2 of 9; ALMAQ (0 of 6),
+BAKI (0 of 2: the chin is higher on the avatar's head, reads as YEMƏK), BURADA, SİZ unchanged; BİZ 4 → 2 of 7. Letters
+are not touched (letters F1 0.499 → 0.490: the words around them change). Sentence-frame checks: hand in body 2.7 →
+2.0 % of raised frames, hands in each other 0.2 → 0.2 %, right elbow raised 0.5 → 0.5 %.
+
+**Hand checks** (new file, the same two code states; `measure_hands.mjs --words` on E34's 529 words,
+`measure_elbows.mjs --n 300`):
+
+| | before E37 | E37 |
+|---|---|---|
+| hands in each other > 5 mm (words) / deeper than the signer's own | 20 / 4 | 24 / 5 |
+| … > 1 cm / during playback | 16 / 30 | 15 / 28 |
+| hand in body (words) / mean depth | 255 / 0.85 cm | **224 / 0.66 cm** |
+| arm in body (words > 5 mm): 0.5-2 / 2-3 / > 3 cm | 247 / 77 / 34 | 295 / 58 / 27 |
+| arm in body: mean depth / max | 1.17 / 4.8 cm | 1.14 / 4.5 cm |
+| wrist > 5° past its limit / past the hard ceiling (words) / max | 413 / 91 / 37.7° | **366 / 48** / 35.9° |
+| placement p90 / reach p90 | 4.2 / 2.9 cm | 4.0 / 2.5 cm |
+| out of frame (words) | 86 | 80 |
+| right elbow raised (frames) / words with ≥ 3 raised frames | 4.2 % / 9.4 % | 4.2 % / 8.4 % |
+| left elbow raised (frames) / words with ≥ 3 raised frames | 2.5 % / 4.5 % | 2.6 % / 4.9 % |
+
+Most checks get better, wrists clearly (a hand pointed at the body no longer needs the wrist bent past its limit).
+Not level: three new words with hands in each other beyond the signer's own (SÜMÜK, SÜRÜ, SƏHRA: the thumb bases touch;
+ARXİV and BİBLİYA no longer do), more words where the forearm touches the body by 0.5-2 cm (the deep ones are fewer),
+and the left elbow a little more often raised (+5 frames, +1 word). Contact sheets (`avatar_sheet.mjs --words ...
+--set '{"wordDepth":1,"wordKnuckles":false}'` against the default): İSTƏMƏK's claw at the chest, SƏN pointing forward.
+
+**What is left.** The swap on the fixed avatar (depth + knuckles, new file): avatar 0.724, clips 0.837; the clip's world
+landmarks alone 0.828, the clip's image shape alone 0.704, its detection pattern 0.715. The rest of the gap is in the
+metric hand shape the model reads (`hand_world`: the avatar's finger proportions and articulation, ~10° of
+orientation), not placement, detection or the image. The translator plays sentences with the new defaults, the avatar
+ends at rest, no console errors; 14 `verify_*` scripts and `ci_gates.mjs` pass (gates unchanged).
+
+    node tools/v3_swap.mjs [--mixes avatar,source,shape,place,pose,left,right,detect,world,image] [--avatar '{...}'] --out x.json
+    node tools/v3_swap.mjs --text "Mən yaxşıyam, sən necəsən?" --frames --out x.json     # frames of one sentence
+    node tools/hand_orient.mjs --words isteyirem,sen [--avatar '{"wordDepth":1,"wordKnuckles":false}']
+    node tools/measure_hands.mjs --set '{"wordDepth":1,"wordKnuckles":false}'          # also measure_elbows, avatar_sheet
+
+Local only: D:/chevir/eval/v3hands (reports, sheets), scripts D:/chevir/scripts/e37.

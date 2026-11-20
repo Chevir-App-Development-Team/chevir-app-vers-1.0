@@ -13,6 +13,13 @@ import nbformat as nbf
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from groups import load_groups, sign_merge, spelling  # noqa: E402  (labels that are one sign)
+
+
+def label_fix():
+    """ml/label_text.csv: an annotation label's correct spelling (GUN → gün), for matching outside words."""
+    import csv
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'label_text.csv'), encoding='utf8') as f:
+        return {r['label']: r['text'] for r in csv.DictReader(f)}
 MODULES = ['__init__', 'zenodo', 'landmarks', 'store', 'sources', 'split', 'pipeline', 'views']
 TRAIN_MODULES = MODULES + ['features', 'train']
 NUM_SHARDS = 4
@@ -344,6 +351,15 @@ SPELLING = {spelling}   # ml/gloss_spelling.csv: one word typed two ways
 SIDE = True            # load the side camera (Cam1), shifted by each recording's frame offset (per run: side=)
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1     # alignment quality a recording needs (set from 02c1's align.csv)
 TRAIN_ON_VAL = False   # final model: val signers' signs become training data (runs then need save_epoch)
+TRAIN_ON_ALL = False   # shipped model: test signers too; "test" is then seen data (a check only)
+JESTDILI = False       # JestDili.az clips (tools/extract_jestdili.py) of vocabulary words as training signs
+JESTDILI_HOLDOUT = 0.0  # fraction of those words kept out of training (by label md5), to test on the person's unseen words
+SLOVO = None           # file name among the inputs (ml/slovo_azsld.csv): Slovo's clips of the signs mapped to an AzSLD
+                       # label join the training signs (RSL, 194 people; the map is a draft, not confirmed by a native user)
+SLOVO_NEW = None       # file name among the inputs (ml/slovo_new.csv): Slovo signs with an Azerbaijani word that AzSLD
+                       # has no sign for become NEW classes, trained on Slovo's clips (roadmap R4; needs SLOVO)
+SLOVO_NEW_MAX_RANK = None  # keep only new classes whose JestDili.az clip the Slovo-only model ranked this high
+LABEL_FIX = {label_fix}
 EXCLUDE_HELDOUT = True  # leave out the train signs of the held-out sentences (heldout_sentence); vocabulary unchanged
 HANDS = ['hands', 'hand_shape', 'hand_vel', 'flags']
 NO_FACE = HANDS + ['pose']
@@ -351,7 +367,8 @@ BASE = dict(groups=NO_FACE, unknown=4.0, select='open')
 RUNS = {
     'side_noface_s1_noheld': dict(BASE, seed=1, side=True, face_drop=1.0),
 }
-""".replace('{spelling}', json.dumps(spelling(), ensure_ascii=False))),
+""".replace('{spelling}', json.dumps(spelling(), ensure_ascii=False)).replace(
+            '{label_fix}', json.dumps(label_fix(), ensure_ascii=False))),
         code(SETUP),
         code("""
 # ONNX export (for the browser) needs onnx; onnxruntime checks the export against PyTorch.
@@ -361,7 +378,7 @@ missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is 
 if ON_KAGGLE and missing:
     subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
 """),
-        *package_cells(TRAIN_MODULES),
+        *package_cells(TRAIN_MODULES + ['extra']),
         code("""
 import pandas as pd, torch
 from azsl import train as T
@@ -389,6 +406,15 @@ tags = tags[tags.has_landmarks & tags.split.notna() & ~tags.dup.astype(bool)]
 tags['gloss'] = tags.gloss.replace(SPELLING)
 words_list = (T.learnable_vocab(tags, wsplit.gloss.unique(), VOCAB_MIN_TRAIN) if VOCAB_MIN_TRAIN
               else sorted(wsplit.gloss.unique()))
+new_rows = []
+if SLOVO_NEW:
+    import csv as _csv
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO_NEW), recursive=True))[0], encoding='utf-8') as f:
+        new_rows = [r for r in _csv.DictReader(f) if r['azsld'] not in set(words_list)]
+    if SLOVO_NEW_MAX_RANK:     # basis "jestdili rank N": the Slovo-only model's rank of the label on the JestDili.az clip
+        new_rows = [r for r in new_rows if r['basis'].split()[-1].isdigit() and int(r['basis'].split()[-1]) <= SLOVO_NEW_MAX_RANK]
+    words_list = words_list + sorted({r['azsld'] for r in new_rows})
+    print(f'R4: {len({r["azsld"] for r in new_rows})} new classes from Slovo ({len(new_rows)} Russian glosses)')
 vocab_list = words_list + ([T.UNKNOWN] if UNKNOWN else [])
 vocab = {g: i for i, g in enumerate(vocab_list)}
 print(f'vocabulary: {len(words_list)} words ({len(set(words_list) - set(wsplit.gloss))} beyond the 200), '
@@ -400,6 +426,11 @@ if EXCLUDE_HELDOUT:
     drop = (tags.split == 'train') & tags.rec_id.isin(held)
     tags = tags[~drop]
     print(f'held-out sentences: {int(drop.sum())} train signs left out')
+test_keys = set(tags[tags.split == 'test'].key) | set(wsplit[wsplit.split == 'test'].key)
+if TRAIN_ON_ALL:
+    assert TRAIN_ON_VAL, 'TRAIN_ON_ALL is a final model: TRAIN_ON_VAL too'
+    tags['split'] = tags.split.replace({'test': 'train'})
+    wsplit = wsplit.assign(split=wsplit.split.replace({'test': 'train'}))
 if TRAIN_ON_VAL:       # the vocabulary above is still the train signers' one, as in the runs chosen on val
     tags['split'] = tags.split.replace({'val': 'train'})
     wsplit = wsplit[wsplit.split != 'val']
@@ -423,6 +454,35 @@ if SIDE:
 signs = T.load_sentence_signs(sentence_dirs, tags, vocab, margin=CFG['margin'],
                               unknown=T.UNKNOWN if UNKNOWN else None, exclude=AMBIGUOUS, side=side)
 words = T.load_words200(words_dirs, wsplit, vocab)
+if TRAIN_ON_ALL:       # the test signers are training data now: their signs are scored only as a check
+    seen = lambda b, side: [k.split('|')[0] in test_keys and ('|side' in k) == side for k in b.ids]   # noqa: E731
+    signs['test'] = signs['train'].subset(seen(signs['train'], False))
+    if 'test_side' in signs:
+        signs['test_side'] = signs['train'].subset(seen(signs['train'], True))
+    words['test'] = words['train'].subset(seen(words['train'], False))
+if JESTDILI:
+    from azsl import extra as EX
+    from azsl.store import LandmarkStore
+    jd_dirs = find('jestdili_words/manifest.csv')
+    gloss_of = EX.jestdili_glosses(LandmarkStore(jd_dirs), words_list, LABEL_FIX, SPELLING)
+    if JESTDILI_HOLDOUT:
+        gloss_of, held = EX.holdout(gloss_of, JESTDILI_HOLDOUT)
+        os.makedirs(OUT, exist_ok=True)
+        with open(os.path.join(OUT, 'jestdili_holdout.json'), 'w', encoding='utf-8') as f:
+            json.dump(held, f, ensure_ascii=False)
+        print(f'JestDili.az: {len(held)} words kept out of training (jestdili_holdout.json)')
+    signs['train'] = T.Bank.merge(signs['train'], EX.load_signs(jd_dirs, gloss_of, vocab, margin=CFG['margin']))
+    print('train with JestDili.az:', len(signs['train']), 'signs')
+if SLOVO:
+    import csv as _csv
+    from azsl import extra as EX
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO), recursive=True))[0], encoding='utf-8') as f:
+        rename = {r['slovo']: r['azsld'] for r in _csv.DictReader(f)}
+    rename.update({r['slovo']: r['azsld'] for r in new_rows})
+    sl_dirs = find('slovo/manifest.csv')
+    signs['train'] = T.Bank.merge(signs['train'], EX.load_signs(sl_dirs, EX.slovo_glosses(sl_dirs, rename), vocab,
+                                                                margin=CFG['margin'], whole=True, tag='slovo'))
+    print('train with Slovo:', len(signs['train']), 'signs')
 """),
         md('### Training — one line per epoch per run (`*` = new best on val macro-F1)'),
         code("""
@@ -712,6 +772,11 @@ INIT_RUN = 'side_noface_s1'                    # run 10a: isolated signs, train 
 # v15 (GPU): the final model again (v6's recipe, v7's decoding) with the word forms that signers confirmed as
 # one sign (E15: lemma_groups.csv after the word-form review; OLACAQ, OLUR, EDİR and İŞLƏMİR are their own
 # signs again). Only the labels differ from final_splice.
+# E29 (this PC, ml/run_local.py): the 101 Slovo classes of the word model (SLOVO, SLOVO_NEW, SLOVO_NEW_MAX_RANK = 10)
+# with JestDili.az CTC (jestdili_sentence_glosses_r4.json), v5 protocol and the installed recipe with half of JestDili.az
+# held out; level on AzSLD, no gain on the new person (E29). Installed on the team's decision:
+#   'final_all_ctc500_slovo' = final_all_ctc500's recipe + these settings (jestdili_sentence_glosses_r4_all.json).
+#   'seq_splice_ctc_slovo': dict(BASE, splice=0.5, weak=0.3, weak_batch=4, weak_every=4, select='f1_unseen_learnable'),
 FPS_CHECKS = ()
 RUNS = {
     'final_merged': dict(BASE, splice=0.5, save_epoch=59,
@@ -723,12 +788,29 @@ MERGE = __MERGE__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
 EXCLUDE_HELDOUT = False                        # unseen sentences stay out of training (final model: all)
 TRAIN_ON_VAL = True                            # final model: val signers too (runs need save_epoch and decode)
+TRAIN_ON_ALL = False                           # shipped model: test signers too; "test" is then seen data (a check only)
+JESTDILI = False                               # JestDili.az clips (tools/extract_jestdili.py) as training recordings:
+                                               # another person and camera; also spliced into new sentences
+JESTDILI_CTC = None                            # file name among the inputs (tools/jestdili_sentence_glosses.mjs): JestDili.az
+                                               # sentences with a sign sequence from their text, for runs with weak= (CTC);
+                                               # its "holdout" half stays out (E27)
+CORPUS = None                                  # file name among the inputs: sign sequences of text corpus sentences
+                                               # (tools/corpus_sign_seqs.mjs, one per line, tab-separated) for runs
+                                               # with corpus= (roadmap R1)
+SLOVO = None                                   # file name among the inputs (ml/slovo_azsld.csv): Slovo's clips of the signs
+                                               # mapped to a label join the splice pool (each clip is the sign; never a
+                                               # training sample on its own: no rest around it); RSL, a draft map (E27)
+SLOVO_NEW = None                               # file name among the inputs (ml/slovo_new.csv): Slovo signs with an
+                                               # Azerbaijani word the vocabulary lacks become NEW labels, appended (R4; needs SLOVO)
+SLOVO_NEW_MAX_RANK = None                      # keep only new labels whose JestDili.az clip the Slovo-only model ranked this high
+LABEL_FIX = __LABEL_FIX__
 DECODE_GRID = dict(smooth=(1, 3, 5, 9), min_p=(0.3, 0.4, 0.5, 0.6, 0.7), min_len=(4, 6, 8, 10), gap=(2, 4))
 DECODE_GRID['min_len_short'] = (6,)            # v7's choice for letters and digits
 LOOKAHEADS = (12, 40)                          # val only: shorter / longer delay than the browser's
                                                # (must stay below window - stride of every run)
 """.replace('__SPELLING__', json.dumps(spelling(), ensure_ascii=False)).replace(
-            '__MERGE__', json.dumps(sign_merge(), ensure_ascii=False))),
+            '__MERGE__', json.dumps(sign_merge(), ensure_ascii=False)).replace(
+            '__LABEL_FIX__', json.dumps(label_fix(), ensure_ascii=False))),
         code(SETUP),
         code("""
 import importlib.util
@@ -736,7 +818,7 @@ missing = [p for p in ('onnx', 'onnxruntime') if importlib.util.find_spec(p) is 
 if ON_KAGGLE and missing:
     subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *missing])
 """),
-        *package_cells(TRAIN_MODULES + ['segment', 'segment_eval', 'continuous']),
+        *package_cells(TRAIN_MODULES + ['segment', 'segment_eval', 'continuous', 'extra']),
         code("""
 import pandas as pd, numpy as np, torch
 from azsl import train as T, continuous as CT, features as FT
@@ -767,6 +849,15 @@ tags = tags[tags.has_landmarks & tags.split.notna() & tags.start.notna() & tags.
 tags['gloss'] = tags.gloss.map(merge)
 core = {merge(g) for g in wsplit.gloss.unique()}
 words = T.learnable_vocab(tags, core, VOCAB_MIN_TRAIN)
+new_rows = []
+if SLOVO_NEW:
+    import csv as _csv
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO_NEW), recursive=True))[0], encoding='utf-8') as f:
+        new_rows = [r for r in _csv.DictReader(f) if merge(r['azsld']) not in set(words)]
+    if SLOVO_NEW_MAX_RANK:     # basis "jestdili rank N": the Slovo-only model's rank of the label on the JestDili.az clip
+        new_rows = [r for r in new_rows if r['basis'].split()[-1].isdigit() and int(r['basis'].split()[-1]) <= SLOVO_NEW_MAX_RANK]
+    words = words + sorted({merge(r['azsld']) for r in new_rows})
+    print(f'R4: {len({merge(r["azsld"]) for r in new_rows})} new labels from Slovo ({len(new_rows)} Russian glosses)')
 vocab_list = [CT.BLANK] + words + [T.UNKNOWN]
 index = {g: i for i, g in enumerate(vocab_list)}
 exclude = T.ambiguous_oov(tags.gloss.unique(), set(words))
@@ -775,6 +866,10 @@ recs = sents[sents.split.notna() & sents.rec_id.isin(anns)][['rec_id', 'split', 
 if TRAIN_ON_VAL:
     recs['split'] = recs.split.replace({'val': 'train'})
     assert all(r.get('save_epoch') and r.get('decode') for r in RUNS.values()), 'final runs need save_epoch and decode'
+test_ids = set(recs[recs.split == 'test'].rec_id)
+if TRAIN_ON_ALL:
+    assert TRAIN_ON_VAL, 'TRAIN_ON_ALL is a final model: TRAIN_ON_VAL too'
+    recs['split'] = recs.split.replace({'test': 'train'})
 if EXCLUDE_HELDOUT:
     recs = recs[~((recs.split == 'train') & recs.heldout_sentence)]
 if all(r.get('ckpt') for r in RUNS.values()):   # evaluation only: no training recordings needed
@@ -795,10 +890,44 @@ al = pd.concat([pd.read_csv(os.path.join(d, 'align.csv'), dtype={'id': str}) for
 good = al[(al['corr'] >= SIDE_MIN_CORR) & (al.margin >= SIDE_MIN_MARGIN)]
 banks = CT.load_recordings(sentence_dirs, recs, anns, index, unknown=T.UNKNOWN, exclude=exclude,
                            side=(side_dirs, dict(zip(good.id, good.lag))))
+if TRAIN_ON_ALL:       # the test signers are training data now: their recordings are scored only as a check
+    from azsl import extra as EX
+    banks['test'] = EX.subset_view(banks['train'], test_ids, side=False)
+    banks['test_side'] = EX.subset_view(banks['train'], test_ids, side=True)
+if JESTDILI:
+    from azsl import extra as EX
+    from azsl.store import LandmarkStore
+    jd_dirs = find('jestdili_words/manifest.csv')
+    gloss_of = EX.jestdili_glosses(LandmarkStore(jd_dirs), words, LABEL_FIX, SPELLING, MERGE)
+    banks['train'] = EX.merge_seq(banks['train'], EX.load_recordings(jd_dirs, gloss_of, index))
+    print('train with JestDili.az:', len(banks['train']), 'recordings,', f"{banks['train'].n:,} frames")
+if SLOVO:
+    import csv as _csv
+    from azsl import extra as EX
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', SLOVO), recursive=True))[0], encoding='utf-8') as f:
+        rename = {r['slovo']: merge(r['azsld']) for r in _csv.DictReader(f)}
+    rename.update({r['slovo']: merge(r['azsld']) for r in new_rows})
+    sl_dirs = find('slovo/manifest.csv')
+    banks['train'] = EX.add_pool(banks['train'], EX.slovo_recordings(sl_dirs, EX.slovo_glosses(sl_dirs, rename), index))
+    print('train with Slovo:', len(banks['train']), 'recordings,', f"{banks['train'].n:,} frames")
 banks['val_unseen'] = CT.subset(banks['val'], unseen)          # per-epoch score on sentences never trained on
 SUBSETS = {'unseen_sentences': (unseen, None), 'unseen_learnable': (unseen, learnable)}
 letters = {g for g in words if len(g) == 1}                 # fingerspelled letters and digits
 SUBSETS['letters'] = (set(tags[tags.gloss.isin(letters)].rec_id), letters)   # their recordings, letters only
+weak = None
+if JESTDILI_CTC:
+    with open(sorted(glob.glob(os.path.join(INPUT, '**', JESTDILI_CTC), recursive=True))[0], encoding='utf-8') as f:
+        jg = json.load(f)
+    weak = CT.load_weak(find('jestdili_sentences/manifest.csv'), {k: [merge(g) for g in v] for k, v in jg['glosses'].items()},
+                        index)
+seqs = None
+if CORPUS:
+    path = sorted(glob.glob(os.path.join(INPUT, '**', CORPUS), recursive=True))[0]
+    with open(path, encoding='utf-8') as f:
+        seqs = [[index[merge(g)] for g in line.rstrip('\\n').split('\\t') if merge(g) in index and merge(g) != T.UNKNOWN]
+                for line in f]
+    seqs = [q for q in seqs if len(q) >= 2]
+    print(f'corpus: {len(seqs):,} sequences of known signs from {path}')
 """),
         md('### Training and evaluation, one run after another'),
         code("""
@@ -827,7 +956,7 @@ for name, change in RUNS.items():
         res = {'best_epoch': epoch, 'params': sum(p.numel() for p in net.parameters()),
                'n_features': len(FT.columns(cfg['groups'])), 'cfg': cfg}
     else:
-        net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable)
+        net, res = CT.fit(cfg, banks, vocab_list, anns, out, unseen_keep=learnable, seqs=seqs, weak=weak)
     # decoding fixed before: a final model (TRAIN_ON_VAL, cfg['decode']) or chosen by an earlier run here
     fixed = (decided[cfg['decode_from']] if cfg.get('decode_from') else cfg.get('fixed_decode')
              or (cfg['decode'] if TRAIN_ON_VAL else None))
@@ -890,6 +1019,7 @@ SPELLING = __SPELLING__
 SIDE_MIN_CORR, SIDE_MIN_MARGIN = 0.3, 0.1
 NONE_PER_LETTER = 1.0   # <none> samples per letter sign of the sentences, per split
 TRAIN_ON_VAL = False    # final model: val signers / contributors too (runs then need save_epoch)
+TRAIN_ON_ALL = False    # shipped model: test signers and contributors too; nothing is left to test (E27)
 # v2: hand shape + movement only ('hand') or with the hand's place in the image and the presence flags
 # ('hand_pos'): val macro-F1 0.907 / 0.913, top-1 0.922 / 0.925, val photos (another camera distance)
 # 0.902 / 0.888 → 'hand', best epoch 51 (test top-1 0.918; the old model 0.214 on the same samples).
@@ -943,6 +1073,10 @@ if TRAIN_ON_VAL:
     tags['split'] = tags.split.replace({'val': 'train'})
     fsplit['split'] = fsplit.split.replace({'val': 'train'})
     assert all(r.get('save_epoch') for r in RUNS.values()), 'without val, every run needs a fixed save_epoch'
+if TRAIN_ON_ALL:
+    assert TRAIN_ON_VAL, 'TRAIN_ON_ALL is a final model: TRAIN_ON_VAL too'
+    tags['split'] = tags.split.replace({'test': 'train'})
+    fsplit['split'] = fsplit.split.replace({'test': 'train'})
 lt = L.letter_tags(tags)
 if SMOKE:
     lt = lt.groupby('split', group_keys=False).apply(lambda d: d.sample(min(len(d), 150), random_state=0))

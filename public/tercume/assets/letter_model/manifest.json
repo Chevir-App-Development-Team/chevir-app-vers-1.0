@@ -307,7 +307,7 @@
   "train_fps": 30,
   "normalization": "x *= width/height; centre = median mid-shoulder, unit = median shoulder width (fallbacks: mean hand point, 0.3); hand xy, z, velocity, pose xy, face xy are (p - centre) / unit; hand_world * 10; NaN → 0; clip to ±10"
  },
- "run": "final_hand",
+ "run": "final_hand_all",
  "seed": 1,
  "split_id": "23179a6aad",
  "best_epoch": 51,
@@ -369,7 +369,7 @@
   "drop": 0.2,
   "head_drop": 0.4,
   "margin": 6,
-  "workers": 4,
+  "workers": 6,
   "seed": 1,
   "groups": [
    "hand_shape",
@@ -380,6 +380,8 @@
   "select": "letters_f1",
   "save_epoch": 51,
   "side": true,
+  "init": null,
+  "ema": 0.0,
   "fold": null,
   "split_id": "23179a6aad",
   "none_per_letter": 1.0
@@ -553,6 +555,39 @@
   "z": {
    "recall": 0.9166666666666666,
    "n": 24
+  }
+ },
+ "metrics_from": "final_hand",
+ "jestdili": {
+  "what": "JestDili.az alphabet photos (another person, one per letter); moving letters as stills",
+  "runs": {
+   "final_hand": {
+    "n": 32,
+    "top1": 0.59375,
+    "top3": 0.71875,
+    "static_top1": 0.7916666666666666,
+    "static_n": 24,
+    "moving_n": 8,
+    "jittered_top1": 0.56875
+   },
+   "final_hand_all": {
+    "n": 32,
+    "top1": 0.59375,
+    "top3": 0.78125,
+    "static_top1": 0.7916666666666666,
+    "static_n": 24,
+    "moving_n": 8,
+    "jittered_top1": 0.6218750000000001
+   },
+   "v2_hand": {
+    "n": 32,
+    "top1": 0.53125,
+    "top3": 0.6875,
+    "static_top1": 0.7083333333333334,
+    "static_n": 24,
+    "moving_n": 8,
+    "jittered_top1": 0.5520833333333334
+   }
   }
  }
 }

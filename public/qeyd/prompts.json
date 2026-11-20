@@ -1,0 +1,1390 @@
+{
+ "note": "tools/build_record_prompts.mjs: çatışmayan işarələr (roadmap D4a) və set C cümlələri (V1, D4b)",
+ "prompts": [
+  {
+   "id": "n01",
+   "group": "Rəqəmlər",
+   "text": "0",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n02",
+   "group": "Rəqəmlər",
+   "text": "7",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n03",
+   "group": "Rəqəmlər",
+   "text": "9",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n04",
+   "group": "Rəqəmlər",
+   "text": "13",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n05",
+   "group": "Rəqəmlər",
+   "text": "16",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n06",
+   "group": "Rəqəmlər",
+   "text": "17",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n07",
+   "group": "Rəqəmlər",
+   "text": "18",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n08",
+   "group": "Rəqəmlər",
+   "text": "19",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n09",
+   "group": "Rəqəmlər",
+   "text": "20",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n10",
+   "group": "Rəqəmlər",
+   "text": "25",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n11",
+   "group": "Rəqəmlər",
+   "text": "50",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n12",
+   "group": "Rəqəmlər",
+   "text": "60",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n13",
+   "group": "Rəqəmlər",
+   "text": "70",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n14",
+   "group": "Rəqəmlər",
+   "text": "80",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n15",
+   "group": "Rəqəmlər",
+   "text": "90",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n16",
+   "group": "Rəqəmlər",
+   "text": "100",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n17",
+   "group": "Rəqəmlər",
+   "text": "200",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n18",
+   "group": "Rəqəmlər",
+   "text": "500",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n19",
+   "group": "Rəqəmlər",
+   "text": "1000",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n20",
+   "group": "Rəqəmlər",
+   "text": "2000",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n21",
+   "group": "Rəqəmlər",
+   "text": "1990",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n22",
+   "group": "Rəqəmlər",
+   "text": "2025",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n23",
+   "group": "Rəqəmlər",
+   "text": "saat 11:15",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n24",
+   "group": "Rəqəmlər",
+   "text": "saat 12:30",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n25",
+   "group": "Rəqəmlər",
+   "text": "050 123 45 67",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n26",
+   "group": "Rəqəmlər",
+   "text": "15 manat 50 qəpik",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n27",
+   "group": "Rəqəmlər",
+   "text": "2-ci",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "n28",
+   "group": "Rəqəmlər",
+   "text": "3-cü",
+   "kind": "sign",
+   "note": "ədədi gündəlik danışıqdakı kimi göstərin"
+  },
+  {
+   "id": "w01",
+   "group": "Gündəlik sözlər",
+   "text": "park",
+   "kind": "sign"
+  },
+  {
+   "id": "w02",
+   "group": "Gündəlik sözlər",
+   "text": "maşın",
+   "kind": "sign"
+  },
+  {
+   "id": "w03",
+   "group": "Gündəlik sözlər",
+   "text": "xəstə",
+   "kind": "sign"
+  },
+  {
+   "id": "w04",
+   "group": "Gündəlik sözlər",
+   "text": "qızdırma",
+   "kind": "sign"
+  },
+  {
+   "id": "w05",
+   "group": "Gündəlik sözlər",
+   "text": "yanğın",
+   "kind": "sign"
+  },
+  {
+   "id": "w06",
+   "group": "Gündəlik sözlər",
+   "text": "şəkər",
+   "kind": "sign"
+  },
+  {
+   "id": "w07",
+   "group": "Gündəlik sözlər",
+   "text": "düşünmək",
+   "kind": "sign"
+  },
+  {
+   "id": "w08",
+   "group": "Gündəlik sözlər",
+   "text": "gülmək",
+   "kind": "sign"
+  },
+  {
+   "id": "w09",
+   "group": "Gündəlik sözlər",
+   "text": "xoşbəxt",
+   "kind": "sign"
+  },
+  {
+   "id": "w10",
+   "group": "Gündəlik sözlər",
+   "text": "kədərli",
+   "kind": "sign"
+  },
+  {
+   "id": "w11",
+   "group": "Gündəlik sözlər",
+   "text": "yorğun",
+   "kind": "sign"
+  },
+  {
+   "id": "w12",
+   "group": "Gündəlik sözlər",
+   "text": "şəkil",
+   "kind": "sign"
+  },
+  {
+   "id": "w13",
+   "group": "Gündəlik sözlər",
+   "text": "maaş",
+   "kind": "sign"
+  },
+  {
+   "id": "w14",
+   "group": "Gündəlik sözlər",
+   "text": "sağ ol",
+   "kind": "sign"
+  },
+  {
+   "id": "w15",
+   "group": "Gündəlik sözlər",
+   "text": "hə",
+   "kind": "sign"
+  },
+  {
+   "id": "g01",
+   "group": "Qrammatika işarələri",
+   "text": "evə doğru",
+   "kind": "sign",
+   "note": "istiqamət: \"evə gedirəm\" = MƏN EV DOĞRU GETMƏK; DOĞRU işarəsini göstərin"
+  },
+  {
+   "id": "p01",
+   "group": "Ölkələr və şəhərlər",
+   "text": "Ərəbistan",
+   "kind": "sign"
+  },
+  {
+   "id": "p02",
+   "group": "Ölkələr və şəhərlər",
+   "text": "Şəki",
+   "kind": "sign"
+  },
+  {
+   "id": "p03",
+   "group": "Ölkələr və şəhərlər",
+   "text": "Qəbələ",
+   "kind": "sign"
+  },
+  {
+   "id": "p04",
+   "group": "Ölkələr və şəhərlər",
+   "text": "Quba",
+   "kind": "sign"
+  },
+  {
+   "id": "p05",
+   "group": "Ölkələr və şəhərlər",
+   "text": "Şamaxı",
+   "kind": "sign"
+  },
+  {
+   "id": "p06",
+   "group": "Ölkələr və şəhərlər",
+   "text": "İstanbul",
+   "kind": "sign"
+  },
+  {
+   "id": "p07",
+   "group": "Ölkələr və şəhərlər",
+   "text": "Tbilisi",
+   "kind": "sign"
+  },
+  {
+   "id": "c001",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mən DOST mərkəzinə getmək istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c002",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "DOST mərkəzi saat neçədə açılır?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c003",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Əlillik arayışı almaq üçün hara müraciət etməliyəm?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c004",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mənim şəxsiyyət vəsiqəmin müddəti bitib.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c005",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Yeni şəxsiyyət vəsiqəsi nə vaxt hazır olacaq?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c006",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mən ərizə yazmaq istəyirəm, mənə kömək edə bilərsiniz?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c007",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Hansı sənədləri gətirməliyəm?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c008",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Sənədlərimi evdə unutmuşam.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c009",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mənim pensiyam bu ay gəlməyib.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c010",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Pensiya kartımı itirmişəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c011",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Müavinət almaq üçün nə etməliyəm?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c012",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Növbəm neçənci nömrədir?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c013",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Bir saatdır burada gözləyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c014",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Burada işarə dili tərcüməçisi var?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c015",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mən eşitmirəm, zəhmət olmasa yazın.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c016",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Zəhmət olmasa yavaş danışın.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c017",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mən sizi başa düşmədim, bir də deyin.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c018",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "ASAN xidmətdə növbəni internetdən götürmək olar?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c019",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Ünvanımı dəyişmək istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c020",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mənim qardaşım da əlillik təqaüdü alır.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c021",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Arayış üç gün sonra hazır olacaq.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c022",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Bu sənədi notariusda təsdiq etdirməlisiniz.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c023",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Əlillik müddətim bu ay bitir.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c024",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Komissiyaya nə vaxt gəlməliyəm?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c025",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mən işsizəm və iş axtarıram.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c026",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mənə uyğun iş tapmağa kömək edin.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c027",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Kommunal xərclər üçün güzəşt var?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c028",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Ailə tərkibi haqqında arayış lazımdır.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c029",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Bu formanı doldurmağa kömək edərsiniz?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c030",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mənim telefon nömrəmi yazın.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c031",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Cavabı mənə mesajla göndərin.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c032",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Video zənglə danışmaq olar?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c033",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mən sabah yenidən gələcəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c034",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Bu gün qəbul yoxdur.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c035",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Müdirlə görüşmək istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c036",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Şikayətimi kimə yaza bilərəm?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c037",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Ərizəmə hələ cavab verilməyib.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c038",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mənim adım Nərmindir.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c039",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Doğum tarixim 12 mart 1985-ci ildir.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c040",
+   "group": "Cümlələr: sosial xidmət",
+   "text": "Mən Sumqayıtda yaşayıram.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c041",
+   "group": "Cümlələr: sağlıq",
+   "text": "Mənim başım çox ağrıyır.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c042",
+   "group": "Cümlələr: sağlıq",
+   "text": "Dünəndən qızdırmam var.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c043",
+   "group": "Cümlələr: sağlıq",
+   "text": "Həkimə növbə yazdırmaq istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c044",
+   "group": "Cümlələr: sağlıq",
+   "text": "Həkim nə vaxt qəbul edir?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c045",
+   "group": "Cümlələr: sağlıq",
+   "text": "Uşağım xəstədir, öskürür.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c046",
+   "group": "Cümlələr: sağlıq",
+   "text": "Təcili yardım çağırın!",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c047",
+   "group": "Cümlələr: sağlıq",
+   "text": "Mənim təzyiqim qalxıb.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c048",
+   "group": "Cümlələr: sağlıq",
+   "text": "Bu dərmanı necə içməliyəm?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c049",
+   "group": "Cümlələr: sağlıq",
+   "text": "Dərmanı gündə üç dəfə yeməkdən sonra için.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c050",
+   "group": "Cümlələr: sağlıq",
+   "text": "Bu dərman aptekdə var?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c051",
+   "group": "Cümlələr: sağlıq",
+   "text": "Resept olmadan bu dərmanı satmırıq.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c052",
+   "group": "Cümlələr: sağlıq",
+   "text": "Dişim ağrıyır, diş həkiminə getməliyəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c053",
+   "group": "Cümlələr: sağlıq",
+   "text": "Qan analizi vermək lazımdır.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c054",
+   "group": "Cümlələr: sağlıq",
+   "text": "Analizin cavabı sabah hazır olacaq.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c055",
+   "group": "Cümlələr: sağlıq",
+   "text": "Mən şəkər xəstəsiyəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c056",
+   "group": "Cümlələr: sağlıq",
+   "text": "Mənim heç bir dərmana allergiyam yoxdur.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c057",
+   "group": "Cümlələr: sağlıq",
+   "text": "Ürəyim bulanır, başım gicəllənir.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c058",
+   "group": "Cümlələr: sağlıq",
+   "text": "Qolum sınıb, çox ağrıyır.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c059",
+   "group": "Cümlələr: sağlıq",
+   "text": "Xəstəxanaya necə gedə bilərəm?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c060",
+   "group": "Cümlələr: sağlıq",
+   "text": "Həkim mənə üç gün yataq rejimi yazdı.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c061",
+   "group": "Cümlələr: sağlıq",
+   "text": "Nə vaxtdan xəstəsiniz?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c062",
+   "group": "Cümlələr: sağlıq",
+   "text": "Harası ağrıyır?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c063",
+   "group": "Cümlələr: sağlıq",
+   "text": "Mən hamiləyəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c064",
+   "group": "Cümlələr: sağlıq",
+   "text": "Anam xəstəxanada yatır.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c065",
+   "group": "Cümlələr: sağlıq",
+   "text": "Atam ürək xəstəsidir.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c066",
+   "group": "Cümlələr: sağlıq",
+   "text": "Bu iynə ağrılıdır?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c067",
+   "group": "Cümlələr: sağlıq",
+   "text": "Mənə tərcüməçi lazımdır, həkimi başa düşmürəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c068",
+   "group": "Cümlələr: sağlıq",
+   "text": "Əməliyyat nə vaxt olacaq?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c069",
+   "group": "Cümlələr: sağlıq",
+   "text": "Gecələr yata bilmirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c070",
+   "group": "Cümlələr: sağlıq",
+   "text": "Uşağın peyvəndi vaxtında vurulmalıdır.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c071",
+   "group": "Cümlələr: sağlıq",
+   "text": "Mənim tibbi sığortam var.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c072",
+   "group": "Cümlələr: sağlıq",
+   "text": "Müayinə pulludur, yoxsa pulsuz?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c073",
+   "group": "Cümlələr: sağlıq",
+   "text": "Poliklinika şənbə günü işləyir?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c074",
+   "group": "Cümlələr: sağlıq",
+   "text": "Çox yorğunam, işə gedə bilmərəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c075",
+   "group": "Cümlələr: sağlıq",
+   "text": "Bir həftədir öskürürəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c076",
+   "group": "Cümlələr: bank və pul",
+   "text": "Mən bank kartı açmaq istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c077",
+   "group": "Cümlələr: bank və pul",
+   "text": "Kartımın şifrəsini unutmuşam.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c078",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bankomat kartımı udub.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c079",
+   "group": "Cümlələr: bank və pul",
+   "text": "Hesabıma pul gəlib?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c080",
+   "group": "Cümlələr: bank və pul",
+   "text": "Maaşım hələ köçürülməyib.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c081",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bu ay kreditimi ödəyə bilməyəcəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c082",
+   "group": "Cümlələr: bank və pul",
+   "text": "Kreditin faizi neçədir?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c083",
+   "group": "Cümlələr: bank və pul",
+   "text": "Mən nağd pul çıxarmaq istəyirəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c084",
+   "group": "Cümlələr: bank və pul",
+   "text": "Kommunal xərcləri burada ödəmək olar?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c085",
+   "group": "Cümlələr: bank və pul",
+   "text": "Qəbzi mənə verin.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c086",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bu əməliyyat üçün komissiya var?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c087",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bu gün dolların məzənnəsi neçədir?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c088",
+   "group": "Cümlələr: bank və pul",
+   "text": "Mən yüz dollar dəyişmək istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c089",
+   "group": "Cümlələr: bank və pul",
+   "text": "Anamın kartına pul köçürmək istəyirəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c090",
+   "group": "Cümlələr: bank və pul",
+   "text": "Telefonumda bankın tətbiqi işləmir.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c091",
+   "group": "Cümlələr: bank və pul",
+   "text": "Kartımın müddəti bitib, yenisini nə vaxt alacam?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c092",
+   "group": "Cümlələr: bank və pul",
+   "text": "Mənim kartım bloklanıb.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c093",
+   "group": "Cümlələr: bank və pul",
+   "text": "Pulu qardaşımın hesabına köçürün.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c094",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bu qiymət çox bahadır.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c095",
+   "group": "Cümlələr: bank və pul",
+   "text": "Endirim var?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c096",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bu neçə manatdır?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c097",
+   "group": "Cümlələr: bank və pul",
+   "text": "On beş manat əlli qəpik.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c098",
+   "group": "Cümlələr: bank və pul",
+   "text": "Kartla ödəmək olar?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c099",
+   "group": "Cümlələr: bank və pul",
+   "text": "Qalığı mənə qaytarmadınız.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c100",
+   "group": "Cümlələr: bank və pul",
+   "text": "Pulu sabah qaytaracam.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c101",
+   "group": "Cümlələr: bank və pul",
+   "text": "Dostumdan borc pul aldım.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c102",
+   "group": "Cümlələr: bank və pul",
+   "text": "Əmanət hesabı açmaq istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c103",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bank saat neçəyə qədər işləyir?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c104",
+   "group": "Cümlələr: bank və pul",
+   "text": "Pasportumun surəti lazımdır?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c105",
+   "group": "Cümlələr: bank və pul",
+   "text": "Bu ay xərclərim çox olub.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c106",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Sabahın xeyir, necəsən?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c107",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mən yaxşıyam, sən necəsən?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c108",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Bu gün çöldə qar yağır.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c109",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Axşam evdə olacam.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c110",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Uşaqlar məktəbdən gəlib?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c111",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Qızım bu il məktəbə gedir.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c112",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Oğlum universitetdə oxuyur.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c113",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Bazara gedib çörək aldım.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c114",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Evdə süd qalmayıb.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c115",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Nə yemək istəyirsən?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c116",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mən çay içmək istəyirəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c117",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Avtobus neçədə gəlir?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c118",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Metroya necə gedə bilərəm?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c119",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mən işə gecikdim.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c120",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Dünən dostlarımla parka getdik.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c121",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Bacımla telefonla danışdım.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c122",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Qardaşım Rusiyada işləyir.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c123",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Həftə sonu nə edirsən?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c124",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Biz bazar günü qonaq gedəcəyik.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c125",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Sənin ad günün nə vaxtdır?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c126",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mənim ad günüm mayın beşindədir.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c127",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Saat neçədir?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c128",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "İndi saat üçdür.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c129",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mən səni gözləyirəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c130",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Bu gün gələ bilməyəcəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c131",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Kömək edə bilərsən?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c132",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Telefonumun batareyası bitib.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c133",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mesajımı oxudun?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c134",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mən yeni ev axtarıram.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c135",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Evimiz metroya yaxındır.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c136",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Qonşumuz çox mehribandır.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c137",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Anam yemək bişirir.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c138",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Atam televizora baxır.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c139",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Biz ailəliklə dənizə gedəcəyik.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c140",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Yay tətilində harada olacaqsan?",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c141",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mən futbol oynamağı sevirəm.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c142",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Kitab oxumağı xoşlayıram.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c143",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Uşaqlar bağçada oynayır.",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c144",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Bu gün yorğunam, evdə qalacam.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c145",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Taksi çağıra bilərsən?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c146",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Mən Gəncəyə qatarla gedəcəm.",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c147",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Bilet neçəyədir?",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c148",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Toyunuz mübarək!",
+   "kind": "sentence",
+   "split": "dev"
+  },
+  {
+   "id": "c149",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Yeni iliniz mübarək!",
+   "kind": "sentence",
+   "split": "test"
+  },
+  {
+   "id": "c150",
+   "group": "Cümlələr: gündəlik həyat",
+   "text": "Görüşənədək, sabah görüşərik.",
+   "kind": "sentence",
+   "split": "dev"
+  }
+ ]
+}

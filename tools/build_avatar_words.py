@@ -50,6 +50,7 @@ sys.path.insert(0, str(ROOT / 'tools'))
 from azsld_zip import AzsldZip, cam2                                   # noqa: E402
 from build_words import (ALIAS, ALT, BODY, L_HIP, L_SH, L_WR, R_HIP, R_SH, R_WR, SKIP,   # noqa: E402
                          _assign, added_sources, az_lower, trim_and_score, word_id)
+from text_alt import alt_map, sync_alt                                # noqa: E402
 
 HAND_MODEL = ROOT / 'public' / 'tercume' / 'assets' / 'hand_landmarker.task'
 FACE_MODEL = ROOT / 'public' / 'tercume' / 'assets' / 'face_landmarker.task'
@@ -407,19 +408,9 @@ def main():
     args = ap.parse_args()
 
     if args.alt_only:
-        index_path = args.out_dir / 'index.json'
-        index = json.loads(index_path.read_text(encoding='utf8'))
-        for entry in index['words']:
-            path = args.out_dir / f"{entry['id']}.json"
-            data = json.loads(path.read_text(encoding='utf8'))
-            for d in (entry, data):
-                d.pop('alt', None)
-                if entry['text'] in ALT:
-                    d['alt'] = ALT[entry['text']]
-            path.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
-        index_path.write_text(json.dumps(index, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
-        missing = sorted(set(ALT) - {w['text'] for w in index['words']})
-        print(f'alt: {sum("alt" in w for w in index["words"])} söz' + (f'; lüğətdə yoxdur: {missing}' if missing else ''))
+        # JestDili.az sözlərinin öz alt-ları qalır (E27); yalnız cədvəldən gələnlər yenilənir (tools/text_alt.py)
+        changed, missing = sync_alt(args.out_dir, alt_map())
+        print(f'alt: {changed} sözün alt sahəsi dəyişdi' + (f'; lüğətdə yoxdur: {missing}' if missing else ''))
         return
 
     z = AzsldZip(args.zip)

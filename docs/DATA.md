@@ -7,10 +7,10 @@ Every dataset that enters a model, the avatar lexicon or a test set is listed he
 |---|---|---|---|---|
 | [AzSLD](https://zenodo.org/records/14222948) (Zenodo 14222948) | Azerbaijani SL: fingerspelling, Words 100 / 200, 492 sentences (~8,600 front + side recordings, 49k sign annotations) | CC BY 4.0 (attribution) | in use | all recognizer models, avatar lexicon, both NLP evaluations |
 | AzSLD Words 500 (team Drive, not on Zenodo) | the Sentences recordings cut at 44,316 annotations, 500 grouped labels | as AzSLD (same recordings) | in `data/azsld/` | label grouping review (E20) |
-| [JestDili.az](https://jestdili.az) | AzSL dictionary: 2,766 words with one studio video each, 500 sentences with video | permission granted to the team (2026-11) | fetched to `data/jestdili/`; 2,387 avatar signs in the app (E24) | avatar lexicon (D2), recognizer vocabulary (R4) |
-| [HPLT 2.0 cleaned](https://huggingface.co/datasets/HPLT/HPLT2.0_cleaned), `azj_Latn` | Azerbaijani web text | CC0 | 1 of 54 shards in `data/corpus/` | pseudo-gloss corpus (E18), word LMs |
-| [Slovo](https://github.com/hukenovs/slovo) | Russian SL: 1,000 signs, 20,400 videos, 194 people | CC BY-SA 4.0: attribution, derived datasets share-alike | not fetched | pretraining (R2), shared signs (D3) after native review |
-| [Logos](https://github.com/ai-forever/Logos) | Russian SL: 2,863 glosses (2,004 classes), 199,668 videos, 381 people | academic research by universities and research institutes only, on request | to request | research pretraining only (R2); not in the shipped product |
+| [JestDili.az](https://jestdili.az) | AzSL dictionary: 2,766 words with one studio video each, 500 sentences with video | permission granted to the team (2026-11) | fetched to `data/jestdili/`; 2,387 avatar signs in the app (E24); the 500 sentences train the app's sentence model through CTC (E27, E29), and its twin trained without 246 of them is the new-person test (E26–E33); the 32 alphabet photos test the letters model (E30) | avatar lexicon (D2), recognizer vocabulary (R4), sentence model training, new-person tests (E26–E33) |
+| [HPLT 2.0 cleaned](https://huggingface.co/datasets/HPLT/HPLT2.0_cleaned), `azj_Latn` | Azerbaijani web text | CC0 | 1 of 54 shards in `data/corpus/` | pseudo-gloss corpus (E18, both styles in E33), word LMs, the sign language model for decoding (E32), the word-form model's training pairs (E33) |
+| [Slovo](https://github.com/hukenovs/slovo) | Russian SL: 1,000 signs, 20,400 videos, 194 people | "Public license with attribution and conditions reserved" ([licence](https://github.com/hukenovs/slovo/blob/master/license/en_us.pdf)): a reworking of CC BY-SA 4.0, not a Creative Commons licence; commercial use allowed; attribution with a link to the licence; adapted material under the same or a BY-SA-compatible licence | fetched 2026-11-10 (Kaggle `kapitanov/slovo`, 15.9 GB, clips cut to the sign) to `D:/chevir/slovo/`, landmarks of all 20,400 in `D:/chevir/landmarks/slovo/` (outside git); map of shared signs `ml/slovo_azsld.csv` (v2: 168 glosses → 153 labels, checked on AzSLD clips by `ml/slovo_map_check.py`, not yet confirmed by a native user); 3,357 clips train the installed word model (E27, approved by the team 2026-11-11); 101 new classes from Slovo signs in the word model (E28) and the sentence model (E29, installed on the team's decision 2026-11-19), flagged RSL until a native user confirms them | pretraining (R2), word and sentence model training, shared signs (D3) after native review |
+| [Logos](https://github.com/ai-forever/Logos) | Russian SL: 2,863 glosses (2,004 classes), 199,668 videos, 381 people | academic research by universities and research institutes only, on request | skipped (team decision 2026-11-20) | research pretraining only (R2); not in the shipped product |
 | [FluentSigners-50](https://krslproject.github.io/fluentsigners-50/) | Kazakh-Russian SL: 173 sentences × 50 people | unclear (catalogue says CC BY 4.0, Zenodo copy restricted) | ask the authors | continuous pretraining (R1, R2) if allowed |
 | Own recordings (D4, set C) | missing signs, fresh test sentences | written consent per person; kept in `data/`, never in git | to record | lexicon, recognizer, sets C and D |
 | Interviews with native users | recordings, transcripts, notes | private, consent of the interviewee | `data/interview/` only | language facts logged without personal data (E21) |
@@ -18,6 +18,13 @@ Every dataset that enters a model, the avatar lexicon or a test set is listed he
 Rules:
 - A source enters a model only after its row here says what it may be used for.
 - Share-alike (Slovo): a dataset we derive from it (landmarks, clips) is shared under CC BY-SA 4.0 with attribution.
+  The word and sentence models trained with Slovo clips credit it in their manifests (`sources`) and in the README;
+  whether trained weights are "Adapted Material" under Slovo's licence (and so need a BY-SA-compatible licence) is
+  open.
+- The repository has no licence (team decision 2026-11-20): the code is public, all rights reserved. What is derived
+  from a source keeps that source's terms (AzSLD CC BY 4.0, Slovo as above, JestDili.az only with the owner's
+  permission); the avatar files carry their own VRM licence (README).
 - Academic-only data (Logos) never enters a model that ships in the app.
+- The native review package (E36) holds Slovo and JestDili.az clips and avatar videos: local only, never in git.
 - Attribution for AzSLD (CC BY 4.0) is kept in the app's about page and in `public/tercume/words/index.json`'s `source`;
   JestDili.az is credited on the lexicon sheet, in the index's `sources` and in every `jd-` sign file's `source`.

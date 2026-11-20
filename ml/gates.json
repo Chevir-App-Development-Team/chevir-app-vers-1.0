@@ -1,6 +1,7 @@
 {
-  "_note": "Regression limits for tools/ci_gates.mjs: current value minus 0.005 F1, plus 1 point WER (E22, E23). Raise them when a change improves the numbers.",
-  "t2s_azsld": { "f1": 0.888, "signs": 95.0 },
-  "t2s_native": { "f1": 0.851, "signs": 95.0 },
-  "s2t": { "dev": 49.5, "test": 50.3 }
+  "_note": "Regression limits for tools/ci_gates.mjs: current value minus 0.005 F1, plus 1 point WER (E22, E23; s2t raised in E26, E27, E30). Raise them when a change improves the numbers. s2t_tagger (E33): sign -> text with the form tagger, checked only when the fold models are given (tools/ci_gates.mjs --tagger <dir> or FORM_TAGGER_FOLDS=<dir>; ml/formtag.py train).",
+  "t2s_azsld": { "f1": 0.888, "signs": 95.5 },
+  "t2s_native": { "f1": 0.851, "signs": 95.5 },
+  "s2t": { "dev": 42.9, "test": 43.8 },
+  "s2t_tagger": { "dev": 38.8, "test": 40.3, "new": 43.5 }
 }

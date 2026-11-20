@@ -1,21 +1,25 @@
-# Chevir roadmap: data, recognition, language, avatar, product (2026-11)
+# Chevir roadmap: data, recognition, language, avatar, product (2026-11, status 2026-11-20)
 
 The plan for the next months across the whole system. The language layer has its own detailed plan,
-[NLP_PLAN.md](NLP_PLAN.md); experiments are logged in [`ml/EXPERIMENTS.md`](../ml/EXPERIMENTS.md) (E0–E22). Every item
-below has an exit criterion; items are numbered so issues and commits can refer to them (D3, R2, N6, …).
+[NLP_PLAN.md](NLP_PLAN.md); experiments are logged in [`ml/EXPERIMENTS.md`](../ml/EXPERIMENTS.md) (E0–E37). Every item
+below has an exit criterion; items are numbered so issues and commits can refer to them (D3, R2, N6, …). Where each
+item stands: §4.
 
 ## 1. Where we are
 
+On 2026-11-20 (the plan's starting point, 2026-11-09, in brackets):
+
 | Part | Today | Measured | Main weakness |
 |---|---|---|---|
-| Sign → glosses, sentences (browser) | landmark model, 701 words, continuous (E7, E15) | test F1 0.935 / WER 0.091 (5 unseen people) | **new sentences: F1 0.62 all signs, 0.78 words it knows** |
-| Sign → glosses, words (browser) | 756 words + unknown (E3, E5) | test Words_200 macro-F1 0.862 | vocabulary limited to AzSLD |
-| Fingerspelling | 32 letters (E8) | test top-1 0.933 | not inside sentence mode |
-| Glosses → text | gloss2text: roots + form rules + counts (E16–E18) | WER test 49.3 %, recognized new sentence 51.8 % (50.7 % with the corpus, E18) | choosing the word form; no face (questions) |
-| Text → glosses | morphology, derivation, numbers, native rules (E9–E22, E24) | words as signs 95.6 %; F1 0.890 AzSLD style, 0.853 native | 3,173 signs (786 AzSLD, 2,387 JestDili.az, E24): web text 59 % as signs; no face; numbers digit by digit |
-| Avatar | VRM with face rig, clip lexicon of 3,173 signs (E10–E14, E19, E24) | hand checks on all signs | clips joined without co-articulation; no grammar on the face |
-| Data | AzSLD: 492 sentences, ~8,600 frontal recordings + side, 49k sign annotations; HPLT corpus 62k pseudo pairs | | 492 distinct sentences; signed word by word from written text |
-| Evaluation | AzSLD splits (signer-independent), regression scripts | 12 `verify_*` scripts | **no test outside AzSLD, no review by native users** |
+| Sign → glosses, sentences (browser) | landmark model `final_all_ctc500_slovo`: 804 labels (802 words), all AzSLD signers, JestDili.az's sentences and Slovo signs spliced in (E27, E29); decoding with a sign language model, 2–3 alternatives (E32) | AzSLD test, the same recipe on train signers: F1 0.899 (5 unseen people); new sentences F1 0.66 all signs, 0.82 words it knows (0.62 / 0.78). JestDili.az's 246 held-out sentences (the same recipe without them; a new person and camera): F1 0.703 | **new people**: 0.70 against 0.90; the 101 Slovo signs recognized 1 of 19 times in a new person's sentences |
+| Sign → glosses, words (browser) | `final_all_words_r4`: 858 classes, 802 words + unknown, with Slovo clips and 101 Slovo signs (E27, E28) | JestDili.az: words AzSLD has top-1 0.426 / top-5 0.603, the new words 0.553 / 0.796 | a new person: top-1 under 0.5 |
+| Fingerspelling | `final_hand_all`: 32 letters, all AzSLD signers (E30); names spelled inside a sentence come out as one word (R6, E30) | JestDili.az's alphabet photos: 19 of 24 static letters; AzSLD test sentences with spelled words: WER 50.0 → 38.5 % | moving letters not tested on a new person |
+| Glosses → text | gloss2text: roots, form rules, counts, native markers (E16–E27), spelled names (E30), a learned word-form model under the rules (E33) | WER test 39.3 %, recognized new sentence 42.5 % (49.3 / 51.8 %); JestDili.az held out 57.5 % (66.7 %, E26) | a new person's recognition errors; questions from the face not used (E31) |
+| Text → glosses | morphology, derivation, numbers in spoken parts, native rules (E9–E25, E36) | words as signs 96.4 % test, 97.8 % dev, 92.4 % on set C's draft text; same-gloss F1 0.890 AzSLD style, 0.853 native | no native user has judged it yet; numbers without a sign of their own |
+| Avatar | VRM with face rig, 3,173 signs (786 AzSLD, 2,387 JestDili.az), grammar on the face (E25), fitted timing and movement between signs (E34), hand orientation (E37) | V3 back-translation sign F1 0.624 (the signers' own clips through the same path: 0.699) | two-handed and later signs; no native rating yet |
+| Live signing | `/danis/`: captions while signing, a word grey then white, a conversation list (E28, E35) | ~30 fps on this laptop: MediaPipe ~31 ms per frame (the limit), model 8–14 ms per window | not tried on a real phone |
+| Data | AzSLD: 492 sentences, ~8,600 frontal recordings + side, 49k sign annotations; JestDili.az: 2,766 words, 500 sentences (permission); Slovo: landmarks of 20,400 clips; HPLT: 148k pseudo-gloss pairs in two styles | | no natural recordings of our own (D4) |
+| Evaluation | AzSLD splits (signer-independent); JestDili.az as a new person (E26–E33); V3 (E34); 14 `verify_*` scripts and the gates in CI; a review package for native users (E36) | | **no review by native users yet; set C not recorded** |
 
 What changed the picture (E20, E21):
 - **AzSLD is partly "Azerbaijani in signs"**: its sentences were given as written text and signed word by word.
@@ -140,32 +144,70 @@ product. Phase 0 unblocks everything: without set C and the review page nothing 
 `ml/review/word_forms_review_w500.csv`, answers pending), N1 ✓ (E23), V5 ✓ (CI and gates). Open: V2 review page, D4
 recording page, the native review itself.
 
+**Status (2026-11-20).** ✓ done, ◐ partly, ✗ not started. Everything that needs a native user or new recordings waits:
+the review package (E36) makes the review take minutes, the recording page and set C's draft are ready (E25).
+
+| Phase | Item | Status |
+|---|---|---|
+| 0 | V2 review page | ✓ `/rey/`, 70 items per release, CSV export (E25) |
+| 0 | D4 recording page | ✓ `/qeyd/` with a consent text, 201 prompts (E25) |
+| 0 | First native review (V2), D5 answers | ◐ package ready (`tools/build_native_review.py`, answers applied by `tools/apply_native_review.py`, E36); not held yet |
+| 1 | D4 recordings, V1 set C | ◐ set C's 150 sentences drafted (E25); nothing recorded (decision 1 open) |
+| 1 | D3 Slovo | ◐ landmarks of all 20,400 clips, map of shared signs v2 (168 glosses), 101 new classes in both models, flagged RSL until a native user confirms them (E27–E29) |
+| 1 | N6 face on the avatar | ✓ question brows, negation head shake (E25) |
+| 1 | N7 numbers | ◐ numbers in spoken parts from JestDili.az's number signs (E25); own number signs wait on D4 |
+| 1 | R3 questions from the face | ◐ built, not turned on: F1 0.769 with question signs on AzSLD test, 0.52 on JestDili.az; target 0.80 (E31) |
+| 1 | N2 form tagger | ✓ turned on: test WER 39.3 %, recognized new sentence 42.5 % (E33) |
+| 1 | V3 back-translation | ✓ `tools/backtranslate.mjs`, sign F1 0.624 (E34, E37); does it track V2? waits on the review |
+| 1 | V4 new cameras | ◐ JestDili.az as a new person and camera (E26–E33); phone and webcam recordings wait on D4 |
+| 2 | R2 pretraining | ◐ Slovo initialization gave nothing for words (E27); Slovo clips as training data did (E27); self-supervised not tried |
+| 2 | R1 new sentences | ◐ spliced sentences with Slovo signs (E29): unseen F1 0.66 / 0.82, target 0.72 / 0.85 |
+| 2 | R4 vocabulary | ◐ 701 → 802 words (E28, E29); phase 1 target 1,000 |
+| 2 | R6 spelled names | ✓ in sentence mode (E30); set C not recorded |
+| 2 | N3 decoding with a sign LM | ◐ JestDili.az F1 0.680 → 0.703, WER 60.3 → 57.5 % (E32); AzSLD recognized new sentence only 46.3 → 46.2 %, target −5 not reached (perfect recognition gives 41.3 %; N2 took it to 42.5 %) |
+| 2 | N4 alternatives and correction | ✓ 3 alternatives, one-tap correction kept on the device (E32); V2 adequacy not measured |
+| 2 | A1 movement between signs | ◐ fitted path between signs, on by default (E34); no learned model |
+| 2 | A4 timing | ✓ gaps and final hold fitted on AzSLD (E34) |
+| 2 | R5, A5 speed | ◐ laptop measured (E35), `npm run dev:https` for phones; no real phone yet |
+| 2 | First full evaluation on sets C and D | ✗ waits on recordings and the review |
+| 3 | P3 DOST pilot, N10 space, papers | ✗ |
+
 ## 5. Targets
 
-| Measure | Now | After phase 1 | After phase 2 |
-|---|---|---|---|
-| Recognized new sentences: sign F1 (all / known words) | 0.62 / 0.78 | 0.66 / 0.80 | 0.72 / 0.85 |
-| Recognizer vocabulary | 701 | 1,000 | 1,500 |
-| Avatar signs | 3,173 (was 786) | 3,500 | 4,000 |
-| Sign → text WER, recognized new sentence (AzSLD) | 51.8 % | 45 % | 38 % |
-| Set C: words as signs / native comprehension (V2) | – | 97 % / 3.5 | 98 % / 4.0 |
-| Set D: sign → text adequacy | – | 3.0 | 4.0 |
-| Question detection from the face | – | 0.80 | 0.85 |
-| New cameras: F1 drop vs AzSLD test | – | measured | ≤ 0.10 |
+| Measure | At the start (2026-11-09) | Now (2026-11-20) | After phase 1 | After phase 2 |
+|---|---|---|---|---|
+| Recognized new sentences: sign F1 (all / known words) | 0.62 / 0.78 | 0.66 / 0.82 (E29, E32) | 0.66 / 0.80 | 0.72 / 0.85 |
+| Recognizer vocabulary | 701 | 802 (E28, E29) | 1,000 | 1,500 |
+| Avatar signs | 3,173 (was 786) | 3,173 | 3,500 | 4,000 |
+| Sign → text WER, recognized new sentence (AzSLD) | 51.8 % | 42.5 % (E33) | 45 % | 38 % |
+| Set C: words as signs / native comprehension (V2) | – | 92.4 % on the draft text (E27) / – | 97 % / 3.5 | 98 % / 4.0 |
+| Set D: sign → text adequacy | – | – (package ready, E36) | 3.0 | 4.0 |
+| Question detection from the face | – | F1 0.77 with question signs, AzSLD test (E31, off) | 0.80 | 0.85 |
+| New cameras: F1 drop vs AzSLD test | – | 0.20 on JestDili.az (0.70 against 0.90; new person and new sentences at once, E32) | measured | ≤ 0.10 |
+
+Measured outside the targets: sign → text WER on JestDili.az's held-out sentences 66.7 % (E26) → 57.5 % (E32, E33); the
+avatar's V3 sign F1 0.539 (E34's defaults) → 0.624 (E37).
 
 ## 6. Decisions needed
 
-1. **Recordings (D4, V1)**: who signs (≥ 3 native users), when, consent form, budget.
+1. **Recordings (D4, V1)**: who signs (≥ 3 native users), when, consent form, budget. Still open (2026-11-20): the
+   recording page with its consent text and set C's draft are ready (E25); people, dates and budget not chosen.
 2. **JestDili.az**: written permission for videos and word list (D2). ✓ Granted (2026-11).
-3. **Logos**: request through a university for research only, or skip (D1, R2).
-4. **Server post-edit** (N5): allowed as an opt-in, or never.
+3. **Logos**: request through a university for research only, or skip (D1, R2). ✓ Skipped (2026-11-20).
+4. **Server post-edit** (N5): allowed as an opt-in, or never. ✓ An opt-in later, never the default (2026-11-20);
+   measured on set C once it exists.
+5. **Licence of the repository.** ✓ None for now (2026-11-20): the code is public, all rights reserved. Whether
+   weights trained on Slovo are adapted material under its licence stays open (`docs/DATA.md`).
+6. **Standard avatar** (`avatar.vrm`): its file allows personal non-profit use only. ✓ Kept as it is (2026-11-20);
+   only the file's author can change it.
 
 ## 7. Risks
 
 - **Few native experts**: one main language expert. Mitigation: a second native user (N9), recorded decisions,
   the review page (V2) so reviews take minutes, not meetings.
 - **Licences**: CC BY-SA (Slovo) makes derived data share-alike; academic-only data (Logos) cannot ship in the
-  product. D1 decides before data enters a model.
+  product. D1 decides before data enters a model. The word and sentence models are trained with Slovo signs and the
+  repository has no licence yet (§6, 5): a licence for them has to respect Slovo's terms.
 - **RSL differences**: 3–4 % of signs differ and young people improvise. Shared signs only after native review.
 - **Synthetic data drift**: spliced sentences (R1) and pseudo-glosses (N2) are not real signing; set C decides.
 - **Model size on phones**: every new model has a size and speed budget (R5, A5).

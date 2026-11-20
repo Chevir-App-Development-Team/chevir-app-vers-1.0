@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Chevir · işarə dili daşıyıcısının rəyi</title>
+    <link rel="stylesheet" href="review.css" />
+  </head>
+  <body>
+    <!-- tools/build_native_review.py yazır; data.js bəndləri, clips/ videoları saxlayır. İnternet lazım deyil. -->
+    <header class="top">
+      <div>
+        <h1>Chevir · işarə dili daşıyıcısının rəyi</h1>
+        <p class="muted">Cavablar yalnız bu kompüterdə, bu brauzerdə saxlanır. Heç nə avtomatik göndərilmir.</p>
+      </div>
+      <div class="top-right">
+        <span class="badge" id="release">-</span>
+        <button class="btn" id="btn-export">CSV endir</button>
+      </div>
+    </header>
+
+    <!-- başlanğıc: kod və bölmələr -->
+    <main id="home">
+      <section class="card">
+        <h2>Başlamaq</h2>
+        <p>Videolara baxıb sadə suallara cavab verin. Doğru və ya səhv cavab yoxdur: bizə sizin işarə diliniz lazımdır.
+          Bilmədiyiniz yerdə «Bilmirəm» seçin. İstənilən bölmədən başlaya, istənilən vaxt dayana bilərsiniz.</p>
+        <label class="field">
+          <span>Rəy verənin kodu (adınızı yazmayın; məsələn R1, R2)</span>
+          <input type="text" id="code" maxlength="12" autocomplete="off" placeholder="R1" />
+        </label>
+        <p class="hint">Klaviatura: <b>1–4</b> cavab, <b>Enter</b> və ya <b>→</b> növbəti, <b>←</b> əvvəlki,
+          <b>Boşluq</b> videonu yenidən. Sonda <b>CSV endir</b> düyməsi ilə faylı komandaya göndərin.</p>
+        <p class="hint" id="total">-</p>
+      </section>
+      <div id="sections" class="sections"></div>
+    </main>
+
+    <!-- bənd -->
+    <main id="review" hidden>
+      <div class="bar">
+        <button class="btn btn-ghost" id="btn-home">← Bölmələr</button>
+        <h2 id="sec-title">-</h2>
+        <span class="badge" id="progress">-</span>
+        <label class="speed">Sürət
+          <select id="speed">
+            <option value="0.5">0.5×</option>
+            <option value="0.75">0.75×</option>
+            <option value="1" selected>1×</option>
+          </select>
+        </label>
+      </div>
+      <div id="media" class="media"></div>
+      <section class="card ask">
+        <div id="prompt"></div>
+        <div id="answers"></div>
+        <label class="field" id="other-field" hidden>
+          <span id="other-label">-</span>
+          <input type="text" id="other" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Qeyd (istəyə bağlı)</span>
+          <textarea id="comment" rows="2"></textarea>
+        </label>
+        <div class="row nav">
+          <button class="btn btn-ghost" id="btn-prev">← Əvvəlki</button>
+          <button class="btn btn-primary" id="btn-next">Saxla və növbəti →</button>
+        </div>
+      </section>
+      <div id="strip" class="strip"></div>
+    </main>
+
+    <script src="data.js"></script>
+    <script src="review.js"></script>
+  </body>
+</html>

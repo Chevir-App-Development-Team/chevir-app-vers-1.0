@@ -135,6 +135,26 @@ body.tercume {
   line-height: 1.5;
 }
 
+/* Köhnə adlar (tool.css, correct.css, src/danis/danis.css: /danis/, /rey/, /qeyd/ və cümlənin variantları) temanın
+   --t-* dəyişənlərinə bağlanır: dark-da dəyərlər əvvəlki ilə eynidir. body.tercume-də təyin olunur ki, light blokun
+   (html[data-theme='light'] body.tercume) --t-* dəyərləri ilə hesablansın. */
+body.tercume {
+  --ink: var(--t-text);
+  --ink-2: var(--t-muted);
+  --ink-3: var(--t-muted);
+  --paper: var(--t-select-bg);
+  --panel: var(--t-card-solid);
+  --panel-2: var(--t-panel-2);
+  --field: var(--t-select-bg);
+  --chip: var(--t-chip);
+  --viewport: var(--t-stage);
+  --line: var(--t-line);
+  --line-2: var(--t-line-2);
+  --vurgu: var(--t-accent);
+  --primary: var(--t-primary);
+  --green: var(--t-success);
+}
+
 /* Qradiyent SƏNƏDƏ yox, VIEWPORT-A sabitlənir (background-attachment:fixed
    YOX - iOS Safari-də xarab işləyir) - belə ki, sticky stage (mobil) həmişə
    eyni viewport mövqeyində olduğu üçün altındakı qradiyent dilimi də həmişə

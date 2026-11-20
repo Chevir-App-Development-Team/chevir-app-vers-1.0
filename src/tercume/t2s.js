@@ -18,7 +18,53 @@ const DEFAULTS = {
   leadInMs: 380,      // ilk addımda əlavə vaxt: avatarın qolu istirahətdən qalxır
   wordHoldMs: 150,    // söz işarəsinin son pozasında qısa saxlama (qısaldıldı)
   speed: 1,           // ümumi sürət: 0.5 — iki dəfə yavaş (izləyicinin sürət idarəsi)
+  questionHoldMs: 450, // sualın sonunda üz bir az saxlanır (cavab gözlənilir)
+  // Vaxt (roadmap A4, E34): 'natural' — iki işarə arasındakı fasilə AzSLD cümlələrindən ölçülüb (əlin getdiyi yolla
+  // artır) və qol bu fasilədə növbəti işarənin başlanğıcına çatır; cümlənin son işarəsi saxlanır, sonra əllər enir.
+  // 'fixed' — əvvəlki oynatma (E34-dən əvvəl): hər işarədən sonra wordHoldMs + transitionMs + boşluq, qol növbəti
+  // işarənin başlanğıcına yalnız o başlayanda gedir. V3-də (tools/backtranslate.mjs) ikisi bərabərdir, 'natural' cümləni
+  // ~0.8 s qısaldır.
+  timing: 'natural',
+  gapMs: [120, 160],   // 'natural': fasilə = a + b × ovucun yolu (çiyin eni vahidində), AzSLD-nin medianı
+  gapMinMs: 200,       // ən qısa fasilə: avatarın qolu (yay) bundan tez çatmır
+  finalHoldMs: 370,    // cümlənin son işarəsi ortadakından ~11 kadr uzundur (sual və nəqli cümlədə eyni)
+  jdSpeed: 1,          // JestDili.az klipləri (tək sözün videosu) cümlədə bu qədər sürətli (1.3: V3 dəyişmir, E34)
+  transitions: true,   // A1: fasilədə ovuc düz xətt üzrə, ölçülmüş sürət profili ilə (avatarın setTransition-u)
 };
+// İki işarə arasında ovucun yolu zamanla (AzSLD, 21 391 keçidin medianı; t = 0, 0.1, …, 1): əl yavaş ayrılır, tez çatır
+const PROFILE = [0, 0.04, 0.09, 0.16, 0.25, 0.35, 0.47, 0.60, 0.73, 0.87, 1];
+export function progress(t) {
+  const x = Math.min(1, Math.max(0, t)) * 10, k = Math.min(9, Math.floor(x));
+  return PROFILE[k] + (PROFILE[k + 1] - PROFILE[k]) * (x - k);
+}
+/** Söz kadrında ovucların yeri çiyinlərə nisbətən, çiyin eni vahidində (x, y — kameranın müstəvisi). */
+function palms(fr) {
+  const b = fr?.b;
+  if (!b) return {};
+  const mx = (b[1][0] + b[2][0]) / 2, my = (b[1][1] + b[2][1]) / 2;
+  const sw = Math.hypot(b[1][0] - b[2][0], b[1][1] - b[2][1]) || 1;
+  const out = {};
+  for (const [key, wrist] of [['L', 5], ['R', 6]]) {
+    const h = fr[key];
+    if (!h) continue;
+    const w = h.w;
+    const px = b[wrist][0] + (w[0][0] + w[5][0] + w[9][0] + w[17][0]) / 4 - w[0][0];
+    const py = b[wrist][1] + (w[0][1] + w[5][1] + w[9][1] + w[17][1]) / 4 - w[0][1];
+    out[key] = [(px - mx) / sw, (py - my) / sw];
+  }
+  return out;
+}
+/** İki söz arasında ovucun yolu (çiyin eni): hər iki kadrda olan əllərdən ən uzağı; ortaq əl yoxdursa 0.5. */
+export function travel(a, b) {
+  const p = palms(a.frames.at(-1)), q = palms(b.frames[0]);
+  const d = ['L', 'R'].filter((k) => p[k] && q[k]).map((k) => Math.hypot(p[k][0] - q[k][0], p[k][1] - q[k][1]));
+  return d.length ? Math.max(...d) : 0.5;
+}
+// Sual sözləri: sual cümləsində olan varsa sual "wh" növüdür (qaşlar çatılır), yoxsa hə/yox (qaşlar yuxarı)
+const WH = new Set(['nə', 'niyə', 'nəyə', 'nədir', 'nəyi', 'nədən', 'hara', 'harada', 'haraya', 'haradan', 'harası', 'harda',
+  'haradasan', 'haradasınız', 'hansı', 'hansını', 'necə', 'necəsən', 'necəsiniz', 'neçə', 'neçədə', 'neçəyə', 'neçədir',
+  'neçənci', 'kim', 'kimə', 'kimi', 'kimin', 'kimdən', 'kimdir', 'haçan']);
+const NEGATIVE = new Set(['yox', 'deyil']);
 
 export class TextToSign {
   constructor({ poses, lexicon = new WordLexicon(null), targets = [], onLetter, onState } = {}) {
@@ -46,7 +92,7 @@ export class TextToSign {
       if (seg.kind === 'space') {
         steps.push({ kind: 'space', char: ' ', ...at });
       } else if (seg.kind === 'word') {
-        steps.push({ kind: 'word', char: seg.text, entry: seg.entry, ...at });
+        steps.push({ kind: 'word', char: seg.text, entry: seg.entry, via: seg.via, ...at });
       } else {
         // Rəqəmin adı (7 → yeddi) mətndən uzundur: hərflər rəqəmin yerində qalır
         [...seg.text].forEach((ch, k) => {
@@ -56,7 +102,7 @@ export class TextToSign {
         });
       }
     }
-    return steps;
+    return grammar(text, steps);
   }
 
   /** Mətndə hansı simvolların pozası yoxdur. */
@@ -102,11 +148,41 @@ export class TextToSign {
     }
   }
 
+  /**
+   * İşarələrin siyahısı → addımlar: {id} — lüğətin sözü, {spell} — hərf-hərf (rəy səhifəsi: göstərilmiş
+   * cümlənin işarələri). Lüğətdə olmayan id də hərf-hərf göstərilir (`text` ilə).
+   */
+  planSigns(list) {
+    const byId = new Map(this.lexicon.entries.map((e) => [e.id, e]));
+    const letters = this.poses?.letters ?? {};
+    const steps = [];
+    let pos = 0;
+    list.forEach((s, i) => {
+      if (i) { steps.push({ kind: 'space', char: ' ', from: pos, to: pos + 1 }); pos++; }
+      const entry = s.id && byId.get(s.id);
+      const text = entry ? entry.text : azLower(s.spell ?? s.text ?? '');
+      const at = { from: pos, to: pos + text.length, seg: { from: pos, to: pos + text.length } };
+      if (entry) steps.push({ kind: 'word', char: entry.text, entry, ...at });
+      else {
+        [...text].forEach((c) => steps.push(letters[c] ? { kind: 'letter', char: c, pose: letters[c], ...at }
+          : { kind: 'unknown', char: c, ...at }));
+      }
+      pos += text.length;
+    });
+    const last = steps.findLastIndex((s) => s.kind === 'word' || s.kind === 'letter');
+    if (last >= 0) steps[last].end = true;
+    return steps;
+  }
+
   /** `entry` — lüğətin konkret sözü (lüğət vərəqi: eyni yazılışın ikinci mənası, bel (alət) / bel (bədən)). */
   async play(text, entry = null) {
-    this.stop();
     const all = { from: 0, to: text.length };
-    const steps = entry ? [{ kind: 'word', char: entry.text, entry, ...all, seg: all }] : this.plan(text);
+    return this.playSteps(entry ? [{ kind: 'word', char: entry.text, entry, ...all, seg: all }] : this.plan(text));
+  }
+
+  /** plan() və ya planSigns() addımlarını oynadır. */
+  async playSteps(steps) {
+    this.stop();
     if (!steps.length) return;
 
     const token = {};
@@ -127,30 +203,50 @@ export class TextToSign {
     }
 
     const sp = () => Math.max(this.opts.speed, 0.1);
+    const natural = this.opts.timing === 'natural';
     let first = true;
+    let moved = false;           // 'natural': növbəti sözə keçid artıq edilib, aradakı boşluq gözlənilmir
     for (let i = 0; i < steps.length; i++) {
       if (this._abort !== token) return;
       const step = steps[i];
+      for (const t of this.targets) t.setGrammar?.(step.gram ?? null);
       this.onLetter?.({ ...step, index: i, total: steps.length });
       this.onState?.({ playing: true, total: steps.length, index: i });
 
       if (step.kind === 'space') {
-        await this.#wait(this.opts.spaceMs / sp(), token);
+        if (!moved) await this.#wait(this.opts.spaceMs / sp(), token);
       } else if (step.kind === 'unknown') {
+        moved = false;
         await this.#wait(this.opts.transitionMs / sp(), token);
       } else if (step.kind === 'word' && words.get(step.entry.id)) {
         const word = words.get(step.entry.id);
         const lead = first ? this.opts.leadInMs : 0;
         first = false;
-        const dt = 1000 / (word.fps * sp());
+        moved = false;
+        const rate = step.entry.id?.startsWith('jd-') ? this.opts.jdSpeed : 1;
+        const dt = 1000 / (word.fps * sp() * rate);
         for (let f = 0; f < word.frames.length; f++) {
           if (this._abort !== token) return;
           this.#emitWord(word, f);
           await this.#wait(f === 0 ? dt + lead : dt, token);
         }
-        await this.#wait((this.opts.wordHoldMs + this.opts.transitionMs) / sp(), token);
+        // növbəti addım (boşluqlardan sonra) söz işarəsidirsə 'natural' vaxtda qol fasilədə ona keçir
+        let j = i + 1;
+        while (steps[j]?.kind === 'space') j++;
+        const next = steps[j]?.kind === 'word' ? words.get(steps[j].entry.id) : null;
+        if (!natural) {
+          await this.#wait((this.opts.wordHoldMs + this.opts.transitionMs) / sp(), token);
+        } else {
+          if (step.end) await this.#wait(this.opts.finalHoldMs / sp(), token);
+          else if (!next) await this.#wait((this.opts.wordHoldMs + this.opts.transitionMs) / sp(), token);
+          if (next) {
+            await this.#transition(word, next, token, sp());
+            moved = true;
+          }
+        }
       } else if (step.kind === 'word') {
         // Söz yüklənmədi — hərf-hərf
+        moved = false;
         for (const c of step.char.replace(/\s+/g, '')) {
           const pose = this.poses?.letters?.[c];
           if (!pose || this._abort !== token) continue;
@@ -158,6 +254,7 @@ export class TextToSign {
           await this.#wait((this.opts.holdMs + this.opts.transitionMs) / sp(), token);
         }
       } else {
+        moved = false;
         const { pose } = step;
         const frames = pose.frames;
         const lead = first ? this.opts.leadInMs : 0;
@@ -178,10 +275,39 @@ export class TextToSign {
       }
     }
 
+    // Sualın sonu: 'fixed' vaxtda əlavə saxlanır; 'natural'-da son işarənin saxlanması (finalHoldMs) eyni üzlə gedir —
+    // AzSLD-də sual cümləsinin son işarəsi nəqli cümlədəkindən uzun deyil
+    const q = steps.at(-1)?.gram?.q;
+    if (q && !natural) await this.#wait(this.opts.questionHoldMs / sp(), token);
     if (this._abort === token) {
+      for (const t of this.targets) t.setGrammar?.(null);
+      // 'natural': AzSLD-də son işarədən sonra əllər aşağı enir; avatar hazır vəziyyətə (hərflər üçün) qalxmır
+      const rest = natural && steps.at(-1)?.kind === 'word' ? this.targets.filter((t) => typeof t.toRest === 'function') : [];
       this.#emit(null);
+      for (const t of rest) t.toRest();
       this.playing = false;
       this.onState?.({ playing: false, total: steps.length, index: steps.length });
+    }
+  }
+
+  /**
+   * 'natural' vaxt: a-nın son kadrından b-nin ilk kadrına keçid. Fasilə AzSLD-dən (gapMs, ovucun yolu ilə artır);
+   * qol bu müddətdə b-nin başlanğıcına çatır, b öz başlanğıcından oynayır. transitions: true — avatar ovucu düz
+   * xətt üzrə ölçülmüş profillə aparır (setTransition, A1); yoxsa hədəf dərhal b-nin ilk kadrıdır, qolu yay aparır.
+   */
+  async #transition(a, b, token, speed) {
+    const [k0, k1] = this.opts.gapMs;
+    const gap = Math.max(this.opts.gapMinMs, k0 + k1 * travel(a, b)) / speed;
+    this.#emitWord(b, 0);
+    const path = this.opts.transitions ? this.targets.filter((t) => typeof t.setTransition === 'function') : [];
+    if (!path.length) { await this.#wait(gap, token); return; }
+    const t0 = performance.now();
+    for (;;) {
+      if (this._abort !== token) return;
+      const t = (performance.now() - t0) / gap;
+      for (const tg of path) tg.setTransition(a, a.frames.length - 1, b, 0, progress(t));
+      if (t >= 1) return;
+      await this.#wait(16, token);
     }
   }
 
@@ -199,6 +325,7 @@ export class TextToSign {
   resume() { this.paused = false; }
 
   stop() {
+    for (const t of this.targets ?? []) t.setGrammar?.(null);
     this._abort = null;
     this.playing = false;
     this.paused = false;
@@ -261,6 +388,40 @@ export function separateHands(pts, min = 0.02) {
       pts[21 + k].x += ax[0] * step; pts[21 + k].y += ax[1] * step; pts[21 + k].z += ax[2] * step;
     }
   }
+}
+
+/**
+ * Addımlara cümlənin qrammatikası (roadmap N6): sual cümləsinin addımları q ('yn' | 'wh'), inkarın işarəsi (YOX, əlavə
+ * olunmuş inkar, "deyil") və əlavə olunmuş YOX-dan əvvəlki fel shake alır. Cümlə sonu: . ? ! … (mətnin öz yazılışı).
+ */
+export function grammar(text, steps) {
+  const ends = [];
+  const re = /[.?!…]+/g;
+  let m;
+  while ((m = re.exec(text))) ends.push({ at: m.index + m[0].length, q: m[0].includes('?') });
+  const kind = new Map();
+  ends.forEach((e, k) => {
+    if (!e.q) return;
+    const from = k ? ends[k - 1].at : 0;
+    const words = azLower(text.slice(from, e.at)).split(/[^\p{L}]+/u);
+    kind.set(k, words.some((w) => WH.has(w)) ? 'wh' : 'yn');
+  });
+  const sentenceOf = (pos) => { const k = ends.findIndex((e) => pos < e.at); return k === -1 ? ends.length : k; };
+  // Cümlənin son işarəsi (end): 'natural' vaxtda saxlanır (A4)
+  const last = new Map();
+  steps.forEach((s, i) => { if (s.kind === 'word' || s.kind === 'letter') last.set(sentenceOf(s.from ?? 0), i); });
+  for (const i of last.values()) steps[i].end = true;
+  steps.forEach((s, i) => {
+    const q = kind.get(sentenceOf(s.from ?? 0)) ?? null;
+    const neg = s.kind === 'word' && (s.via === 'neg' || NEGATIVE.has(azLower(s.entry?.text ?? '')));
+    if (q || neg) s.gram = { q, shake: neg };
+    // inkarlı felin işarəsi də (GƏLMƏK YOX: baş fel ilə yellənməyə başlayır)
+    if (s.via === 'neg') {
+      const prev = steps.slice(0, i).reverse().find((x) => x.kind === 'word');
+      if (prev) prev.gram = { q: prev.gram?.q ?? q, shake: true };
+    }
+  });
+  return steps;
 }
 
 export async function loadPoses(url = './assets/poses.json') {

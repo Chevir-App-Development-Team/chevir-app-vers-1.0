@@ -7,7 +7,8 @@ merge moves to lemma_groups.csv, a rejected one is dropped. Groups are named so 
 (sign_merge() looks a gloss up once): an existing confirmed family keeps its name, two different words that are
 one sign get "A/B", otherwise the existing same_sign name, then the infinitive, then the most frequent label.
 
-python -I tools/same_sign/apply_review.py ml/review/word_forms_review.csv
+python -I tools/same_sign/apply_review.py ml/review/word_forms_review.csv [--tag "word-form review 2026-10"]
+(--tag: the note's prefix; tools/apply_native_review.py passes its own for later rounds, E36)
 """
 import csv
 import re
@@ -18,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.stdout.reconfigure(encoding='utf-8')
 review_path = Path(sys.argv[1])
-TAG = 'word-form review 2026-10'
+TAG = sys.argv[sys.argv.index('--tag') + 1] if '--tag' in sys.argv else 'word-form review 2026-10'
 
 
 def read(p, enc='utf-8'):
@@ -75,7 +76,9 @@ for x in list(parent):
 synonyms = {frozenset((a, b)) for a, b, _, c in yes if c.startswith('7')}
 families = set(confirmed.values())
 def name(members):
-    fam = sorted(m for m in members if m in families and confirmed.get(m) == m)
+    # an existing family keeps its name, also one with no row of its own (KÖMƏK/YARDİM): a second round must
+    # not rename the groups of the first (E36)
+    fam = sorted(m for m in members if m in families and confirmed.get(m, m) == m)
     syn = [p for p in synonyms if p <= members]
     if syn:
         heads = sorted(next(iter(syn)), key=lambda g: -freq[g])
@@ -111,7 +114,8 @@ for r in lemma:
         r['group'] = group_of[g]
     out.append(r)
     seen.add(g)
-new = sorted((grp, g) for g, grp in group_of.items() if g not in seen)
+# a family name that is not a gloss itself (KÖMƏK/YARDİM) gets no row
+new = sorted((grp, g) for g, grp in group_of.items() if g not in seen and not (g in families and g not in freq))
 for grp, g in new:
     out.append({'group': grp, 'gloss': g, 'confirmed': 'yes', 'note': notes.get(g, f'{TAG}: base form of the group')})
 with open(ROOT / 'ml/lemma_groups.csv', 'w', newline='', encoding='utf-8') as f:

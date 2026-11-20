@@ -1,0 +1,237 @@
+/* /danis/ — kamera böyük, altyazı kadrın altında; yanda söhbət. tercume.css-in rəngləri və komponentləri. */
+.danis-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+  gap: 16px;
+  padding: 16px var(--gutter) 32px;
+}
+
+.danis-view {
+  height: min(72vh, 760px);
+}
+
+.danis-status {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: rgba(6, 13, 36, 0.78);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.danis-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3, #6b7a99);
+}
+
+.danis-status[data-state='running'] .dot {
+  background: #3fd68f;
+  box-shadow: 0 0 8px #3fd68f;
+}
+
+.danis-status[data-state='error'] .dot {
+  background: #ff5f6d;
+}
+
+.danis-hint {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  font-size: 14px;
+  background: rgba(245, 185, 79, 0.92);
+  color: #1a1203;
+  padding: 7px 14px;
+  border-radius: 16px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  text-align: center;
+}
+
+.debug .danis-hint {
+  top: 92px;
+}
+
+.danis-hint[hidden] {
+  display: none;
+}
+
+.danis-debug {
+  position: absolute;
+  top: 46px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  z-index: 3;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  background: rgba(6, 13, 36, 0.78);
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.danis-debug[hidden] {
+  display: none;
+}
+
+.danis-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 18px 22px 16px;
+  background: linear-gradient(to top, rgba(6, 13, 36, 0.92) 55%, rgba(6, 13, 36, 0));
+}
+
+/* cümlə bağlanmağa nə qədər qalıb (s2s onPause): son sözdən sonra dolur, dolanda cümlə söhbətə keçir */
+.danis-closing {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--accent-b-on-dark, #6fb1ff);
+  opacity: 0.8;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.27s linear;
+}
+
+.danis-text {
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 34px);
+  font-weight: 600;
+  line-height: 1.25;
+  color: #fff;
+  min-height: 1.25em;
+}
+
+.danis-text .muted {
+  font-size: 0.6em;
+  font-weight: 400;
+}
+
+.danis-cursor {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.12em;
+  margin-left: 0.2em;
+  background: var(--accent-b-on-dark, #6fb1ff);
+  animation: danis-blink 1s steps(2) infinite;
+}
+
+@keyframes danis-blink {
+  50% { opacity: 0; }
+}
+
+.danis-signs {
+  margin: 8px 0 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  min-height: 1.4em;
+}
+
+.danis-signs .final {
+  color: var(--ink-2, #c8d2e6);
+}
+
+.danis-signs .pending {
+  color: var(--ink-3, #6b7a99);
+  font-style: italic;
+}
+
+.hide-signs .danis-signs {
+  display: none;
+}
+
+.danis-start {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  font-size: 18px;
+  padding: 14px 28px;
+}
+
+.danis-start[hidden] {
+  display: none;
+}
+
+.danis-controls {
+  margin-top: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.danis-controls .btn {
+  flex: 0 0 auto;
+}
+
+.danis-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink-2);
+  margin-left: auto;
+}
+
+.danis-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap, 16px);
+}
+
+.danis-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.danis-history li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.danis-history .t {
+  font-size: 17px;
+  color: var(--ink);
+}
+
+.danis-history .g {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-3, #6b7a99);
+}
+
+.hide-signs .danis-history .g {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .danis-main {
+    grid-template-columns: 1fr;
+    padding-top: 8px;
+  }
+
+  .danis-view {
+    height: 62vh;
+  }
+}

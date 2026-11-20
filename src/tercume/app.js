@@ -198,6 +198,9 @@ function initS2T() {
   const ensureS2S = () => {
     s2sLoading ??= (async () => {
       const { SignToSentence } = await import('./s2s.js');
+      // cümlənin 2–3 variantı (işarə dil modeli, E32): toxunanda seçilir, düzəliş yalnız bu cihazda saxlanılır
+      const alt = await import('./correct.js');
+      alt.mountCorrectionsBar($('#sentence-corrections'));
       const s2s = new SignToSentence({
         video,
         onStatus: ({ message, stage }) => setStatus(message, stage, 's2t'),
@@ -207,15 +210,16 @@ function initS2T() {
           state.skelS2T?.setPose(hands[0] ?? null);
           $('#ring-label').textContent = hands.length ? 'jest' : 'istirahət';
         },
-        onWords: ({ words, added, sentence, text, ms }) => {
-          renderSentence(words, added.length, sentence, text);
+        // hələ yekun olmayan sözlər də (boz) dərhal görünür; mətn hamısından qurulur (/danis/ ilə eyni)
+        onLive: ({ words, pending, text, match }) => renderSentence([...words, ...pending], 0, match, text || null),
+        onWords: ({ added, ms }) => {
           const last = added[added.length - 1];
           if (last) renderPredictions([{ label: last.label, p: last.p }]);
           $('#sentence-info').textContent = `+${added.length} · ${Math.round(ms)} ms`;
         },
-        onSentence: ({ words, match, text }) => {
-          const li = document.createElement('li');
-          li.textContent = words.map((w) => w.label).join(' ') + (text ? `  ${match ? '≈' : '→'}  ${text}` : '');
+        onSentence: ({ words, text, alternatives }) => {
+          const li = alt.renderSentence(document.createElement('li'), alt.sentenceEntry({ words, text, alternatives }),
+            { page: 'tercume' });
           $('#sentence-history').prepend(li);
           renderSentence([], 0, null);
         },
@@ -355,7 +359,7 @@ function renderSigns(signs, nNew = 0) {
 
 function renderSentence(words, nNew, match, text = null) {
   $('#sentence-words').innerHTML = words.length
-    ? words.map((w, i) => `<span class="s${i >= words.length - nNew ? ' new' : ''}">${escapeHtml(w.label)}<em>${Math.round(w.p * 100)}%</em></span>`).join('')
+    ? words.map((w, i) => `<span class="s${i >= words.length - nNew ? ' new' : ''}${w.pending ? ' unsure' : ''}">${escapeHtml(w.label)}<em>${Math.round(w.p * 100)}%</em></span>`).join('')
     : '<span class="muted">boş</span>';
   // Mətn: AzSLD-də yaxın cümlə varsa onun mətni, yoxsa işarələrdən qurulmuş mətn (gloss2text.js)
   const m = $('#sentence-match');
@@ -616,6 +620,7 @@ function renderAboutLetters() {
     `<tr><td>${name}</td><td class="n">${test[k].n}</td><td class="n">${pct(test[k].top1)}</td>`
     + `<td class="n">${pct(test[k].macro_f1)}</td><td class="n">${pct(old[k]?.top1)}</td></tr>`).join('');
   const per = Object.entries(m.test_per_letter ?? {}).sort((a, b) => a[0].localeCompare(b[0], 'az'));
+  const jd = m.jestdili?.runs?.[m.run];
   const bars = per.length ? `<h3>Hərf üzrə test (görmədiyi insanlar)</h3><div class="bars">${per.map(([ch, r]) =>
     `<div><span>${escapeHtml(ch)}</span><u><i style="width:${(r.recall * 100).toFixed(1)}%"></i></u>`
     + `<em>${(r.recall * 100).toFixed(0)}%</em></div>`).join('')}</div>` : '';
@@ -641,6 +646,13 @@ function renderAboutLetters() {
     </table>
     <div class="note">Köhnə model (20 kadrın xam əl koordinatları, 4 qatlı şəbəkə) eyni test nümunələrində
     ölçülüb. Fingerspelling şəkilləri ona təlimdə tanış ola bilər - həmin sətirdə onun nəticəsi optimistdir.</div>
+    ${m.metrics_from ? `<div class="note">Quraşdırılan model (${escapeHtml(m.run)}) eyni reseptlə AzSLD-nin bütün
+    iştirakçılarında öyrədilib, ona görə öz testi yoxdur: cədvəldəki rəqəmlər test iştirakçılarını görməyən
+    ${escapeHtml(m.metrics_from)} modelinindir.</div>` : ''}
+    ${jd ? `<h3>Başqa insan: JestDili.az əlifbası</h3>
+    <p>Hər hərfə bir şəkil (AzSLD-də olmayan insan): statik hərflərin <b>${jd.static_n}</b>-dən
+    <b>${Math.round(jd.static_top1 * jd.static_n)}</b>-i düzgün (${pct(jd.static_top1)}), ilk 3-də ${pct(jd.top3)}
+    (32 hərf). Hərəkətli hərflərin (${jd.moving_n}) şəkli hərəkəti göstərmir, model onları hərəkətdən tanıyır.</p>` : ''}
     ${bars}
 
     <h3>Hərf nə vaxt yazılır</h3>

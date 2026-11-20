@@ -12,8 +12,8 @@ const fetchImpl = async (url) => {
   return { ok: true, status: 200, json: async () => JSON.parse(data.toString('utf8')), arrayBuffer: async () => data };
 };
 const rec = await LocalRecognizer.load(MODEL.href, { fetchImpl });
-const meta = JSON.parse(readFileSync(new URL('ml/fixtures/continuous_v2.json', root), 'utf8'));
-const buf = readFileSync(new URL('ml/fixtures/continuous_v2.bin', root));
+const meta = JSON.parse(readFileSync(new URL('ml/fixtures/continuous_v3.json', root), 'utf8'));
+const buf = readFileSync(new URL('ml/fixtures/continuous_v3.bin', root));
 const all = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
 const f = meta.features.find((x) => x.T >= T);
 const raw = { T };

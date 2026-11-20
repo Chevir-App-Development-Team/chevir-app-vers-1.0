@@ -1,0 +1,20 @@
+[
+ {"id": "slovo_new_installed", "title": "Rus işarə dilindən yeni sözlər (tanıyıcıda var)",
+  "intro": "Proqram bu sözləri Rus işarə dilinin videolarından öyrənib. Azərbaycan işarə dilində də belə göstərilir? Solda rus iştirakçıları, sağda müqayisə üçün JestDili.az."},
+ {"id": "slovo_map", "title": "Rus işarə dili ilə ortaq sözlər",
+  "intro": "Proqram bu rus işarələrini Azərbaycan sözünün işarəsi kimi öyrənir. Eyni işarədir? Solda rus iştirakçıları, sağda AzSLD iştirakçıları və JestDili.az."},
+ {"id": "d5", "title": "Söz formaları: bir işarə, yoxsa iki?",
+  "intro": "AzSLD-də sözün formaları ayrıca adlanıb (məsələn GÜN və GÜNÜ). Hər cütün iki videosuna baxın: eyni işarədir?"},
+ {"id": "n9", "title": "Qrammatika qaydaları",
+  "intro": "Avatar cümləni bu qaydalarla göstərir. Videonun altında avatarın göstərdiyi işarələr yazılıb. Belə düzdür?"},
+ {"id": "n8", "title": "Sinonimlər və çoxmənalı sözlər",
+  "intro": "Bir neçə yazılış bir işarə ilə göstərilir (burda / burada, rəhmətə getmək / ölmək). Düzdür?"},
+ {"id": "literal", "title": "Bir neçə sözdən ibarət işarələr",
+  "intro": "AzSLD iştirakçıları bu ifadələri belə göstərib. Bu doğma işarədir, yoxsa yazılı mətnin sözbəsöz tərcüməsi (məsələn «anadan olmaq» = ANA + OLMAQ)?"},
+ {"id": "slovo_azsld55", "title": "Rus işarə dili: ortaq ola biləcək sözlər",
+  "intro": "Bu rus işarələri AzSLD-də olan sözlərə uyğun gəlir, amma hələ yoxlanmayıb. Azərbaycan işarə dilində də belədir?"},
+ {"id": "slovo_new_unchecked", "title": "Rus işarə dili: yoxlanmamış yeni sözlər",
+  "intro": "Bu sözlər hələ tanıyıcıda yoxdur. Rus işarəsi Azərbaycan işarə dilində də belədirsə, əlavə olunacaq."},
+ {"id": "v2", "title": "Avatar və proqramın mətni",
+  "intro": "Mətn → işarə: avatarın videosuna baxın, nə dediyini yazın, sonra mətni görüb qiymət verin. İşarə → mətn: avatar bir iştirakçının işarələrini təkrarlayır, proqramın yazdığı mətni qiymətləndirin."}
+]
